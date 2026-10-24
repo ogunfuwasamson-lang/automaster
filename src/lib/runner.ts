@@ -46,12 +46,13 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
       const v = a.artifact_versions.find((x) => x.version === a.current_version && x.user_approved_at);
       return v ? [{ artifact_id: a.id, title: a.title, prompt: a.prompt, kind: a.kind, text: v.content }] : [];
     });
-  const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }] = await Promise.all([
+  const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }, { data: mail }] = await Promise.all([
     getProfile(userId),
     db.from("profiles").select("email, portal_details").eq("id", userId).single(),
     db.from("recommenders").select("name, email, title, organization, relationship, phone").eq("user_id", userId).order("created_at"),
     db.from("documents").select("id, kind, filename").eq("user_id", userId).eq("status", "extracted").order("created_at"),
     db.auth.admin.getUserById(userId),
+    db.from("mail_accounts").select("email, status").eq("user_id", userId).maybeSingle(),
   ]);
   return buildSheet({
     applicationId,
@@ -60,7 +61,9 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
     degree: p.degree,
     portalUrl: app.portal_url ?? p.url,
     attested: !!app.attested_at,
-    accountEmail: prof?.email ?? user?.user?.email ?? null,
+    // portal accounts use the connected gmail, so the agents can read the portal's verification emails.
+    // an email the applicant typed into "details for application forms" still wins.
+    accountEmail: (mail?.status === "active" ? mail.email : null) ?? prof?.email ?? user?.user?.email ?? null,
     profile,
     details: (prof?.portal_details ?? {}) as PortalDetails,
     recommenders: (recs ?? []) as RecommenderRow[],
