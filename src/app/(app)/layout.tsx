@@ -8,6 +8,7 @@ const NAV = [
   { href: "/interview", label: "interview" },
   { href: "/profile", label: "profile" },
   { href: "/shortlist", label: "shortlist" },
+  { href: "/applications", label: "applications" },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

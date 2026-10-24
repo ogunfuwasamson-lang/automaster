@@ -11,7 +11,7 @@ export default async function Dashboard() {
   const { sb, user } = auth;
 
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }] = await Promise.all([
+  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }, { data: drafts }] = await Promise.all([
     sb.from("grants").select("capability, mode, undo_seconds, ceiling_cents").order("capability"),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }),
     sb.from("events").select("id, actor, action, created_at, context").order("created_at", { ascending: false }).limit(20),
@@ -22,6 +22,7 @@ export default async function Dashboard() {
       .gte("target_deadline", today)
       .order("target_deadline")
       .limit(5),
+    sb.from("events").select("id, application_id, context, created_at").eq("action", "artifact.ready_for_user").order("created_at", { ascending: false }).limit(5),
   ]);
 
   return (
@@ -49,6 +50,22 @@ export default async function Dashboard() {
           <p className="text-sm text-neutral-500">nothing needs you right now.</p>
         )}
       </section>
+
+      {drafts?.length ? (
+        <section>
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">drafts ready for you</h2>
+          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
+            {drafts.map((d) => (
+              <li key={d.id}>
+                <Link href={`/applications/${d.application_id}`} className="block px-4 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                  {(d.context as { title?: string })?.title ?? "draft"}
+                  <span className="text-neutral-500"> · {new Date(d.created_at).toLocaleString()}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section>
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">next deadlines</h2>

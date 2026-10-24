@@ -11,7 +11,7 @@ import { enqueue } from "@/lib/queue";
 // several CV versions, old essays, the interview. it never decides a disputed fact itself;
 // disagreements go to the user as one-tap choices.
 
-const CurateOut = z.object({
+export const CurateOut = z.object({
   profile: WirePatch, // the complete cleaned profile, not a diff
   conflicts: z.array(
     z.object({

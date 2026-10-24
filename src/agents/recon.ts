@@ -41,7 +41,7 @@ funding varies by field and country, so reason from the applicant's actual field
 
 search the web and use official university pages, not rankings blogs or agents' sites.`;
 
-const Candidates = z.object({
+export const Candidates = z.object({
   candidates: z.array(
     z.object({
       school: z.string(),
@@ -68,7 +68,7 @@ report facts exactly as the school states them, with dates in YYYY-MM-DD. when a
 then judge fit for this applicant honestly: tier (reach/target/safety) and a 0-10 fit score are about ADMISSION odds, not funding. red flags are things that block admission.
 also report funding levers that open up after admission: whether admits get considered for merit aid automatically, whether assistantships are posted after admission, whether aid can be appealed or reconsidered, and who to contact.`;
 
-const ProgramFacts = z.object({
+export const ProgramFacts = z.object({
   school_name: z.string(),
   school_city: z.string(),
   school_state: z.string(), // state/province, "" if none
@@ -413,7 +413,7 @@ rules:
 - amounts in USD (approximate, mention original currency), deadlines for the target intake, and whether their citizenship is eligible. "not found" when a page doesn't say.
 - skip scams, essay-mill "scholarships", and anything that charges a fee to apply.`;
 
-const Scholarships = z.object({
+export const Scholarships = z.object({
   scholarships: z.array(
     z.object({
       name: z.string(),

@@ -3,6 +3,7 @@ import { daysUntil, upcomingDeadlines, type DeadlineRow } from "@/lib/fit";
 import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } from "./controls";
 import { REGIONS, loadProfile } from "@/lib/profile";
 import Link from "next/link";
+import { PrepareButton } from "../applications/[id]/prepare-button";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,8 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
         )}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {(p.url || r.portal_url) && <a href={p.url ?? r.portal_url!} target="_blank" rel="noreferrer" className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700">program page</a>}
+          {r.status === "shortlisted" && <PrepareButton id={r.id} replan={false} busy={false} label="prepare application" />}
+          {!["researching", "shortlisted", "dropped"].includes(r.status) && <Link href={`/applications/${r.id}`} className="rounded-md bg-neutral-900 px-2.5 py-1 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900">open application</Link>}
           {r.status === "researching" && <MoveButton id={r.id} to="shortlisted" label="add to shortlist" />}
           {(r.status === "researching" || r.status === "shortlisted") && <MoveButton id={r.id} to="dropped" label="drop" />}
           {p.source_urls?.length > 0 && <span className="text-xs text-neutral-500">{p.source_urls.length} sources checked</span>}

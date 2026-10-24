@@ -20,8 +20,8 @@ drafts, funding, submission prep. you review, they run.
 | 0 | schema, autonomy policy, job queue, agent runtime, event log, tests | done |
 | 1 | intake: doc upload, extraction, voice interview | done |
 | 2 | recon + deadline tracker | done |
-| 3 | strategist, writer, red team | next |
-| 4 | closer: funding hunt, gmail outreach | |
+| 3 | strategist, writer, red team | done |
+| 4 | closer: post-admission funding, fee waivers, gmail outreach | next |
 | 5 | runner: fill sheets, browser extension | |
 | 6 | dashboard polish, digest, ripcord ui | |
 

@@ -6,7 +6,7 @@ import { WirePatch, fromWire, WIRE_GUIDE, profileGaps, completeness, profileBrie
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
 
-const TurnOut = z.object({
+export const TurnOut = z.object({
   reply: z.string(), // spoken aloud
   patch: WirePatch, // only facts the user just stated
   mode: z.enum(["gaps", "stories", "wrap_up"]),

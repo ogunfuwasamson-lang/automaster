@@ -12,7 +12,7 @@ import { scheduleConsolidate } from "./curator";
 
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
-const ExtractOut = z.object({
+export const ExtractOut = z.object({
   detected_kind: z.enum(["cv", "transcript", "degree_certificate", "test_score", "reference_letter", "old_essay", "other"]),
   summary: z.string(), // one or two lines for the documents list
   patch: WirePatch,
