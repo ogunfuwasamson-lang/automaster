@@ -90,7 +90,7 @@ export const DOM_HELPER = String.raw`
   }
   function buttons() {
     return [...document.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"]')].filter(visible)
-      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || "").trim().slice(0, 80), link: b.tagName === "A" }))
+      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || "").trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
       .filter((b) => b.label);
   }
   function setValue(el, v) {

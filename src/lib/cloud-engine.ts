@@ -16,7 +16,7 @@ export interface Snapshot {
   fingerprint: string;
   fields: (PageField & { autocomplete?: string })[];
   allFields: { id: string; label: string; type: string; autocomplete?: string; required?: boolean }[];
-  buttons: { id: string; label: string; link: boolean }[];
+  buttons: { id: string; label: string; link: boolean; href?: string }[];
   errors?: string[];
 }
 
@@ -151,7 +151,10 @@ async function fillText(page: Page, id: string, value: string) {
 
 // bilingual portals label buttons "Log in / Ouvrez une session": match on the first language
 const clean = (l: string) => l.replace(/[\u2190-\u21ff\u2794-\u27bf›»<>←→]+/g, " ").split(/\s+\/\s+|\s+\|\s+/)[0].replace(/\s+/g, " ").trim();
-const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link));
+// a link back to the page we're on ("Apply Now" in the menu of the apply page) goes nowhere: skip it
+const here = (u: string) => u.replace(/#.*$/, "").replace(/\/$/, "");
+const goesSomewhere = (s: Snapshot, b: { href?: string }) => !b.href || /^javascript:/i.test(b.href) ? true : here(b.href) !== here(s.url);
+const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link) && goesSomewhere(s, b));
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
