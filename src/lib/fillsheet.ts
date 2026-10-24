@@ -117,6 +117,8 @@ export function buildSheet(a: {
   set("field_of_interest", p.goals.fields?.join(", "));
   // answers most portals ask up front. applying through an agent is never the case here: the applicant applies.
   set("applying_as", "myself");
+  // "application type" / "admit type": graduate or undergraduate, from the level they're applying at
+  set("application_type", levelOf(p) === "undergraduate" ? "Undergraduate" : "Graduate");
   set("study_mode", /part.?time|online|executive/i.test(`${a.program} ${a.degree ?? ""}`) ? (/online/i.test(a.program) ? "Online" : "Part-time") : "Full-time");
   if (p.identity.citizenship && a.schoolCountry) {
     const same = norm(p.identity.citizenship).startsWith(norm(a.schoolCountry).slice(0, 5)) || norm(a.schoolCountry).startsWith(norm(p.identity.citizenship).slice(0, 5));
@@ -232,6 +234,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
+  [/\b(application|applicant|admission|admit)\s+type\b|type of (application|applicant|admission)/i, "application_type"],
   [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent|who are you applying for/i, "applying_as"],
   [/\b(mode of study|study mode|attendance mode|full.?time or part.?time|part.?time or full.?time)\b|^\s*full.?time\s+part.?time\s*$|^\s*part.?time\s+full.?time\s*$/i, "study_mode"],
   [/\b(do you|will you) (require|need) a (student )?visa|\bvisa (required|needed)|require a visa/i, "visa_required"],

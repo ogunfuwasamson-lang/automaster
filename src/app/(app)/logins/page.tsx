@@ -6,6 +6,7 @@ import { PageHeader, Empty } from "@/components/ui/page";
 import { Tag } from "@/components/ui/chip";
 import { SchoolTile } from "@/components/home/app-list";
 import { Reveal, CopyText } from "./reveal";
+import { AddLogin } from "./add";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Portal logins" };
@@ -19,6 +20,8 @@ const STATUS: Record<string, [string, "go" | "accent" | "stop" | "plain"]> = {
 export default async function Logins() {
   const auth = await requireUser();
   if (!auth) return null;
+  const { data: apps } = await auth.sb.from("applications").select("id, portal_url, programs(schools(name))").not("status", "in", "(researching,dropped,withdrawn)").order("target_deadline");
+  const appList = ((apps ?? []) as unknown as { id: string; portal_url: string | null; programs: { schools: { name: string } } }[]).map((a) => ({ id: a.id, school: a.programs.schools.name, portal: a.portal_url }));
   const { data: rows } = await admin()
     .from("portal_accounts")
     .select("id, application_id, portal_host, login_email, status, created_at, applications(id, portal_url, programs(name, schools(name)))")
@@ -38,7 +41,8 @@ export default async function Logins() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Portal logins"
-        description="Every account the agents created on a school's portal, and any login a school emailed you. The agents sign in with these on their own; you only need them to look at a portal yourself."
+        description="Every account the agents created on a school's portal, any login a school emailed you, and any you add. The agents sign in with these on their own."
+        actions={<AddLogin apps={appList} />}
       />
       {list.length ? (
         <div className="grid gap-3">

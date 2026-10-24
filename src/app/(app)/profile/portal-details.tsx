@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,12 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const router = useRouter();
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const setRec = (i: number, k: keyof RecommenderRow, v: string) => {
     setRecs(recs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
     setDirty(true);
@@ -98,11 +104,11 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
         )}
       </fieldset>
 
-      <div className="sticky bottom-20 flex flex-wrap items-center gap-3 rounded-3xl border border-line bg-surface shadow-card/95 p-3 backdrop-blur md:bottom-4">
+      <div className={`glass sticky bottom-[calc(env(safe-area-inset-bottom)+92px)] z-20 flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-lift lg:bottom-4 ${dirty ? "border-accent/40" : "border-line"}`}>
         <Button type="submit" disabled={saving || !dirty}>
           {saving ? "Saving…" : dirty ? "Save details" : "Saved"}
         </Button>
-        <span className="text-xs text-muted">Passport and ID numbers are never stored. The agents leave those fields for you.</span>
+        <span className="text-xs text-muted">{dirty ? <span className="font-bold text-accent">You have unsaved changes.</span> : "Passport and ID numbers are never stored. The agents leave those fields for you."}</span>
       </div>
     </form>
   );

@@ -57,6 +57,11 @@ describe("fill sheet", () => {
     expect(s.fields.entry_start).toBe("September 2027");
     expect(s.fields.rec1_email).toBe("grace@x.com");
   });
+  it("answers application type from the level", () => {
+    expect(keyForLabel("Application Type")).toBe("application_type");
+    expect(keyForLabel("Type of applicant")).toBe("application_type");
+    expect(sheet().fields.application_type).toBe("Graduate");
+  });
   it("uses details confirmed in conversation when the form details are blank", () => {
     const p = profile();
     p.confirmed_facts = [

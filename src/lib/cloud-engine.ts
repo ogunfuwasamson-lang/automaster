@@ -248,7 +248,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
           await click(page, create.id);
           continue;
         }
-        return { outcome: { kind: "needs_you", reason: "login", note: "the portal asks you to sign in and there's no way to create an account here. sign in once in the live view" }, state, filled };
+        return { outcome: { kind: "needs_you", reason: "login", note: "this portal only has a sign-in page, with no way to create an account here. Create your account where the school says, then add it under Portal logins; the agents sign in with it and carry on" }, state, filled };
       }
       const pw = s.allFields.find((f) => f.type === "password")!;
       const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
