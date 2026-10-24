@@ -1,0 +1,144 @@
+// runs the real migration against a throwaway postgres and checks the invariants
+// that protect the user: RLS isolation, the submit floor, append-only events, job claiming.
+// needs TEST_DATABASE_URL (superuser). skipped otherwise.
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readFileSync } from "node:fs";
+import { Client } from "pg";
+import { APP_STATUSES, TRANSITIONS } from "@/lib/app-state";
+
+const url = process.env.TEST_DATABASE_URL;
+const d = url ? describe : describe.skip;
+
+const ALICE = "00000000-0000-0000-0000-00000000000a";
+const BOB = "00000000-0000-0000-0000-00000000000b";
+
+d("database invariants", () => {
+  let db: Client;
+
+  async function as<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await db.query("begin");
+    await db.query("set local role authenticated");
+    await db.query(`select set_config('request.jwt.claim.sub', $1, true)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await db.query("rollback");
+    }
+  }
+
+  beforeAll(async () => {
+    db = new Client({ connectionString: url });
+    await db.connect();
+    await db.query("drop schema if exists public cascade; create schema public; drop schema if exists auth cascade;");
+    await db.query(readFileSync("supabase/test/shim.sql", "utf8"));
+    await db.query(readFileSync("supabase/migrations/0001_init.sql", "utf8"));
+    await db.query("grant usage on schema public to authenticated; grant select, insert, update, delete on all tables in schema public to authenticated;");
+    await db.query(`insert into auth.users(id, email) values ($1, 'alice@x.com'), ($2, 'bob@x.com')`, [ALICE, BOB]);
+    const school = await db.query(`insert into schools(slug, name) values ('test-u', 'Test U') returning id`);
+    const prog = await db.query(
+      `insert into programs(school_id, name, degree) values ($1, 'MS Finance', 'MS') returning id`,
+      [school.rows[0].id],
+    );
+    await db.query(`insert into applications(user_id, program_id) values ($1, $2), ($3, $2)`, [ALICE, prog.rows[0].id, BOB]);
+  });
+
+  afterAll(async () => {
+    await db?.end();
+  });
+
+  it("new users get a profile and the default dial", async () => {
+    const { rows } = await db.query(`select capability, mode from grants where user_id = $1 order by capability`, [ALICE]);
+    expect(rows.length).toBe(11);
+    expect(rows.find((r) => r.capability === "sign").mode).toBe("approve");
+    expect(rows.find((r) => r.capability === "email.new_contact").mode).toBe("auto_undo");
+  });
+
+  it("db transition table matches app-state.ts", async () => {
+    const { rows } = await db.query(`select from_status, to_status from app_transitions`);
+    const dbPairs = new Set(rows.map((r) => `${r.from_status}>${r.to_status}`));
+    const tsPairs = new Set(APP_STATUSES.flatMap((f) => TRANSITIONS[f].map((t) => `${f}>${t}`)));
+    expect(dbPairs).toEqual(tsPairs);
+  });
+
+  it("users only see their own rows", async () => {
+    const n = await as(ALICE, async () => (await db.query(`select user_id from applications`)).rows);
+    expect(n.length).toBe(1);
+    expect(n[0].user_id).toBe(ALICE);
+    const grants = await as(BOB, async () => (await db.query(`select distinct user_id from grants`)).rows);
+    expect(grants).toEqual([{ user_id: BOB }]);
+  });
+
+  it("users cannot write events or flip their own applications from the client", async () => {
+    await expect(
+      as(ALICE, () => db.query(`insert into events(user_id, actor, action) values ($1, 'user', 'x')`, [ALICE])),
+    ).rejects.toThrow(/row-level security/);
+    const res = await as(ALICE, () => db.query(`update applications set status = 'shortlisted'`));
+    expect(res.rowCount).toBe(0);
+  });
+
+  it("cannot submit without packet approval", async () => {
+    const { rows } = await db.query(`select id from applications where user_id = $1`, [ALICE]);
+    const id = rows[0].id;
+    for (const s of ["shortlisted", "preparing", "ready_for_review"]) {
+      await db.query(`update applications set status = $1 where id = $2`, [s, id]);
+    }
+    await expect(db.query(`update applications set status = 'submitted' where id = $1`, [id])).rejects.toThrow(/illegal/);
+    // force the state without approval: trigger still blocks submit
+    await db.query(`alter table applications disable trigger applications_transition`);
+    await db.query(`update applications set status = 'packet_approved' where id = $1`, [id]);
+    await db.query(`alter table applications enable trigger applications_transition`);
+    await expect(db.query(`update applications set status = 'submitted' where id = $1`, [id])).rejects.toThrow(/packet not approved/);
+    await db.query(`update applications set packet_approved_at = now() where id = $1`, [id]);
+    await db.query(`update applications set status = 'submitted' where id = $1`, [id]);
+    const after = await db.query(`select status, submitted_at from applications where id = $1`, [id]);
+    expect(after.rows[0].status).toBe("submitted");
+    expect(after.rows[0].submitted_at).not.toBeNull();
+  });
+
+  it("going back to preparing wipes the approval", async () => {
+    const { rows } = await db.query(`select id from applications where user_id = $1`, [BOB]);
+    const id = rows[0].id;
+    for (const s of ["shortlisted", "preparing", "ready_for_review"]) {
+      await db.query(`update applications set status = $1 where id = $2`, [s, id]);
+    }
+    await db.query(`update applications set status = 'packet_approved', packet_approved_at = now() where id = $1`, [id]);
+    await db.query(`update applications set status = 'preparing' where id = $1`, [id]);
+    const r = await db.query(`select packet_approved_at from applications where id = $1`, [id]);
+    expect(r.rows[0].packet_approved_at).toBeNull();
+  });
+
+  it("events are append-only", async () => {
+    const { rows } = await db.query(`insert into events(user_id, actor, action) values ($1, 'agent:test', 'x') returning id`, [ALICE]);
+    await expect(db.query(`update events set action = 'y' where id = $1`, [rows[0].id])).rejects.toThrow(/append-only/);
+    await expect(db.query(`delete from events where id = $1`, [rows[0].id])).rejects.toThrow(/append-only/);
+  });
+
+  it("sign grant cannot be loosened", async () => {
+    await expect(
+      db.query(`update grants set mode = 'auto' where user_id = $1 and capability = 'sign'`, [ALICE]),
+    ).rejects.toThrow(/sign must stay/);
+  });
+
+  it("claim_jobs hands each due job to exactly one worker", async () => {
+    await db.query(
+      `insert into jobs(user_id, agent, task) select $1, 'system', 'ping' from generate_series(1, 3)`,
+      [ALICE],
+    );
+    await db.query(`insert into jobs(user_id, agent, task, run_at) values ($1, 'system', 'later', now() + interval '1 hour')`, [ALICE]);
+    const a = await db.query(`select id from claim_jobs('w1', 2)`);
+    const b = await db.query(`select id from claim_jobs('w2', 5)`);
+    expect(a.rowCount).toBe(2);
+    expect(b.rowCount).toBe(1);
+    const ids = new Set([...a.rows, ...b.rows].map((r) => r.id));
+    expect(ids.size).toBe(3);
+  });
+
+  it("deleting a user cascades cleanly, events included", async () => {
+    await db.query(`insert into events(user_id, actor, action) values ($1, 'agent:test', 'x')`, [BOB]);
+    await db.query(`delete from auth.users where id = $1`, [BOB]);
+    const { rows } = await db.query(`select count(*)::int as n from grants where user_id = $1`, [BOB]);
+    expect(rows[0].n).toBe(0);
+    const ev = await db.query(`select count(*)::int as n from events where user_id = $1`, [BOB]);
+    expect(ev.rows[0].n).toBe(0);
+  });
+});

@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# automaster
 
-## Getting Started
+agents that run a US masters application cycle: intake, shortlist, drafts, funding hunt, submission prep.
+you review, they run.
 
-First, run the development server:
+## status
 
-```bash
+| phase | what | state |
+|---|---|---|
+| 0 | schema, autonomy policy, job queue, agent runtime, event log, tests | done |
+| 1 | intake: doc upload, extraction, voice interview | next |
+| 2 | recon + deadline tracker | |
+| 3 | strategist, writer, red team | |
+| 4 | closer: funding hunt, gmail outreach | |
+| 5 | runner: fill sheets, browser extension | |
+| 6 | dashboard polish, digest, ripcord ui | |
+
+## how it's wired
+
+- **next.js 15** on vercel. server routes only; the service-role key never touches the browser.
+- **supabase**: auth (magic link), postgres, storage (private `documents` bucket).
+- **job queue in postgres** (`jobs` table + `claim_jobs()` with `skip locked`). no extra service.
+  supabase `pg_cron` hits `/api/worker` every minute; new jobs also get kicked inline with `after()`.
+- **claude** via `@anthropic-ai/sdk` structured outputs. every call is logged to `agent_runs`.
+- **events** table is append-only (trigger-enforced). it's the audit log and the learning data.
+
+### the autonomy dial
+
+every agent action goes through `guard()` → `decide()` in `src/lib/policy.ts`. defaults, seeded per user:
+
+| capability | default |
+|---|---|
+| research, draft, prefill, add/drop school | auto |
+| email.follow_up | auto, 10 min undo, 2/thread/week |
+| email.new_contact | auto, 10 min undo, 1 per contact, 10/day |
+| submit | auto **once you've approved that packet** |
+| spend.app_fee | auto inside your fee envelope (starts at $0 = ask) |
+| state_fact, sign, spend.deposit | always you |
+
+hard floors enforced in the database, not just the app:
+- an application can't move to `submitted` without `packet_approved_at` (only set from your review screen)
+- moving back to `preparing` wipes the approval, so edited packets get re-reviewed
+- `sign` can't be set to anything but `approve`
+- events can't be edited or deleted
+
+ripcords (`ripcords` table) stop everything, one agent, one capability, or one school until released.
+
+## setup (one time, ~15 min)
+
+1. **supabase**: create a free project at supabase.com. region: closest to you (eu-west works well from lagos).
+2. sql editor → paste and run `supabase/migrations/0001_init.sql`, then `0002_storage.sql`.
+3. auth → url configuration: set site url to your vercel url, add `https://YOUR-APP.vercel.app/auth/callback` to redirect urls.
+4. **vercel**: import the github repo. add env vars from `.env.example`. deploy.
+5. sql editor → edit placeholders in `supabase/cron.sql` and run it.
+6. open the app, sign in, hit **test agent loop** on the dashboard. an event `system.pinged` should appear within a few seconds.
+
+## local dev
+
+```sh
+cp .env.example .env.local   # fill in
+npm i
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+tests (policy unit tests always run; db tests need a throwaway postgres superuser url):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+TEST_DATABASE_URL=postgres://am:am@localhost/am_test npm test
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## runbook
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **agent misbehaving**: dashboard ripcord (phase 6) or `insert into ripcords(user_id, scope_kind) values ('<uid>', 'all');`
+- **job stuck**: `select * from jobs where status in ('running','failed') order by created_at desc;` stale `running` jobs are reclaimed after 10 min, up to `max_attempts`.
+- **what did an agent do and why**: `select actor, action, reasoning, context from events where user_id = '<uid>' order by created_at desc;`
+- **llm spend**: `select agent, sum(input_tokens), sum(output_tokens) from agent_runs group by agent;`
