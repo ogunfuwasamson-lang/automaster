@@ -282,7 +282,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
-    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? (!s.fields.length ? find(now, CREATE) : undefined);
+    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : undefined);
     if (next) {
       await click(page, next.id);
       continue;

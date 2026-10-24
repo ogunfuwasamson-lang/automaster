@@ -156,7 +156,8 @@ export const runner: Record<string, Handler> = {
         last_url: page.url(),
         storage_enc: encrypt(JSON.stringify(await ob.storage())),
         // what the last page looked like, for fixing the runner (no values, labels only)
-        debug: await page
+        debug: await (async () => {
+          const one = (f: import("playwright-core").Frame) => f
           .evaluate(() => {
             const t = (e: Element | null) => (e?.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
             return {
@@ -169,7 +170,10 @@ export const runner: Record<string, Handler> = {
               body: (document.body?.innerText ?? "").replace(/\s+/g, " ").slice(0, 700),
             };
           })
-          .catch(() => null),
+          .catch(() => null);
+          const all = (await Promise.all(page.frames().map(one))).filter(Boolean) as { fields: string[] }[];
+          return all.sort((a, b) => b.fields.length - a.fields.length)[0] ?? null;
+        })(),
       };
       const login = await getLogin(job.user_id, host()).catch(() => null);
       if (login && login.status !== "verified" && (outcome.kind === "submitted" || next.signedIn)) await markLogin(login.id, "verified");
