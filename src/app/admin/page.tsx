@@ -15,10 +15,11 @@ export default async function Admin() {
   if (!me?.is_admin) notFound();
 
   const since = monthStartUTC();
-  const [{ data: users }, { data: runs }, { data: failed }] = await Promise.all([
+  const [{ data: users }, { data: runs }, { data: failed }, { data: runner }] = await Promise.all([
     db.from("profiles").select("id, email, plan, monthly_budget_usd, created_at"),
     db.from("agent_runs").select("user_id, agent, model, cost_usd, input_tokens, output_tokens").gte("started_at", since).limit(50000),
     db.from("agent_runs").select("agent, error, started_at").eq("status", "failed").gte("started_at", since).order("started_at", { ascending: false }).limit(15),
+    db.from("applications").select("id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name))").neq("runner_status", "idle").order("runner_updated_at", { ascending: false }).limit(40),
   ]);
 
   type Row = { cost: number; cat: Record<Category, number>; calls: number };
@@ -97,6 +98,37 @@ export default async function Admin() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">runner: last page seen</h2>
+        <div className="space-y-3">
+          {(runner ?? []).map((a) => {
+            const st = (a.runner_state ?? {}) as { last_url?: string; steps?: number; missing?: string[]; debug?: { title?: string; fields?: string[]; values?: string[]; buttons?: string[]; errors?: string[]; captcha?: boolean; body?: string } };
+            const d = st.debug;
+            return (
+              <details key={a.id} className="rounded-md border border-neutral-200 p-3 text-xs dark:border-neutral-800">
+                <summary className="cursor-pointer">
+                  <span className="font-medium">{(a.programs as unknown as { schools: { name: string } }).schools.name}</span> · {a.runner_status} · {a.runner_note}
+                </summary>
+                <div className="mt-2 space-y-1 font-mono">
+                  <p>portal: {a.portal_url}</p>
+                  <p>last: {st.last_url} · steps {st.steps ?? 0} · missing {(st.missing ?? []).join(",") || "-"}</p>
+                  {d ? (
+                    <>
+                      <p>title: {d.title} · captcha: {String(d.captcha)}</p>
+                      <p>fields: {(d.fields ?? []).join(" | ")}</p>
+                      <p>values: {(d.values ?? []).join(" | ")}</p>
+                      <p>buttons: {(d.buttons ?? []).join(" | ")}</p>
+                      <p>errors: {(d.errors ?? []).join(" | ") || "-"}</p>
+                      <p className="whitespace-pre-wrap">body: {d.body}</p>
+                    </>
+                  ) : null}
+                </div>
+              </details>
+            );
+          })}
+        </div>
       </section>
 
       <section>
