@@ -156,6 +156,10 @@ export const runner: Record<string, Handler> = {
               title: document.title.slice(0, 80),
               fields: [...document.querySelectorAll("input:not([type=hidden]), select, textarea")].slice(0, 30).map((e) => `${(e as HTMLInputElement).type || e.tagName}:${(e as HTMLInputElement).name}:${e.getAttribute("aria-label") ?? ""}`),
               buttons: [...document.querySelectorAll("button, input[type=submit], a")].slice(0, 40).map(t).filter(Boolean),
+              values: [...document.querySelectorAll("input:not([type=hidden]):not([type=password]), select")].slice(0, 30).map((e) => `${(e as HTMLInputElement).name}=${(e as HTMLInputElement).value ? "set" : "empty"}`),
+              errors: [...document.querySelectorAll(".error, .errors, [role=alert], .invalid, .validation, .form_error, .message, .notification, .alert")].map(t).filter(Boolean).slice(0, 8),
+              captcha: !!document.querySelector("iframe[src*=recaptcha], iframe[src*=hcaptcha], iframe[src*=turnstile], [data-sitekey], .grecaptcha-badge"),
+              body: (document.body?.innerText ?? "").replace(/\s+/g, " ").slice(0, 700),
             };
           })
           .catch(() => null),
