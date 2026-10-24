@@ -375,7 +375,7 @@ function Conversation({ t, canSend, email, onBack, onChange }: { t: InboxThread;
                   <span className="h-px flex-1 bg-line" aria-hidden />
                 </p>
               )}
-              <MessageCard m={m} school={t.school} me={email} defaultOpen={i === recent.length - 1 || m.status === "scheduled"} onChange={onChange} />
+              <MessageCard m={m} school={t.school} me={email} defaultOpen={i === recent.length - 1 || m.direction === "in" || m.status === "scheduled"} onChange={onChange} />
             </div>
           );
         })}

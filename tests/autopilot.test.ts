@@ -219,3 +219,16 @@ describe("form details save", () => {
     expect(out.country_of_birth).toBe("x");
   });
 });
+
+describe("email text", () => {
+  it("keeps the whole email from html, without styles or quoted history", async () => {
+    const { mailText } = await import("@/lib/mail-text");
+    const html = `<html><head><style>.x{color:red}</style></head><body><p>Dear Samson,</p><p>Your application is complete.&nbsp;Please upload your transcript by <b>1 Nov</b>.</p><div>Best,<br>Admissions</div><p>On Tue, Oct 20, 2026 at 9:00 AM You wrote:</p><blockquote>earlier</blockquote></body></html>`;
+    const t = mailText({ text: "", html });
+    expect(t).toContain("Dear Samson,");
+    expect(t).toContain("Please upload your transcript by 1 Nov.");
+    expect(t).toContain("Admissions");
+    expect(t).not.toContain("color:red");
+    expect(t).not.toContain("earlier");
+  });
+});

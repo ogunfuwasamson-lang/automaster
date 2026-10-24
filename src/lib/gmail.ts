@@ -112,21 +112,50 @@ export async function recentMail(userId: string, q: string, max = 5, known?: (id
   const skip = known && listed.length ? await known(listed.map((m) => m.id)) : new Set<string>();
   for (const m of listed) {
     if (skip.has(m.id)) continue;
-    const msg = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, { headers: h })).json()) as GmailMsg;
-    const header = (n: string) => msg.payload?.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? "";
-    const parts: { mimeType?: string; body?: { data?: string } }[] = [];
-    const walk = (p?: GmailPart) => {
-      if (!p) return;
-      parts.push(p);
-      p.parts?.forEach(walk);
-    };
-    walk(msg.payload);
-    const dec = (t: string) => parts.filter((p) => p.mimeType === t && p.body?.data).map((p) => Buffer.from(p.body!.data!, "base64url").toString("utf8")).join("\n");
-    out.push({ id: m.id, threadId: m.threadId ?? null, from: header("from"), subject: header("subject"), text: dec("text/plain"), html: dec("text/html"), at: Number(msg.internalDate ?? 0) });
+    out.push(await fetchMail(h, m.id, m.threadId ?? null));
   }
   return out;
 }
-type GmailPart = { mimeType?: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] };
+
+export type FetchedMail = { id: string; threadId: string | null; from: string; subject: string; text: string; html: string; at: number };
+
+// one message, decoded. long text parts come as separate attachments in gmail's api: fetch those too, so a
+// long email is never cut down to nothing.
+async function fetchMail(h: Record<string, string>, id: string, threadId: string | null): Promise<FetchedMail> {
+  const msg = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, { headers: h })).json()) as GmailMsg & { threadId?: string };
+  const header = (n: string) => msg.payload?.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+  const parts: GmailPart[] = [];
+  const walk = (p?: GmailPart) => {
+    if (!p) return;
+    parts.push(p);
+    p.parts?.forEach(walk);
+  };
+  walk(msg.payload);
+  const dec = async (t: string) => {
+    const chunks: string[] = [];
+    for (const p of parts.filter((x) => x.mimeType === t)) {
+      let data = p.body?.data;
+      if (!data && p.body?.attachmentId) {
+        const att = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/attachments/${p.body.attachmentId}`, { headers: h })).json().catch(() => ({}))) as { data?: string };
+        data = att.data;
+      }
+      if (data) chunks.push(Buffer.from(data, "base64url").toString("utf8"));
+    }
+    return chunks.join("\n");
+  };
+  return { id, threadId: threadId ?? msg.threadId ?? null, from: header("from"), subject: header("subject"), text: await dec("text/plain"), html: await dec("text/html"), at: Number(msg.internalDate ?? 0) };
+}
+
+// a single message by id (used to fill in emails stored before full bodies were kept)
+export async function getMail(userId: string, id: string): Promise<FetchedMail | null> {
+  const { access } = await accessToken(userId);
+  try {
+    return await fetchMail({ authorization: `Bearer ${access}` }, id, null);
+  } catch {
+    return null;
+  }
+}
+type GmailPart = { mimeType?: string; body?: { data?: string; attachmentId?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] };
 type GmailMsg = { internalDate?: string; payload?: GmailPart };
 
 export async function sendAs(userId: string, m: { to: string; subject: string; body: string; fromName?: string | null; threadId?: string | null }) {

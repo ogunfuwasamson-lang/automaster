@@ -1,7 +1,7 @@
 import "server-only";
 import * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
-import { canReadMail, mailAccount, recentMail } from "@/lib/gmail";
+import { canReadMail, getMail, mailAccount, recentMail } from "@/lib/gmail";
 import { hostRoot } from "@/lib/verify-mail";
 import { normalizeUrl } from "@/lib/portal-url";
 import { runStructured } from "@/lib/llm";
@@ -70,8 +70,27 @@ async function schoolDomains(userId: string) {
   return byRoot;
 }
 
+// emails stored before full bodies were kept hold only the one-line summary: fetch the original from gmail,
+// keep the summary as the summary, and fill in the email itself and its sender. a few per check.
+export async function backfillBodies(userId: string, limit = 15): Promise<number> {
+  const db = admin();
+  const { data, error } = await db.from("messages").select("id, body, gmail_message_id").eq("user_id", userId).eq("direction", "in").is("summary", null).not("gmail_message_id", "is", null).order("created_at", { ascending: false }).limit(limit);
+  if (error) return 0; // before the inbox migration there's nothing to fill
+  let n = 0;
+  for (const m of data ?? []) {
+    const mail = await getMail(userId, m.gmail_message_id as string);
+    const text = mail ? mailText(mail) : "";
+    const sender = mail ? parseFrom(mail.from) : null;
+    // nothing to fetch (deleted from gmail): mark it handled so it isn't retried every check
+    await db.from("messages").update({ summary: m.body, ...(text ? { body: text } : {}), ...(sender ? { from_email: sender.email, from_name: sender.name } : {}) }).eq("id", m.id);
+    n++;
+  }
+  return n;
+}
+
 export async function checkInbox(userId: string, jobId?: string) {
   if (!(await canReadMail(userId))) return { skipped: "gmail read not connected" };
+  await backfillBodies(userId).catch(() => 0);
   const db = admin();
   const domains = await schoolDomains(userId);
   if (!domains.size) return { skipped: "no schools yet" };
