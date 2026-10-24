@@ -7,8 +7,9 @@ import { Candidates, ProgramFacts, Scholarships } from "@/agents/recon";
 import { CurateOut } from "@/agents/curator";
 import { TurnOut } from "@/agents/interviewer";
 import { ExtractOut } from "@/agents/intake";
+import { Outreach } from "@/agents/closer";
 
-const schemas = { Plan, Draft, Review, Candidates, ProgramFacts, Scholarships, CurateOut, TurnOut, ExtractOut };
+const schemas = { Outreach, Plan, Draft, Review, Candidates, ProgramFacts, Scholarships, CurateOut, TurnOut, ExtractOut };
 
 describe.each(Object.entries(schemas))("%s", (_name, schema) => {
   it("fits structured output limits", () => {

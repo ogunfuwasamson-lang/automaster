@@ -32,7 +32,6 @@ export default function Pricing() {
       </div>
       <p className="mt-8 text-sm text-neutral-500">
         no application fees are included: schools charge those directly, and the agents ask for fee waivers first.
-        AI usage on every plan has a monthly cap, so your bill never surprises you.
       </p>
     </main>
   );

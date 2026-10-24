@@ -233,6 +233,16 @@ find the application's written requirements (official prompts and limits), then 
       }
     }
 
+    // money before submitting: look for an application fee waiver
+    await enqueue({
+      userId: job.user_id,
+      agent: "closer",
+      task: "fee_waiver",
+      payload: { applicationId },
+      idempotencyKey: `fee_waiver:${applicationId}`,
+      parentJobId: job.id,
+    });
+
     await logEvent({
       userId: job.user_id,
       actor: "agent:strategist",

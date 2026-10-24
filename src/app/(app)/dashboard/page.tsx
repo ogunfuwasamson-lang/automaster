@@ -2,8 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import Link from "next/link";
 import { PingButton } from "./ping-button";
 import { Decisions, type Decision } from "@/components/decisions";
-import { userPlan, monthSpend } from "@/lib/budget";
-import { CATEGORY_SHARE } from "@/lib/pricing";
+import { userPlan } from "@/lib/budget";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +12,8 @@ export default async function Dashboard() {
   const { sb, user } = auth;
 
   const today = new Date().toISOString().slice(0, 10);
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [{ plan, budget }, spend] = await Promise.all([userPlan(user.id), monthSpend(user.id)]);
-  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }, { data: drafts }, { data: runs }, { data: blocked }, { count: parked }] = await Promise.all([
+  const { plan } = await userPlan(user.id);
+  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }, { data: drafts }, { data: blocked }, { count: parked }] = await Promise.all([
     sb.from("grants").select("capability, mode, undo_seconds, ceiling_cents").order("capability"),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }),
     sb.from("events").select("id, actor, action, created_at, context").order("created_at", { ascending: false }).limit(20),
@@ -27,19 +25,9 @@ export default async function Dashboard() {
       .order("target_deadline")
       .limit(5),
     sb.from("events").select("id, application_id, context, created_at").eq("action", "artifact.ready_for_user").order("created_at", { ascending: false }).limit(5),
-    sb.from("agent_runs").select("agent, input_tokens, output_tokens").gte("started_at", weekAgo).limit(2000),
     sb.from("jobs").select("id").eq("status", "queued").ilike("last_error", "%credit balance%").limit(1),
     sb.from("jobs").select("id", { count: "exact", head: true }).eq("status", "queued").ilike("last_error", "budget:%"),
   ]);
-  const usage = new Map<string, { runs: number; inTok: number; outTok: number }>();
-  for (const r of runs ?? []) {
-    const u = usage.get(r.agent) ?? { runs: 0, inTok: 0, outTok: 0 };
-    u.runs++;
-    u.inTok += r.input_tokens ?? 0;
-    u.outTok += r.output_tokens ?? 0;
-    usage.set(r.agent, u);
-  }
-  const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 
   return (
     <main className="mx-auto max-w-5xl space-y-10 px-4 py-10">
@@ -51,25 +39,16 @@ export default async function Dashboard() {
         <PingButton />
       </header>
 
-      <section className="rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm">
-            <span className="font-medium">{plan.name}</span> plan · AI used this month: <span className="font-medium">${spend.total.toFixed(2)}</span> of ${budget.toFixed(2)}
-          </p>
-          <Link href="/pricing" className="text-sm text-neutral-500 underline">{plan.id === "free" ? "upgrade" : "plans"}</Link>
-        </div>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
-          <div className={`h-full ${spend.total / budget > 0.9 ? "bg-red-600" : spend.total / budget > 0.7 ? "bg-amber-500" : "bg-neutral-900 dark:bg-neutral-100"}`} style={{ width: `${Math.min(100, (100 * spend.total) / budget)}%` }} />
-        </div>
-        <p className="mt-2 text-xs text-neutral-500">
-          {(["research", "writing", "core"] as const).map((c) => `${c} $${spend.byCategory[c].toFixed(2)}/${(budget * CATEGORY_SHARE[c]).toFixed(2)}`).join(" · ")}
+      {parked ? (
+        <p className="rounded-md border border-amber-300 bg-amber-50/60 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          you&apos;ve reached this month&apos;s limit for some agent work. {parked} task{parked > 1 ? "s" : ""} will pick up again on the 1st.
+          {plan.id === "free" ? <> <Link href="/pricing" className="underline">upgrade</Link> to continue now.</> : null}
         </p>
-        {parked ? <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{parked} task{parked > 1 ? "s are" : " is"} waiting for next month&apos;s allowance.{plan.id === "free" ? " upgrading releases them now." : ""}</p> : null}
-      </section>
+      ) : null}
 
       {blocked?.length ? (
         <p className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          agents are paused: your Anthropic API credit balance is too low. top up at console.anthropic.com → billing. queued work resumes on its own within 30 minutes of topping up; nothing is lost.
+          agents are briefly paused on our side. your queued work is saved and resumes automatically.
         </p>
       ) : null}
 
@@ -127,32 +106,6 @@ export default async function Dashboard() {
         )}
       </section>
 
-      {usage.size > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">api usage, last 7 days</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-neutral-500">
-                <th className="py-1 font-normal">agent</th>
-                <th className="py-1 font-normal">calls</th>
-                <th className="py-1 font-normal">input tokens</th>
-                <th className="py-1 font-normal">output tokens</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...usage.entries()].sort((a, b) => b[1].inTok - a[1].inTok).map(([agent, u]) => (
-                <tr key={agent} className="border-t border-neutral-200 dark:border-neutral-800">
-                  <td className="py-1.5 font-mono text-xs">{agent}</td>
-                  <td className="py-1.5">{u.runs}</td>
-                  <td className="py-1.5">{fmt(u.inTok)}</td>
-                  <td className="py-1.5">{fmt(u.outTok)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-1 text-xs text-neutral-500">web research (recon, strategist) is the heavy part: each program reads several official pages.</p>
-        </section>
-      )}
 
       <section>
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">autonomy dial</h2>

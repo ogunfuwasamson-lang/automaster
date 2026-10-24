@@ -255,7 +255,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       )}
       {failed.length > 0 && (
         <p className="rounded-md border border-red-200 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:text-red-400">
-          {failed.length} research job{failed.length === 1 ? "" : "s"} failed. last error: {failed[0].last_error?.slice(0, 200)}
+          {failed.length} research job{failed.length === 1 ? "" : "s"} didn&apos;t finish. you can run &quot;find more programs&quot; again.
         </p>
       )}
 

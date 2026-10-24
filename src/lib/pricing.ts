@@ -55,7 +55,7 @@ export const CATEGORY_SHARE: Record<Category, number> = {
 
 export function categoryOf(agent: string): Category {
   if (agent === "recon") return "research";
-  if (agent === "strategist" || agent === "writer" || agent === "redteam") return "writing";
+  if (agent === "strategist" || agent === "writer" || agent === "redteam" || agent === "closer") return "writing";
   return "core";
 }
 
@@ -67,11 +67,10 @@ export interface Spend {
 }
 
 export function budgetCheck(spend: Spend, monthly: number, category: Category): { ok: boolean; reason: string } {
-  if (spend.total >= monthly) return { ok: false, reason: `monthly AI budget used ($${spend.total.toFixed(2)} of $${monthly})` };
+  // reasons are user-visible (job errors): no amounts. the admin page has the numbers.
+  if (spend.total >= monthly) return { ok: false, reason: "monthly limit reached" };
   const cap = monthly * CATEGORY_SHARE[category];
-  if (spend.byCategory[category] >= cap) {
-    return { ok: false, reason: `monthly ${category} budget used ($${spend.byCategory[category].toFixed(2)} of $${cap.toFixed(2)})` };
-  }
+  if (spend.byCategory[category] >= cap) return { ok: false, reason: `monthly ${category} limit reached` };
   return { ok: true, reason: "" };
 }
 

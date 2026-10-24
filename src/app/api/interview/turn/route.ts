@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: budget
-          ? `you've used this month's AI allowance (${msg.split("budget: ")[1] ?? ""}). it resets on the 1st, or upgrade on the pricing page.`
+          ? "you've reached this month's interview limit on your plan. it resets on the 1st."
           : billing
-            ? "the platform's AI account is out of credit. try again shortly."
+            ? "the interviewer is briefly unavailable. try again in a little while."
             : "the interviewer hit an error. try again.",
       },
       { status: budget || billing ? 402 : 500 },

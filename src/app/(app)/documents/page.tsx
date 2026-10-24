@@ -51,7 +51,9 @@ export default async function Documents() {
                 ) : null}
                 {d.status === "failed" && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-red-600">{ex.error?.slice(0, 160)}</span>
+                    <span className="text-xs text-red-600">
+                      {/credit|budget|rate.?limit|overloaded/i.test(ex.error ?? "") ? "couldn't read it right now. retry in a bit." : (ex.error ?? "").slice(0, 160)}
+                    </span>
                     <RetryButton id={d.id} />
                   </div>
                 )}

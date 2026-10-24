@@ -96,7 +96,8 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
         max_tokens: args.maxTokens ?? 8000,
         system: cachedSystem(args.system),
         messages: [{ role: "user", content }],
-        thinking: { type: "between_tools" },
+        // sonnet/opus 5.5 think by default (and it eats max_tokens): turn it off. haiku doesn't take the setting.
+        ...(model.includes("haiku") ? {} : { thinking: { type: "between_tools" as const } }),
         output_config: { format: zodOutputFormat(args.schema) },
       })
       .finalMessage();
