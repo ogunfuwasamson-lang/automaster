@@ -10,10 +10,18 @@ export default async function Dashboard() {
   if (!auth) return null;
   const { sb, user } = auth;
 
-  const [{ data: grants }, { data: approvals }, { data: events }] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }] = await Promise.all([
     sb.from("grants").select("capability, mode, undo_seconds, ceiling_cents").order("capability"),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }),
     sb.from("events").select("id, actor, action, created_at, context").order("created_at", { ascending: false }).limit(20),
+    sb
+      .from("applications")
+      .select("id, target_deadline, tier, programs(name, schools(name))")
+      .eq("status", "shortlisted")
+      .gte("target_deadline", today)
+      .order("target_deadline")
+      .limit(5),
   ]);
 
   return (
@@ -39,6 +47,28 @@ export default async function Dashboard() {
           </>
         ) : (
           <p className="text-sm text-neutral-500">nothing needs you right now.</p>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">next deadlines</h2>
+        {due?.length ? (
+          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
+            {due.map((a) => {
+              const p = a.programs as unknown as { name: string; schools: { name: string } };
+              const days = Math.round((Date.parse(a.target_deadline + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86_400_000);
+              return (
+                <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                  <span className="min-w-0 truncate">{p.schools.name} <span className="text-neutral-500">· {p.name}</span></span>
+                  <span className={days <= 14 ? "font-medium text-red-600" : days <= 45 ? "text-amber-600" : ""}>{days}d</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-neutral-500">
+            no shortlist yet. <Link href="/shortlist" className="underline">build one</Link>.
+          </p>
         )}
       </section>
 

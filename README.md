@@ -9,8 +9,8 @@ you review, they run.
 |---|---|---|
 | 0 | schema, autonomy policy, job queue, agent runtime, event log, tests | done |
 | 1 | intake: doc upload, extraction, voice interview | done |
-| 2 | recon + deadline tracker | next |
-| 3 | strategist, writer, red team | |
+| 2 | recon + deadline tracker | done |
+| 3 | strategist, writer, red team | next |
 | 4 | closer: funding hunt, gmail outreach | |
 | 5 | runner: fill sheets, browser extension | |
 | 6 | dashboard polish, digest, ripcord ui | |
