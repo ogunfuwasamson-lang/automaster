@@ -7,9 +7,10 @@ export function Count({ value, className = "", pad = 0 }: { value: number; class
   const ref = useRef<HTMLSpanElement>(null);
   const seen = useInView(ref, { once: true });
   const reduce = useReducedMotion();
-  const [n, setN] = useState(reduce ? value : 0);
+  // the real number renders first; the count-up only replays it once the number is on screen
+  const [n, setN] = useState(value);
   useEffect(() => {
-    if (!seen || reduce) return setN(value);
+    if (!seen || reduce || document.visibilityState !== "visible") return setN(value);
     const c = animate(0, value, { duration: 0.9, ease: [0.16, 1, 0.3, 1], onUpdate: (v) => setN(Math.round(v)) });
     return () => c.stop();
   }, [seen, value, reduce]);

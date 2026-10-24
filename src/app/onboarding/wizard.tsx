@@ -151,7 +151,7 @@ export function Onboarding(props: {
               <div className="bg-bar-gradient h-full rounded-full transition-[width] duration-500" style={{ width: `${(step / STEPS.length) * 100}%` }} />
             </div>
           </div>
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.section
             key={step}
             initial={reduce ? false : { opacity: 0, x: 24 }}

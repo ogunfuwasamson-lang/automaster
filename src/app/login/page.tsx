@@ -86,16 +86,13 @@ export default function Login() {
       </header>
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-[420px]">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="glass rounded-[28px] border border-white/80 p-7 shadow-lift sm:p-9 dark:border-white/[0.07]"
+          <div
+            className="rise glass rounded-[28px] border border-white/80 p-7 shadow-lift sm:p-9 dark:border-white/[0.07]"
           >
             <Suspense>
               <LoginForm />
             </Suspense>
-          </motion.div>
+          </div>
           <ul className="mt-6 space-y-2 px-2 text-sm text-muted">
             {["No password. Every sign-in is a one-time email link.", "Your first application is free.", "Bachelor's, master's and PhD, anywhere in the world."].map((t) => (
               <li key={t} className="flex items-center gap-2.5">

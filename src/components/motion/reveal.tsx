@@ -1,24 +1,11 @@
-"use client";
-import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 
-// one orchestrated entrance per page: children rise in, a beat apart
+// one orchestrated entrance per page, in CSS: children rise in a beat apart. no delays and no fill-mode, so if
+// the animation never runs (old device, background tab, no javascript) the content is simply there.
 export function Stagger({ children, className = "" }: { children: ReactNode; className?: string }) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.div className={className} initial={reduce ? false : "hidden"} animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}>
-      {children}
-    </motion.div>
-  );
+  return <div className={`stagger ${className}`}>{children}</div>;
 }
 
 export function Rise({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <motion.div
-      className={className}
-      variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={`rise ${className}`}>{children}</div>;
 }

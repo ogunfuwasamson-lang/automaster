@@ -188,6 +188,18 @@ body {
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
 }
 
+/* page entrance: staggered by duration, not delay, so nothing is ever held invisible */
+.rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stagger > .rise:nth-child(2) { animation-duration: 0.62s; }
+.stagger > .rise:nth-child(3) { animation-duration: 0.74s; }
+.stagger > .rise:nth-child(4) { animation-duration: 0.86s; }
+.stagger > .rise:nth-child(n + 5) { animation-duration: 0.98s; }
+@keyframes rise {
+  from { opacity: 0.001; transform: translateY(14px); }
+}
+
 /* menus and popovers: a quick scale-and-fade from where they open */
 .menu-pop {
   transform-origin: var(--radix-dropdown-menu-content-transform-origin, top right);
