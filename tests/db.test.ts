@@ -2,7 +2,7 @@
 // that protect the user: RLS isolation, the submit floor, append-only events, job claiming.
 // needs TEST_DATABASE_URL (superuser). skipped otherwise.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { Client } from "pg";
 import { APP_STATUSES, TRANSITIONS } from "@/lib/app-state";
 
@@ -31,7 +31,9 @@ d("database invariants", () => {
     await db.connect();
     await db.query("drop schema if exists public cascade; create schema public; drop schema if exists auth cascade;");
     await db.query(readFileSync("supabase/test/shim.sql", "utf8"));
-    await db.query(readFileSync("supabase/migrations/0001_init.sql", "utf8"));
+    for (const f of readdirSync("supabase/migrations").filter((x) => x.endsWith(".sql") && !x.includes("storage")).sort()) {
+      await db.query(readFileSync(`supabase/migrations/${f}`, "utf8"));
+    }
     await db.query("grant usage on schema public to authenticated; grant select, insert, update, delete on all tables in schema public to authenticated;");
     await db.query(`insert into auth.users(id, email) values ($1, 'alice@x.com'), ($2, 'bob@x.com')`, [ALICE, BOB]);
     const school = await db.query(`insert into schools(slug, name) values ('test-u', 'Test U') returning id`);
@@ -105,6 +107,38 @@ d("database invariants", () => {
     await db.query(`update applications set status = 'preparing' where id = $1`, [id]);
     const r = await db.query(`select packet_approved_at from applications where id = $1`, [id]);
     expect(r.rows[0].packet_approved_at).toBeNull();
+  });
+
+  it("users cannot raise their own plan, admin flag or budget from the browser", async () => {
+    const res = await as(ALICE, () => db.query(`update profiles set plan = 'pro', is_admin = true, monthly_budget_usd = 1000`));
+    expect(res.rowCount).toBe(0);
+    const g = await as(ALICE, () => db.query(`update grants set ceiling_cents = 999999`));
+    expect(g.rowCount).toBe(0);
+    const a = await as(ALICE, () => db.query(`update approvals set status = 'approved'`));
+    expect(a.rowCount).toBe(0);
+  });
+
+  it("mail tokens and runner tokens are invisible to users", async () => {
+    await db.query(`insert into mail_accounts(user_id, email, refresh_token_enc) values ($1, 'a@x.com', 'enc')`, [ALICE]);
+    await db.query(`insert into runner_tokens(user_id, token_hash) values ($1, 'h')`, [ALICE]);
+    const m = await as(ALICE, async () => (await db.query(`select * from mail_accounts`)).rows);
+    const t = await as(ALICE, async () => (await db.query(`select * from runner_tokens`)).rows);
+    expect(m).toEqual([]);
+    expect(t).toEqual([]);
+  });
+
+  it("going back to preparing clears the attestation and stops the runner", async () => {
+    const { rows } = await db.query(`select id from applications where user_id = $1`, [BOB]);
+    const id = rows[0].id;
+    await db.query(`update applications set status = 'ready_for_review' where id = $1`, [id]);
+    await db.query(
+      `update applications set status = 'packet_approved', packet_approved_at = now(), attested_at = now(), attestation = 'x', runner_status = 'ready' where id = $1`,
+      [id],
+    );
+    await db.query(`update applications set status = 'preparing' where id = $1`, [id]);
+    const r = await db.query(`select attested_at, runner_status from applications where id = $1`, [id]);
+    expect(r.rows[0].attested_at).toBeNull();
+    expect(r.rows[0].runner_status).toBe("idle");
   });
 
   it("events are append-only", async () => {

@@ -6,6 +6,7 @@ import { logEvent, recordOutcome } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { canTransition, type AppStatus } from "@/lib/app-state";
+import { ATTESTATION } from "@/lib/attest";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -13,7 +14,7 @@ export const maxDuration = 300;
 // the applicant's own milestones. none of these are agent actions:
 // approving the packet is their attestation; submitting happens on the school's portal; decisions come from the school.
 const Body = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("approve_packet") }),
+  z.object({ action: z.literal("approve_packet"), attest: z.literal(true) }),
   z.object({ action: z.literal("mark_submitted") }),
   z.object({
     action: z.literal("record_decision"),
@@ -64,7 +65,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         }),
       };
       if (status === "preparing") await move("ready_for_review");
-      await move("packet_approved", { packet_approved_at: snapshot.approved_at, packet_snapshot: snapshot });
+      // the attestation is the applicant's signature; with it the runner can take the packet to the portal
+      const { data: grant } = await db.from("grants").select("mode").eq("user_id", uid).eq("capability", "submit").maybeSingle();
+      await move("packet_approved", {
+        packet_approved_at: snapshot.approved_at,
+        packet_snapshot: { ...snapshot, attestation: ATTESTATION },
+        attested_at: snapshot.approved_at,
+        attestation: ATTESTATION,
+        runner_status: grant?.mode === "auto" ? "ready" : "idle",
+        runner_note: null,
+      });
       await logEvent({ userId: uid, actor: "user", action: "packet.approved", applicationId: id, programId: app.program_id, context: snapshot });
       return NextResponse.json({ ok: true });
     }

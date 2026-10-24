@@ -8,9 +8,11 @@ import { getProfile } from "@/lib/profile-store";
 import { LEVEL_LABEL, levelOf } from "@/lib/profile";
 import { logEvent } from "@/lib/events";
 import { safeFactSheet } from "./writer";
+import { schedule } from "@/lib/outbox";
 
 // the closer: money. fee waivers before applying; aid after admission.
-// it drafts; the applicant reads, edits and sends from their own email. nothing goes out on its own.
+// it drafts, then hands each email to the outbox: with gmail connected and the dial on "auto with undo"
+// it sends after the undo window; otherwise it waits in the applicant's queue for one tap.
 // honesty rules: only official contact addresses; only real competing offers (from the applicant's own recorded decisions);
 // never imply need, hardship or circumstances the profile doesn't state.
 
@@ -92,7 +94,7 @@ async function saveDrafts(userId: string, applicationId: string, out: z.infer<ty
       .select("id")
       .single();
     if (terr) throw new Error(terr.message);
-    const { error } = await db.from("messages").insert({
+    const { data: msg, error } = await db.from("messages").insert({
       user_id: userId,
       thread_id: t.id,
       direction: "out",
@@ -101,9 +103,11 @@ async function saveDrafts(userId: string, applicationId: string, out: z.infer<ty
       to_email: m.to_email || null,
       purpose: m.purpose,
       status: "draft",
-    });
+    }).select("id").single();
     if (error) throw new Error(error.message);
     saved++;
+    // the dial decides whether this goes out on its own (with an undo window) or waits for the applicant
+    if (m.to_email) await schedule(userId, msg.id as string, "agent").catch(() => null);
   }
 
   // the plan lives as an artifact so the applicant can read it on the application page

@@ -3,11 +3,15 @@ import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent, recordOutcome } from "@/lib/events";
+import { schedule, cancel } from "@/lib/outbox";
 
-// outreach drafts: the applicant edits, sends from their own email, and tells us it went out.
+// outreach drafts: the applicant edits, then sends through their connected gmail (with a short undo),
+// or sends from their own email client and tells us it went out.
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save"), subject: z.string().trim().min(1).max(300), body: z.string().trim().min(1).max(8000), to_email: z.string().trim().max(200) }),
   z.object({ action: z.literal("mark_sent") }),
+  z.object({ action: z.literal("send") }),
+  z.object({ action: z.literal("cancel") }),
   z.object({ action: z.literal("discard") }),
   z.object({ action: z.literal("log_reply"), outcome: z.enum(["replied", "waived", "aid_increased", "declined", "no_reply"]) }),
 ]);
@@ -29,6 +33,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await db.from("messages").update({ subject: b.subject, body: b.body, to_email: b.to_email || null }).eq("id", id);
     await db.from("threads").update({ subject: b.subject }).eq("id", m.thread_id);
     return NextResponse.json({ ok: true });
+  }
+  if (b.action === "send") {
+    const r = await schedule(uid, id, "user");
+    return r.ok ? NextResponse.json({ ok: true, sendAt: r.sendAt }) : NextResponse.json({ error: r.reason }, { status: 400 });
+  }
+  if (b.action === "cancel") {
+    return (await cancel(uid, id)) ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "too late: it already went out" }, { status: 409 });
   }
   if (b.action === "discard") {
     await db.from("messages").update({ status: "cancelled" }).eq("id", id);

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC = ["/login", "/auth", "/api/worker", "/api/health", "/pricing"];
+// /api/runner authenticates with the extension key itself; it has no session cookie
+const PUBLIC = ["/login", "/auth", "/api/worker", "/api/health", "/api/runner/tasks", "/api/runner/sheet", "/api/runner/map", "/api/runner/file", "/api/runner/check", "/api/runner/report", "/pricing"];
 
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });

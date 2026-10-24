@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { runStructured } from "@/lib/llm";
 import { logEvent } from "@/lib/events";
+import { runDigest } from "@/lib/digest";
 
 // smoke test for the whole loop: queue -> worker -> claude -> agent_runs -> events.
 const PingOut = z.object({ status: z.literal("ok"), note: z.string() });
@@ -22,4 +23,6 @@ export const system: Record<string, Handler> = {
     await logEvent({ userId: job.user_id, actor: "agent:system", action: "system.pinged", agentRunId: runId, context: output });
     return output;
   },
+  // the morning digest: deterministic, no model call
+  "system.digest": async (job) => runDigest(job.user_id),
 };

@@ -24,6 +24,14 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
   const handler = HANDLERS[`${job.agent}.${job.task}`];
   try {
     if (!handler) throw new Error(`no handler for ${job.agent}.${job.task}`);
+    // the stop button: a pulled "all" or per-agent ripcord holds agent work (the digest still runs)
+    if (job.agent !== "system") {
+      const { data: cords } = await db.from("ripcords").select("scope_kind, scope_value").eq("user_id", job.user_id).eq("active", true);
+      if ((cords ?? []).some((c) => c.scope_kind === "all" || (c.scope_kind === "agent" && c.scope_value === job.agent))) {
+        await db.from("jobs").update({ status: "cancelled", last_error: "paused by you", finished_at: new Date().toISOString() }).eq("id", job.id);
+        return { id: job.id, ok: false, error: "paused" };
+      }
+    }
     const result = await handler(job);
     await db
       .from("jobs")

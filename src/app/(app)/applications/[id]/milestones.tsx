@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ATTESTATION } from "@/lib/attest";
 
 // the applicant's own steps: approve the packet, confirm they submitted, record what the school decided
 export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: string; status: string; essaysTotal: number; essaysApproved: number }) {
@@ -10,6 +11,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
   const [aid, setAid] = useState("");
   const [note, setNote] = useState("");
   const [acceptBy, setAcceptBy] = useState("");
+  const [attest, setAttest] = useState(false);
   const router = useRouter();
 
   async function act(body: Record<string, unknown>) {
@@ -30,15 +32,19 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
 
       {(status === "preparing" || status === "ready_for_review") && (
         <div className="space-y-2 text-sm">
-          <p>{essaysApproved}/{essaysTotal} pieces approved by you. when all are approved, approve the packet: that&apos;s your statement that everything in it is yours and true.</p>
-          <button disabled={busy || !essaysTotal || essaysApproved < essaysTotal} onClick={() => act({ action: "approve_packet" })} className={btn}>approve packet</button>
+          <p>{essaysApproved}/{essaysTotal} pieces approved by you. when all are approved, approve the packet. the runner then takes it to the school&apos;s portal and submits it.</p>
+          <label className="flex items-start gap-2 rounded-md bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5" />
+            <span>{ATTESTATION}</span>
+          </label>
+          <button disabled={busy || !attest || !essaysTotal || essaysApproved < essaysTotal} onClick={() => act({ action: "approve_packet", attest: true })} className={btn}>approve and sign packet</button>
         </div>
       )}
 
       {status === "packet_approved" && (
         <div className="space-y-2 text-sm">
-          <p>packet approved. submit it on the school&apos;s portal (copy your approved essays from below), then confirm here so deadlines and follow-ups switch to post-submission mode.</p>
-          <button disabled={busy} onClick={() => act({ action: "mark_submitted" })} className={btn}>I submitted it</button>
+          <p>packet approved and signed. the runner below submits it from your browser. if you submit it yourself instead, confirm here.</p>
+          <button disabled={busy} onClick={() => act({ action: "mark_submitted" })} className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-neutral-700">I submitted it myself</button>
         </div>
       )}
 

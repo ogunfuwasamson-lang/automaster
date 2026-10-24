@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { loadProfile, profileGaps, completeness, sortWork, LEVEL_LABEL } from "@/lib/profile";
 import { Decisions, type Decision } from "@/components/decisions";
 import { CleanupButton } from "@/components/cleanup-button";
+import { PortalDetailsForm } from "./portal-details";
+import type { PortalDetails, RecommenderRow } from "@/lib/portal-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +32,10 @@ const money = (n: number | null) => (n == null ? null : `$${n.toLocaleString()}`
 export default async function ProfilePage() {
   const auth = await requireUser();
   if (!auth) return null;
-  const [{ data }, { data: decisions }] = await Promise.all([
-    auth.sb.from("profiles").select("profile").single(),
+  const [{ data }, { data: decisions }, { data: recs }] = await Promise.all([
+    auth.sb.from("profiles").select("profile, portal_details").single(),
     auth.sb.from("approvals").select("id, kind, title, summary, payload").eq("kind", "fact_confirm").eq("status", "pending").order("created_at"),
+    auth.sb.from("recommenders").select("name, email, title, organization, relationship, phone").order("created_at"),
   ]);
   const p = loadProfile(data?.profile);
   const gaps = profileGaps(p);
@@ -61,6 +64,13 @@ export default async function ProfilePage() {
           <Decisions items={decisions as Decision[]} />
         </section>
       ) : null}
+
+      <details className="rounded-md border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">details for application forms <span className="font-normal text-neutral-500">(contact, address, recommenders)</span></summary>
+        <div className="border-t border-neutral-200 p-4 dark:border-neutral-800">
+          <PortalDetailsForm details={(data?.portal_details ?? {}) as PortalDetails} recommenders={(recs ?? []) as RecommenderRow[]} />
+        </div>
+      </details>
 
       {p.confirmed_facts.length > 0 && (
         <Section title="confirmed by you">

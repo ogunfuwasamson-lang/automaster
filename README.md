@@ -21,9 +21,9 @@ drafts, funding, submission prep. you review, they run.
 | 1 | intake: doc upload, extraction, voice interview | done |
 | 2 | recon + deadline tracker | done |
 | 3 | strategist, writer, red team | done |
-| 4 | closer: fee waivers, post-admission funding, outreach drafts | done (sending is manual; gmail next) |
-| 5 | runner: fill sheets, browser extension | next |
-| 6 | dashboard polish, digest, ripcord ui | |
+| 4 | closer: fee waivers, post-admission funding, outreach; sends through the applicant's gmail | done |
+| 5 | runner: fill sheet + chrome extension that fills and submits approved packets | done |
+| 6 | dashboard (pipeline, stop button, outgoing mail, runner), editable dial, morning digest | done |
 
 ## how it's wired
 
@@ -54,6 +54,33 @@ hard floors enforced in the database, not just the app:
 - events can't be edited or deleted
 
 ripcords (`ripcords` table) stop everything, one agent, one capability, or one school until released.
+
+## the runner (phase 5)
+
+a chrome extension (`extension/`, zipped to `public/automaster-runner.zip` by `npm run pack:extension`) that works in the
+applicant's own browser, where they're already signed in to portals:
+
+1. the applicant approves and **signs** the packet (`applications.attestation`). that statement is what lets the runner
+   tick a portal's certification box for them. sending the packet back to `preparing` wipes it (db trigger).
+2. the extension polls `/api/runner/tasks` with a personal key (`runner_tokens`, sha256 only), opens the portal,
+   and on every page sends the field labels to `/api/runner/map`. rules map most labels; haiku maps the rest by
+   picking a fill-sheet **key**, never writing a value, so it can't invent facts.
+3. it uploads the approved essays (as pdf) and documents, presses next, and at the final submit asks
+   `/api/runner/check` (packet approved + attested + dial + ripcords) before clicking.
+4. it never fills passwords, id numbers or card fields, and stops (`needs_you`) at bot checks, payments, sign-ins,
+   account passwords, and any required question the profile doesn't answer.
+5. "submitted" is reported only after the portal shows a confirmation; the db still refuses it without packet approval.
+
+## email (phase 4 sending)
+
+send-only gmail access (`gmail.send`): we can send as the applicant but can't read their mail. refresh tokens are
+aes-256-gcm encrypted (`TOKEN_ENCRYPTION_KEY`) in `mail_accounts`, which has no user-facing rls policy.
+outbox: draft → scheduled (undo window) → sent by the worker. agent-drafted emails follow the dial
+(`email.new_contact`, default: on its own with a 10 min undo); the applicant's own "approve & send" has a 1 min undo.
+
+google cloud setup: create an oauth client (web), add redirect `https://YOUR-APP/api/mail/callback`, enable the
+gmail api, add the `gmail.send` scope to the consent screen. while the app is in testing, add users as test users
+(up to 100); for the public launch submit it for google's verification (gmail.send is a sensitive scope, not restricted).
 
 ## setup (one time, ~15 min)
 
@@ -94,7 +121,7 @@ TEST_DATABASE_URL=postgres://am:am@localhost/am_test npm test
 | season pass | $199 / 6 months | $25 / month | same as pro, paid once per cycle |
 
 - every model call is metered (`agent_runs.cost_usd`, official per-token prices in `src/lib/pricing.ts`) and
-  budget-checked first. the monthly budget is split research 45% / writing 35% / core 20% so one feature can't starve the rest.
+  budget-checked first. the monthly budget is split research 35% / writing 45% / core 20% so one feature can't starve the rest.
 - over budget: the call is refused, queued work parks until the 1st (or until the plan changes), the dashboard says so.
 - model tiers: haiku 5.5 for web research and parsing (the bulk of tokens), sonnet 5.5 for writing, review and chat.
   system prompts and fact sheets are prompt-cached. program research is shared across users for 30 days.

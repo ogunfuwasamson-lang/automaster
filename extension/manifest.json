@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "automaster runner",
+  "version": "0.1.0",
+  "description": "Fills and submits your approved university applications from your own browser.",
+  "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "automaster runner" },
+  "icons": { "128": "icon.png" }
+}
