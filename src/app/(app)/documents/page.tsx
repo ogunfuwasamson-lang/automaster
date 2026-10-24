@@ -4,6 +4,7 @@ import { PageHeader, Section, Empty } from "@/components/ui/page";
 import { Uploader } from "./uploader";
 import { DOC_KINDS } from "@/lib/doc-kinds";
 import { RetryButton } from "./retry-button";
+import { DeleteDoc } from "./delete-button";
 import { AutoRefresh } from "../shortlist/controls";
 
 export const dynamic = "force-dynamic";
@@ -49,10 +50,11 @@ export default async function Documents() {
                             <span className="block truncate font-bold">{d.filename}</span>
                             <span className="text-xs text-muted">{KIND_LABEL[d.kind] ?? KIND_LABEL[d.kind === "degree_cert" ? "degree_certificate" : "other"]}</span>
                           </span>
-                          <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${d.status === "failed" ? "text-stop" : d.status === "extracted" ? "text-go" : "text-muted"}`}>
+                          <span className={`ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-medium ${d.status === "failed" ? "text-stop" : d.status === "extracted" ? "text-go" : "text-muted"}`}>
                             {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : d.status === "extracted" ? <CircleCheck className="size-3.5" aria-hidden /> : d.status === "failed" ? <TriangleAlert className="size-3.5" aria-hidden /> : null}
                             {busy ? "Reading" : d.status === "extracted" ? "Read" : d.status === "failed" ? "Couldn't read" : d.status}
                           </span>
+                          <DeleteDoc id={d.id} name={d.filename} />
                         </div>
                         {ex.summary && <p className="leading-relaxed text-muted">{ex.summary}</p>}
                         {ex.issues?.length ? (

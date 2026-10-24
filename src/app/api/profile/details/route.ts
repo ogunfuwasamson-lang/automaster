@@ -5,26 +5,13 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { NEVER_FILL } from "@/lib/fillsheet";
+import { DetailsSchema } from "@/lib/details-schema";
 
 export const runtime = "nodejs";
 
 const str = (max = 200) => z.string().trim().max(max).nullable().optional();
 const Body = z.object({
-  details: z.object({
-    preferred_name: str(80),
-    email: str(200),
-    phone: str(40),
-    date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().or(z.literal("")),
-    gender: str(60),
-    address_line1: str(),
-    address_line2: str(),
-    city: str(100),
-    state: str(100),
-    postal_code: str(20),
-    country: str(100),
-    linkedin: str(300),
-    website: str(300),
-  }),
+  details: DetailsSchema,
   recommenders: z
     .array(
       z.object({
@@ -49,7 +36,8 @@ export async function POST(req: NextRequest) {
   const db = admin();
   const details = Object.fromEntries(Object.entries(parsed.data.details).map(([k, v]) => [k, v || null]));
   if (Object.values(details).some((v) => typeof v === "string" && /\b\d{9,}\b/.test(v) && NEVER_FILL.test(v))) return NextResponse.json({ error: "don't put id numbers here" }, { status: 400 });
-  await db.from("profiles").update({ portal_details: details }).eq("id", uid);
+  const { data: cur } = await db.from("profiles").select("portal_details").eq("id", uid).single();
+  await db.from("profiles").update({ portal_details: { ...((cur?.portal_details as Record<string, unknown>) ?? {}), ...details } }).eq("id", uid);
   await db.from("recommenders").delete().eq("user_id", uid);
   if (parsed.data.recommenders.length) {
     await db.from("recommenders").insert(parsed.data.recommenders.map((r) => ({ user_id: uid, name: r.name, email: r.email || null, title: r.title || null, organization: r.organization || null, relationship: r.relationship || null, phone: r.phone || null })));
