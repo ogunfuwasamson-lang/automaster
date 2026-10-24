@@ -22,22 +22,49 @@ export const DOM_HELPER = String.raw`
     if (by) parts.push(by.split(/\s+/).map((i) => textOf(document.getElementById(i))).join(" "));
     for (const a of ["aria-label", "placeholder", "title"]) if (el.getAttribute(a)) parts.push(el.getAttribute(a));
     let own = parts.join(" ").replace(/\s+/g, " ").trim();
-    // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question
-    // (slate renders birthdate as three selects inside one .form_question)
-    if (!own || own.length <= 12) {
-      const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li") || (el.parentElement && el.parentElement.closest("div, p, span"));
-      const q = row && (row.querySelector(".form_label, legend, label:not([for]), th, .label, h3, h4") || null);
-      const ctx = q ? textOf(q) : row ? textOf(row).slice(0, 120) : "";
+    // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question.
+    // not for radio/checkbox options ("Yes", "No"): those are answers, their question comes from groupLabel.
+    if ((!own || own.replace(/[^a-z]/gi, "").length <= 5 || /^(day|month|year|dd|mm|yyyy|select|choose)\b/i.test(own)) && el.type !== "radio" && el.type !== "checkbox") {
+      let ctx = "";
+      // 1. nearest ancestor with a little text of its own (minus this field's own option text)
+      const mine = textOf(el);
+      let a = el.parentElement;
+      for (let i = 0; i < 4 && a && !ctx; i++, a = a.parentElement) {
+        const t = (mine ? textOf(a).split(mine).join(" ") : textOf(a)).replace(/\s+/g, " ").trim();
+        if (t && t.length <= 120) ctx = t;
+        else if (t.length > 120) break;
+      }
+      // 2. the row's label element (slate's .form_label, a legend, a th)
+      if (!ctx) {
+        const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li") || (el.parentElement && el.parentElement.closest("div, p, span"));
+        const q = row && row.querySelector(".form_label, legend, label:not([for]), th, .label, h3, h4");
+        ctx = q ? textOf(q) : "";
+      }
       if (ctx && !own.toLowerCase().includes(ctx.toLowerCase())) own = (ctx + " " + own).trim();
     }
     return own.slice(0, 300);
   };
+  // a radio group's question: the nearest ancestor text once the option labels are taken out
+  // (stirling puts several questions in one block; the first ancestor with its own short text is the question)
   const groupLabel = (radio) => {
+    const group = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(radio.name) + '"]')];
+    const opts = group.map((g) => labelFor(g) || g.value).filter(Boolean);
     const fs = radio.closest("fieldset");
+    let p = radio.parentElement;
+    for (let i = 0; i < 6 && p; i++, p = p.parentElement) {
+      let t = textOf(p);
+      const full = t;
+      for (const o of opts) if (o) t = t.split(o).join(" ");
+      t = t.replace(/\s+/g, " ").trim();
+      // "Part-time or Full-time *" minus its options leaves "or *": keep the whole line instead
+      if (t && t.replace(/[^a-z]/gi, "").length < 5 && full.length <= 160) t = full;
+      if (t && t.length <= 160) return t;
+      if (t.length > 160) break;
+    }
     if (fs && fs.querySelector("legend")) return textOf(fs.querySelector("legend"));
-    const g = radio.closest('[role="radiogroup"], .form-group, .question, tr, li, div');
-    return g ? textOf(g).slice(0, 160) : radio.name || "";
+    return radio.name || "";
   };
+
   const isEmpty = (el) => el.tagName === "SELECT" ? (el.selectedIndex <= 0 || !el.value) : el.type === "checkbox" ? !el.checked : el.type === "file" ? !(el.files && el.files.length) : !String(el.value || "").trim();
   const typeOf = (el) => el.tagName === "SELECT" ? "select" : el.tagName === "TEXTAREA" ? "textarea" : (el.type || "text").toLowerCase();
 
@@ -98,6 +125,8 @@ export const DOM_HELPER = String.raw`
       fields: fields(false),
       allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, autocomplete: f.autocomplete, required: f.required })),
       buttons: buttons(),
+      errors: [...document.querySelectorAll('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message')]
+        .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
     };
   }
   window.__am = { snapshot, apply, fields };

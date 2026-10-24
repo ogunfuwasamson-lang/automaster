@@ -17,6 +17,7 @@ export interface Snapshot {
   fields: (PageField & { autocomplete?: string })[];
   allFields: { id: string; label: string; type: string; autocomplete?: string; required?: boolean }[];
   buttons: { id: string; label: string; link: boolean }[];
+  errors?: string[];
 }
 
 export interface EngineState {
@@ -153,7 +154,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     if (state.samePageCount >= 3) {
       const req = s.fields.map((f) => f.label.slice(0, 50));
       const fix = missingNote(state.missing ?? []);
-      const err = (s.body.match(/[^.]*\b(required|invalid|must|error|please (enter|select|provide))\b[^.]*\./i) ?? [""])[0].trim().slice(0, 140);
+      const err = (s.errors ?? []).join("; ").slice(0, 160);
       return { outcome: { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") }, state, filled };
     }
 

@@ -225,7 +225,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
-  [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent/i, "applying_as"],
+  [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent|who are you applying for/i, "applying_as"],
   [/\b(mode of study|study mode|attendance mode|full.?time or part.?time|part.?time or full.?time)\b|^\s*full.?time\s+part.?time\s*$|^\s*part.?time\s+full.?time\s*$/i, "study_mode"],
   [/\b(do you|will you) (require|need) a (student )?visa|\bvisa (required|needed)|require a visa/i, "visa_required"],
   [/\b(start date|intake|entry (date|point|month)|course start|commenc|when (do|would) you (like|want|intend) to start)/i, "entry_start"],

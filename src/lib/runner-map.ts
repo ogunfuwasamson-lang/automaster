@@ -81,6 +81,14 @@ function fileFor(label: string, sheet: FillSheet): string | null {
   return essay ? `essay:${essay}` : null;
 }
 
+// when the question text is unclear, the answers can give it away
+export function keyForOptions(options: string[]): string | null {
+  const o = options.map((x) => x.toLowerCase());
+  if (o.some((x) => /full.?time/.test(x)) && o.some((x) => /part.?time/.test(x))) return "study_mode";
+  if (o.some((x) => /myself|my own behalf/.test(x)) && o.some((x) => /agent/.test(x))) return "applying_as";
+  return null;
+}
+
 // first pass: rules only. returns fills plus the fields the model should look at.
 export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill[]; unresolved: PageField[] } {
   const fills: Fill[] = [];
@@ -108,7 +116,7 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
         continue;
       }
     }
-    const key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null);
+    const key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
     const r = key ? resolve(f, key, sheet) : null;
     if (r) fills.push(r);
     else if (key && !sheet.fields[key] && !key.startsWith("essay:")) fills.push({ id: f.id, action: "skip", reason: `missing:${key}` });
