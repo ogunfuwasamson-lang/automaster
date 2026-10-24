@@ -33,6 +33,7 @@ export interface EngineState {
 export interface Login {
   login_email: string;
   password: string;
+  status?: string; // "created" until a sign-in has worked once
 }
 
 export interface EngineDeps {
@@ -188,7 +189,9 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       await deps.progress("signing in to the portal");
       await click(page, go.id);
       const after = await snap(page);
-      if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed)/i.test(after.body)) {
+      if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
+        // a login we generated that has never worked: the applicant hasn't created the account yet
+        if (login.status !== "verified") return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
         return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. if you changed it, update it in automaster" }, state, filled };
       }
       continue;
