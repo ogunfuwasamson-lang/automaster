@@ -6,6 +6,7 @@ import { CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, Send, Squ
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { sentence } from "@/components/ui/status";
 
 // the cloud runner: finds the portal, creates the account, fills, uploads and submits. nothing to install.
 export function RunnerPanel(props: {
@@ -85,7 +86,7 @@ export function RunnerPanel(props: {
           <CircleCheck className="mt-0.5 size-4 shrink-0 text-go" aria-hidden />
           <span>
             <span className="font-semibold">{runnerStatus === "submitted" ? "Submitted by your agents." : "Submitted."}</span>
-            {note ? <span className="block text-muted">{note}</span> : null}
+            {note ? <span className="block text-muted">{sentence(note)}</span> : null}
           </span>
         </p>
         {loginCard}
@@ -112,7 +113,7 @@ export function RunnerPanel(props: {
         </span>
         <div className="min-w-0">
           <h2 className="font-semibold">{head}</h2>
-          {note ? <p className="mt-0.5 text-sm text-muted">{note}</p> : null}
+          {note ? <p className="mt-0.5 text-sm text-muted">{sentence(note)}</p> : null}
         </div>
       </div>
 

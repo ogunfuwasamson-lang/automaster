@@ -69,7 +69,7 @@ describe("slate-style birthdate", () => {
     expect(keyForLabel("Month")).toBe(null);
   });
   it("points the applicant at the missing detail", () => {
-    expect(missingNote(["dob_month", "dob_day"])).toBe("add your date of birth under profile → details for application forms, then press try again");
+    expect(missingNote(["dob_month", "dob_day"])).toBe("add your date of birth in Profile, under Details for application forms, then choose Try again");
   });
 });
 

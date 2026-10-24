@@ -41,3 +41,6 @@ export function daysUntil(date: string | null | undefined, today = new Date().to
   if (!date) return null;
   return Math.round((Date.parse(date + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86_400_000);
 }
+
+// agent notes are written mid-sentence; show them as sentences
+export const sentence = (s: string | null | undefined) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");

@@ -16,23 +16,26 @@ export function Flap({ text, delay = 0, className = "" }: { text: string; delay?
       setShown(text);
       return;
     }
-    let frame = 0;
-    const total = 14 + Math.min(text.length, 18);
+    // time-based, so a throttled background tab still lands on the text on schedule
+    const duration = 520 + Math.min(text.length, 18) * 38;
     let t: ReturnType<typeof setInterval> | undefined;
     const start = setTimeout(() => {
+      const began = Date.now();
       t = setInterval(() => {
-        frame++;
-        const settled = Math.floor((frame / total) * text.length);
+        const elapsed = Date.now() - began;
+        if (elapsed >= duration) {
+          clearInterval(t);
+          setShown(text);
+          return;
+        }
+        const frame = Math.floor(elapsed / 38);
+        const settled = Math.floor((elapsed / duration) * text.length);
         setShown(
           text
             .split("")
             .map((c, i) => (i < settled || c === " " ? c : GLYPHS[(i * 7 + frame * 3) % GLYPHS.length]))
             .join(""),
         );
-        if (frame >= total) {
-          clearInterval(t);
-          setShown(text);
-        }
       }, 38);
     }, delay);
     return () => {

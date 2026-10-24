@@ -298,7 +298,7 @@ export const runner: Record<string, Handler> = {
         if (outcome.reason === "account") {
           // generate the password now so the applicant creates the account with it; we sign in with it after
           const login = await createLogin(job.user_id, applicationId, new URL(page.url()).hostname, sheet.fields.email ?? "");
-          outcome.note = `this portal blocks automated sign-ups. create the account yourself at ${portal}: use ${login.login_email} and the password under "your portal login" below (already created it? make sure the password matches). the agents sign in and finish the rest within 10 minutes`;
+          outcome.note = `this portal blocks automated sign-ups. Create the account yourself at ${portal} with ${login.login_email} and the password shown under "Your portal login" on this application. Already made it? Check the password matches. The agents sign in and finish the rest within 10 minutes.`;
           saved.last_url = portal; // start again from the landing page, which has the "log in" link
           saved.samePageCount = 0;
         }
@@ -332,7 +332,7 @@ export const runner: Record<string, Handler> = {
       await db.from("applications").update({ runner_state: saved, runner_session_id: null, runner_status: "failed", runner_note: outcome.note }).eq("id", applicationId);
       return { outcome: "failed" };
     } catch (e) {
-      await setRunner(applicationId, { runner_status: "failed", runner_note: `hit a problem: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}` });
+      await setRunner(applicationId, { runner_status: "failed", runner_note: "something went wrong while working on the portal. Choose Try again; if it keeps happening, open the portal and finish that step yourself." }); // the raw error stays on the job for the operator view
       throw e;
     } finally {
       await ob.close(keep);

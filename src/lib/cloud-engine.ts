@@ -125,8 +125,19 @@ async function snapFrame(f: Frame): Promise<Snapshot | null> {
   }
 }
 
+// a page mid-navigation has no document to read: wait for it to settle, then treat it as blank
+async function snapMain(page: Page): Promise<Snapshot> {
+  for (let i = 0; i < 3; i++) {
+    const s = await snapFrame(page.mainFrame());
+    if (s) return s;
+    await page.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => {});
+    await sleep(800);
+  }
+  return { url: page.url(), title: "", body: "", captcha: false, payment: false, confirmation: false, fingerprint: `blank:${page.url()}`, fields: [], allFields: [], buttons: [] };
+}
+
 async function snap(page: Page): Promise<Snapshot> {
-  const main = (await snapFrame(page.mainFrame()))!;
+  const main = await snapMain(page);
   let best: { f: Frame; s: Snapshot } = { f: page.mainFrame(), s: main };
   const score = (x: Snapshot) => x.allFields.length * 3 + x.buttons.length;
   let confirmation = main.confirmation;
@@ -362,7 +373,7 @@ const DETAIL: Record<string, string> = {
 };
 export function missingNote(keys: string[]): string {
   const labels = [...new Set(keys.map((k) => DETAIL[k] ?? (k.startsWith("rec") ? "recommenders" : k.startsWith("edu") ? "education history" : k.startsWith("work") ? "work history" : k.replace(/_/g, " "))))];
-  return labels.length ? `add your ${labels.slice(0, 4).join(", ")} under profile → details for application forms, then press try again` : "";
+  return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
 }
 
 const NAV_BUDGET = 12; // model-driven steps per run

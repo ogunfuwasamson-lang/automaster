@@ -7,7 +7,7 @@ import { loadProfile } from "@/lib/profile";
 import { describe, actorLabel } from "@/lib/activity";
 import { Decisions, type Decision } from "@/components/decisions";
 import { DeparturesBoard, type BoardRow } from "@/components/ui/board";
-import { APP_STATUS, RUNNER_STATUS, daysUntil } from "@/components/ui/status";
+import { APP_STATUS, RUNNER_STATUS, daysUntil, sentence } from "@/components/ui/status";
 import { Notice, Section, Empty } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
 import { StopButton, CancelEmail, RetryRunner } from "./controls";
@@ -149,7 +149,7 @@ export default async function Dashboard() {
                         <Send className="mt-0.5 size-4 shrink-0" aria-hidden />
                         <span className="min-w-0 flex-1">
                           <span className="block font-medium">{pr.schools.name}: submission stopped</span>
-                          <span className="mt-0.5 block text-sm text-muted">{a.runner_note}</span>
+                          <span className="mt-0.5 block text-sm text-muted">{sentence(a.runner_note)}</span>
                         </span>
                         <ArrowUpRight className="size-4 shrink-0 text-muted" aria-hidden />
                       </Link>
