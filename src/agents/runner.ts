@@ -194,7 +194,14 @@ export const runner: Record<string, Handler> = {
         // login we show them). we look again every 10 minutes and carry on once it's done.
         const liveView = !!ob.sessionId;
         // a bot check only clears in the browser that saw it: without a live view, hand the portal over instead of looping
-        const recheck = (outcome.reason === "payment" || outcome.reason === "verification" || (outcome.reason === "captcha" && liveView)) && (state.rechecks ?? 0) < RECHECKS;
+        if (outcome.reason === "account") {
+          // generate the password now so the applicant creates the account with it; we sign in with it after
+          const login = await createLogin(job.user_id, applicationId, new URL(page.url()).hostname, sheet.fields.email ?? "");
+          outcome.note = `this portal blocks automated sign-ups. create the account yourself at ${portal}: use ${login.login_email} and the password under "your portal login" below. the agents sign in and finish the rest within 10 minutes`;
+          saved.last_url = portal; // start again from the landing page, which has the "log in" link
+          saved.samePageCount = 0;
+        }
+        const recheck = (outcome.reason === "payment" || outcome.reason === "verification" || outcome.reason === "account" || (outcome.reason === "captcha" && liveView)) && (state.rechecks ?? 0) < (outcome.reason === "account" ? 36 : RECHECKS); // give people a few hours to create an account
         keep = recheck;
         const live = liveView ? await ob.liveUrl() : null;
         if (!liveView) {

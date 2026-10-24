@@ -50,7 +50,7 @@ export interface EngineDeps {
 
 export type Outcome =
   | { kind: "submitted"; note: string }
-  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" }
+  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" }
   | { kind: "wait"; note: string; seconds: number } // try again later (e.g. waiting for the verification email)
   | { kind: "continue"; note: string } // out of time in this run; pick up straight away
   | { kind: "failed"; note: string };
@@ -65,6 +65,8 @@ const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login
 const SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
 const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
 const CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
+const REGISTER_PAGE = /(regist|create.?(an.?)?account|sign.?up|new.?user)/i;
+const LOGIN_LINK = /^(log ?in|login|sign ?in)( here| now)?$|^returning (users?|applicants?)/i;
 const TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
 
 // pure: what kind of page is this?
@@ -114,6 +116,11 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     // loop guard: the same page three times in a row means the portal won't take what we gave it
     state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
     state.lastFingerprint = s.fingerprint;
+    // a sign-up form that won't move even though everything is filled: the portal blocks automated sign-ups.
+    // the applicant creates the account once (with our generated password); we sign in from then on.
+    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length) {
+      return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
+    }
     if (state.samePageCount >= 3) {
       const req = s.fields.map((f) => f.label.slice(0, 50));
       const fix = missingNote(state.missing ?? []);
@@ -228,7 +235,9 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       await click(page, submit.id);
       continue;
     }
-    const next = find(now, NEXT) ?? (!s.fields.length ? find(now, START) ?? find(now, CREATE) : undefined);
+    // landing pages offer "log in" and "create an account": once there's a login on file, sign in
+    const haveLogin = !s.fields.length && !!(await deps.existingLogin());
+    const next = find(now, NEXT) ?? (!s.fields.length ? (haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? find(now, CREATE) : undefined);
     if (next) {
       await click(page, next.id);
       continue;
