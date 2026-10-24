@@ -54,6 +54,20 @@ ${WIRE_GUIDE}`;
 export const curator: Record<string, Handler> = {
   "curator.consolidate": async (job) => {
     const db = admin();
+    // one cleanup per user at a time: if another is already running, this one stands down
+    const { data: others } = await db
+      .from("jobs")
+      .select("id")
+      .eq("user_id", job.user_id)
+      .eq("agent", "curator")
+      .eq("task", "consolidate")
+      .eq("status", "running")
+      .neq("id", job.id)
+      .lt("locked_at", new Date().toISOString());
+    if (others?.length) {
+      await scheduleConsolidate(job.user_id, 180_000);
+      return { skipped: "another cleanup is running; rescheduled" };
+    }
     const [{ data: row, error }, { data: docs }, { data: pending }] = await Promise.all([
       db.from("profiles").select("profile, updated_at").eq("id", job.user_id).single(),
       db.from("documents").select("filename, extracted").eq("user_id", job.user_id).eq("status", "extracted"),
@@ -147,5 +161,17 @@ export async function scheduleConsolidate(userId: string, delayMs = 120_000) {
     .eq("status", "queued")
     .select("id");
   if (queued?.length) return;
+  // a cleanup already in flight will pick up the latest data on its retry; queue one follow-up at most
+  const { data: running } = await db
+    .from("jobs")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("agent", "curator")
+    .eq("task", "consolidate")
+    .eq("status", "running");
+  if (running?.length) {
+    await enqueue({ userId, agent: "curator", task: "consolidate", runAt: new Date(Date.now() + Math.max(delayMs, 180_000)) });
+    return;
+  }
   await enqueue({ userId, agent: "curator", task: "consolidate", runAt: new Date(runAt) });
 }

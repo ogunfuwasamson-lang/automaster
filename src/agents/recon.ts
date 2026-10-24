@@ -308,8 +308,8 @@ applicant:
 ${profileBrief(profile, row?.target_term)}
 
 find and report: degree and STEM designation; GMAT/GRE policy and any waiver rules; english requirements and whether a medium-of-instruction letter from a Nigerian university is accepted; application fee and fee waiver options; tuition and length; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
-      maxSearches: 6,
-      maxFetches: 6,
+      maxSearches: 5,
+      maxFetches: 4,
     });
 
     const { output: facts, runId } = await runStructured({

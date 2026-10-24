@@ -8,6 +8,7 @@ export function CleanupButton() {
   return (
     <button
       disabled={state === "running"}
+      title="merges duplicates and raises conflicting facts for you to settle"
       onClick={async () => {
         setState("running");
         await fetch("/api/profile/cleanup", { method: "POST" });

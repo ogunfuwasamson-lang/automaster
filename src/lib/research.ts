@@ -59,7 +59,7 @@ export async function research(args: {
         messages,
         tools: [
           { type: "web_search_20250305", name: "web_search", max_uses: args.maxSearches ?? 8 },
-          { type: "web_fetch_20250910", name: "web_fetch", max_uses: args.maxFetches ?? 6, max_content_tokens: 20000 },
+          { type: "web_fetch_20250910", name: "web_fetch", max_uses: args.maxFetches ?? 6, max_content_tokens: 8000 },
         ],
       });
       inTok += msg.usage.input_tokens;
