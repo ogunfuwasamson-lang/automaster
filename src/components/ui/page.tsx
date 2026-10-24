@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 
-// page title: big, bold and tight
+// page title: one compact row. the title, an optional single line under it, actions on the right
 export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: ReactNode; actions?: ReactNode; eyebrow?: ReactNode }) {
   return (
-    <header className="relative flex flex-wrap items-end justify-between gap-4 pb-8">
+    <header className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-5">
       <div className="min-w-0">
-        {eyebrow ? <div className="mb-4">{eyebrow}</div> : null}
-        <h1 className="text-4xl font-bold leading-[1.05] tracking-[-0.045em] sm:text-[44px]">{title}</h1>
-        {description ? <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted sm:text-base">{description}</p> : null}
+        {eyebrow ? <div className="mb-2">{eyebrow}</div> : null}
+        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.04em] sm:text-[30px]">{title}</h1>
+        {description ? <p className="mt-0.5 max-w-3xl truncate text-sm text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>

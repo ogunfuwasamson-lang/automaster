@@ -32,18 +32,21 @@ export default async function Messages({ searchParams }: { searchParams: Promise
   const { data: acct } = await admin().from("mail_accounts").select("email, status").eq("user_id", auth.user.id).maybeSingle();
   const canSend = gmailConfigured() && acct?.status === "active";
 
-  const threads: InboxThread[] = ((res.data ?? []) as unknown as Row[])
+  const perThread = ((res.data ?? []) as unknown as Row[])
     .map((th) => ({
       id: th.id,
       subject: th.subject,
       applicationId: th.application_id,
       school: th.applications?.programs?.schools?.name ?? th.contacts?.email?.split("@")[1] ?? "School",
       contactEmail: th.contacts?.email ?? null,
+      threadIds: [th.id],
+      replyThreadId: th.id,
       messages: (th.messages ?? [])
         .filter((m) => m.status !== "cancelled")
         .map(
           (m): InboxMsg => ({
             id: m.id!,
+            threadId: th.id,
             direction: m.direction!,
             subject: m.subject ?? null,
             body: m.body ?? "",
@@ -66,15 +69,35 @@ export default async function Messages({ searchParams }: { searchParams: Promise
     }))
     .filter((th) => th.messages.length);
 
+  // one conversation per school: every thread with the same application (or the same school) reads as one,
+  // newest topic on top for replies
+  const bySchool = new Map<string, InboxThread>();
+  for (const th of perThread) {
+    const key = th.applicationId ?? th.school.toLowerCase();
+    const cur = bySchool.get(key);
+    if (!cur) {
+      bySchool.set(key, { ...th });
+      continue;
+    }
+    cur.threadIds.push(...th.threadIds);
+    cur.messages = [...cur.messages, ...th.messages].sort((a, b) => (a.sent_at ?? a.created_at).localeCompare(b.sent_at ?? b.created_at));
+    cur.contactEmail = cur.contactEmail ?? th.contactEmail;
+  }
+  const threads: InboxThread[] = [...bySchool.values()].map((g) => {
+    const lastMsg = g.messages[g.messages.length - 1];
+    return { ...g, id: g.threadIds[0], replyThreadId: lastMsg.threadId, subject: lastMsg.subject ?? g.subject };
+  });
+  const openId = t ? threads.find((x) => x.threadIds.includes(t))?.id ?? null : null;
+
   return (
     <div>
       <PageHeader
         title="Messages"
-        description={`Every email your agents sent and every reply from your schools, in one place.${acct?.email && canSend ? ` Everything goes out from ${acct.email}.` : ""}`}
+        description={acct?.email && canSend ? `Sent from ${acct.email}` : "Emails to and from your schools"}
         actions={!canSend ? <ButtonLink href="/settings" variant="accent"><Mail className="size-4" aria-hidden /> Connect Gmail</ButtonLink> : undefined}
       />
       {threads.length ? (
-        <MessagesApp threads={threads} initialId={t && threads.some((x) => x.id === t) ? t : null} canSend={canSend} email={acct?.email ?? null} />
+        <MessagesApp threads={threads} initialId={openId} canSend={canSend} email={acct?.email ?? null} />
       ) : (
         <Empty
           icon={<Mail className="size-5" />}

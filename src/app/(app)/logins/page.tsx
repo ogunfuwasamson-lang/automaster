@@ -41,7 +41,7 @@ export default async function Logins() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Portal logins"
-        description="Every account the agents created on a school's portal, any login a school emailed you, and any you add. The agents sign in with these on their own."
+        description="Saved sign-ins for school portals. The agents use them on their own."
         actions={<AddLogin apps={appList} />}
       />
       {list.length ? (

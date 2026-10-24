@@ -49,7 +49,7 @@ export default async function Applications() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Applications"
-        description="Everything you're preparing or waiting on, soonest deadline first."
+        description="Soonest deadline first."
         actions={<ButtonLink href="/shortlist" variant="secondary">Add from shortlist</ButtonLink>}
       />
       {rows.length ? (

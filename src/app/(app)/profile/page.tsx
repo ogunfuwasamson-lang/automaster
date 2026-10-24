@@ -91,13 +91,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-6xl space-y-6">
       {/* hero */}
       <section className="overflow-hidden rounded-[28px] border border-line bg-surface shadow-card">
-        <div className="bg-hero-gradient relative h-28 sm:h-32">
+        <div className="bg-hero-gradient relative h-16 sm:h-20">
           <span className="absolute -right-10 -top-16 size-56 rounded-full border-[36px] border-white/10" aria-hidden />
         </div>
-        <div className="flex flex-wrap items-end gap-5 px-5 pb-5 sm:px-8">
-          <span className="-mt-12 grid size-24 shrink-0 place-items-center rounded-[28px] border-[5px] border-surface bg-[linear-gradient(135deg,#6366f1,#a855f7_55%,#ec4899)] text-3xl font-bold text-white shadow-lift">{initials || "?"}</span>
+        <div className="flex flex-wrap items-end gap-4 px-5 pb-4 sm:px-6">
+          <span className="-mt-9 grid size-[72px] shrink-0 place-items-center rounded-[22px] border-4 border-surface bg-[linear-gradient(135deg,#6366f1,#a855f7_55%,#ec4899)] text-2xl font-bold text-white shadow-lift">{initials || "?"}</span>
           <div className="min-w-0 flex-1 pt-3">
-            <h1 className="truncate text-[28px] font-bold leading-tight tracking-[-0.04em] sm:text-[32px]">{name}</h1>
+            <h1 className="truncate text-2xl font-bold leading-tight tracking-[-0.04em]">{name}</h1>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
               {current && (
                 <span className="inline-flex items-center gap-1.5">

@@ -35,7 +35,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
-      <PageHeader title="Settings" description="How much the agents do on their own, and where they act for you." />
+      <PageHeader title="Settings" description="What the agents do on their own, and where they act for you." />
 
       <Group title="Gmail" description="Lets the agents email as you and read what schools send back.">
         <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} />

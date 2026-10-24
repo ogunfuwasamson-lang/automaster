@@ -165,6 +165,12 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
       ],
     },
     {
+      id: "t3", subject: "Interview availability", created_at: ago(100), application_id: "a2",
+      contacts: { name: "Rice Admissions", email: "admissions@rice.edu" },
+      applications: { programs: { schools: { name: "Rice University, Jones School" } } },
+      messages: [{ id: "mm6", direction: "in", subject: "Interview availability", body: "Hi Ada, we'd like to invite you to interview. Please pick a slot by November 5.", summary: "Rice invites you to interview; pick a slot by November 5.", from_email: "interviews@rice.edu", from_name: "Jones Interviews", action_needed: "pick an interview slot", due_date: day(12), read_at: null, status: "sent", to_email: null, purpose: "interview_invite", send_after: null, sent_at: ago(90), created_at: ago(90) }],
+    },
+    {
       id: "t2", subject: "Question about scholarship deadlines", created_at: ago(60), application_id: "a4",
       contacts: { name: null, email: "gradadmissions@bu.edu" },
       applications: { programs: { schools: { name: "Boston University Questrom" } } },

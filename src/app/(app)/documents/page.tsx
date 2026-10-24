@@ -29,7 +29,7 @@ export default async function Documents() {
   return (
     <div className="mx-auto max-w-4xl">
       {reading && <AutoRefresh every={10000} />}
-      <PageHeader title="Documents" description="Upload once. The agents read each file into your profile and attach the right ones to every application. Don't upload your passport; nothing needs it." />
+      <PageHeader title="Documents" description="Upload once. Agents read each file into your profile and attach it where portals ask. No passport needed." />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="min-w-0 space-y-8">

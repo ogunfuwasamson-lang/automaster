@@ -282,9 +282,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       <PageHeader
         title="Shortlist"
         description={
-          rows.length
-            ? `${counts.join(", ")}. Recon checks each program's official pages for funding, tests, English rules and deadlines.`
-            : "Recon reads official program pages and checks funding, tests, English rules and deadlines for each one."
+          rows.length ? `${counts.join(", ")}.` : "Programs checked against their official pages for funding, tests and deadlines."
         }
         actions={
           <>
@@ -354,12 +352,12 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       )}
 
       {shortlisted.length > 0 && (
-        <Section title="Shortlisted" description="Open one to see the details, then prepare it.">
+        <Section title="Shortlisted" description="Open one for details, then prepare it.">
           <div className="space-y-2">{shortlisted.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
         </Section>
       )}
       {checking.length > 0 && (
-        <Section title="Worth a check" description="Something important is unconfirmed or weak. The flags inside say what. Add it if you're fine with that.">
+        <Section title="Worth a check" description="Something is unconfirmed or weak; the flags inside say what.">
           <div className="space-y-2">{checking.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
         </Section>
       )}
@@ -369,7 +367,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
         </Section>
       )}
       {scholarships.length > 0 && (
-        <Section title={`Scholarships for you (${scholarships.length})`} description="Matched on what makes you stand out, like awards, ventures, employers and region, not only nationality.">
+        <Section title={`Scholarships for you (${scholarships.length})`} description="Matched on what makes you stand out, not only nationality.">
           <ul className="grid gap-4 md:grid-cols-2">
             {scholarships.map((x) => {
               const o = x.funding_opportunities;

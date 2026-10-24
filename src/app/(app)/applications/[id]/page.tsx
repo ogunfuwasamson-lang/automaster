@@ -124,14 +124,14 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       {busy.length > 0 && <AutoRefresh every={15000} />}
-      <header className="space-y-4">
+      <header className="space-y-3">
         <Link href="/applications" className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground">
           <ChevronLeft className="size-4" aria-hidden />
           Applications
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="font-display text-4xl font-bold leading-[0.95] tracking-tight sm:text-5xl">{p.schools.name}</h1>
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.04em] sm:text-[30px]">{p.schools.name}</h1>
             <p className="mt-2 text-[15px] text-muted">
               {p.name}
               {p.degree && !p.name.toLowerCase().includes(p.degree.toLowerCase()) ? `, ${p.degree}` : ""}

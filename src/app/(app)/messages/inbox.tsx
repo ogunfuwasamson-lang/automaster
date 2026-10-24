@@ -27,6 +27,7 @@ import { SchoolTile } from "@/components/home/app-list";
 
 export interface InboxMsg {
   id: string;
+  threadId: string;
   direction: "in" | "out";
   subject: string | null;
   body: string;
@@ -46,6 +47,8 @@ export interface InboxMsg {
 }
 export interface InboxThread {
   id: string;
+  threadIds: string[]; // every email thread with this school, merged into one conversation
+  replyThreadId: string; // replies continue the most recent one
   subject: string | null;
   applicationId: string | null;
   school: string;
@@ -99,9 +102,10 @@ const FILTERS = [
   ["all", "All"],
   ["unread", "Unread"],
   ["action", "Needs action"],
+  ["drafts", "Drafts"],
+  ["awaiting", "No reply yet"],
   ["replies", "Replies"],
   ["sent", "Sent"],
-  ["drafts", "Drafts"],
 ] as const;
 type Filter = (typeof FILTERS)[number][0];
 
@@ -145,7 +149,9 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
               ? t.messages.some((m) => m.direction === "out" && m.status === "sent")
               : filter === "drafts"
                 ? t.messages.some(waiting)
-                : true;
+                : filter === "awaiting"
+                  ? last(t).direction === "out" && last(t).status === "sent" && Date.now() - Date.parse(at(last(t))) > 5 * DAY
+                  : true;
     if (!ok) return false;
     if (!q.trim()) return true;
     const needle = q.toLowerCase();
@@ -175,7 +181,10 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
     const t = threads.find((x) => x.id === id);
     if (t?.messages.some(unread)) {
       setThreads((ts) => ts.map((x) => (x.id === id ? { ...x, messages: x.messages.map((m) => (unread(m) ? { ...m, read_at: new Date().toISOString() } : m)) } : x)));
-      void post(`/api/threads/${id}`, { action: "read" }).then(() => router.refresh()).catch(() => {});
+      const ids = [...new Set(t.messages.filter(unread).map((m) => m.threadId))];
+      void Promise.all(ids.map((tid) => post(`/api/threads/${tid}`, { action: "read" })))
+        .then(() => router.refresh())
+        .catch(() => {});
     }
   }
 
@@ -190,29 +199,8 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
   }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(
-          [
-            [InboxIcon, "Unread replies", counts.unread, "unread", "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 dark:text-indigo-300"],
-            [AlarmClock, "Awaiting a reply", counts.awaiting, "sent", "text-amber-600 bg-amber-50 dark:bg-amber-500/15 dark:text-amber-300"],
-            [Clock, "Sending soon", counts.sending, "all", "text-cyan-700 bg-cyan-50 dark:bg-cyan-500/15 dark:text-cyan-300"],
-            [PenLine, "Drafts to review", counts.drafts, "drafts", "text-pink-600 bg-pink-50 dark:bg-pink-500/15 dark:text-pink-300"],
-          ] as [typeof Mail, string, number, Filter, string][]
-        ).map(([Icon, label, n, f, tone]) => (
-          <button key={label} onClick={() => setFilter(f)} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left shadow-card transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lift">
-            <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${tone}`}>
-              <Icon className="size-[18px]" aria-hidden />
-            </span>
-            <span>
-              <span className="block text-2xl font-bold leading-none tracking-[-0.04em] tabular">{n}</span>
-              <span className="text-[12px] font-semibold text-muted">{label}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid h-[calc(100dvh-12rem)] min-h-[32rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[28px] border border-line bg-surface shadow-card lg:h-[calc(100dvh-21rem)] lg:min-h-[36rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
+    <div>
+      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[28px] border border-line bg-surface shadow-card lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
         {/* list */}
         <aside className={`flex min-h-0 flex-col border-line lg:border-r ${open ? "hidden lg:flex" : "flex"}`}>
           <div className="space-y-2.5 border-b border-line p-3">
@@ -227,7 +215,8 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
             </label>
             <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5">
               {FILTERS.map(([k, label]) => {
-                const n = k === "all" ? 0 : counts[k as keyof typeof counts];
+                const n = k === "all" ? 0 : k === "awaiting" ? counts.awaiting : counts[k as keyof typeof counts];
+                if (k !== "all" && k !== "replies" && k !== "sent" && !n && filter !== k) return null;
                 return (
                   <button key={k} onClick={() => setFilter(k)} className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${filter === k ? "bg-accent/10 text-accent" : "text-muted hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800"}`}>
                     {label}
@@ -323,6 +312,7 @@ function Conversation({ t, canSend, email, onBack, onChange }: { t: InboxThread;
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, []);
+  const topics = new Set(t.messages.map((m) => (m.subject ?? "").replace(/^\s*((re|fwd?)\s*:\s*)+/i, "").trim().toLowerCase())).size;
   const replyTo = latestIn?.from_email ?? t.contactEmail ?? [...t.messages].reverse().find((m) => m.direction === "out")?.to_email ?? "";
 
   return (
@@ -333,9 +323,9 @@ function Conversation({ t, canSend, email, onBack, onChange }: { t: InboxThread;
         </button>
         <SchoolTile name={t.school} size="sm" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-bold tracking-[-0.01em]">{t.subject ?? l.subject ?? "(no subject)"}</h2>
+          <h2 className="truncate text-[15px] font-bold tracking-[-0.01em]">{t.school}</h2>
           <p className="truncate text-[12.5px] text-muted">
-            {t.school}
+            {topics > 1 ? `${topics} topics, ${t.messages.length} emails` : (t.subject ?? l.subject ?? "(no subject)")}
             {replyTo ? `, ${replyTo}` : ""}
           </p>
         </div>
@@ -372,9 +362,23 @@ function Conversation({ t, canSend, email, onBack, onChange }: { t: InboxThread;
             <ChevronDown className="size-3.5" aria-hidden /> {older.length} earlier message{older.length === 1 ? "" : "s"}
           </button>
         )}
-        {recent.map((m, i) => (
-          <MessageCard key={m.id} m={m} school={t.school} me={email} defaultOpen={i === recent.length - 1 || m.status === "scheduled"} onChange={onChange} />
-        ))}
+        {recent.map((m, i) => {
+          const base = (x?: InboxMsg) => (x?.subject ?? "").replace(/^\s*((re|fwd?)\s*:\s*)+/i, "").trim().toLowerCase();
+          const prev = i > 0 ? recent[i - 1] : older[older.length - 1];
+          const newTopic = topics > 1 && (!prev || base(prev) !== base(m));
+          return (
+            <div key={m.id} className="space-y-3">
+              {newTopic && (
+                <p className="flex items-center gap-3 pt-1 text-[11.5px] font-bold text-muted">
+                  <span className="h-px flex-1 bg-line" aria-hidden />
+                  <span className="max-w-[70%] truncate">{m.subject?.replace(/^\s*((re|fwd?)\s*:\s*)+/i, "") || "No subject"}</span>
+                  <span className="h-px flex-1 bg-line" aria-hidden />
+                </p>
+              )}
+              <MessageCard m={m} school={t.school} me={email} defaultOpen={i === recent.length - 1 || m.status === "scheduled"} onChange={onChange} />
+            </div>
+          );
+        })}
         {drafts.map((m) => (
           <DraftCard key={m.id} m={m} canSend={canSend} onChange={onChange} />
         ))}
@@ -387,7 +391,7 @@ function Conversation({ t, canSend, email, onBack, onChange }: { t: InboxThread;
         <div ref={end} />
       </div>
 
-      <Composer threadId={t.id} canSend={canSend} replyTo={replyTo} intent={quiet >= 5 ? "follow_up" : "reply"} onChange={onChange} />
+      <Composer threadId={t.replyThreadId} canSend={canSend} replyTo={replyTo} intent={quiet >= 5 ? "follow_up" : "reply"} onChange={onChange} />
     </>
   );
 }
