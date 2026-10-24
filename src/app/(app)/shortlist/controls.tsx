@@ -59,3 +59,22 @@ export function AutoRefresh({ every }: { every: number }) {
   }, [every, router]);
   return null;
 }
+
+export function ScholarshipButton({ running }: { running: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  return (
+    <button
+      disabled={busy || running}
+      onClick={async () => {
+        setBusy(true);
+        await fetch("/api/recon/scholarships", { method: "POST" });
+        setBusy(false);
+        router.refresh();
+      }}
+      className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-neutral-700"
+    >
+      {running ? "hunting scholarships…" : "hunt scholarships"}
+    </button>
+  );
+}

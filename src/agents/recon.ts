@@ -231,7 +231,7 @@ ${profileBrief(profile, row?.target_term)}
 today is ${today()}. target intake: ${row?.target_term ?? "fall-2027"}.
 ${already.length ? `already on their list (don't repeat):\n${already.join("\n")}\n` : ""}
 find ${MAX_PROGRAMS} US masters programs that fit their fields and constraints, spread across reach, target and safety, with the strongest realistic path to full funding first. include each program's official url.
-also list external scholarships they're eligible for as a ${profile.identity.citizenship ?? "Nigerian"} citizen studying in the US.
+also list external scholarships and fellowships they could win. don't stop at nationality: the dedicated scholarship agent runs separately, so a handful of strong leads is enough here.
 finish with honest strategy notes: which of their constraints cost them the most options, and what would open more funding.`,
       maxSearches: 10,
       maxFetches: 4,
@@ -259,6 +259,14 @@ finish with honest strategy notes: which of their constraints cost them the most
         parentJobId: job.id,
       });
     }
+
+    await enqueue({
+      userId: job.user_id,
+      agent: "recon",
+      task: "scholarships",
+      idempotencyKey: `scholarships:${job.user_id}:${today()}`,
+      parentJobId: job.id,
+    });
 
     // external scholarships go straight into the world model
     for (const s of output.external_funding) {
@@ -333,4 +341,116 @@ find and report: degree and STEM designation; GMAT/GRE policy and any waiver rul
     });
     return { verdict, tier: facts.tier };
   },
+};
+
+// ---------------------------------------------------------------------------
+// scholarships: hunt by every eligibility hook in the profile, not just nationality
+// ---------------------------------------------------------------------------
+const SCHOLAR_SYSTEM = `you are the scholarship hunter on a US masters application platform.
+most applicants only search by nationality and miss most of the money. you search by every eligibility hook the applicant has:
+- talent, leadership and merit awards (leadership track record, team leadership, community impact)
+- founder and entrepreneurship awards and fellowships (they're building a startup)
+- competition winners and alumni networks (e.g. a hult prize win, accelerator alumni like y combinator companies they worked at)
+- employer- and industry-linked funding: fintech, payments, banking, sales/partnerships, professional associations in their field
+- field-of-study awards for business, finance, management, entrepreneurship, analytics, fintech
+- region and nationality: african, nigerian, sub-saharan, developing-country awards
+- underrepresented-group, first-generation, career-changer and experienced-professional awards when the profile supports them
+- loan-replacement and income-share options only if clearly legit, and say so
+
+rules:
+- only real, currently-running programs for graduate study in the US (or portable to the US). check the official page.
+- for each one, name the exact profile fact that makes them eligible, and rate the match honestly: strong, possible, or long_shot.
+- note amounts, deadlines for the target intake, and whether internationals are eligible. "not found" when a page doesn't say.
+- skip scams, essay-mill "scholarships", and anything that charges a fee to apply.`;
+
+const Scholarships = z.object({
+  scholarships: z.array(
+    z.object({
+      name: z.string(),
+      sponsor: z.string(),
+      url: z.string(),
+      amount_note: z.string(),
+      deadline: z.string(),
+      intl_eligible: z.enum(["yes", "no", "unknown"]),
+      hook: z.string(), // the profile fact that qualifies them
+      fit: z.enum(["strong", "possible", "long_shot"]),
+      requirements: z.string(),
+    }),
+  ),
+});
+
+recon["recon.scholarships"] = async (job) => {
+  const profile = await getProfile(job.user_id);
+  const db = admin();
+  const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
+  const term = row?.target_term ?? "fall-2027";
+
+  const found = await research({
+    userId: job.user_id,
+    agent: "recon",
+    jobId: job.id,
+    system: SCHOLAR_SYSTEM,
+    prompt: `applicant:
+${profileBrief(profile, term)}
+
+awards, ventures and other notes:
+${profile.notes.join("\n") || "(none)"}
+
+stories:
+${profile.stories.map((s) => `- ${s.title}: ${s.summary}`).join("\n") || "(none)"}
+
+today is ${today()}. intake: ${term}.
+first list every eligibility hook you see in this profile. then search for scholarships and fellowships hook by hook. aim for 15-25 real options, strongest matches first.`,
+    maxSearches: 12,
+    maxFetches: 5,
+  });
+
+  const { output, runId } = await runStructured({
+    userId: job.user_id,
+    agent: "recon",
+    jobId: job.id,
+    promptVersion: "scholarships-parse-v1",
+    system: `turn research notes into structured scholarship data. only include awards the notes actually name. keep urls exactly; "" when none. deadlines as YYYY-MM-DD when the notes give a full date, otherwise as written.`,
+    prompt: `research notes:\n${found.text}`,
+    schema: Scholarships,
+    maxTokens: 8000,
+  });
+
+  let saved = 0;
+  for (const x of output.scholarships) {
+    const { data: existing } = await db.from("funding_opportunities").select("id").is("school_id", null).eq("name", x.name).maybeSingle();
+    const fields = {
+      name: x.name,
+      sponsor: x.sponsor || null,
+      kind: "external",
+      amount_note: x.amount_note || null,
+      deadline: iso(x.deadline),
+      eligibility: x.requirements || null,
+      intl_eligible: x.intl_eligible === "unknown" ? null : x.intl_eligible === "yes",
+      url: x.url || null,
+      verified_at: new Date().toISOString(),
+    };
+    let oppId = existing?.id as string | undefined;
+    if (oppId) {
+      await db.from("funding_opportunities").update(fields).eq("id", oppId);
+    } else {
+      const { data: ins, error } = await db.from("funding_opportunities").insert(fields).select("id").single();
+      if (error) throw new Error(`funding insert: ${error.message}`);
+      oppId = ins.id as string;
+    }
+    const { error: uerr } = await db
+      .from("user_funding")
+      .upsert({ user_id: job.user_id, opportunity_id: oppId, fit: x.fit, why: x.hook }, { onConflict: "user_id,opportunity_id" });
+    if (uerr) throw new Error(`user_funding upsert: ${uerr.message}`);
+    saved++;
+  }
+
+  await logEvent({
+    userId: job.user_id,
+    actor: "agent:recon",
+    action: "scholarships.found",
+    agentRunId: runId,
+    context: { found: saved, strong: output.scholarships.filter((x) => x.fit === "strong").length, searches: found.searches },
+  });
+  return { found: saved };
 };

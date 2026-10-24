@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/supabase/server";
 import { daysUntil, upcomingDeadlines, type DeadlineRow } from "@/lib/fit";
-import { ReconButton, MoveButton, AutoRefresh } from "./controls";
+import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton } from "./controls";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,20 @@ interface Row {
     funding_opportunities: Funding[];
   };
 }
+
+interface Matched {
+  id: string;
+  fit: string | null;
+  why: string | null;
+  status: string;
+  funding_opportunities: { name: string; sponsor: string | null; url: string | null; amount_note: string | null; deadline: string | null; eligibility: string | null; intl_eligible: boolean | null };
+}
+
+const FIT: Record<string, string> = {
+  strong: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  possible: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+  long_shot: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
+};
 
 const TIER: Record<string, string> = {
   reach: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
@@ -143,10 +157,17 @@ export default async function Shortlist() {
       .order("target_deadline", { ascending: true, nullsFirst: false }),
     auth.sb.from("jobs").select("task, status, last_error").eq("agent", "recon").order("created_at", { ascending: false }).limit(60),
     auth.sb.from("events").select("context, created_at").eq("action", "recon.discovered").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    auth.sb.from("funding_opportunities").select("name, url, eligibility").is("school_id", null).limit(20),
+    auth.sb
+      .from("user_funding")
+      .select("id, fit, why, status, funding_opportunities(name, sponsor, url, amount_note, deadline, eligibility, intl_eligible)")
+      .limit(60),
   ]);
 
   const rows = (apps ?? []) as unknown as Row[];
+  const FIT_ORDER: Record<string, number> = { strong: 0, possible: 1, long_shot: 2 };
+  const scholarships = ((external ?? []) as unknown as Matched[])
+    .filter((x) => x.funding_opportunities)
+    .sort((a, b) => (FIT_ORDER[a.fit ?? ""] ?? 3) - (FIT_ORDER[b.fit ?? ""] ?? 3));
   const by = (s: string) => rows.filter((r) => r.status === s);
   const shortlisted = by("shortlisted");
   const checking = by("researching");
@@ -172,7 +193,10 @@ export default async function Shortlist() {
             {rows.length ? `${shortlisted.length} shortlisted · ${checking.length} need a check · ${dropped.length} dropped` : "recon reads official program pages and checks funding, tests, english waivers and deadlines for each one."}
           </p>
         </div>
-        <ReconButton running={active.length > 0} hasRows={rows.length > 0} />
+        <div className="flex flex-wrap items-start gap-2">
+          <ScholarshipButton running={active.some((j) => j.task === "scholarships")} />
+          <ReconButton running={active.some((j) => j.task !== "scholarships")} hasRows={rows.length > 0} />
+        </div>
       </header>
 
       {active.length > 0 && (
@@ -228,16 +252,32 @@ export default async function Shortlist() {
           {later.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}
         </section>
       )}
-      {(external?.length ?? 0) > 0 && (
+      {scholarships.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">external scholarships to look at</h2>
-          <ul className="space-y-1 rounded-md border border-neutral-200 px-4 py-3 text-sm dark:border-neutral-800">
-            {external!.map((e) => (
-              <li key={e.name}>
-                {e.url ? <a href={e.url} target="_blank" rel="noreferrer" className="underline">{e.name}</a> : e.name}
-                {e.eligibility && <span className="text-neutral-500"> · {e.eligibility}</span>}
-              </li>
-            ))}
+          <h2 className="mb-1 text-sm font-medium uppercase tracking-wide text-neutral-500">scholarships matched to you ({scholarships.length})</h2>
+          <p className="mb-3 text-sm text-neutral-500">found by your hooks: awards, ventures, employers, industry, leadership, region. not just nationality.</p>
+          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
+            {scholarships.map((x) => {
+              const o = x.funding_opportunities;
+              return (
+                <li key={x.id} className="space-y-1 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {o.url ? <a href={o.url} target="_blank" rel="noreferrer" className="underline">{o.name}</a> : o.name}
+                      {o.sponsor && <span className="font-normal text-neutral-500"> · {o.sponsor}</span>}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {x.fit && <Badge className={FIT[x.fit]}>{x.fit.replace("_", " ")}</Badge>}
+                      {o.deadline && <Due date={o.deadline} today={today} />}
+                    </span>
+                  </div>
+                  {x.why && <p><span className="text-neutral-500">why you: </span>{x.why}</p>}
+                  <p className="text-neutral-500">
+                    {[o.amount_note, o.intl_eligible === false ? "not open to internationals" : null, o.eligibility].filter(Boolean).join(" · ")}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

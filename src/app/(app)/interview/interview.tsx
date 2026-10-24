@@ -79,14 +79,14 @@ export function Interview({
   const [lang, setLang] = useState("en-NG");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceName, setVoiceName] = useState("");
+  const [pauseMs, setPauseMs] = useState(3000);
 
   const recRef = useRef<Recognition | null>(null);
   const finalRef = useRef("");
   const interimRef = useRef("");
-  const sendOnEndRef = useRef(false);
   // refs so callbacks created once (speech events) always see current values
-  const settings = useRef({ speak, handsFree, lang, voiceName, voiceOk, voices });
-  settings.current = { speak, handsFree, lang, voiceName, voiceOk, voices };
+  const settings = useRef({ speak, handsFree, lang, voiceName, voiceOk, voices, pauseMs });
+  settings.current = { speak, handsFree, lang, voiceName, voiceOk, voices, pauseMs };
   const sendRef = useRef<(text: string | null, viaVoice: boolean) => Promise<void>>(async () => {});
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -96,6 +96,7 @@ export function Interview({
     setHandsFree(load("am.handsfree", "1") === "1");
     setLang(load("am.lang", "en-NG"));
     setVoiceName(load("am.voice", ""));
+    setPauseMs(parseInt(load("am.pause", "3000"), 10) || 3000);
     const synth = window.speechSynthesis;
     if (!synth) return;
     const refresh = () => {
@@ -112,64 +113,112 @@ export function Interview({
   }, [turns, phase, interim]);
 
   // ---- listening ----------------------------------------------------------
-  const startListening = useCallback(() => {
-    const Ctor = getRecognition();
-    if (!Ctor) return;
-    window.speechSynthesis?.cancel();
-    recRef.current?.abort();
-    const rec = new Ctor();
-    rec.lang = settings.current.lang;
-    rec.interimResults = true;
-    // hands-free: stop on a natural pause and send. manual: keep going until they tap.
-    rec.continuous = !settings.current.handsFree;
+  // we never let the browser decide when you're done: recognition runs continuously and
+  // we send only after YOUR chosen pause length with no new words (or when you tap).
+  // browsers end long sessions on their own; we quietly restart and keep what you said.
+  const wantRef = useRef(false);
+  const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimers = () => {
+    if (silenceRef.current) clearTimeout(silenceRef.current);
+    if (idleRef.current) clearTimeout(idleRef.current);
+    silenceRef.current = idleRef.current = null;
+  };
+
+  const finish = useCallback((send: boolean) => {
+    wantRef.current = false;
+    clearTimers();
+    const text = (finalRef.current + " " + interimRef.current).replace(/\s+/g, " ").trim();
     finalRef.current = "";
     interimRef.current = "";
-    sendOnEndRef.current = settings.current.handsFree;
-    rec.onresult = (e) => {
-      let live = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalRef.current += r[0].transcript + " ";
-        else live += r[0].transcript;
-      }
-      interimRef.current = live;
-      setInterim((finalRef.current + live).trim());
-    };
-    rec.onerror = (e) => {
-      if (e.error === "language-not-supported" && settings.current.lang !== "en-US") {
-        setLang("en-US");
-        save("am.lang", "en-US");
-        setErr("your browser doesn't support that accent setting; switched to English (US). tap the mic again.");
-      } else if (e.error === "not-allowed") {
-        setErr("microphone blocked. allow mic access for this site in your browser settings.");
-      } else if (e.error !== "aborted" && e.error !== "no-speech") {
-        setErr(`mic: ${e.error}`);
-      }
-    };
-    rec.onend = () => {
-      const text = (finalRef.current + " " + interimRef.current).trim();
-      setInterim("");
-      recRef.current = null;
-      if (sendOnEndRef.current && text) {
-        void sendRef.current(text, true);
-      } else {
-        setPhase((p) => (p === "listening" ? "idle" : p));
-      }
-    };
-    recRef.current = rec;
-    setErr("");
     setInterim("");
-    setPhase("listening");
     try {
-      rec.start();
-    } catch {
-      setPhase("idle");
-    }
+      recRef.current?.stop();
+    } catch {}
+    recRef.current = null;
+    if (send && text) void sendRef.current(text, true);
+    else setPhase((p) => (p === "listening" ? "idle" : p));
   }, []);
 
+  const armSilence = useCallback(() => {
+    if (!settings.current.handsFree) return;
+    if (silenceRef.current) clearTimeout(silenceRef.current);
+    silenceRef.current = setTimeout(() => finish(true), settings.current.pauseMs);
+  }, [finish]);
+
+  const startListening = useCallback(
+    (fresh = true) => {
+      const Ctor = getRecognition();
+      if (!Ctor) return;
+      window.speechSynthesis?.cancel();
+      try {
+        recRef.current?.abort();
+      } catch {}
+      const rec = new Ctor();
+      rec.lang = settings.current.lang;
+      rec.interimResults = true;
+      rec.continuous = true;
+      if (fresh) {
+        finalRef.current = "";
+        interimRef.current = "";
+        setInterim("");
+        // nobody spoke for a long while: stop listening rather than hold the mic forever
+        if (idleRef.current) clearTimeout(idleRef.current);
+        idleRef.current = setTimeout(() => {
+          if (!(finalRef.current + interimRef.current).trim()) finish(false);
+        }, 45_000);
+      }
+      wantRef.current = true;
+      rec.onresult = (e) => {
+        let live = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalRef.current += r[0].transcript + " ";
+          else live += r[0].transcript;
+        }
+        interimRef.current = live;
+        setInterim((finalRef.current + live).trim());
+        armSilence();
+      };
+      rec.onerror = (e) => {
+        if (e.error === "language-not-supported" && settings.current.lang !== "en-US") {
+          setLang("en-US");
+          save("am.lang", "en-US");
+          setErr("your browser doesn't support that accent setting; switched to English (US). tap the mic again.");
+          wantRef.current = false;
+        } else if (e.error === "not-allowed") {
+          setErr("microphone blocked. allow mic access for this site in your browser settings.");
+          wantRef.current = false;
+        } else if (e.error !== "aborted" && e.error !== "no-speech") {
+          setErr(`mic: ${e.error}`);
+        }
+      };
+      rec.onend = () => {
+        if (recRef.current !== rec) return;
+        if (wantRef.current) {
+          // browser cut the session; keep the words and carry on
+          finalRef.current += interimRef.current ? interimRef.current + " " : "";
+          interimRef.current = "";
+          startListening(false);
+        } else {
+          setPhase((p) => (p === "listening" ? "idle" : p));
+        }
+      };
+      recRef.current = rec;
+      setErr("");
+      setPhase("listening");
+      try {
+        rec.start();
+      } catch {
+        setPhase("idle");
+      }
+    },
+    [armSilence, finish],
+  );
+
   function stopAndSend() {
-    sendOnEndRef.current = true;
-    recRef.current?.stop();
+    finish(true);
   }
 
   // ---- speaking -----------------------------------------------------------
@@ -211,7 +260,7 @@ export function Interview({
       setTurns((t) => [...t, { role: "agent", content: data.reply }]);
       setPct(data.completeness);
       say(data.reply, () => {
-        if (settings.current.handsFree && settings.current.voiceOk && !data.wrapUp) startListening();
+        if (settings.current.handsFree && settings.current.voiceOk && !data.wrapUp) startListening(true);
         else setPhase("idle");
       });
     } catch (e) {
@@ -225,7 +274,7 @@ export function Interview({
   function micTap() {
     if (phase === "listening") return stopAndSend();
     if (phase === "thinking") return;
-    startListening(); // also interrupts speech
+    startListening(true); // also interrupts speech
   }
 
   const started = turns.length > 0;
@@ -245,7 +294,7 @@ export function Interview({
         {started && (
           <button
             onClick={() => {
-              recRef.current?.abort();
+              finish(false);
               window.speechSynthesis?.cancel();
               setSessionId(null);
               setTurns([]);
@@ -268,6 +317,20 @@ export function Interview({
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={handsFree} onChange={(e) => toggle("am.handsfree", e.target.checked, setHandsFree)} />
             hands-free (listens again after it speaks)
+          </label>
+          <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-neutral-500">hands-free: send after you pause for</span>
+            <select
+              value={pauseMs}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                setPauseMs(v);
+                save("am.pause", String(v));
+              }}
+              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
+            >
+              {[2000, 3000, 4000, 6000, 8000].map((ms) => <option key={ms} value={ms}>{ms / 1000} seconds{ms === 3000 ? " (default)" : ""}</option>)}
+            </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-neutral-500">your accent (for recognition)</span>
@@ -350,7 +413,7 @@ export function Interview({
       {started && (
         <footer className="sticky bottom-0 border-t border-neutral-200 bg-[var(--background)] pt-3 pb-2 dark:border-neutral-800">
           <p className="mb-2 h-4 text-xs text-neutral-500">
-            {phase === "listening" ? (handsFree ? "listening… pause to send" : "listening… tap to send") : phase === "speaking" ? "speaking… tap the mic to interrupt" : phase === "thinking" ? "thinking…" : ""}
+            {phase === "listening" ? (handsFree ? `listening… sends after a ${pauseMs / 1000}s pause, or tap to send now` : "listening… tap to send") : phase === "speaking" ? "speaking… tap the mic to interrupt" : phase === "thinking" ? "thinking…" : ""}
           </p>
           <div className="flex items-end gap-2">
             {voiceOk && (
@@ -378,7 +441,7 @@ export function Interview({
                 e.preventDefault();
                 const t = draft.trim();
                 if (!t || phase === "thinking") return;
-                recRef.current?.abort();
+                finish(false);
                 window.speechSynthesis?.cancel();
                 setDraft("");
                 void send(t, false);

@@ -19,6 +19,7 @@ export async function POST() {
     .select("id", { count: "exact", head: true })
     .eq("user_id", uid)
     .eq("agent", "recon")
+    .neq("task", "scholarships")
     .in("status", ["queued", "running"]);
   if (count) return NextResponse.json({ error: "a recon run is already going" }, { status: 409 });
 
