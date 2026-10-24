@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { USER_SETTABLE } from "@/lib/dial";
+import { queueRunner } from "@/agents/runner";
+import { after } from "next/server";
 
 // the applicant's own controls: stop button, autonomy dial, fee envelope, digest
 const Body = z.discriminatedUnion("action", [
@@ -12,6 +14,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_grant"), capability: z.string(), mode: z.enum(["auto", "auto_undo", "approve", "deny"]) }),
   z.object({ action: z.literal("set_fee_envelope"), usd: z.number().int().min(0).max(5000) }),
   z.object({ action: z.literal("set_digest"), enabled: z.boolean() }),
+  z.object({ action: z.literal("retry_runner") }),
 ]);
 
 export async function POST(req: NextRequest) {
@@ -59,6 +62,13 @@ export async function POST(req: NextRequest) {
     await db.from("grants").update({ ceiling_cents: cents }).eq("user_id", uid).eq("capability", "spend.app_fee");
     await logEvent({ userId: uid, actor: "user", action: "controls.fee_envelope", context: { usd: b.usd } });
     return NextResponse.json({ ok: true });
+  }
+
+  if (b.action === "retry_runner") {
+    const { data: stuck } = await db.from("applications").select("id").eq("user_id", uid).eq("status", "packet_approved").in("runner_status", ["needs_you", "failed"]);
+    for (const a of stuck ?? []) await queueRunner(uid, a.id);
+    after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
+    return NextResponse.json({ ok: true, queued: stuck?.length ?? 0 });
   }
 
   await db.from("profiles").update({ digest_enabled: b.enabled }).eq("id", uid);

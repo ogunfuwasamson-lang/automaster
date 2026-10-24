@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeUrl } from "@/lib/portal-url";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
@@ -217,7 +218,7 @@ async function placeApplication(userId: string, programId: string, f: ProgramFac
     fit_reasoning: [f.fit_reasoning, ...reasons.map((r) => `⚑ ${r}`), ...f.red_flags.map((r) => `⚑ ${r}`)].join("\n"),
     angle: f.angle,
     target_deadline: deadline?.date ?? null,
-    portal_url: f.program_url || null,
+    portal_url: normalizeUrl(f.program_url), // the program page; the runner looks for the real portal before using it
   };
   const { data: existing } = await db.from("applications").select("id, status").eq("user_id", userId).eq("program_id", programId).maybeSingle();
   if (!existing) {

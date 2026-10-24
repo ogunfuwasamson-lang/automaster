@@ -21,8 +21,16 @@ export const DOM_HELPER = String.raw`
     const by = el.getAttribute("aria-labelledby");
     if (by) parts.push(by.split(/\s+/).map((i) => textOf(document.getElementById(i))).join(" "));
     for (const a of ["aria-label", "placeholder", "title"]) if (el.getAttribute(a)) parts.push(el.getAttribute(a));
-    if (!parts.join("").trim()) { const box = el.closest(".form-group, .field, .question, tr, li, fieldset, div"); if (box) parts.push(textOf(box).slice(0, 160)); }
-    return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 300);
+    let own = parts.join(" ").replace(/\s+/g, " ").trim();
+    // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question
+    // (slate renders birthdate as three selects inside one .form_question)
+    if (!own || own.length <= 12) {
+      const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li");
+      const q = row && (row.querySelector(".form_label, legend, label:not([for]), th, .label, h3, h4") || null);
+      const ctx = q ? textOf(q) : row ? textOf(row).slice(0, 120) : "";
+      if (ctx && !own.toLowerCase().includes(ctx.toLowerCase())) own = (ctx + " " + own).trim();
+    }
+    return own.slice(0, 300);
   };
   const groupLabel = (radio) => {
     const fs = radio.closest("fieldset");

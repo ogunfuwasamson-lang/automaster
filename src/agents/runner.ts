@@ -13,6 +13,8 @@ import { extractVerification, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { openBrowser, type StorageState } from "@/lib/browser";
 import { runEngine, type EngineState } from "@/lib/cloud-engine";
+import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
+import { hostRoot as rootOf } from "@/lib/verify-mail";
 
 // the cloud runner: finds the portal, creates the applicant's account, fills, uploads and submits
 // the signed packet from our servers. nothing to install for the applicant.
@@ -39,30 +41,40 @@ export const runner: Record<string, Handler> = {
       userId: job.user_id,
       agent: "runner",
       jobId: job.id,
-      system: "you find the official online application portal for a university program: the page where an applicant creates an account or signs in to start the application (often slate, apply.*, gradapply.*, or the school's own system). official university pages only.",
-      prompt: `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}\nprogram page: ${p.url ?? "unknown"}\nfind the exact url where the online application starts for the next intake.`,
-      maxSearches: 2,
-      maxFetches: 2,
+      system: "you find the official online application portal for a university program: the page where an applicant creates an account or signs in to start the application (often slate, apply.*, gradapply.*, or the school's own system). official university pages only. quote the exact url.",
+      prompt: `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}\nprogram page: ${p.url ?? "unknown"}\nfind the exact url where the online application starts for the next intake (the "apply now" / "start your application" destination).`,
+      maxSearches: 3,
+      maxFetches: 3,
     });
     const { output } = await runStructured({
       userId: job.user_id,
       agent: "runner",
       jobId: job.id,
-      promptVersion: "portal-v1",
+      promptVersion: "portal-v2",
       tier: "cheap",
-      system: "extract the application portal url from the research. it must be an https url that appeared in the research. if there isn't one, portal_url is \"\".",
-      prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 30).join(" ")}`,
+      system: "extract the online application portal url from the research: where an applicant creates an account or signs in to apply. if only the program page is known, return \"\".",
+      prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 40).join(" ")}`,
       schema: PortalOut,
       maxTokens: 600,
     });
-    const url = /^https:\/\//.test(output.portal_url) && found.sources.some((s) => s.startsWith(new URL(output.portal_url).origin)) ? output.portal_url : "";
+    // accept it if it came out of the research (text or sources) or sits on the school's own domain
+    const cand = normalizeUrl(output.portal_url);
+    const schoolRoot = p.url ? rootOf(new URL(normalizeUrl(p.url) ?? "https://x.invalid").hostname) : null;
+    const seen = (u: string) => found.text.includes(u.replace(/^https:\/\//, "").slice(0, 40)) || found.sources.some((x) => x.startsWith(new URL(u).origin));
+    let url = cand && (seen(cand) || (schoolRoot && rootOf(new URL(cand).hostname) === schoolRoot)) ? cand : null;
+    let note = output.notes;
+    if (!url && p.url) {
+      // no portal found: start from the program page and follow its "apply" link
+      url = normalizeUrl(p.url);
+      note = "starting from the program page";
+    }
     if (!url) {
-      await setRunner(applicationId, { runner_status: "needs_you", runner_note: "couldn't find the application portal link. paste it on the application page" });
+      await setRunner(applicationId, { runner_status: "needs_you", runner_note: "couldn't find the application portal link. paste it on the application page and press try again" });
       return { found: false };
     }
     await admin().from("applications").update({ portal_url: url }).eq("id", applicationId);
-    await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.portal_found", applicationId, context: { url, notes: output.notes } });
-    if ((job.payload as { thenRun?: boolean }).thenRun) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId } });
+    await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.portal_found", applicationId, context: { url, notes: note } });
+    if ((job.payload as { thenRun?: boolean }).thenRun) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId, portalChecked: true } });
     return { url };
   },
 
@@ -70,11 +82,16 @@ export const runner: Record<string, Handler> = {
     const { applicationId } = job.payload as { applicationId: string };
     const db = admin();
     const app = await loadApp(job.user_id, applicationId);
+    const { data: row0 } = await db.from("applications").select("runner_state").eq("id", applicationId).maybeSingle();
     if (!app || app.status !== "packet_approved" || !["ready", "running", "needs_you"].includes(app.runner_status as string)) return { skipped: "not queued" };
-    if (!app.portal_url) {
+    const portal = normalizeUrl(app.portal_url);
+    const checked = (job.payload as { portalChecked?: boolean }).portalChecked;
+    if (!portal || (!looksLikePortal(portal) && !checked && !(row0?.runner_state as RunnerState | null)?.last_url)) {
       await enqueue({ userId: job.user_id, agent: "runner", task: "find_portal", payload: { applicationId, thenRun: true } });
+      await setRunner(applicationId, { runner_status: "running", runner_note: "finding the application portal" });
       return { next: "finding the portal" };
     }
+    if (portal !== app.portal_url) await db.from("applications").update({ portal_url: portal }).eq("id", applicationId);
     const sheet = await loadSheet(job.user_id, applicationId);
     if (!sheet) return { skipped: "no approved packet" };
     const { data: row } = await db.from("applications").select("runner_state, runner_session_id").eq("id", applicationId).single();
@@ -83,13 +100,13 @@ export const runner: Record<string, Handler> = {
     const storage = state.storage_enc ? (JSON.parse(decrypt(state.storage_enc)) as StorageState) : null;
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
-    if (app.runner_status !== "running") await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
+    if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     const ob = await openBrowser({ sessionId: row?.runner_session_id, storage });
     let keep = false;
     try {
       const page = ob.page;
-      if (!page.url() || page.url() === "about:blank") await page.goto(state.last_url ?? app.portal_url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      if (!page.url() || page.url() === "about:blank") await page.goto(normalizeUrl(state.last_url) ?? portal, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const host = () => new URL(page.url()).hostname;
       const readMail = await canReadMail(job.user_id).catch(() => false);
       let lastNote = "";
@@ -127,7 +144,22 @@ export const runner: Record<string, Handler> = {
         RUN_BUDGET_MS,
       );
 
-      const saved: RunnerState = { ...next, last_url: page.url(), storage_enc: encrypt(JSON.stringify(await ob.storage())) };
+      const saved: RunnerState & { debug?: unknown } = {
+        ...next,
+        last_url: page.url(),
+        storage_enc: encrypt(JSON.stringify(await ob.storage())),
+        // what the last page looked like, for fixing the runner (no values, labels only)
+        debug: await page
+          .evaluate(() => {
+            const t = (e: Element | null) => (e?.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+            return {
+              title: document.title.slice(0, 80),
+              fields: [...document.querySelectorAll("input:not([type=hidden]), select, textarea")].slice(0, 30).map((e) => `${(e as HTMLInputElement).type || e.tagName}:${(e as HTMLInputElement).name}:${e.getAttribute("aria-label") ?? ""}`),
+              buttons: [...document.querySelectorAll("button, input[type=submit], a")].slice(0, 40).map(t).filter(Boolean),
+            };
+          })
+          .catch(() => null),
+      };
       const login = await getLogin(job.user_id, host()).catch(() => null);
       if (login && login.status !== "verified" && (outcome.kind === "submitted" || next.steps > 3)) await markLogin(login.id, "verified");
 
@@ -151,9 +183,19 @@ export const runner: Record<string, Handler> = {
       if (outcome.kind === "needs_you") {
         // bot checks and payments: the applicant finishes that step (live view, or their own browser with the
         // login we show them). we look again every 10 minutes and carry on once it's done.
-        const recheck = (outcome.reason === "captcha" || outcome.reason === "payment" || outcome.reason === "verification") && (state.rechecks ?? 0) < RECHECKS;
+        const liveView = !!ob.sessionId;
+        // a bot check only clears in the browser that saw it: without a live view, hand the portal over instead of looping
+        const recheck = (outcome.reason === "payment" || outcome.reason === "verification" || (outcome.reason === "captcha" && liveView)) && (state.rechecks ?? 0) < RECHECKS;
         keep = recheck;
-        const live = recheck ? await ob.liveUrl() : null;
+        const live = liveView ? await ob.liveUrl() : null;
+        if (!liveView) {
+          const login = await getLogin(job.user_id, new URL(page.url()).hostname).catch(() => null);
+          const signIn = login ? " sign in with the login shown below," : "";
+          if (outcome.reason === "captcha") outcome.note = `this portal shows a bot check to automated browsers. open it yourself,${signIn} and finish the application there (your answers are on this page). or press try again later`;
+          if (outcome.reason === "payment") outcome.note = `payment page: open the portal,${signIn} and pay the fee. the agents check back every 10 minutes and confirm the submission`;
+          if (outcome.reason === "verification") outcome.note = outcome.note.replace("open the live view and enter it", "enter it on the portal");
+          outcome.note = outcome.note.replace(/open the live view and /g, "open the portal and ");
+        }
         await db
           .from("applications")
           .update({

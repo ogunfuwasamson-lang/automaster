@@ -53,3 +53,25 @@ export function CancelEmail({ id, sendAfter }: { id: string; sendAfter: string |
     </span>
   );
 }
+
+export function RetryRunner({ count }: { count: number }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const router = useRouter();
+  if (!count) return null;
+  return (
+    <button
+      disabled={busy || done}
+      onClick={async () => {
+        setBusy(true);
+        await post("/api/controls", { action: "retry_runner" }).catch(() => {});
+        setBusy(false);
+        setDone(true);
+        router.refresh();
+      }}
+      className="rounded-md border border-neutral-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-neutral-700"
+    >
+      {done ? "queued" : busy ? "queuing…" : `retry ${count} stopped`}
+    </button>
+  );
+}

@@ -21,6 +21,7 @@ export interface Snapshot {
 
 export interface EngineState {
   steps: number;
+  missing?: string[]; // fill-sheet keys a portal asked for that the profile doesn't have
   reachedSubmit?: boolean;
   submitClicked?: boolean;
   accountAt?: number; // when we created the portal account (verification emails come after this)
@@ -55,12 +56,12 @@ export type Outcome =
   | { kind: "failed"; note: string };
 
 const FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
-const NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next)\b/i;
-const START = /^(start|begin|continue|resume) (my |an |your |new )?application$|^apply( now| online)?$|^start$/i;
+const NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
+const START = /^(start|begin|continue|resume) (my |an |your |a new |new )?application\b.{0,20}$|^apply( now| online| today| here)?( for (this|the) program.{0,30})?$|^start( here| now)?$|^(how to )?apply to (this|the) program$/i;
 const CREATE = /^(create (an |new |your )?account|register|sign up|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login)$/i;
 const SIGNIN = /^(sign in|log ?in|login|continue|next|submit)$/i;
-const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next)$/i;
-const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate)$/i;
+const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next|(set|save|create|update|change|choose) (my |your |a )?password|save|activate( (my )?account)?|finish|complete( registration)?|confirm)$/i;
+const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
 const SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
 const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
 const CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
@@ -97,7 +98,8 @@ async function fillText(page: Page, id: string, value: string) {
   await page.fill(`[data-am-id="${id}"]`, value, { timeout: 10_000 });
 }
 
-const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(b.label) && (!linksOnly || b.link));
+const clean = (l: string) => l.replace(/[\u2190-\u21ff\u2794-\u27bf›»<>←→]+/g, " ").replace(/\s+/g, " ").trim();
+const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link));
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
@@ -113,8 +115,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
     state.lastFingerprint = s.fingerprint;
     if (state.samePageCount >= 3) {
-      const req = s.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
-      return { outcome: { kind: "needs_you", reason: "stuck", note: req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page; check it for errors" }, state, filled };
+      const req = s.fields.map((f) => f.label.slice(0, 50));
+      const fix = missingNote(state.missing ?? []);
+      const err = (s.body.match(/[^.]*\b(required|invalid|must|error|please (enter|select|provide))\b[^.]*\./i) ?? [""])[0].trim().slice(0, 140);
+      return { outcome: { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") }, state, filled };
     }
 
     const kind = classify(s);
@@ -164,7 +168,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const others = s.fields.filter((f) => f.type !== "password");
       for (const f of others.filter((f) => f.type === "email" || /e-?mail/i.test(f.label))) await fillText(page, f.id, login.login_email);
       const rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
-      filled += await applyFills(page, deps, rest);
+      filled += await applyFills(page, deps, rest, state);
       await acceptTerms(page, s);
       const go = find(s, CREATE_SUBMIT);
       if (!go) return { outcome: { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the create button" }, state, filled };
@@ -204,12 +208,15 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     // an ordinary form page
     if (s.fields.length) {
       await deps.progress(`filling ${s.fields.length} field${s.fields.length > 1 ? "s" : ""}`);
-      filled += await applyFills(page, deps, s.fields);
+      filled += await applyFills(page, deps, s.fields, state);
       await acceptTerms(page, s);
     }
     const now = await snap(page);
     const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
-    if (empty.length) return { outcome: { kind: "needs_you", reason: "question", note: `answer ${empty.length} question${empty.length > 1 ? "s" : ""} your profile doesn't cover: ${empty.slice(0, 3).join("; ")}`.slice(0, 290) }, state, filled };
+    if (empty.length) {
+      const fix = missingNote(state.missing ?? []);
+      return { outcome: { kind: "needs_you", reason: "question", note: (fix || `answer ${empty.length} question${empty.length > 1 ? "s" : ""} your profile doesn't cover: ${empty.slice(0, 3).join("; ")}`).slice(0, 290) }, state, filled };
+    }
 
     const submit = find(now, FINAL);
     if (submit) {
@@ -232,14 +239,27 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
   return { outcome: { kind: "continue", note: "continuing" }, state, filled };
 }
 
-async function applyFills(page: Page, deps: EngineDeps, fields: PageField[]): Promise<number> {
+const DETAIL: Record<string, string> = {
+  date_of_birth: "date of birth", dob_month: "date of birth", dob_day: "date of birth", dob_year: "date of birth",
+  phone: "phone", address_line1: "address", address_line2: "address", city: "city", state: "state/province",
+  postal_code: "postal code", country: "country", gender: "gender", citizenship: "citizenship",
+};
+export function missingNote(keys: string[]): string {
+  const labels = [...new Set(keys.map((k) => DETAIL[k] ?? (k.startsWith("rec") ? "recommenders" : k.startsWith("edu") ? "education history" : k.startsWith("work") ? "work history" : k.replace(/_/g, " "))))];
+  return labels.length ? `add your ${labels.slice(0, 4).join(", ")} under profile → details for application forms, then press try again` : "";
+}
+
+async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], state?: EngineState): Promise<number> {
   const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
   if (!safe.length) return 0;
   const fills = await deps.map(safe);
   let n = 0;
   for (const f of fills) {
     try {
-      if (f.action === "skip") continue;
+      if (f.action === "skip") {
+        if (state && f.reason.startsWith("missing:") && safe.find((x) => x.id === f.id)?.required) state.missing = [...new Set([...(state.missing ?? []), f.reason.slice(8)])];
+        continue;
+      }
       if (f.action === "upload") {
         const file = await deps.file(f.file);
         await page.setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });

@@ -38,3 +38,37 @@ describe("generated portal passwords", () => {
     expect(generatePassword()).not.toBe(a);
   });
 });
+
+import { normalizeUrl, looksLikePortal } from "@/lib/portal-url";
+import { keyForLabel } from "@/lib/fillsheet";
+import { missingNote } from "@/lib/cloud-engine";
+
+describe("portal links", () => {
+  it("adds the scheme and rejects junk", () => {
+    expect(normalizeUrl("portal.stir.ac.uk/student/course-application/pg/application.jsp?crsCode=TDX44-BSM")).toBe("https://portal.stir.ac.uk/student/course-application/pg/application.jsp?crsCode=TDX44-BSM");
+    expect(normalizeUrl("simon.rochester.edu")).toBe("https://simon.rochester.edu/");
+    expect(normalizeUrl("not a url")).toBe(null);
+  });
+  it("tells application sites from program pages", () => {
+    expect(looksLikePortal("https://apply.grad.brandeis.edu/apply/")).toBe(true);
+    expect(looksLikePortal("https://applygrad.auburn.edu/portal/apply")).toBe(true);
+    expect(looksLikePortal("https://portal.stir.ac.uk/student/course-application/pg/application.jsp")).toBe(true);
+    expect(looksLikePortal("https://www.hec.ca/en/programs/masters/master-international-business")).toBe(false);
+    expect(looksLikePortal("https://catalog.utdallas.edu/2026/graduate/programs/jsom/innovation-entrepreneurship")).toBe(false);
+    expect(looksLikePortal("https://simon.rochester.edu/")).toBe(false);
+  });
+});
+
+describe("slate-style birthdate", () => {
+  it("maps Month/Day/Year once the row label is attached", () => {
+    expect(keyForLabel("Birthdate Month")).toBe("dob_month");
+    expect(keyForLabel("Birthdate Day")).toBe("dob_day");
+    expect(keyForLabel("Birthdate Year")).toBe("dob_year");
+    expect(keyForLabel("birthdate m")).toBe("dob_month");
+    expect(keyForLabel("Date of Birth")).toBe("date_of_birth");
+    expect(keyForLabel("Month")).toBe(null);
+  });
+  it("points the applicant at the missing detail", () => {
+    expect(missingNote(["dob_month", "dob_day"])).toBe("add your date of birth under profile → details for application forms, then press try again");
+  });
+});

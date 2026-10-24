@@ -111,6 +111,7 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
     const key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null);
     const r = key ? resolve(f, key, sheet) : null;
     if (r) fills.push(r);
+    else if (key && !sheet.fields[key] && !key.startsWith("essay:")) fills.push({ id: f.id, action: "skip", reason: `missing:${key}` });
     else unresolved.push(f);
   }
   return { fills, unresolved };

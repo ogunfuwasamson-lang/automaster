@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/supabase/server";
 import Link from "next/link";
 import { PingButton } from "./ping-button";
-import { StopButton, CancelEmail } from "./controls";
+import { StopButton, CancelEmail, RetryRunner } from "./controls";
 import { Decisions, type Decision } from "@/components/decisions";
 import { userPlan } from "@/lib/budget";
 import { describe, actorLabel } from "@/lib/activity";
@@ -123,7 +123,10 @@ export default async function Dashboard() {
 
       {runner?.length ? (
         <section>
-          <h2 className={h2}>portal runner</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className={h2.replace("mb-3 ", "")}>submissions</h2>
+            <RetryRunner count={runner.filter((r) => r.runner_status === "needs_you" || r.runner_status === "failed").length} />
+          </div>
           <ul className={list}>
             {runner.map((r) => {
               const p = r.programs as unknown as { name: string; schools: { name: string } };
