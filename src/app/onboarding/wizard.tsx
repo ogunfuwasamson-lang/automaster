@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
+import { chipClass } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
 
 const LEVELS: [string, string, string][] = [
@@ -22,8 +23,7 @@ async function save(body: Record<string, unknown>) {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't save");
 }
 
-const chip = (on: boolean) =>
-  `rounded-full border px-4 py-2 text-sm transition-colors ${on ? "border-foreground bg-foreground text-background" : "border-line bg-surface hover:border-neutral-400"}`;
+const chip = (on: boolean) => chipClass(on, "md");
 
 export function Onboarding(props: {
   userId: string;
@@ -88,21 +88,28 @@ export function Onboarding(props: {
   };
 
   return (
-    <div className="min-h-dvh">
-      <header className="mx-auto flex max-w-3xl items-center justify-between px-5 py-5">
+    <div className="relative min-h-dvh overflow-x-clip">
+      <div className="aurora !h-[620px]" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
+      <header className="relative z-10 mx-auto flex max-w-3xl items-center justify-between px-5 py-5">
         <Wordmark href="/dashboard" />
-        <a href="/dashboard" className="text-sm text-muted hover:text-foreground">Skip setup</a>
+        <a href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground">Skip setup</a>
       </header>
 
-      <main className="mx-auto max-w-3xl px-5 pb-20">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 pb-20 sm:px-5">
         <ol className="mb-10 grid grid-cols-5 gap-1.5" aria-label="Setup progress">
           {STEPS.map((s, i) => (
             <li key={s} className="space-y-2">
-              <div className={`h-1 rounded-full transition-colors ${i + 1 <= step ? "bg-foreground" : "bg-line"}`} />
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/70 dark:bg-white/10">
+                <div className={`bg-accent-gradient h-full rounded-full transition-[width] duration-500 ${i + 1 <= step ? "w-full" : "w-0"}`} />
+              </div>
               <button
                 onClick={() => i + 1 < step && setStep(i + 1)}
                 disabled={i + 1 >= step}
-                className={`hidden text-left text-xs sm:block ${i + 1 === step ? "font-medium text-foreground" : "text-muted"}`}
+                className={`hidden text-left text-xs sm:block ${i + 1 === step ? "font-bold text-foreground" : "font-medium text-muted"}`}
                 aria-current={i + 1 === step ? "step" : undefined}
               >
                 {s}
@@ -117,21 +124,22 @@ export function Onboarding(props: {
             initial={reduce ? false : { opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             exit={reduce ? undefined : { opacity: 0, x: -24 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="glass rounded-[28px] border border-white/80 p-6 shadow-lift sm:p-10 dark:border-white/[0.07]"
           >
             {step === 1 && (
               <div className="space-y-8">
-                <h1 className="font-display text-5xl font-bold leading-none tracking-tight">What are you applying for?</h1>
+                <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">What are you applying for?</h1>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {LEVELS.map(([k, label, hint]) => (
                     <button
                       key={k}
                       onClick={() => setLevel(k)}
-                      className={`rounded-xl border p-4 text-left transition-colors ${level === k ? "border-foreground bg-foreground text-background" : "border-line bg-surface hover:border-neutral-400"}`}
+                      className={`rounded-2xl border p-5 text-left transition-all duration-200 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent shadow-[0_12px_28px_-14px_rgb(79_70_229/0.6)]" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
                       aria-pressed={level === k}
                     >
-                      <span className="block font-display text-2xl font-semibold">{label}</span>
-                      <span className={`mt-1 block text-sm ${level === k ? "text-background/75" : "text-muted"}`}>{hint}</span>
+                      <span className={`block text-xl font-bold tracking-[-0.03em] ${level === k ? "text-accent" : ""}`}>{label}</span>
+                      <span className={`mt-1 block text-sm text-muted`}>{hint}</span>
                     </button>
                   ))}
                 </div>
@@ -139,9 +147,9 @@ export function Onboarding(props: {
                   <p className="font-medium">Which fields? <span className="font-normal text-muted">Add one or more, like finance or computer science.</span></p>
                   <div className="flex flex-wrap gap-2">
                     {fields.map((f) => (
-                      <span key={f} className="inline-flex items-center gap-1.5 rounded-full bg-foreground py-1.5 pl-3.5 pr-2 text-sm text-background">
+                      <span key={f} className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 py-1.5 pl-3.5 pr-2 text-sm font-semibold text-accent ring-1 ring-accent/25">
                         {f}
-                        <button onClick={() => setFields(fields.filter((x) => x !== f))} aria-label={`Remove ${f}`} className="rounded-full p-0.5 hover:bg-white/15">
+                        <button onClick={() => setFields(fields.filter((x) => x !== f))} aria-label={`Remove ${f}`} className="rounded-full p-0.5 hover:bg-accent/15">
                           <X className="size-3.5" />
                         </button>
                       </span>
@@ -179,7 +187,7 @@ export function Onboarding(props: {
             {step === 2 && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="font-display text-5xl font-bold leading-none tracking-tight">Where do you want to study?</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Where do you want to study?</h1>
                   <p className="mt-3 text-[15px] text-muted">
                     Agents search each region starting from its top-ranked schools.
                     {props.maxRegions < 9 ? ` Your plan covers ${props.maxRegions} region${props.maxRegions > 1 ? "s" : ""}.` : ""}
@@ -210,7 +218,7 @@ export function Onboarding(props: {
             {step === 3 && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="font-display text-5xl font-bold leading-none tracking-tight">Add your CV and transcripts</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Add your CV and transcripts</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
                     Agents read them to build your profile, so the interview only asks what&apos;s missing. PDF, Word or photos, up to 10 MB each. Only you and your agents can see them.
                   </p>
@@ -222,10 +230,10 @@ export function Onboarding(props: {
                     e.preventDefault();
                     onFiles(e.dataTransfer.files);
                   }}
-                  className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-line bg-surface px-6 py-12 text-center transition-colors hover:border-neutral-400"
+                  className="flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-accent/30 bg-accent/[0.03] px-6 py-12 text-center transition-colors hover:border-accent/60 hover:bg-accent/[0.06]"
                 >
-                  {uploading ? <LoaderCircle className="size-7 animate-spin text-muted" aria-hidden /> : <FileUp className="size-7 text-muted" aria-hidden />}
-                  <span className="font-medium">{uploading ? `Uploading ${uploading}…` : "Drop files here or choose files"}</span>
+                  {uploading ? <LoaderCircle className="size-7 animate-spin text-muted" aria-hidden /> : <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_28px_-10px_rgb(79_70_229/0.6)]"><FileUp className="size-6" aria-hidden /></span>}
+                  <span className="font-bold">{uploading ? `Uploading ${uploading}…` : "Drop files here or choose files"}</span>
                   <span className="text-sm text-muted">Start with your CV</span>
                 </button>
                 <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files)} />
@@ -247,7 +255,7 @@ export function Onboarding(props: {
             {step === 4 && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="font-display text-5xl font-bold leading-none tracking-tight">Connect your Gmail</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Connect your Gmail</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
                     Agents use it to send fee-waiver and funding emails from your address, read the codes portals send when they create your
                     accounts, and tell you when a school replies. They never delete or change anything in your inbox.
@@ -256,7 +264,7 @@ export function Onboarding(props: {
                 {props.mailEmail ? (
                   <p className="flex items-center gap-2 text-[15px]"><Check className="size-5 text-go" aria-hidden />Connected as <span className="font-medium">{props.mailEmail}</span></p>
                 ) : props.mailAvailable ? (
-                  <ButtonLink href="/api/mail/connect?next=/onboarding" size="lg" variant="signal"><Mail className="size-4" aria-hidden />Connect Gmail</ButtonLink>
+                  <ButtonLink href="/api/mail/connect?next=/onboarding" size="lg" variant="accent"><Mail className="size-4" aria-hidden />Connect Gmail</ButtonLink>
                 ) : (
                   <p className="text-sm text-muted">Email connection isn&apos;t available yet. You can add it later in settings.</p>
                 )}
@@ -271,14 +279,14 @@ export function Onboarding(props: {
             {step === 5 && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="font-display text-5xl font-bold leading-none tracking-tight">Last step: a short interview</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: a short interview</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
                     Ten minutes, by voice or typing. The interviewer asks about your goals, your best work and anything your documents
                     didn&apos;t cover. Your essays are written from these answers.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/interview" size="lg"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
+                  <ButtonLink href="/interview" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
                   <Button size="lg" variant="secondary" onClick={() => router.push("/dashboard")}>Go to my dashboard</Button>
                 </div>
               </div>

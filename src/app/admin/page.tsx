@@ -111,7 +111,7 @@ export default async function Admin() {
                           {$(r.cost)} <span className="text-muted">of {$(budget)}</span>
                         </span>
                         <span className="mt-1 block h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-                          <span className={`block h-full ${share > 0.9 ? "bg-stop" : "bg-foreground"}`} style={{ width: `${share * 100}%` }} />
+                          <span className={`block h-full ${share > 0.9 ? "bg-stop" : "bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]"}`} style={{ width: `${share * 100}%` }} />
                         </span>
                       </td>
                       {(["research", "writing", "core"] as const).map((c) => (
@@ -151,7 +151,7 @@ export default async function Admin() {
                   </td>
                   <td className={td}>
                     <span className="flex items-center gap-2">
-                      <span className="h-2 rounded-sm bg-foreground" style={{ width: `${Math.max(2, (a.cost / topAgent) * 100)}%` }} />
+                      <span className="h-2 rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" style={{ width: `${Math.max(2, (a.cost / topAgent) * 100)}%` }} />
                       {$(a.cost)}
                     </span>
                   </td>

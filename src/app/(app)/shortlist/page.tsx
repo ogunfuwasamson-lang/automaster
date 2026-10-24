@@ -97,15 +97,19 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
     <details className="group overflow-hidden rounded-3xl border border-line bg-surface shadow-card open:shadow-[0_1px_0_var(--color-line)]">
       <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-3.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 sm:px-5">
         {r.fit_score != null ? (
-          <span className="grid size-11 shrink-0 place-content-center rounded-full border-2 border-foreground/80 text-center leading-none" title={`Fit ${r.fit_score} out of 10`}>
-            <span className="font-display text-lg font-bold tabular">{r.fit_score}</span>
+          <span
+            className="grid size-12 shrink-0 place-items-center rounded-full p-[3px]"
+            style={{ background: `conic-gradient(var(--accent) 0deg, var(--accent-2) ${r.fit_score * 36}deg, var(--line) ${r.fit_score * 36}deg)` }}
+            title={`Fit ${r.fit_score} out of 10`}
+          >
+            <span className="grid size-full place-items-center rounded-full bg-surface text-[15px] font-bold tracking-[-0.03em] tabular">{r.fit_score}</span>
           </span>
         ) : (
-          <span className="size-11 shrink-0 rounded-full border-2 border-dashed border-line" aria-hidden />
+          <span className="size-12 shrink-0 rounded-full border-2 border-dashed border-line" aria-hidden />
         )}
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
-            <span className="truncate font-medium">{p.schools.name}</span>
+            <span className="truncate font-bold tracking-[-0.01em]">{p.schools.name}</span>
             {r.tier && <span className="shrink-0 text-xs text-muted">{TIER[r.tier] ?? r.tier}</span>}
           </span>
           <span className="block truncate text-sm text-muted">
@@ -134,7 +138,7 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
           {p.schools.ranking_note && <Tag>{p.schools.ranking_note}</Tag>}
         </div>
         {flags.length > 0 && (
-          <ul className="space-y-1 rounded-lg border border-signal/60 bg-signal/10 px-4 py-3">
+          <ul className="space-y-1 rounded-2xl border border-signal/25 bg-signal/[0.06] px-4 py-3">
             {flags.map((f) => (
               <li key={f} className="flex gap-2">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -320,7 +324,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       )}
 
       {(notes.length > 0 || timeline.length > 0) && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className={`grid gap-6 ${notes.length && timeline.length ? "lg:grid-cols-2" : ""}`}>
           {timeline.length > 0 && (
             <Section title="Next deadlines">
               <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">

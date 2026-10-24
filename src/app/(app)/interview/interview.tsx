@@ -301,13 +301,13 @@ export function Interview({
           : "";
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-12rem)] max-w-2xl flex-col lg:min-h-[calc(100dvh-6.5rem)]">
+    <div className="mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-[28px] border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]">
       <header className="flex flex-wrap items-end justify-between gap-3 pb-4">
         <div>
-          <h1 className="font-display text-4xl font-semibold leading-none tracking-tight sm:text-5xl">Interview</h1>
+          <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Interview</h1>
           <div className="mt-3 flex items-center gap-3 text-sm text-muted">
             <span className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-              <span className="block h-full rounded-full bg-foreground transition-[width] duration-700" style={{ width: `${pct}%` }} />
+              <span className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))] transition-[width] duration-700" style={{ width: `${pct}%` }} />
             </span>
             Profile {pct}% complete
           </div>
@@ -405,7 +405,7 @@ export function Interview({
       <section className="flex-1 space-y-4 border-t border-line py-6" aria-live="polite">
         {!started && (
           <div className="mx-auto max-w-md py-10 text-center">
-            <span className="mx-auto grid size-16 place-items-center rounded-full bg-board text-flap">
+            <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white shadow-[0_16px_32px_-12px_rgb(79_70_229/0.6)]">
               <MessagesSquare className="size-7" aria-hidden />
             </span>
             <h2 className="mt-5 text-xl font-semibold">A conversation, not a form</h2>
@@ -427,13 +427,13 @@ export function Interview({
               className={t.role === "user" ? "flex justify-end" : "flex gap-3"}
             >
               {t.role === "agent" && (
-                <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-board text-[11px] font-semibold text-flap" aria-hidden>
+                <span className="bg-hero-gradient mt-1 grid size-8 shrink-0 place-items-center rounded-xl text-[11px] font-bold text-white" aria-hidden>
                   am
                 </span>
               )}
               <p
                 className={`max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed ${
-                  t.role === "user" ? "rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-background" : "pt-1"
+                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-[linear-gradient(135deg,#4f46e5,#7c3aed)] px-4 py-2.5 text-white shadow-[0_8px_20px_-10px_rgb(79_70_229/0.6)]" : "pt-1"
                 }`}
               >
                 {t.content}
@@ -448,7 +448,7 @@ export function Interview({
         )}
         {phase === "thinking" && started && (
           <div className="flex items-center gap-3">
-            <span className="grid size-7 place-items-center rounded-full bg-board text-[11px] font-semibold text-flap" aria-hidden>
+            <span className="bg-hero-gradient grid size-8 place-items-center rounded-xl text-[11px] font-bold text-white" aria-hidden>
               am
             </span>
             <span className="flex gap-1" aria-label="Thinking">
@@ -464,7 +464,7 @@ export function Interview({
       {err && <p className="mb-2 rounded-lg border border-stop/40 bg-stop/8 px-3 py-2 text-sm">{err.charAt(0).toUpperCase() + err.slice(1)}</p>}
 
       {started && (
-        <footer className="sticky bottom-16 -mx-4 border-t border-line bg-background/95 px-4 pb-3 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0">
+        <footer className="sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0">
           <p className="mb-2 h-4 text-xs text-muted">{status}</p>
           <div className="flex items-end gap-2">
             {voiceOk && (
@@ -473,7 +473,7 @@ export function Interview({
                 disabled={phase === "thinking"}
                 aria-label={phase === "listening" ? "Stop and send" : "Talk"}
                 className={`relative grid size-12 shrink-0 place-items-center rounded-full transition disabled:opacity-40 ${
-                  phase === "listening" ? "bg-stop text-white" : "bg-foreground text-background hover:bg-neutral-700 dark:hover:bg-neutral-200"
+                  phase === "listening" ? "bg-stop text-white" : "bg-hero-gradient text-white shadow-[0_10px_24px_-8px_rgb(79_70_229/0.6)] hover:-translate-y-px"
                 }`}
               >
                 {phase === "listening" && <span className="absolute inset-0 animate-ping rounded-full bg-stop/40" aria-hidden />}
@@ -481,7 +481,7 @@ export function Interview({
               </button>
             )}
             <form
-              className="flex flex-1 items-end gap-2 rounded-2xl border border-line bg-surface p-1.5 focus-within:border-focus"
+              className="flex flex-1 items-end gap-2 rounded-[20px] border border-line bg-background p-1.5 transition-shadow focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/12"
               onSubmit={(e) => {
                 e.preventDefault();
                 const t = draft.trim();
@@ -509,7 +509,7 @@ export function Interview({
               <button
                 disabled={phase === "thinking" || !draft.trim()}
                 aria-label="Send"
-                className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-background transition disabled:opacity-30"
+                className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink transition disabled:opacity-30"
               >
                 <ArrowUp className="size-4" />
               </button>

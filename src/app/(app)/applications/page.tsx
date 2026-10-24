@@ -25,10 +25,10 @@ const GROUPS: [string, string[]][] = [
 const NOT_ESSAYS = ["strategy", "fee_plan", "funding_plan", "video_or_interview"];
 
 function Deadline({ date, urgent }: { date: string | null; urgent: boolean }) {
-  if (!date) return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-dashed border-line text-xs text-muted">TBD</span>;
+  if (!date) return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-dashed border-line text-xs text-muted">TBD</span>;
   const d = new Date(date + "T00:00:00Z");
   return (
-    <span className={`grid h-12 w-12 shrink-0 place-content-center rounded-lg text-center leading-none ${urgent ? "bg-stop text-white" : "bg-board text-flap"}`}>
+    <span className={`grid h-12 w-12 shrink-0 place-content-center rounded-2xl text-center leading-none ${urgent ? "bg-[linear-gradient(135deg,#f43f5e,#ea580c)] text-white shadow-[0_8px_18px_-8px_rgb(225_29_72/0.6)]" : "bg-hero-gradient text-white shadow-[0_8px_18px_-10px_rgb(79_70_229/0.6)]"}`}>
       <span className="font-display text-xl font-bold tabular">{d.getUTCDate()}</span>
       <span className="mt-0.5 text-[10px]">{d.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}</span>
     </span>
@@ -59,7 +59,7 @@ export default async function Applications() {
             if (!group.length) return null;
             return (
               <section key={title} className="space-y-2">
-                <h2 className="text-sm font-semibold text-muted">
+                <h2 className="px-1 text-sm font-bold text-muted">
                   {title} <span className="font-normal tabular">({group.length})</span>
                 </h2>
                 <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
@@ -76,12 +76,12 @@ export default async function Applications() {
                         <Link href={`/applications/${r.id}`} className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
                           <Deadline date={r.target_deadline} urgent={urgent} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">{r.programs.schools.name}</span>
+                            <span className="block truncate font-bold tracking-[-0.01em]">{r.programs.schools.name}</span>
                             <span className="block truncate text-sm text-muted">{r.programs.name}</span>
                             {writing && (
                               <span className="mt-2 flex items-center gap-2 text-xs text-muted">
                                 <span className="h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-                                  <span className="block h-full rounded-full bg-foreground" style={{ width: essays.length ? `${(approved / essays.length) * 100}%` : "0%" }} />
+                                  <span className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" style={{ width: essays.length ? `${(approved / essays.length) * 100}%` : "0%" }} />
                                 </span>
                                 <span>
                                   {essays.length ? `${approved} of ${essays.length} approved` : "Planning"}

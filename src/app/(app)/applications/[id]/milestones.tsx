@@ -42,7 +42,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-foreground transition-[width] duration-500" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))] transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-sm text-muted">
           {!essaysTotal
@@ -51,7 +51,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
               ? `Approve ${left} more ${left === 1 ? "piece" : "pieces"} below, then sign. After that the agents find the portal, create your account and submit.`
               : "Everything is approved. Sign below and the agents find the portal, create your account and submit."}
         </p>
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-background p-3.5 text-[13px] leading-relaxed">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-background p-4 text-[13px] leading-relaxed">
           <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-foreground)]" />
           <span>{ATTESTATION}</span>
         </label>
@@ -64,7 +64,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
 
   if (status === "packet_approved") {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-5 py-3.5 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-line bg-surface px-5 py-3.5 text-sm shadow-card">
         <span className="text-muted">Signed. Submitted it yourself instead? Let us know so the agents stop.</span>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => act({ action: "mark_submitted" }, "Marked as submitted")}>
           I submitted it myself

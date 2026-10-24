@@ -138,7 +138,7 @@ export default async function ProfilePage() {
           {gaps.length > 0 && (
             <section id="missing" className="scroll-mt-24 space-y-2">
               <h2 className="text-lg font-semibold tracking-tight">Still missing</h2>
-              <ul className="space-y-2 rounded-xl border border-signal/60 bg-signal/8 px-5 py-4 text-sm">
+              <ul className="space-y-2 rounded-3xl border border-signal/25 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))] px-5 py-4 text-sm shadow-card">
                 {gaps.map((g) => (
                   <li key={g.key} className="flex gap-2.5">
                     <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />

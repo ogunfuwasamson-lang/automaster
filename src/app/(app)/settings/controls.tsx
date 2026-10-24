@@ -125,9 +125,9 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
             toast.error("Couldn't change it");
           }
         }}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-foreground" : "bg-neutral-300 dark:bg-neutral-700"}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-700"}`}
       >
-        <span className={`absolute top-0.5 size-5 rounded-full bg-background shadow transition-transform ${on ? "translate-x-5.5" : "translate-x-0.5"}`} />
+        <span className={`absolute left-0 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
       </button>
     </label>
   );
@@ -224,7 +224,7 @@ export function RunnerCard({ tokens }: { tokens: { id: string; label: string | n
           <li>Create a key below and paste it into the extension.</li>
         </ol>
         {fresh ? (
-          <div className="space-y-2 rounded-lg border border-signal/60 bg-signal/10 p-3">
+          <div className="space-y-2 rounded-2xl border border-accent/25 bg-accent/[0.06] p-4">
             <p className="text-xs text-muted">Your key. It&apos;s shown once, so paste it into the extension now.</p>
             <p className="break-all font-mono text-sm">{fresh}</p>
             <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(fresh).then(() => toast.success("Key copied"))}>

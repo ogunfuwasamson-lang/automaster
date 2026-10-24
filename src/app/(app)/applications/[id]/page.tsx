@@ -165,7 +165,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         <ol className="grid grid-cols-5 gap-1.5" aria-label="Application progress">
           {JOURNEY.map((label, i) => (
             <li key={label} aria-current={i === step ? "step" : undefined}>
-              <span className={`block h-1 rounded-full ${i < step ? "bg-foreground" : i === step ? "bg-signal" : "bg-neutral-200 dark:bg-neutral-800"}`} />
+              <span className={`block h-1.5 rounded-full ${i < step ? "bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" : i === step ? "bg-accent/35 animate-pulse" : "bg-neutral-200 dark:bg-neutral-800"}`} />
               <span className={`mt-1.5 block text-xs ${i === step ? "font-semibold text-foreground" : i < step ? "text-foreground" : "text-muted"}`}>{label}</span>
             </li>
           ))}

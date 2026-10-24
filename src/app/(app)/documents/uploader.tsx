@@ -44,14 +44,14 @@ export function Uploader({ userId }: { userId: string }) {
         setOver(false);
         upload(e.dataTransfer.files);
       }}
-      className={`rounded-2xl border-2 border-dashed p-6 transition-colors sm:p-8 ${over ? "border-foreground bg-neutral-100 dark:bg-neutral-900" : "border-line bg-surface"}`}
+      className={`rounded-3xl border-2 border-dashed p-6 transition-colors sm:p-8 ${over ? "border-accent bg-accent/[0.06]" : "border-accent/25 bg-surface shadow-card"}`}
     >
       <div className="flex flex-col items-center gap-4 text-center">
-        <span className="grid size-12 place-items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
-          <UploadCloud className={`size-5 ${busy ? "animate-bounce" : ""}`} aria-hidden />
+        <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_28px_-10px_rgb(79_70_229/0.6)]">
+          <UploadCloud className={`size-6 ${busy ? "animate-bounce" : ""}`} aria-hidden />
         </span>
         <div>
-          <p className="font-medium">{busy ? `Uploading ${busy}…` : "Drop files here"}</p>
+          <p className="font-bold">{busy ? `Uploading ${busy}…` : "Drop files here"}</p>
           <p className="mt-0.5 text-sm text-muted">PDF, Word, images or text, up to 10 MB each</p>
         </div>
         <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row">
@@ -66,7 +66,7 @@ export function Uploader({ userId }: { userId: string }) {
             type="button"
             onClick={() => input.current?.click()}
             disabled={!!busy}
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-foreground px-4 text-sm font-medium text-background hover:bg-neutral-700 disabled:opacity-45 dark:hover:bg-neutral-200"
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-ink px-4 text-sm font-semibold text-on-ink shadow-[0_8px_20px_-6px_rgb(15_18_34/0.35)] disabled:opacity-45"
           >
             Choose files
           </button>

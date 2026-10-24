@@ -68,7 +68,7 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
         <legend className="font-semibold">Recommenders</legend>
         <p className="-mt-1 text-sm text-muted">Portals email them a link to upload their letter. Tell them it&apos;s coming.</p>
         {recs.map((r, i) => (
-          <div key={i} className="rounded-xl border border-line p-4">
+          <div key={i} className="rounded-2xl border border-line bg-background p-4">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium">{r.name.trim() || `Recommender ${i + 1}`}</span>
               <button

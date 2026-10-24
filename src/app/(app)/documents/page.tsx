@@ -42,11 +42,11 @@ export default async function Documents() {
                   const busy = d.status === "uploaded" || d.status === "extracting";
                   return (
                     <li key={d.id} className="flex gap-3 px-4 py-3.5 text-sm sm:px-5">
-                      <FileText className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"><FileText className="size-[18px]" aria-hidden /></span>
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-start justify-between gap-3">
                           <span className="min-w-0">
-                            <span className="block truncate font-medium">{d.filename}</span>
+                            <span className="block truncate font-bold">{d.filename}</span>
                             <span className="text-xs text-muted">{KIND_LABEL[d.kind] ?? KIND_LABEL[d.kind === "degree_cert" ? "degree_certificate" : "other"]}</span>
                           </span>
                           <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${d.status === "failed" ? "text-stop" : d.status === "extracted" ? "text-go" : "text-muted"}`}>

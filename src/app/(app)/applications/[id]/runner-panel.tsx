@@ -46,7 +46,7 @@ export function RunnerPanel(props: {
   }
 
   const loginCard = hasLogin ? (
-    <div className="rounded-lg border border-line bg-background p-4 text-sm">
+    <div className="rounded-2xl border border-line bg-surface p-4 text-sm">
       <p className="flex items-center gap-2 font-medium">
         <KeyRound className="size-4" aria-hidden />
         Your portal login
@@ -81,7 +81,7 @@ export function RunnerPanel(props: {
 
   if (status === "submitted") {
     return (
-      <section className="space-y-3 rounded-xl border border-go/40 bg-go/8 p-5 text-sm">
+      <section className="space-y-3 rounded-3xl border border-go/25 bg-[color-mix(in_oklab,var(--go)_6%,var(--surface))] p-5 shadow-card text-sm">
         <p className="flex items-start gap-2">
           <CircleCheck className="mt-0.5 size-4 shrink-0 text-go" aria-hidden />
           <span>
@@ -106,7 +106,7 @@ export function RunnerPanel(props: {
   }[runnerStatus] ?? runnerStatus;
 
   return (
-    <section className={`space-y-4 rounded-xl border p-5 ${stuck ? "border-signal bg-signal/10" : "border-line bg-surface"}`}>
+    <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
       <div className="flex items-start gap-3">
         <span className={`grid size-9 shrink-0 place-items-center rounded-full ${stuck ? "bg-signal text-neutral-950" : "bg-neutral-100 dark:bg-neutral-800"}`}>
           {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
@@ -134,7 +134,7 @@ export function RunnerPanel(props: {
       {loginCard}
 
       {missing.length > 0 && (
-        <p className="rounded-lg border border-signal/60 bg-signal/10 px-3.5 py-2.5 text-sm">
+        <p className="rounded-2xl border border-signal/25 bg-signal/[0.06] px-4 py-3 text-sm">
           Portals will ask for things your profile doesn&apos;t have yet: {missing.join(", ")}.{" "}
           <Link href="/profile#details" className="font-medium underline underline-offset-4">
             Add them to your profile
