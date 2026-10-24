@@ -7,7 +7,7 @@ export interface Decision {
   kind: string;
   title: string;
   summary: string | null;
-  payload: { topic?: string; options?: string[] };
+  payload: { topic?: string; options?: string[]; link?: string | null; due?: string | null };
 }
 
 // one-tap queue items. fact conflicts get their options as buttons plus a free-text escape hatch.
@@ -37,6 +37,7 @@ export function Decisions({ items }: { items: Decision[] }) {
         <div key={d.id} className="rounded-md border border-amber-300 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/30">
           <p className="text-sm font-medium">{d.title}</p>
           {d.summary && <p className="mt-0.5 text-xs text-neutral-600 dark:text-neutral-400">{d.summary}</p>}
+          {d.payload.link && <a href={d.payload.link} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs underline">open the email</a>}
           {d.kind === "fact_confirm" ? (
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap gap-2">
@@ -73,10 +74,10 @@ export function Decisions({ items }: { items: Decision[] }) {
           ) : (
             <div className="mt-3 flex gap-2">
               <button disabled={busy === d.id} onClick={() => decide(d.id, "approve")} className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900">
-                approve
+                {d.kind === "record_decision" ? "record it" : d.kind === "school_action" ? "done" : "approve"}
               </button>
               <button disabled={busy === d.id} onClick={() => decide(d.id, "reject")} className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-neutral-700">
-                reject
+                {d.kind === "record_decision" ? "not right" : d.kind === "school_action" ? "dismiss" : "reject"}
               </button>
             </div>
           )}

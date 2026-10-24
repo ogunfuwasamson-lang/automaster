@@ -5,6 +5,8 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { USER_SETTABLE } from "@/lib/dial";
 import { queueRunner } from "@/agents/runner";
+import { enqueue } from "@/lib/queue";
+import { drain } from "@/lib/jobs";
 import { after } from "next/server";
 
 // the applicant's own controls: stop button, autonomy dial, fee envelope, digest
@@ -15,6 +17,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_fee_envelope"), usd: z.number().int().min(0).max(5000) }),
   z.object({ action: z.literal("set_digest"), enabled: z.boolean() }),
   z.object({ action: z.literal("retry_runner") }),
+  z.object({ action: z.literal("check_inbox") }),
 ]);
 
 export async function POST(req: NextRequest) {
@@ -61,6 +64,12 @@ export async function POST(req: NextRequest) {
     await db.from("profiles").update({ fee_envelope_cents: cents }).eq("id", uid);
     await db.from("grants").update({ ceiling_cents: cents }).eq("user_id", uid).eq("capability", "spend.app_fee");
     await logEvent({ userId: uid, actor: "user", action: "controls.fee_envelope", context: { usd: b.usd } });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.action === "check_inbox") {
+    await enqueue({ userId: uid, agent: "system", task: "inbox", idempotencyKey: `inbox:${uid}:now:${Math.floor(Date.now() / 60_000)}` });
+    after(() => drain("inline-inbox", 1).catch(() => {}));
     return NextResponse.json({ ok: true });
   }
 

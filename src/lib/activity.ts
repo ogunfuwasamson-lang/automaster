@@ -56,6 +56,19 @@ const LABELS: Record<string, string> = {
   "approval.approved": "you approved a request",
   "approval.rejected": "you declined a request",
   "job.failed": "an agent task failed",
+  "inbox.decision_admit": "a school emailed an admission decision",
+  "inbox.decision_reject": "a school emailed a decision",
+  "inbox.decision_waitlist": "a school put you on its waitlist",
+  "inbox.interview_invite": "a school invited you to interview",
+  "inbox.document_request": "a school asked for a document",
+  "inbox.action_required": "a school asked you to do something",
+  "inbox.aid_offer": "a school emailed a funding offer",
+  "inbox.fee_waiver_reply": "a school replied about the fee waiver",
+  "inbox.account_or_verification": "a portal emailed login or verification details",
+  "inbox.submission_receipt": "a school confirmed it received your application",
+  "inbox.info_or_marketing": "a school sent general information",
+  "runner.portal_found": "found the application portal",
+  "runner.account_created": "created a portal account",
 };
 
 const ACTOR: Record<string, string> = {

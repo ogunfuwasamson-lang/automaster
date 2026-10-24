@@ -7,12 +7,14 @@ import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
 import { loadApp, loadSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
-import { createLogin, getLogin, markLogin } from "@/lib/vault";
+import { createLogin, getLogin, markLogin, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
-import { extractVerification, hostRoot } from "@/lib/verify-mail";
+import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { openBrowser, type StorageState } from "@/lib/browser";
-import { runEngine, type EngineState } from "@/lib/cloud-engine";
+import { runEngine, type EngineState, type NavInput } from "@/lib/cloud-engine";
+import { resolve, keyMenu } from "@/lib/runner-map";
+import type { FillSheet } from "@/lib/fillsheet";
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
 
@@ -21,6 +23,78 @@ import { hostRoot as rootOf } from "@/lib/verify-mail";
 
 const RUN_BUDGET_MS = 200_000; // stay well inside the function's 300s
 const RECHECKS = 8; // after a handoff (bot check, payment), look again this many times, 10 min apart
+
+const NavOut = z.object({
+  action: z.enum(["click", "fill", "goto", "wait_email", "handoff", "done"]),
+  target_id: z.string(),
+  sheet_key: z.string(),
+  url: z.string(),
+  note: z.string(),
+});
+
+const NAV_SYSTEM = `you drive a university application portal in a browser for an applicant who has reviewed and signed their application packet.
+goal: get the application for the named program filled in and submitted. pick exactly ONE next action.
+actions:
+- click: press the button/link with target_id (use ids from the buttons list). use this to sign in, create an account, start or continue an application, open the next section, save, or submit.
+- fill: put the applicant's answer into the empty field target_id, taken from sheet_key (a key from the fill sheet). never invent values; if no key answers it, don't fill it.
+- goto: open url (must be a link on this page or on the same site).
+- wait_email: the portal sent an email (code, link, or login) and nothing else can be done until it arrives.
+- handoff: the applicant must do this step themselves (bot check, payment, a question only they can answer, anything you are unsure about). note says exactly what to do, in one plain sentence.
+- done: the application is already submitted.
+rules: never press pay/checkout/delete/withdraw/sign out. prefer the main application flow over navigation menus, news, events or other programs.
+if the page lists several programs or applications, choose the one matching the program. explain your choice in note (short).`;
+
+function navPrompt(n: NavInput, sheet: FillSheet) {
+  const s = n.snapshot;
+  const fields = s.fields.slice(0, 60).map((f) => `${f.id} | ${f.type}${f.required ? " required" : ""} | ${f.label.slice(0, 90)}${f.options?.length ? ` | options: ${f.options.slice(0, 10).join(" / ").slice(0, 160)}` : ""}`);
+  const buttons = s.buttons.slice(0, 80).map((b) => `${b.id} | ${b.label.slice(0, 60)}${b.href ? ` | ${b.href.slice(0, 100)}` : ""}`);
+  return `program: ${sheet.program} at ${sheet.school}
+why you're being asked: ${n.why}
+signed in: ${n.signedIn ? "yes" : "not yet"}; login on file: ${n.haveLogin ? "yes" : "no"}
+recent steps: ${n.history.join(" → ") || "none"}
+
+page: ${s.title} (${s.url})
+portal errors: ${(s.errors ?? []).join("; ") || "none"}
+page text: ${s.body.slice(0, 1800)}
+
+empty fields:
+${fields.join("\n") || "none"}
+
+buttons and links:
+${buttons.join("\n") || "none"}`;
+}
+
+const CredOut = z.object({ username: z.string(), password: z.string() });
+
+// a login the portal emailed to the applicant, read from their inbox and kept in the vault
+async function issuedLogin(userId: string, applicationId: string, jobId: string, host: string, since: number) {
+  const root = hostRoot(host);
+  const mails = await recentMail(userId, `newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => []);
+  for (const m of mails.filter((x) => x.at >= since).sort((a, b) => b.at - a.at)) {
+    let c = extractCredentials(m);
+    if (!c.username || !c.password) {
+      // unusual wording: let the cheap model read just this one email
+      try {
+        const { output } = await runStructured({
+          userId,
+          agent: "runner",
+          jobId,
+          promptVersion: "issued-login-v1",
+          tier: "cheap",
+          system: "extract the portal login (user id or username, and password) that this email gives the applicant. empty strings if the email doesn't contain one. copy them exactly.",
+          prompt: `subject: ${m.subject}\n\n${(m.text || m.html.replace(/<[^>]+>/g, " ")).slice(0, 4000)}`,
+          schema: CredOut,
+          maxTokens: 200,
+        });
+        c = { username: output.username || c.username, password: output.password || c.password };
+      } catch {
+        /* keep what the patterns found */
+      }
+    }
+    if (c.username && c.password) return saveIssuedLogin(userId, applicationId, host, c.username, c.password);
+  }
+  return null;
+}
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
@@ -136,6 +210,23 @@ export const runner: Record<string, Handler> = {
           },
           accountEmail: sheet.fields.email ?? "",
           canReadMail: readMail,
+          navigate: async (n) => {
+            const { output } = await runStructured({
+              userId: job.user_id,
+              agent: "runner",
+              jobId: job.id,
+              promptVersion: "nav-v1",
+              tier: "cheap",
+              system: NAV_SYSTEM,
+              cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(sheet)}`,
+              prompt: navPrompt(n, sheet),
+              schema: NavOut,
+              maxTokens: 400,
+            });
+            return output;
+          },
+          fillFromKey: (f, key) => resolve(f, key, sheet),
+          loginFromMail: readMail ? (since) => issuedLogin(job.user_id, applicationId, job.id, host(), since) : undefined,
           verification: async (since) => {
             const root = hostRoot(host());
             const mails = await recentMail(job.user_id, `newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);

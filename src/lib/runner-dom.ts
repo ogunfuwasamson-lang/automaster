@@ -125,7 +125,7 @@ export const DOM_HELPER = String.raw`
       confirmation: /(application (has been |was )?(successfully )?submitted|thank you for (submitting|applying|your application)|submission (is )?complete|your application is complete|confirmation (number|code))/i.test(body),
       fingerprint: [...document.querySelectorAll("h1, h2, h3, legend, label")].slice(0, 40).map(textOf).join("|").slice(0, 2000),
       fields: fields(false),
-      allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, autocomplete: f.autocomplete, required: f.required })),
+      allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required })),
       buttons: buttons(),
       errors: [...document.querySelectorAll('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message')]
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),

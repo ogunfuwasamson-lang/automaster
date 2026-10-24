@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { drain } from "@/lib/jobs";
 import { sendDue } from "@/lib/outbox";
 import { scheduleDigests } from "@/lib/digest";
+import { scheduleInbox } from "@/lib/inbox";
 import { admin } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/gmail";
 
@@ -22,7 +23,9 @@ function authorized(req: NextRequest) {
 async function handle(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   // digests: a few checks an hour; idempotency keys stop duplicates
-  const digests = new Date().getUTCMinutes() % 15 === 0 ? await scheduleDigests().catch(() => 0) : 0;
+  const quarter = new Date().getUTCMinutes() % 15 === 0;
+  const digests = quarter ? await scheduleDigests().catch(() => 0) : 0;
+  if (quarter) await scheduleInbox().catch(() => 0);
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);
   // portal work runs in its own function (it ships chromium). poke it when some is due: up to 3 in parallel.
   const { count } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("agent", "runner").eq("status", "queued").lte("run_at", new Date().toISOString());

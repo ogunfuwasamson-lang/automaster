@@ -7,6 +7,7 @@ import { updateProfile } from "@/lib/profile-store";
 import { confirmFact } from "@/lib/profile";
 import { scheduleConsolidate } from "@/agents/curator";
 import { drain } from "@/lib/jobs";
+import { recordDecision, type Decision } from "@/lib/decisions";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: a } = await db
     .from("approvals")
-    .select("id, kind, payload, status")
+    .select("id, kind, payload, status, application_id")
     .eq("id", id)
     .eq("user_id", uid)
     .maybeSingle();
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (a.status !== "pending") return NextResponse.json({ error: "already decided" }, { status: 409 });
 
   const { decision, choice } = parsed.data;
+
+  // a school's decision read from the inbox: approving records it (an admit starts the funding agent)
+  if (a.kind === "record_decision" && decision === "approve" && a.application_id) {
+    const p = a.payload as { decision?: Decision; aid_amount_usd?: number };
+    const r = await recordDecision(uid, a.application_id, p.decision ?? "interview", { amount_usd: p.aid_amount_usd ?? 0 }, "inbox");
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+    after(() => drain("inline-decision", 1).catch(() => {}));
+  }
 
   if (a.kind === "fact_confirm" && decision === "approve") {
     if (!choice) return NextResponse.json({ error: "pick a value" }, { status: 400 });

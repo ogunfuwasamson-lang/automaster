@@ -15,13 +15,16 @@ export interface Snapshot {
   confirmation: boolean;
   fingerprint: string;
   fields: (PageField & { autocomplete?: string })[];
-  allFields: { id: string; label: string; type: string; autocomplete?: string; required?: boolean }[];
+  allFields: { id: string; label: string; type: string; name?: string; autocomplete?: string; required?: boolean }[];
   buttons: { id: string; label: string; link: boolean; href?: string }[];
   errors?: string[];
 }
 
 export interface EngineState {
   steps: number;
+  navCalls?: number;
+  navHistory?: string[];
+  triedMailLogin?: boolean;
   signedIn?: boolean; // a sign-in with the stored login has worked at least once
   missing?: string[]; // fill-sheet keys a portal asked for that the profile doesn't have
   reachedSubmit?: boolean;
@@ -48,7 +51,28 @@ export interface EngineDeps {
   // a verification code or link from the applicant's inbox that arrived after `since`; null if none yet
   verification(since: number): Promise<{ code: string | null; link: string | null } | null>;
   canReadMail: boolean;
+  // the general fallback: a model reads the page and picks one constrained next step
+  navigate?(input: NavInput): Promise<NavAction | null>;
+  // fill one field from a fill-sheet key (values never come from the model)
+  fillFromKey?(field: PageField, key: string): Fill | null;
+  // a login this portal emailed to the applicant (peoplesoft-style systems issue their own); saved to the vault
+  loginFromMail?(since: number): Promise<Login | null>;
   progress(note: string): Promise<void>;
+}
+
+export interface NavInput {
+  why: string;
+  snapshot: Snapshot;
+  history: string[];
+  signedIn: boolean;
+  haveLogin: boolean;
+}
+export interface NavAction {
+  action: "click" | "fill" | "goto" | "wait_email" | "handoff" | "done";
+  target_id: string;
+  sheet_key: string;
+  url: string;
+  note: string;
 }
 
 export type Outcome =
@@ -181,7 +205,12 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const req = s.fields.map((f) => f.label.slice(0, 50));
       const fix = missingNote(state.missing ?? []);
       const err = (s.errors ?? []).join("; ").slice(0, 160);
-      return { outcome: { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") }, state, filled };
+      const stop: Outcome = { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
+      if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
+      // the usual moves aren't working on this page: let the navigator look at it
+      const o = await navStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
+      if (o) return { outcome: o, state, filled };
+      continue;
     }
 
     const kind = classify(s);
@@ -197,11 +226,14 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
 
     if (kind === "login") {
-      const login = await deps.existingLogin();
+      let login = await deps.existingLogin();
+      // never create a second account: first look for a login this portal already emailed
+      if (!login && deps.loginFromMail) login = await deps.loginFromMail(Date.now() - 60 * 86_400_000);
       if (!login) {
         const create = find(s, CREATE);
         if (create) {
           await deps.progress("creating your portal account");
+          state.accountAt = Date.now();
           await click(page, create.id);
           continue;
         }
@@ -210,7 +242,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const pw = s.allFields.find((f) => f.type === "password")!;
       const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
       // "user id" boxes get the user id we registered with (the email's local part), email boxes get the email
-      if (user) await fillText(page, user.id, /user\s*(id|name)|login\s*(id|name)|identifiant/i.test(user.label) && !/e-?mail/i.test(user.label) ? login.login_email.split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30) : login.login_email);
+      const isIdBox = /user\s*(id|name)|login\s*(id|name)|identifiant|oprid/i.test(`${user?.label ?? ""} ${user?.name ?? ""}`) && !/e-?mail/i.test(user?.label ?? "");
+      if (user) await fillText(page, user.id, !login.login_email.includes("@") || !isIdBox ? login.login_email : login.login_email.split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
       await fillText(page, pw.id, login.password);
       const go = find(s, SIGNIN);
       if (!go) return { outcome: { kind: "needs_you", reason: "login", note: "couldn't find the sign-in button" }, state, filled };
@@ -219,6 +252,15 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const after = await snap(page);
       if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
         // a login that has never worked on this application: the applicant hasn't created the account yet
+        // the portal may have issued its own login by email (we pressed "create account" earlier, or you did)
+        if (!state.triedMailLogin && deps.loginFromMail) {
+          state.triedMailLogin = true;
+          const issued = await deps.loginFromMail(Date.now() - 60 * 86_400_000);
+          if (issued && (issued.password !== login.password || issued.login_email !== login.login_email)) {
+            await deps.progress("found the login the portal emailed you; signing in");
+            continue;
+          }
+        }
         if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
         return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. if you changed it, update it in automaster" }, state, filled };
       }
@@ -307,7 +349,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       continue;
     }
     if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
-    return { outcome: { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the live view and move to the next section" }, state, filled };
+    const o = await navStep(page, deps, now, state, "none of the usual buttons (next, continue, start, sign in, create account) are on this page", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
+    if (o) return { outcome: o, state, filled };
   }
   return { outcome: { kind: "continue", note: "continuing" }, state, filled };
 }
@@ -320,6 +363,87 @@ const DETAIL: Record<string, string> = {
 export function missingNote(keys: string[]): string {
   const labels = [...new Set(keys.map((k) => DETAIL[k] ?? (k.startsWith("rec") ? "recommenders" : k.startsWith("edu") ? "education history" : k.startsWith("work") ? "work history" : k.replace(/_/g, " "))))];
   return labels.length ? `add your ${labels.slice(0, 4).join(", ")} under profile → details for application forms, then press try again` : "";
+}
+
+const NAV_BUDGET = 12; // model-driven steps per run
+const DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
+
+// ask the navigator for one step and do it. returns null to keep looping, or an outcome to stop with.
+async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineState, why: string, fallback: Outcome): Promise<Outcome | null> {
+  if (!deps.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
+  state.navCalls = (state.navCalls ?? 0) + 1;
+  const history = state.navHistory ?? [];
+  const a = await deps.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!(await deps.existingLogin()) }).catch(() => null);
+  if (!a) return fallback;
+  const log = (t: string) => (state.navHistory = [...history, t].slice(-12));
+  const root = (u: string) => {
+    try {
+      return new URL(u).hostname.split(".").slice(-2).join(".");
+    } catch {
+      return "";
+    }
+  };
+
+  if (a.action === "handoff") {
+    log(`handoff: ${a.note}`);
+    return { kind: "needs_you", reason: "stuck", note: a.note.slice(0, 280) || fallback.note };
+  }
+  if (a.action === "wait_email") {
+    log("wait for email");
+    return { kind: "wait", note: a.note || "waiting for an email from the portal", seconds: 90 };
+  }
+  if (a.action === "done") {
+    log("done?");
+    if (s.confirmation && (state.reachedSubmit || state.submitClicked)) return { kind: "submitted", note: "portal showed a confirmation" };
+    return { kind: "needs_you", reason: "stuck", note: `the agents think this application may be finished; please check the portal. ${a.note}`.slice(0, 280) };
+  }
+  if (a.action === "goto") {
+    // only links on this page or pages on the same site
+    const onPage = s.buttons.some((b) => b.href === a.url);
+    if (!/^https:\/\//.test(a.url) || (!onPage && root(a.url) !== root(s.url))) {
+      log(`refused goto ${a.url}`);
+      return null;
+    }
+    log(`goto ${a.url}`);
+    await page.goto(a.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await sleep(1200);
+    return null;
+  }
+  if (a.action === "fill") {
+    const f = s.fields.find((x) => x.id === a.target_id);
+    const fill = f && deps.fillFromKey ? deps.fillFromKey(f, a.sheet_key) : null;
+    if (!f || !fill || NEVER_FILL.test(`${f.label} ${f.name ?? ""}`)) {
+      log(`couldn't fill ${f?.label ?? a.target_id} from ${a.sheet_key}`);
+      return null;
+    }
+    log(`fill "${f.label.slice(0, 40)}" from ${a.sheet_key}`);
+    if (fill.action === "upload") {
+      const file = await deps.file(fill.file);
+      await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });
+    } else await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), fill);
+    return null;
+  }
+  // click
+  const b = s.buttons.find((x) => x.id === a.target_id);
+  if (!b) {
+    log(`no such button ${a.target_id}`);
+    return null;
+  }
+  const label = clean(b.label);
+  if (DANGEROUS.test(label)) {
+    log(`refused "${label}"`);
+    return { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` };
+  }
+  if (FINAL.test(label) || /^submit\b/i.test(label)) {
+    state.reachedSubmit = true;
+    const d = await deps.canSubmit();
+    if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
+    state.submitClicked = true;
+  }
+  log(`click "${label}"`);
+  await deps.progress(a.note ? a.note.slice(0, 80) : `pressing "${label}"`);
+  await click(page, b.id);
+  return null;
 }
 
 async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], state?: EngineState): Promise<number> {

@@ -100,3 +100,12 @@ describe("sign-up link wording", () => {
     expect(CREATE.test("Registration Help")).toBe(false);
   });
 });
+
+describe("logins issued by email", () => {
+  it("reads user id and password in english and french", async () => {
+    const { extractCredentials } = await import("@/lib/verify-mail");
+    expect(extractCredentials({ subject: "Your account", text: "Your account has been created.\nUser ID: 12345678\nPassword: Xk9#pq2L\nPlease change it.", html: "" })).toEqual({ username: "12345678", password: "Xk9#pq2L" });
+    expect(extractCredentials({ subject: "Création de compte", text: "", html: "<p>Code d'utilisateur : ADM0042</p><p>Mot de passe temporaire : a8Bq!z3</p>" })).toEqual({ username: "ADM0042", password: "a8Bq!z3" });
+    expect(extractCredentials({ subject: "Newsletter", text: "Read our news", html: "" })).toEqual({ username: null, password: null });
+  });
+});

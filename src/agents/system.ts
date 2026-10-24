@@ -4,6 +4,7 @@ import type { Handler } from "./index";
 import { runStructured } from "@/lib/llm";
 import { logEvent } from "@/lib/events";
 import { runDigest } from "@/lib/digest";
+import { checkInbox } from "@/lib/inbox";
 
 // smoke test for the whole loop: queue -> worker -> claude -> agent_runs -> events.
 const PingOut = z.object({ status: z.literal("ok"), note: z.string() });
@@ -25,4 +26,6 @@ export const system: Record<string, Handler> = {
   },
   // the morning digest: deterministic, no model call
   "system.digest": async (job) => runDigest(job.user_id),
+  // school emails: read, classify, queue what needs the applicant
+  "system.inbox": async (job) => checkInbox(job.user_id, job.id),
 };

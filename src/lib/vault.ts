@@ -47,3 +47,14 @@ export async function createLogin(userId: string, applicationId: string, host: s
 export async function markLogin(id: string, status: "verified" | "failed") {
   await admin().from("portal_accounts").update({ status }).eq("id", id);
 }
+
+// a login the portal itself issued (emailed to the applicant): replaces whatever we had for that site
+export async function saveIssuedLogin(userId: string, applicationId: string, host: string, username: string, password: string): Promise<PortalLogin> {
+  const { data, error } = await admin()
+    .from("portal_accounts")
+    .upsert({ user_id: userId, application_id: applicationId, portal_host: host, login_email: username, password_enc: encrypt(password), status: "created" }, { onConflict: "user_id,portal_host" })
+    .select("id")
+    .single();
+  if (error) throw new Error(`vault: ${error.message}`);
+  return { id: data.id as string, login_email: username, password, status: "created" };
+}
