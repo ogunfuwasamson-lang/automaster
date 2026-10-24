@@ -76,6 +76,8 @@ export function buildSheet(a: {
   set("last_name", name.last);
   set("preferred_name", d.preferred_name || name.first);
   set("email", d.email || a.accountEmail);
+  // portals that want a user id as well as an email: the email's local part
+  set("username", (d.email || a.accountEmail || "").split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
   set("phone", d.phone);
   set("date_of_birth", d.date_of_birth);
   if (d.date_of_birth && /^\d{4}-\d{2}-\d{2}$/.test(d.date_of_birth)) {
@@ -222,6 +224,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(birth|dob)\w*\b.*\b(year|yyyy|y)\s*\*?$|\bbirth\s*year\b/i, "dob_year"],
   [/\b(date\s*of\s*birth|birth\s*date|birthdate|dob)\b/i, "date_of_birth"],
   [/\b(gender|sex)\b/i, "gender"],
+  [/\b(user\s*(id|name)|login\s*(id|name)|choose a (user|login)|identifiant|nom d.utilisateur)\b/i, "username"],
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],

@@ -190,7 +190,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       }
       const pw = s.allFields.find((f) => f.type === "password")!;
       const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
-      if (user) await fillText(page, user.id, login.login_email);
+      // "user id" boxes get the user id we registered with (the email's local part), email boxes get the email
+      if (user) await fillText(page, user.id, /user\s*(id|name)|login\s*(id|name)|identifiant/i.test(user.label) && !/e-?mail/i.test(user.label) ? login.login_email.split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30) : login.login_email);
       await fillText(page, pw.id, login.password);
       const go = find(s, SIGNIN);
       if (!go) return { outcome: { kind: "needs_you", reason: "login", note: "couldn't find the sign-in button" }, state, filled };

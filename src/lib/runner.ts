@@ -48,12 +48,14 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
     });
   const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }, { data: mail }] = await Promise.all([
     getProfile(userId),
-    db.from("profiles").select("email, portal_details").eq("id", userId).single(),
+    db.from("profiles").select("email, portal_details, target_term").eq("id", userId).single(),
     db.from("recommenders").select("name, email, title, organization, relationship, phone").eq("user_id", userId).order("created_at"),
     db.from("documents").select("id, kind, filename").eq("user_id", userId).eq("status", "extracted").order("created_at"),
     db.auth.admin.getUserById(userId),
     db.from("mail_accounts").select("email, status").eq("user_id", userId).maybeSingle(),
   ]);
+  // the target term sometimes lives only on the profile row ("fall-2027"), not in the interview profile
+  if (!profile.goals.target_term && prof?.target_term) profile.goals.target_term = prof.target_term;
   return buildSheet({
     applicationId,
     school: p.schools.name,
