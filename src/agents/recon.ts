@@ -15,7 +15,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 export const slugify = (s: string) =>
   s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 
-const MAX_PROGRAMS = 30; // across all selected regions per run
+const MAX_PROGRAMS = 20; // across all selected regions per run (web research is the main api cost)
+const CACHE_DAYS = 30; // reuse another run's (or user's) program research this fresh
 
 const regionList = (regions: string[] | null) => (regions?.length ? regions : ["us"]).filter((r) => REGIONS[r]);
 
@@ -241,7 +242,7 @@ export const recon: Record<string, Handler> = {
     const profile = await getProfile(job.user_id);
     const only = (job.payload as { regions?: string[] }).regions;
     const regions = only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions);
-    const perRegion = Math.max(8, Math.ceil(MAX_PROGRAMS / regions.length));
+    const perRegion = Math.max(5, Math.ceil(MAX_PROGRAMS / regions.length));
     for (const region of regions) {
       await enqueue({
         userId: job.user_id,
@@ -290,8 +291,8 @@ ${already.length ? `already on their list (don't repeat):\n${already.join("\n")}
 find ${count} masters programs in ${REGIONS[region]} that match their fields and degree types and respect their ADMISSION constraints (admissions tests, english route, deadlines). report funding signals, but don't filter on them.
 work top-down: roughly half from the region's top-ranked universities, then strong, then accessible. give each its ranking context and official url.
 finish with honest strategy notes for this region: which of their constraints cost them the most admits here, what would open more, and where post-admission funding pushes tend to work (e.g. schools known to reconsider merit aid or post assistantships after admission).`,
-      maxSearches: 10,
-      maxFetches: 3,
+      maxSearches: 6,
+      maxFetches: 2,
     });
 
     const { output, runId } = await runStructured({
@@ -340,7 +341,10 @@ finish with honest strategy notes for this region: which of their constraints co
     const ug = profile.education.find((e) => /bach|b\.|bsc|ba|btech|b\.tech|hnd|licen/i.test(e.degree ?? "")) ?? profile.education[0];
     const undergrad = ug ? `${ug.institution}${ug.country ? ` (${ug.country})` : ""}` : "their undergraduate university";
 
-    const found = await research({
+    // the world model is shared: if this program was researched recently (by any run, any user),
+    // reuse the facts and only judge fit for this applicant. no web calls.
+    const cached = await cachedProgramNotes(p.school, p.program);
+    const found = cached ?? await research({
       userId: job.user_id,
       agent: "recon",
       jobId: job.id,
@@ -356,8 +360,8 @@ applicant:
 ${profileBrief(profile, row?.target_term)}
 
 find and report: degree type and length; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
-      maxSearches: 5,
-      maxFetches: 4,
+      maxSearches: 3,
+      maxFetches: 3,
     });
 
     const { output: facts, runId } = await runStructured({
@@ -366,7 +370,9 @@ find and report: degree type and length; admissions tests (GRE/GMAT/other) requi
       jobId: job.id,
       promptVersion: "program-parse-v2",
       system: `turn research notes into structured program data. use only what the notes say. "unknown" or "" when the notes don't say. dates as YYYY-MM-DD; if a date has no year, assume the ${row?.target_term ?? "fall-2027"} cycle. fit judgement comes from the notes' assessment.`,
-      prompt: `research notes:\n${found.text}`,
+      prompt: `${cached ? "stored program facts (judge fit for THIS applicant from them):" : "research notes:"}\n${found.text}${
+        cached ? `\n\napplicant:\n${profileBrief(profile, row?.target_term)}` : ""
+      }`,
       schema: ProgramFacts,
       maxTokens: 6000,
     });
@@ -385,7 +391,7 @@ find and report: degree type and length; admissions tests (GRE/GMAT/other) requi
       applicationId: appId,
       agentRunId: runId,
       reasoning: facts.fit_reasoning,
-      context: { tier: facts.tier, fit: facts.fit_score, funding: facts.full_funding_realistic, reasons, sources: found.sources.slice(0, 10) },
+      context: { tier: facts.tier, fit: facts.fit_score, funding: facts.full_funding_realistic, reasons, sources: found.sources.slice(0, 10), cached: !!cached },
     });
     return { verdict, tier: facts.tier };
   },
@@ -506,3 +512,21 @@ first list every eligibility hook you see in this profile. then search for schol
   });
   return { found: saved };
 };
+
+async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[] } | null> {
+  const db = admin();
+  const since = new Date(Date.now() - CACHE_DAYS * 86_400_000).toISOString();
+  const { data: sch } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", slugify(school)).maybeSingle();
+  if (!sch) return null;
+  const { data: progs } = await db
+    .from("programs")
+    .select("id, name, degree, url, stem_designated, test_policy, toefl_min, ielts_min, tuition_usd, duration_months, app_fee_usd, fee_waiver, deadlines, funding_signals, source_urls, verified_at")
+    .eq("school_id", sch.id)
+    .gte("verified_at", since);
+  const want = slugify(program);
+  const prog = (progs ?? []).find((x) => slugify(x.name) === want || slugify(x.name).includes(want) || want.includes(slugify(x.name)));
+  if (!prog) return null;
+  const { data: funding } = await db.from("funding_opportunities").select("name, kind, amount_note, intl_eligible, deadline, url, eligibility").eq("program_id", prog.id);
+  const text = JSON.stringify({ school: sch, program: prog, funding: funding ?? [] });
+  return { text, sources: (prog.source_urls as string[]) ?? [] };
+}
