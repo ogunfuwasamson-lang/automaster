@@ -201,7 +201,7 @@ export function RunnerCard({ tokens }: { tokens: { id: string; label: string | n
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   return (
-    <details className="group rounded-xl border border-line bg-surface">
+    <details className="group rounded-3xl border border-line bg-surface shadow-card">
       <summary className="flex cursor-pointer select-none items-center gap-3 px-5 py-4">
         <Puzzle className="size-4 shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 flex-1">

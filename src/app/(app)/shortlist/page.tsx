@@ -94,7 +94,7 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
   const reasoning = (r.fit_reasoning ?? "").split("\n").filter((l) => !l.startsWith("⚑")).join(" ");
   const [fund, fundTone] = FUND[fs.full_funding_realistic ?? "unknown"] ?? FUND.unknown;
   return (
-    <details className="group overflow-hidden rounded-xl border border-line bg-surface open:shadow-[0_1px_0_var(--color-line)]">
+    <details className="group overflow-hidden rounded-3xl border border-line bg-surface shadow-card open:shadow-[0_1px_0_var(--color-line)]">
       <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-3.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 sm:px-5">
         {r.fit_score != null ? (
           <span className="grid size-11 shrink-0 place-content-center rounded-full border-2 border-foreground/80 text-center leading-none" title={`Fit ${r.fit_score} out of 10`}>
@@ -323,7 +323,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
         <div className="grid gap-6 lg:grid-cols-2">
           {timeline.length > 0 && (
             <Section title="Next deadlines">
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+              <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
                 {timeline.map(({ r, d }) => (
                   <li key={r.id + d.round} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                     <span className="min-w-0 truncate">
@@ -341,7 +341,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
           )}
           {notes.length > 0 && (
             <Section title="Recon's read on your strategy">
-              <ul className="space-y-2.5 rounded-xl border border-line bg-surface px-4 py-3.5 text-sm">
+              <ul className="space-y-2.5 rounded-3xl border border-line bg-surface shadow-card px-4 py-3.5 text-sm">
                 {notes.map((n) => (
                   <li key={n.region + n.text} className="leading-relaxed">
                     <span className="font-medium">{REGIONS[n.region] ?? n.region}.</span> {n.text}
@@ -370,7 +370,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       )}
       {scholarships.length > 0 && (
         <Section title={`Scholarships for you (${scholarships.length})`} description="Matched on what makes you stand out, like awards, ventures, employers and region, not only nationality.">
-          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface text-sm">
+          <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card text-sm">
             {scholarships.map((x) => {
               const o = x.funding_opportunities;
               const fit = x.fit ? FIT[x.fit] : null;

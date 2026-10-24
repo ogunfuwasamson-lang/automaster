@@ -98,7 +98,7 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
         )}
       </fieldset>
 
-      <div className="sticky bottom-20 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface/95 p-3 backdrop-blur md:bottom-4">
+      <div className="sticky bottom-20 flex flex-wrap items-center gap-3 rounded-3xl border border-line bg-surface shadow-card/95 p-3 backdrop-blur md:bottom-4">
         <Button type="submit" disabled={saving || !dirty}>
           {saving ? "Saving…" : dirty ? "Save details" : "Saved"}
         </Button>

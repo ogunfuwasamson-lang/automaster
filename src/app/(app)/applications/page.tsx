@@ -62,7 +62,7 @@ export default async function Applications() {
                 <h2 className="text-sm font-semibold text-muted">
                   {title} <span className="font-normal tabular">({group.length})</span>
                 </h2>
-                <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+                <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
                   {group.map((r) => {
                     const essays = r.artifacts.filter((a) => !NOT_ESSAYS.includes(a.kind));
                     const cur = (a: Row["artifacts"][number]) => a.artifact_versions.find((v) => v.version === a.current_version);

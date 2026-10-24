@@ -1,35 +1,57 @@
 @import "tailwindcss";
-@import "@fontsource-variable/hanken-grotesk";
-@import "@fontsource-variable/big-shoulders-display";
+@import "@fontsource-variable/plus-jakarta-sans";
 
-/* automaster: "departures". every application is a departure; the board is the one loud thing.
-   everything else is paper and ink. */
+/* automaster: "aurora". light and airy: soft gradient sky, white rounded cards, one indigo-to-cyan accent.
+   status colours are tints, never loud blocks. dark mode keeps the same structure on a deep night sky. */
 
 :root {
-  --background: #f4f5f1; /* paper */
+  --background: #f6f7fb;
   --surface: #ffffff;
-  --foreground: #172033; /* ink */
-  --muted: #5b6577;
-  --line: #dde0d7;
-  --board: #10192b; /* departures board */
-  --flap: #f2efe4; /* split-flap tile text */
-  --signal: #f5b700; /* needs you / boarding */
-  --go: #1d7a55; /* submitted, admitted */
-  --stop: #c8323f; /* urgent, errors */
-  --focus: #2f6fdb;
+  --foreground: #0f1222;
+  --muted: #6b7086;
+  --line: #e8eaf2;
+  --accent: #4f46e5; /* indigo */
+  --accent-2: #06b6d4; /* cyan */
+  --accent-3: #f472b6; /* pink, only in the aurora */
+  --signal: #ea580c; /* needs you */
+  --go: #059669; /* submitted, admitted, done */
+  --stop: #e11d48; /* urgent, errors */
+  --focus: #6366f1;
+  --ink: #0f1222; /* dark slabs: primary buttons, the active nav pill */
+  --on-ink: #ffffff;
+  --sky-1: #a5b4fc;
+  --sky-2: #67e8f9;
+  --sky-3: #f9a8d4;
+  --card-shadow: 0 1px 2px rgb(15 18 34 / 0.03), 0 12px 32px -12px rgb(15 18 34 / 0.09);
+  --lift-shadow: 0 2px 4px rgb(15 18 34 / 0.04), 0 22px 44px -16px rgb(15 18 34 / 0.18);
+  /* kept for older markup: the departures tiles now render as ink chips */
+  --board: #0f1222;
+  --flap: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d1524;
-    --surface: #142037;
-    --foreground: #e9ece4;
-    --muted: #97a1b3;
-    --line: #26334d;
-    --board: #08101d;
-    --go: #3fb487;
-    --stop: #ef5b67;
-    --focus: #7aa7ff;
+    --background: #0a0c18;
+    --surface: #12152a;
+    --foreground: #eef0fb;
+    --muted: #9499b5;
+    --line: #22263e;
+    --accent: #818cf8;
+    --accent-2: #22d3ee;
+    --accent-3: #f472b6;
+    --signal: #fb923c;
+    --go: #34d399;
+    --stop: #fb7185;
+    --focus: #a5b4fc;
+    --ink: #eef0fb;
+    --on-ink: #0a0c18;
+    --sky-1: #4338ca;
+    --sky-2: #0e7490;
+    --sky-3: #9d174d;
+    --card-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -20px rgb(0 0 0 / 0.7);
+    --lift-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 24px 48px -18px rgb(0 0 0 / 0.85);
+    --board: #1a1e38;
+    --flap: #eef0fb;
   }
 }
 
@@ -39,30 +61,36 @@
   --color-surface: var(--surface);
   --color-muted: var(--muted);
   --color-line: var(--line);
-  --color-board: var(--board);
-  --color-flap: var(--flap);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
   --color-signal: var(--signal);
   --color-go: var(--go);
   --color-stop: var(--stop);
   --color-focus: var(--focus);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-board: var(--board);
+  --color-flap: var(--flap);
+  --shadow-card: var(--card-shadow);
+  --shadow-lift: var(--lift-shadow);
 
-  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Big Shoulders Display Variable", "Hanken Grotesk Variable", ui-sans-serif, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* the neutral scale, retinted from grey to ink-and-stone so every screen shares the palette */
+/* cool slate greys with a hint of indigo, so legacy neutral-* classes match the palette */
 @theme {
-  --color-neutral-50: #f4f5f1;
-  --color-neutral-100: #eaece6;
-  --color-neutral-200: #dde0d7;
-  --color-neutral-300: #c6cbc1;
-  --color-neutral-400: #99a0aa;
-  --color-neutral-500: #5b6577;
-  --color-neutral-600: #48536a;
-  --color-neutral-700: #313d55;
-  --color-neutral-800: #22304a;
-  --color-neutral-900: #172033;
-  --color-neutral-950: #0d1524;
+  --color-neutral-50: #f6f7fb;
+  --color-neutral-100: #eef0f6;
+  --color-neutral-200: #e2e5ef;
+  --color-neutral-300: #cdd1df;
+  --color-neutral-400: #a0a5bb;
+  --color-neutral-500: #6b7086;
+  --color-neutral-600: #50556c;
+  --color-neutral-700: #383c52;
+  --color-neutral-800: #22263e;
+  --color-neutral-900: #151829;
+  --color-neutral-950: #0a0c18;
 }
 
 html {
@@ -73,34 +101,85 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "tnum" 0;
   text-rendering: optimizeLegibility;
+}
+
+/* the display face is the body face, set heavier and tighter */
+.font-display {
+  font-weight: 700;
+  letter-spacing: -0.045em;
 }
 
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--signal) 45%, transparent);
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* split-flap tile: used only on the departures board */
+/* the aurora: three blurred colour fields behind the top of a page */
+.aurora {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 460px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+.aurora > i {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: 0.5;
+  animation: drift 26s ease-in-out infinite alternate;
+}
+.aurora > i:nth-child(1) { width: 520px; height: 380px; left: -6%; top: -170px; background: var(--sky-1); }
+.aurora > i:nth-child(2) { width: 480px; height: 340px; left: 36%; top: -210px; background: var(--sky-2); animation-delay: -9s; }
+.aurora > i:nth-child(3) { width: 440px; height: 320px; right: -5%; top: -130px; background: var(--sky-3); animation-delay: -17s; }
+@media (prefers-color-scheme: dark) {
+  .aurora > i { opacity: 0.32; }
+}
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(40px, 24px, 0) scale(1.08); }
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bg-accent-gradient {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+/* the hero card: deep indigo through violet to cyan */
+.bg-hero-gradient {
+  background: linear-gradient(145deg, #4f46e5, #7c3aed 55%, #06b6d4);
+}
+
+/* glass: the floating nav and anything that sits over the aurora */
+.glass {
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+}
+
+/* kept for older markup */
 .flap {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--flap);
-  background: linear-gradient(to bottom, #1b2740 0 49%, #0b1322 49% 51%, #17223a 51% 100%);
-  border-radius: 3px;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  background: var(--board);
+  border-radius: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

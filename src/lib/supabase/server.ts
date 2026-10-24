@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { previewMode, previewClient, PREVIEW_USER } from "./preview";
 
 // user-scoped client for server components and route handlers. RLS applies.
 export async function serverClient() {
@@ -24,6 +25,7 @@ export async function serverClient() {
 }
 
 export async function requireUser() {
+  if (previewMode()) return { sb: previewClient() as unknown as Awaited<ReturnType<typeof serverClient>>, user: PREVIEW_USER };
   const sb = await serverClient();
   const { data, error } = await sb.auth.getUser();
   if (error || !data.user) return null;

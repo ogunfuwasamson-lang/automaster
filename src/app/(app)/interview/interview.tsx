@@ -321,7 +321,7 @@ export function Interview({
               </Button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content align="end" sideOffset={6} className="z-50 w-80 space-y-4 rounded-xl border border-line bg-surface p-4 text-sm shadow-lg">
+              <Popover.Content align="end" sideOffset={6} className="z-50 w-80 space-y-4 rounded-3xl border border-line bg-surface shadow-card p-4 text-sm shadow-lg">
                 <label className="flex items-center justify-between gap-3">
                   Read replies out loud
                   <input type="checkbox" className="size-4 accent-[var(--color-foreground)]" checked={speak} onChange={(e) => toggle("am.speak", e.target.checked, setSpeak)} />

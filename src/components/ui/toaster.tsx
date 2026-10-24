@@ -6,7 +6,7 @@ export function Toaster() {
     <Sonner
       position="bottom-right"
       toastOptions={{
-        className: "!rounded-xl !border !border-line !bg-surface !text-foreground !font-sans !shadow-lg",
+        className: "!rounded-2xl !border !border-line !bg-surface !text-foreground !font-sans !font-medium !shadow-lift",
       }}
     />
   );

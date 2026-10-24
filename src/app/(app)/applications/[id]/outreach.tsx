@@ -57,7 +57,7 @@ export function OutreachDraft({ d, mail }: { d: Draft; mail: string | null }) {
   }
 
   return (
-    <article className="space-y-3 rounded-xl border border-line bg-surface p-5">
+    <article className="space-y-3 rounded-3xl border border-line bg-surface shadow-card p-5">
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 font-medium">
           <Mail className="size-4 text-muted" aria-hidden />

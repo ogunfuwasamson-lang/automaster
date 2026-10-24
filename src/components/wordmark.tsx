@@ -1,15 +1,16 @@
 import Link from "next/link";
 
-// the mark: a departures tile with a rising track
+// the mark: a gradient tile with an upward route
 export function Wordmark({ small = false, href = "/" }: { small?: boolean; href?: string }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2" aria-label="automaster home">
-      <svg viewBox="0 0 28 28" className={small ? "size-6" : "size-7"} aria-hidden>
-        <rect x="0.5" y="0.5" width="27" height="27" rx="6.5" fill="var(--board)" stroke="rgba(255,255,255,0.18)" />
-        <rect x="4" y="13.5" width="20" height="1" fill="#000" opacity="0.5" />
-        <path d="M7 19.5 L13 13 L16.5 16 L21.5 9" fill="none" stroke="var(--signal)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <span className={`font-display font-bold tracking-tight ${small ? "text-lg" : "text-[22px]"}`}>automaster</span>
+    <Link href={href} className="inline-flex items-center gap-2.5" aria-label="automaster home">
+      <span className={`grid place-items-center rounded-[10px] bg-[linear-gradient(135deg,#4f46e5,#06b6d4)] text-white shadow-[0_6px_16px_rgb(79_70_229/0.35)] ${small ? "size-7" : "size-8"}`}>
+        <svg viewBox="0 0 24 24" className={small ? "size-4" : "size-[18px]"} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M5 17 L10.5 11.5 L13.5 14.5 L19 8.5" />
+          <path d="M14.5 8.5 H19 V13" />
+        </svg>
+      </span>
+      <span className={`font-bold tracking-[-0.03em] ${small ? "text-[17px]" : "text-lg"}`}>automaster</span>
     </Link>
   );
 }

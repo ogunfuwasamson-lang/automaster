@@ -24,17 +24,23 @@ export const RUNNER_STATUS: Record<string, { label: string; tone: "quiet" | "pla
 };
 
 const TONE = {
-  quiet: "text-muted border-line",
-  plain: "text-foreground border-line bg-surface",
-  signal: "text-neutral-950 border-signal bg-signal",
-  go: "text-go border-go/40 bg-go/10",
-  stop: "text-stop border-stop/40 bg-stop/10",
+  quiet: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400",
+  plain: "bg-accent/10 text-accent",
+  signal: "bg-signal/10 text-signal",
+  go: "bg-go/10 text-go",
+  stop: "bg-stop/10 text-stop",
 };
 
+// a soft tinted chip with a dot: colour carries the state, the label says it
 export function StatusPill({ status, runner }: { status: string; runner?: string | null }) {
   const r = runner && runner !== "idle" && status === "packet_approved" ? RUNNER_STATUS[runner] : null;
   const s = r ?? APP_STATUS[status] ?? { label: status.replace(/_/g, " "), tone: "plain" as const };
-  return <span className={`inline-flex h-6 items-center rounded-full border px-2.5 text-xs font-medium ${TONE[s.tone]}`}>{s.label}</span>;
+  return (
+    <span className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-bold ${TONE[s.tone]}`}>
+      <span className={`size-1.5 rounded-full bg-current ${s.tone === "signal" || s.label === "Submitting" ? "animate-pulse" : ""}`} aria-hidden />
+      {s.label}
+    </span>
+  );
 }
 
 export function daysUntil(date: string | null | undefined, today = new Date().toISOString().slice(0, 10)): number | null {

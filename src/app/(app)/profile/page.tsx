@@ -26,7 +26,7 @@ function Block({ id, title, children }: { id: string; title: string; children: R
   return (
     <section id={id} className="scroll-mt-24 space-y-2">
       <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-      <div className="divide-y divide-line rounded-xl border border-line bg-surface px-5 py-1">{children}</div>
+      <div className="divide-y divide-line rounded-3xl border border-line bg-surface shadow-card px-5 py-1">{children}</div>
     </section>
   );
 }
@@ -130,7 +130,7 @@ export default async function ProfilePage() {
           <section id="details" className="scroll-mt-24 space-y-2">
             <h2 className="text-lg font-semibold tracking-tight">Details for application forms</h2>
             <p className="text-sm text-muted">Contact, address and recommenders. The agents copy these into every portal so you never type them twice.</p>
-            <div className="rounded-xl border border-line bg-surface p-5">
+            <div className="rounded-3xl border border-line bg-surface shadow-card p-5">
               <PortalDetailsForm details={(data?.portal_details ?? {}) as PortalDetails} recommenders={(recs ?? []) as RecommenderRow[]} />
             </div>
           </section>

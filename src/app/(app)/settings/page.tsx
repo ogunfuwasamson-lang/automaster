@@ -15,7 +15,7 @@ function Group({ title, description, children }: { title: string; description?: 
         <h2 className="font-semibold">{title}</h2>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
-      <div className="min-w-0 rounded-xl border border-line bg-surface px-5 py-4">{children}</div>
+      <div className="min-w-0 rounded-3xl border border-line bg-surface shadow-card px-5 py-4">{children}</div>
     </section>
   );
 }

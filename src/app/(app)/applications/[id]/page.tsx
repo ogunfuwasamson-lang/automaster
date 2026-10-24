@@ -209,7 +209,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       )}
 
       {briefText && (
-        <details className="group rounded-xl border border-line bg-surface">
+        <details className="group rounded-3xl border border-line bg-surface shadow-card">
           <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-5 py-4 font-medium">
             <span>
               Your angle for this school
@@ -249,7 +249,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         <Section title="Fees and funding" description="Plans and emails from the funding agent. Nothing sends without your approval.">
           {([["Funding plan after admission", fundingPlan], ["Application fee", feePlan]] as [string, string | null][]).map(([title, text]) =>
             text ? (
-              <details key={title} className="group rounded-xl border border-line bg-surface" open={title.startsWith("Funding")}>
+              <details key={title} className="group rounded-3xl border border-line bg-surface shadow-card" open={title.startsWith("Funding")}>
                 <summary className="flex cursor-pointer select-none items-center justify-between px-5 py-4 font-medium">
                   {title}
                   <ChevronDown className="size-4 text-muted transition-transform group-open:rotate-180" aria-hidden />

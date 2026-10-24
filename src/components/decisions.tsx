@@ -37,11 +37,11 @@ export function Decisions({ items }: { items: Decision[] }) {
 
   if (!items.length) return null;
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+    <ul className="grid gap-2">
       {items.map((d) => {
         const [yes, no, done] = VERBS[d.kind] ?? ["Approve", "Decline", "Approved"];
         return (
-          <li key={d.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+          <li key={d.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 sm:flex-row sm:items-start">
             <span className="mt-1.5 hidden size-2 shrink-0 rounded-full bg-signal sm:block" aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="font-medium">{d.title}</p>

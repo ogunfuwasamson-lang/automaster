@@ -72,7 +72,7 @@ export default async function Admin() {
             ["Margin after AI", $(revenue - total), revenue - total < 0 ? "stop" : "go"],
           ] as [string, string, string?][]
         ).map(([label, value, extra]) => (
-          <div key={label} className="rounded-xl border border-line bg-surface p-4">
+          <div key={label} className="rounded-3xl border border-line bg-surface shadow-card p-4">
             <dt className="text-xs text-muted">{label}</dt>
             <dd className={`mt-1 font-display text-3xl font-bold tabular ${extra === "stop" ? "text-stop" : extra === "go" ? "text-go" : ""}`}>{value}</dd>
             {extra && extra !== "stop" && extra !== "go" ? <dd className="text-xs text-muted">{extra}</dd> : null}
@@ -82,7 +82,7 @@ export default async function Admin() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Per user</h2>
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface px-4">
+        <div className="overflow-x-auto rounded-3xl border border-line bg-surface shadow-card px-4">
           <table className="w-full min-w-[44rem] text-sm">
             <thead>
               <tr className="border-b border-line">
@@ -130,7 +130,7 @@ export default async function Admin() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Per agent and model</h2>
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface px-4">
+        <div className="overflow-x-auto rounded-3xl border border-line bg-surface shadow-card px-4">
           <table className="w-full min-w-[40rem] text-sm">
             <thead>
               <tr className="border-b border-line">
@@ -170,7 +170,7 @@ export default async function Admin() {
             const st = (a.runner_state ?? {}) as { last_url?: string; steps?: number; missing?: string[]; debug?: { title?: string; fields?: string[]; values?: string[]; buttons?: string[]; errors?: string[]; captcha?: boolean; body?: string } };
             const d = st.debug;
             return (
-              <details key={a.id} className="rounded-xl border border-line bg-surface text-sm">
+              <details key={a.id} className="rounded-3xl border border-line bg-surface shadow-card text-sm">
                 <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
                   <span className="font-medium">{(a.programs as unknown as { schools: { name: string } }).schools.name}</span>
                   <span className="rounded-full border border-line px-2 text-xs">{a.runner_status}</span>
@@ -202,7 +202,7 @@ export default async function Admin() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Recent failures</h2>
-        <ul className="divide-y divide-line rounded-xl border border-line bg-surface font-mono text-xs">
+        <ul className="divide-y divide-line rounded-3xl border border-line bg-surface shadow-card font-mono text-xs">
           {(failed ?? []).length ? (
             (failed ?? []).map((f, i) => (
               <li key={i} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[11rem_7rem_minmax(0,1fr)]">

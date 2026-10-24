@@ -36,7 +36,7 @@ export default async function Documents() {
 
           <Section title={list.length ? `Your files (${list.length})` : "Your files"}>
             {list.length ? (
-              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+              <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
                 {list.map((d) => {
                   const ex = (d.extracted ?? {}) as { summary?: string; issues?: string[]; error?: string };
                   const busy = d.status === "uploaded" || d.status === "extracting";
@@ -86,7 +86,7 @@ export default async function Documents() {
 
         <aside className="space-y-3">
           <h2 className="text-sm font-semibold">What portals ask for</h2>
-          <ul className="space-y-3 rounded-xl border border-line bg-surface p-4 text-sm">
+          <ul className="space-y-3 rounded-3xl border border-line bg-surface shadow-card p-4 text-sm">
             {NEEDED.map(([k, label, hint]) => (
               <li key={k} className="flex gap-2.5">
                 {has(k) ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-go" aria-hidden /> : <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />}

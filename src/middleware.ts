@@ -9,6 +9,7 @@ export async function middleware(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return res; // not configured yet: let the setup page render
+  if (process.env.NODE_ENV !== "production" && process.env.AM_PREVIEW === "1") return res; // local design preview
 
   const sb = createServerClient(url, key, {
     cookies: {
