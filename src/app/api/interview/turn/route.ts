@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sessionId, ...out });
   } catch (e) {
     console.error("interview turn failed", e);
-    return NextResponse.json({ error: "the interviewer hit an error. try again." }, { status: 500 });
+    const billing = /credit balance is too low/i.test(String(e));
+    return NextResponse.json(
+      { error: billing ? "the Anthropic API account is out of credit. top up at console.anthropic.com, then try again." : "the interviewer hit an error. try again." },
+      { status: billing ? 402 : 500 },
+    );
   }
 }

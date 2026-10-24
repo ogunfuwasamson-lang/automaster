@@ -75,3 +75,11 @@ describe("app-state", () => {
     for (const s of APP_STATUSES) expect(TRANSITIONS[s]).toBeDefined();
   });
 });
+
+describe("billing errors", () => {
+  it("are recognised so jobs wait instead of dying", async () => {
+    const { isBillingError } = await import("@/lib/jobs");
+    expect(isBillingError('400 {"message":"Your credit balance is too low to access the Anthropic API."}')).toBe(true);
+    expect(isBillingError("rate_limit_error")).toBe(false);
+  });
+});

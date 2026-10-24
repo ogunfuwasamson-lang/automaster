@@ -31,6 +31,21 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
     return { id: job.id, ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // out of api credit: not the job's fault. park it for 30 minutes without spending an attempt.
+    if (isBillingError(msg)) {
+      await db
+        .from("jobs")
+        .update({
+          status: "queued",
+          attempts: Math.max(0, job.attempts - 1),
+          last_error: msg,
+          run_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          locked_at: null,
+          locked_by: null,
+        })
+        .eq("id", job.id);
+      return { id: job.id, ok: false, error: "billing: waiting for api credit" };
+    }
     const dead = job.attempts >= job.max_attempts;
     await db
       .from("jobs")
@@ -53,4 +68,8 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
     }
     return { id: job.id, ok: false, error: msg };
   }
+}
+
+export function isBillingError(msg: string): boolean {
+  return /credit balance is too low|billing|insufficient.?credit|payment required/i.test(msg);
 }
