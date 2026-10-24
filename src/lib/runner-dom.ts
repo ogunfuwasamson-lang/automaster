@@ -73,6 +73,8 @@ export const DOM_HELPER = String.raw`
     for (const el of document.querySelectorAll("input, textarea, select")) {
       const type = typeOf(el);
       if (["hidden", "submit", "button", "reset", "image", "search"].includes(type) || !visible(el)) continue;
+      // cookie banners and site search aren't part of the application: never touch them
+      if (el.closest('#onetrust-consent-sdk, #onetrust-banner-sdk, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent" i], [class*="consent" i], form[role="search"], [role="search"]')) continue;
       if (type === "radio") {
         if (!el.name || seen.has(el.name)) continue; seen.add(el.name);
         const group = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')];
