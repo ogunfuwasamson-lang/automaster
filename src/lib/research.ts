@@ -86,7 +86,20 @@ export async function research(args: {
         if (url) sources.add(url);
       }
     }
-    const text = textParts.join("").trim();
+    let text = textParts.join("").trim();
+    // the loop can end mid-research with nothing written: ask for the findings once, no tools, so the reading isn't wasted
+    if (!text) {
+      const msg = await llm().messages.create({
+        model,
+        max_tokens: 4000,
+        system: cachedSystem(args.system),
+        messages: [...messages, { role: "assistant", content: content.slice(-40) as MessageParam["content"] }, { role: "user", content: "stop searching. write up everything you found so far, with source urls." }],
+      });
+      inTok += msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);
+      outTok += msg.usage.output_tokens;
+      cost += costOf(model, msg.usage as Usage);
+      text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+    }
     if (!text) throw new Error("research returned no findings");
 
     await db

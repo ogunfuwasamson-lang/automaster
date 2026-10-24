@@ -48,8 +48,9 @@ export function costOf(model: string, u: Usage): number {
 export type Category = "research" | "writing" | "core";
 
 export const CATEGORY_SHARE: Record<Category, number> = {
-  research: 0.45, // recon, scholarships: web research is the expensive part
-  writing: 0.35, // strategist, writer, red team
+  // measured oct 2026: a 20-program recon run ~$1.20 on haiku; one application (plan + 2 essays x 2 rounds + fee waiver) ~$0.70
+  research: 0.35, // recon, scholarships
+  writing: 0.45, // strategist, writer, red team, closer
   core: 0.2, // interview, document reading, profile cleanup
 };
 

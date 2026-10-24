@@ -30,8 +30,8 @@ describe("budgets", () => {
   const spend = (research: number, writing: number, core: number) => ({ total: research + writing + core, byCategory: { research, writing, core } });
   it("caps total and per category", () => {
     expect(budgetCheck(spend(5, 5, 1), 25, "research").ok).toBe(true);
-    expect(budgetCheck(spend(11.3, 0, 0), 25, "research").ok).toBe(false); // 45% of 25 = 11.25
-    expect(budgetCheck(spend(11.3, 0, 0), 25, "writing").ok).toBe(true); // other categories keep going
+    expect(budgetCheck(spend(8.8, 0, 0), 25, "research").ok).toBe(false); // 35% of 25 = 8.75
+    expect(budgetCheck(spend(8.8, 0, 0), 25, "writing").ok).toBe(true); // other categories keep going
     expect(budgetCheck(spend(10, 8.7, 6.3), 25, "core").ok).toBe(false); // total hit
   });
   it("maps agents to categories", () => {
