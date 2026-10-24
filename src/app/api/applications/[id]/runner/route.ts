@@ -8,7 +8,7 @@ import { after } from "next/server";
 
 export const runtime = "nodejs";
 
-const Body = z.object({ action: z.enum(["queue", "stop"]), portal_url: z.string().url().max(1000).optional() });
+const Body = z.object({ action: z.enum(["queue", "stop"]), portal_url: z.string().url().max(1000).optional(), find_portal_again: z.boolean().optional() });
 
 // the applicant queues (or stops) the runner for one approved application
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (app.status !== "packet_approved") return NextResponse.json({ error: "approve the packet first" }, { status: 400 });
     if (parsed.data.portal_url && !/^https:\/\//.test(parsed.data.portal_url)) return NextResponse.json({ error: "portal link must start with https://" }, { status: 400 });
     if (parsed.data.portal_url) await db.from("applications").update({ portal_url: parsed.data.portal_url }).eq("id", id);
+    else if (parsed.data.find_portal_again) await db.from("applications").update({ portal_url: null }).eq("id", id);
     await queueRunner(auth.user.id, id);
     after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
   } else {

@@ -67,7 +67,11 @@ export const runner: Record<string, Handler> = {
       const links = [...found.sources, ...(found.text.match(/https?:\/\/[^\s)"'<>\]]+/g) ?? [])].map((u) => normalizeUrl(u)).filter((u): u is string => !!u);
       // only an application *site* (apply./slate/portal host or login path), never a brochure page that merely mentions applying
       const site = (u: string) => looksLikePortal(u) && /(^|\.)(apply|applygrad|gradapply|slate|portal|applications?|enligne)\.|account\/(login|register)|my\.site\.com|course-application|technolutions/i.test(new URL(u).hostname + new URL(u).pathname);
-      url = links.find((u) => site(u) && (!schoolRoot || rootOf(new URL(u).hostname) === schoolRoot)) ?? null;
+      // without the school's own domain, the link must at least carry a word from the school's name
+      const GENERIC = /^(university|universite|universidad|school|business|college|management|institute|graduate|faculty|of|the|and|de|des|du)$/i;
+      const tokens = p.schools.name.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !GENERIC.test(w));
+      const ours = (u: string) => (schoolRoot ? rootOf(new URL(u).hostname) === schoolRoot : tokens.some((t) => new URL(u).hostname.includes(t.slice(0, 6))));
+      url = links.find((u) => site(u) && ours(u)) ?? null;
     }
     let note = output.notes;
     if (!url && p.url) {

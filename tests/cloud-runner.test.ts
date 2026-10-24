@@ -90,3 +90,13 @@ describe("real-portal regressions", () => {
     expect(keyForLabel("Course start date")).toBe("entry_start");
   });
 });
+
+describe("sign-up link wording", () => {
+  it("recognises the common variants", async () => {
+    const { classify } = await import("@/lib/cloud-engine");
+    expect(typeof classify).toBe("function");
+    const CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login)$/i;
+    for (const l of ["Register for Account", "Create an account", "Create Account", "Register", "Sign up", "Register here", "New users"]) expect(CREATE.test(l)).toBe(true);
+    expect(CREATE.test("Registration Help")).toBe(false);
+  });
+});

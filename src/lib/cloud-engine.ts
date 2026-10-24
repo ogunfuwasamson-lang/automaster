@@ -61,7 +61,7 @@ export type Outcome =
 const FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
 const NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
 const START = /^(start|begin|continue|resume) (my |an |your |a new |new )?application\b.{0,20}$|^apply( now| online| today| here)?( for (this|the) program.{0,30})?$|^start( here| now)?$|^(how to )?apply to (this|the) program$/i;
-const CREATE = /^(create (an |new |your )?account|register|sign up|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login)$/i;
+const CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login)$/i;
 const SIGNIN = /^(sign in|log ?in|login|continue|next|submit)$/i;
 const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next|(set|save|create|update|change|choose) (my |your |a )?password|save|activate( (my )?account)?|finish|complete( registration)?|confirm)$/i;
 const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
@@ -122,6 +122,19 @@ async function snap(page: Page): Promise<Snapshot> {
 
 async function click(page: Page, id: string) {
   const sel = `[data-am-id="${id}"]`;
+  // "start your application" links often open a new tab: follow them here instead
+  const href = await frameOf(page)
+    .evaluate((q) => {
+      const a = document.querySelector(q) as HTMLAnchorElement | null;
+      return a && a.tagName === "A" && a.target && a.target !== "_self" && /^https?:/.test(a.href) ? a.href : null;
+    }, sel)
+    .catch(() => null);
+  if (href) {
+    await page.goto(href, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+    await sleep(1200);
+    return;
+  }
   try {
     await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), frameOf(page).click(sel, { timeout: 8_000 })]);
   } catch {
@@ -155,6 +168,9 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     state.lastFingerprint = s.fingerprint;
     // a sign-up form that won't move even though everything is filled: the portal blocks automated sign-ups.
     // the applicant creates the account once (with our generated password); we sign in from then on.
+    if (REGISTER_PAGE.test(s.url) && /^(forbidden|access denied|403|request blocked)/i.test(s.title.trim() || s.body.trim().slice(0, 40))) {
+      return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
+    }
     if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !/(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error)/i.test(s.body)) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
