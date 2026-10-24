@@ -7,6 +7,11 @@
 //   * array of items  = merged into the existing list by a natural key
 import * as z from "zod/v4";
 
+export type StudyLevel = "undergraduate" | "masters" | "phd";
+export const LEVEL_LABEL: Record<StudyLevel, string> = { undergraduate: "bachelor's", masters: "master's", phd: "PhD" };
+export const levelOf = (p: { goals: { study_level: StudyLevel | null } }): StudyLevel => p.goals.study_level ?? "masters";
+export const TESTS_FOR: Record<StudyLevel, string> = { undergraduate: "SAT/ACT", masters: "GRE/GMAT", phd: "GRE" };
+
 export const REGIONS: Record<string, string> = {
   us: "United States",
   canada: "Canada",
@@ -44,7 +49,7 @@ export const Work = z.object({
 });
 
 export const Test = z.object({
-  name: z.enum(["GRE", "GMAT", "TOEFL", "IELTS", "Duolingo", "Other"]),
+  name: z.enum(["GRE", "GMAT", "SAT", "ACT", "TOEFL", "IELTS", "Duolingo", "Other"]),
   status: z.enum(["taken", "booked", "planned", "not_planned"]),
   score: s(),
   date: s(),
@@ -71,12 +76,14 @@ export const Profile = z.object({
     notes: s(),
   }),
   goals: z.object({
-    fields: z.array(z.string()).nullable(), // null = not asked yet
+    study_level: z.enum(["undergraduate", "masters", "phd"]).nullable(),
+    fields: z.array(z.string()).nullable(), // null = not asked yet. for undergrads: intended majors
+    research_interests: z.array(z.string()).nullable(), // phd (and research masters)
     degree_types: z.array(z.string()).nullable(),
     target_term: s(),
     short_term_goal: s(),
     long_term_goal: s(),
-    why_masters: s(),
+    why_masters: s(), // "why this degree, why now" at any level (key kept for stored data)
     gmat_gre_plan: z.enum(["will_take", "avoid", "undecided"]).nullable(),
   }),
   funding: z.object({
@@ -132,7 +139,7 @@ export function emptyProfile(): Profile {
     tests: [],
     english: { route: null, notes: null },
     goals: {
-      fields: null, degree_types: null, target_term: null, short_term_goal: null,
+      study_level: null, fields: null, research_interests: null, degree_types: null, target_term: null, short_term_goal: null,
       long_term_goal: null, why_masters: null, gmat_gre_plan: null,
     },
     funding: { need: null, annual_budget_usd: null, application_fee_budget_usd: null, notes: null },
@@ -243,25 +250,35 @@ export function profileGaps(p: Profile): Gap[] {
   const g: Gap[] = [];
   const has = (v: unknown) => v !== null && v !== undefined && v !== "";
 
-  if (!p.goals.fields?.length) g.push({ key: "goals.fields", ask: "which fields or subjects they want to study (any discipline)" });
+  const lvl = levelOf(p);
+  const L = LEVEL_LABEL[lvl];
+  if (!has(p.goals.study_level)) g.push({ key: "goals.study_level", ask: "which level they're applying for: bachelor's (undergraduate), master's, or PhD" });
+  if (!p.goals.fields?.length) g.push({ key: "goals.fields", ask: lvl === "undergraduate" ? "which subjects/majors they want to study" : "which fields they want to study (any discipline)" });
+  if (lvl === "phd" && !p.goals.research_interests?.length) g.push({ key: "goals.research_interests", ask: "their research interests: the questions they want to work on, methods, and any professors or labs they already have in mind" });
   if (!p.preferences.regions?.length) g.push({ key: "preferences.regions", ask: `where they want to study: ${Object.values(REGIONS).join(", ")} (one or several)` });
-  if (!p.goals.degree_types?.length) g.push({ key: "goals.degree_types", ask: "which degree types they'd consider (e.g. MS/MSc, MA, MBA, MiM, MEng, MPhil, LLM, MPP), and whether research or taught" });
+  if (!p.goals.degree_types?.length) g.push({ key: "goals.degree_types", ask: lvl === "undergraduate" ? "which degree types they'd consider (BA, BSc, BEng, BBA, liberal arts, foundation year)" : lvl === "phd" ? "PhD, DPhil, or an MPhil/MRes route into a PhD; and whether they need it fully funded with a stipend" : "which degree types they'd consider (e.g. MS/MSc, MA, MBA, MiM, MEng, MPhil, LLM, MPP), and whether research or taught" });
   if (!has(p.funding.need)) g.push({ key: "funding.need", ask: "full funding required, partial ok, or self-funded" });
   if (!has(p.identity.citizenship)) g.push({ key: "identity.citizenship", ask: "citizenship (decides which scholarships they're eligible for)" });
   if (p.funding.need && p.funding.need !== "full" && !has(p.funding.annual_budget_usd))
     g.push({ key: "funding.annual_budget_usd", ask: "how much per year (USD) they can cover for tuition + living" });
-  if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: "willing to take admissions tests like the GRE or GMAT if it opens more programs or funding, or only programs that don't require them" });
-  if (!p.education.length) g.push({ key: "education", ask: "undergrad institution, degree, field, years" });
-  else if (!p.education.some((e) => has(e.grade) || has(e.gpa))) g.push({ key: "education.grade", ask: "degree class or GPA and its scale" });
+  if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: `willing to take admissions tests (${TESTS_FOR[lvl]}) if it opens more programs or funding, or only programs that don't require them` });
+  if (!p.education.length) g.push({ key: "education", ask: lvl === "undergraduate" ? "current or last school, and their school-leaving exams (e.g. WAEC/NECO, A-levels, IB, national exams) with results or predicted grades" : "previous degrees: institution, degree, field, years" });
+  else if (!p.education.some((e) => has(e.grade) || has(e.gpa))) g.push({ key: "education.grade", ask: lvl === "undergraduate" ? "exam results or predicted grades" : "degree class or GPA and its scale" });
   if (!has(p.english.route)) g.push({ key: "english.route", ask: "english proof: TOEFL/IELTS/Duolingo, or medium-of-instruction waiver from their university" });
-  if (!has(p.goals.short_term_goal)) g.push({ key: "goals.short_term_goal", ask: "what job they want right after the masters, ideally role + company type + where" });
-  if (!has(p.goals.why_masters)) g.push({ key: "goals.why_masters", ask: "why a masters now, what gap it closes" });
+  if (!has(p.goals.short_term_goal)) g.push({ key: "goals.short_term_goal", ask: lvl === "phd" ? "what they want to do after the PhD (academia, industry research, policy...)" : lvl === "undergraduate" ? "what they hope to do after the degree, even roughly" : "what job they want right after the degree, ideally role + company type + where" });
+  if (!has(p.goals.why_masters)) g.push({ key: "goals.why_masters", ask: `why a ${L} in this field, and why now` });
   if (!has(p.recommenders.count_lined_up)) g.push({ key: "recommenders.count_lined_up", ask: "how many recommenders they can count on, and who (role, relationship)" });
   if (p.preferences.locations === null) g.push({ key: "preferences.locations", ask: "specific countries or cities they want or want to avoid within those regions; cost of living matters" });
   if (!has(p.preferences.max_applications) && !has(p.funding.application_fee_budget_usd)) g.push({ key: "preferences.max_applications", ask: "how many applications they want to send" });
   if (!has(p.funding.application_fee_budget_usd)) g.push({ key: "funding.application_fee_budget_usd", ask: "total budget for application fees" });
   if (!has(p.goals.long_term_goal)) g.push({ key: "goals.long_term_goal", ask: "10-year goal" });
-  if (p.stories.length < 3) g.push({ key: "stories", ask: `essay material: specific stories with numbers (have ${p.stories.length}, want 3+). leadership, a failure, a big win` });
+  if (p.stories.length < 3)
+    g.push({
+      key: "stories",
+      ask: `essay material (have ${p.stories.length}, want 3+): ${
+        lvl === "phd" ? "research experience, projects, publications, a hard problem they solved" : lvl === "undergraduate" ? "activities, leadership, projects, competitions, service, a challenge they overcame" : "specific stories with numbers: leadership, a failure, a big win"
+      }`,
+    });
   const skipped = new Set(p.skipped_gaps);
   return g.filter((x) => !skipped.has(x.key));
 }
@@ -280,19 +297,20 @@ export function completeness(p: Profile): number {
 export const SCALAR_FIELDS = [
   "identity.full_name", "identity.citizenship", "identity.country_of_residence", "identity.city",
   "english.route", "english.notes",
-  "goals.target_term", "goals.short_term_goal", "goals.long_term_goal", "goals.why_masters", "goals.gmat_gre_plan",
+  "goals.study_level", "goals.target_term", "goals.short_term_goal", "goals.long_term_goal", "goals.why_masters", "goals.gmat_gre_plan",
   "funding.need", "funding.annual_budget_usd", "funding.application_fee_budget_usd", "funding.notes",
   "preferences.stem_preferred", "preferences.max_applications",
   "recommenders.count_lined_up", "recommenders.notes",
 ] as const;
 
 export const LIST_FIELDS = [
-  "goals.fields", "goals.degree_types", "preferences.regions", "preferences.locations", "preferences.avoid", "skills", "notes", "skipped_gaps",
+  "goals.fields", "goals.research_interests", "goals.degree_types", "preferences.regions", "preferences.locations", "preferences.avoid", "skills", "notes", "skipped_gaps",
 ] as const;
 
 const ENUMS: Record<string, string[]> = {
   "english.route": ["test", "waiver", "undecided"],
   "goals.gmat_gre_plan": ["will_take", "avoid", "undecided"],
+  "goals.study_level": ["undergraduate", "masters", "phd"],
   "funding.need": ["full", "partial", "self"],
 };
 const NUMBERS = new Set(["funding.annual_budget_usd", "funding.application_fee_budget_usd", "preferences.max_applications", "recommenders.count_lined_up"]);
@@ -310,7 +328,7 @@ export const WirePatch = z.object({
     highlights: z.array(z.string()),
   })),
   tests: z.array(z.object({
-    name: z.enum(["GRE", "GMAT", "TOEFL", "IELTS", "Duolingo", "Other"]),
+    name: z.enum(["GRE", "GMAT", "SAT", "ACT", "TOEFL", "IELTS", "Duolingo", "Other"]),
     status: z.enum(["taken", "booked", "planned", "not_planned"]),
     score: z.string(),
     date: z.string(),
@@ -321,7 +339,7 @@ export type WirePatch = z.infer<typeof WirePatch>;
 
 export const WIRE_GUIDE = `patch format: every field is required. use "" for unknown, [] for nothing to add.
 - facts: scalar fields you learned. value is a string. numbers as plain digits ("15000"). booleans "yes"/"no".
-  enums: english.route test|waiver|undecided, goals.gmat_gre_plan will_take|avoid|undecided, funding.need full|partial|self.
+  enums: goals.study_level undergraduate|masters|phd, english.route test|waiver|undecided, goals.gmat_gre_plan will_take|avoid|undecided (about admissions tests at their level), funding.need full|partial|self.
 - lists: list fields. preferences.locations with values [] means "no preference".
   preferences.regions values must be keys from: ${Object.keys(REGIONS).join(", ")}.
   skipped_gaps: gap keys (like "preferences.max_applications") the user answered without a clean value; record their answer in notes.
@@ -410,10 +428,11 @@ export function profileBrief(p: Profile, targetTermFallback?: string | null): st
   const L: string[] = [];
   const v = (x: unknown) => (x === null || x === undefined || x === "" ? "?" : Array.isArray(x) ? (x.length ? x.join(", ") : "none") : String(x));
   L.push(`name: ${v(p.identity.full_name)} | citizenship: ${v(p.identity.citizenship)} | lives: ${v(p.identity.city)}, ${v(p.identity.country_of_residence)}`);
-  L.push(`term: ${v(p.goals.target_term ?? targetTermFallback)} | fields: ${v(p.goals.fields)} | degree types: ${v(p.goals.degree_types)} | gmat/gre: ${v(p.goals.gmat_gre_plan)}`);
-  L.push(`after masters: ${v(p.goals.short_term_goal)}`);
+  L.push(`applying for: ${LEVEL_LABEL[levelOf(p)]} | term: ${v(p.goals.target_term ?? targetTermFallback)} | fields: ${v(p.goals.fields)} | degree types: ${v(p.goals.degree_types)} | admissions tests (${TESTS_FOR[levelOf(p)]}): ${v(p.goals.gmat_gre_plan)}`);
+  if (p.goals.research_interests?.length) L.push(`research interests: ${p.goals.research_interests.join("; ")}`);
+  L.push(`after the degree: ${v(p.goals.short_term_goal)}`);
   L.push(`long term: ${v(p.goals.long_term_goal)}`);
-  L.push(`why masters: ${v(p.goals.why_masters)}`);
+  L.push(`why this degree: ${v(p.goals.why_masters)}`);
   L.push(`funding: need ${v(p.funding.need)}, can cover/yr ${v(p.funding.annual_budget_usd)}, fee budget ${v(p.funding.application_fee_budget_usd)}${p.funding.notes ? ` (${p.funding.notes})` : ""}`);
   L.push(`english: ${v(p.english.route)} | tests: ${p.tests.map((t) => `${t.name} ${t.status}${t.score ? " " + t.score : ""}`).join(", ") || "none"}`);
   L.push(`regions: ${v(p.preferences.regions)}`);

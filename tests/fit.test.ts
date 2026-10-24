@@ -4,7 +4,7 @@ import { emptyProfile, mergeProfile } from "@/lib/profile";
 
 const today = "2026-10-24";
 const me = mergeProfile(emptyProfile(), {
-  goals: { fields: ["finance"], degree_types: null, target_term: null, short_term_goal: null, long_term_goal: null, why_masters: null, gmat_gre_plan: "avoid" },
+  goals: { study_level: "masters", fields: ["finance"], research_interests: null, degree_types: null, target_term: null, short_term_goal: null, long_term_goal: null, why_masters: null, gmat_gre_plan: "avoid" },
   funding: { need: "full", annual_budget_usd: null, application_fee_budget_usd: 800, notes: null },
   english: { route: "waiver", notes: null },
 });

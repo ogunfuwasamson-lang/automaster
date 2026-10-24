@@ -26,10 +26,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sessionId, ...out });
   } catch (e) {
     console.error("interview turn failed", e);
-    const billing = /credit balance is too low/i.test(String(e));
+    const msg = String(e);
+    const billing = /credit balance is too low/i.test(msg);
+    const budget = msg.includes("budget:");
     return NextResponse.json(
-      { error: billing ? "the Anthropic API account is out of credit. top up at console.anthropic.com, then try again." : "the interviewer hit an error. try again." },
-      { status: billing ? 402 : 500 },
+      {
+        error: budget
+          ? `you've used this month's AI allowance (${msg.split("budget: ")[1] ?? ""}). it resets on the 1st, or upgrade on the pricing page.`
+          : billing
+            ? "the platform's AI account is out of credit. try again shortly."
+            : "the interviewer hit an error. try again.",
+      },
+      { status: budget || billing ? 402 : 500 },
     );
   }
 }

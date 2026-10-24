@@ -23,7 +23,7 @@ export const CurateOut = z.object({
   changes: z.string(), // two or three plain lines on what was cleaned
 });
 
-const SYSTEM = `you are the curator agent on a masters application platform (any field, any country). you turn a messy applicant profile into one clean, consistent record that essay writers and recruiters-of-schools can rely on.
+const SYSTEM = `you are the curator agent on an application platform for bachelor's, master's and PhD applicants (any field, any country). you turn a messy applicant profile into one clean, consistent record that essay writers and recruiters-of-schools can rely on.
 
 the profile was assembled from several CV versions, old essays, letters, and an interview, so it has duplicates and contradictions.
 
@@ -35,7 +35,7 @@ merging rules:
   when the applicant said in the interview that they left a job or started a new one, that wins over older CVs.
 - order work most recent first.
 - highlights: one bullet per distinct achievement, keep the most specific wording, max ~6 per role, strongest first.
-- education: one entry per degree. merge GPA, class, dates, country into it. drop secondary school.
+- education: one entry per degree or qualification. merge GPA, class, dates, country into it. keep secondary school results ONLY if the applicant is applying for a bachelor\'s (goals.study_level undergraduate); otherwise drop them.
 - stories: max 8, the strongest, no duplicates, each tied to one role.
 - skills: max 25, deduped, no near-synonyms.
 - notes: only things useful to an application (awards, certifications, ventures, constraints, preferences). one line each. drop transcript minutiae, certificate numbers, and anything that duplicates a structured field.

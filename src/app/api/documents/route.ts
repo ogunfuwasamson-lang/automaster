@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue, drain } from "@/lib/jobs";
 import { logEvent } from "@/lib/events";
+import { checkLimit } from "@/lib/limits";
 import { MAX_DOC_BYTES } from "@/agents/intake";
 
 export const runtime = "nodejs";
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
 
   // the path must be inside this user's folder and match the id we were given
   if (!b.storagePath.startsWith(`${uid}/${b.id}/`)) return NextResponse.json({ error: "bad path" }, { status: 400 });
+
+  const blocked = await checkLimit(uid, "document");
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
 
   const db = admin();
   const folder = `${uid}/${b.id}`;

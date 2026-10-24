@@ -4,6 +4,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { logEvent } from "@/lib/events";
+import { checkLimit } from "@/lib/limits";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -22,6 +23,9 @@ export async function POST() {
     .neq("task", "scholarships")
     .in("status", ["queued", "running"]);
   if (count) return NextResponse.json({ error: "a recon run is already going" }, { status: 409 });
+
+  const blocked = await checkLimit(uid, "recon_run");
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
 
   await enqueue({ userId: uid, agent: "recon", task: "discover" });
   await logEvent({ userId: uid, actor: "user", action: "recon.requested" });

@@ -34,7 +34,7 @@ describe("mergeProfile", () => {
 describe("gaps", () => {
   it("empty profile starts with field choice and funding", () => {
     const keys = profileGaps(emptyProfile()).map((g) => g.key);
-    expect(keys.slice(0, 4)).toEqual(["goals.fields", "preferences.regions", "goals.degree_types", "funding.need"]);
+    expect(keys.slice(0, 5)).toEqual(["goals.study_level", "goals.fields", "preferences.regions", "goals.degree_types", "funding.need"]);
     expect(completeness(emptyProfile())).toBeLessThan(10);
   });
 
@@ -175,7 +175,28 @@ describe("regions", () => {
   it("asks for regions and degree types early, in any field", async () => {
     const { profileGaps, emptyProfile } = await import("@/lib/profile");
     const keys = profileGaps(emptyProfile()).map((g) => g.key);
-    expect(keys.slice(0, 3)).toEqual(["goals.fields", "preferences.regions", "goals.degree_types"]);
+    expect(keys.slice(0, 4)).toEqual(["goals.study_level", "goals.fields", "preferences.regions", "goals.degree_types"]);
     expect(JSON.stringify(profileGaps(emptyProfile()))).not.toMatch(/finance|fintech/);
+  });
+});
+
+describe("study levels", () => {
+  it("asks level-appropriate questions", async () => {
+    const { profileGaps, emptyProfile, mergeProfile } = await import("@/lib/profile");
+    const base = emptyProfile();
+    const ug = mergeProfile(base, { goals: { ...base.goals, study_level: "undergraduate" } });
+    const phd = mergeProfile(base, { goals: { ...base.goals, study_level: "phd" } });
+    const ask = (p: typeof base, key: string) => profileGaps(p).find((g) => g.key === key)?.ask ?? "";
+    expect(ask(ug, "goals.gmat_gre_plan")).toContain("SAT/ACT");
+    expect(ask(ug, "education")).toMatch(/WAEC|A-levels|IB/);
+    expect(profileGaps(phd).map((g) => g.key)).toContain("goals.research_interests");
+    expect(profileGaps(ug).map((g) => g.key)).not.toContain("goals.research_interests");
+    expect(ask(phd, "goals.gmat_gre_plan")).toContain("GRE");
+  });
+  it("parses level from the wire", async () => {
+    const { fromWire } = await import("@/lib/profile");
+    const p = fromWire({ facts: [{ field: "goals.study_level", value: "PhD" }], lists: [{ field: "goals.research_interests", values: ["fintech adoption"] }], education: [], work: [], tests: [], stories: [] });
+    expect(p.goals?.study_level).toBe("phd");
+    expect(p.goals?.research_interests).toEqual(["fintech adoption"]);
   });
 });

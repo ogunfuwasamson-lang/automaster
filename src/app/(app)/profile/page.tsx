@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { loadProfile, profileGaps, completeness, sortWork } from "@/lib/profile";
+import { loadProfile, profileGaps, completeness, sortWork, LEVEL_LABEL } from "@/lib/profile";
 import { Decisions, type Decision } from "@/components/decisions";
 import { CleanupButton } from "@/components/cleanup-button";
 
@@ -77,14 +77,16 @@ export default async function ProfilePage() {
       )}
 
       <Section title="goals">
+        <Row k="applying for" v={p.goals.study_level ? LEVEL_LABEL[p.goals.study_level] : null} />
         <Row k="fields" v={p.goals.fields} />
+        {p.goals.research_interests?.length ? <Row k="research interests" v={p.goals.research_interests} /> : null}
         <Row k="degree types" v={p.goals.degree_types} />
         <Row k="term" v={p.goals.target_term} />
         <Row k="citizenship" v={p.identity.citizenship} />
         <Row k="admissions tests" v={p.goals.gmat_gre_plan?.replace("_", " ")} />
         <Row k="right after" v={p.goals.short_term_goal} />
         <Row k="long term" v={p.goals.long_term_goal} />
-        <Row k="why a masters" v={p.goals.why_masters} />
+        <Row k="why this degree" v={p.goals.why_masters} />
       </Section>
 
       <Section title="funding">

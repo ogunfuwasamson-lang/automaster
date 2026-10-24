@@ -17,7 +17,7 @@ describe("writing helpers", () => {
     expect(nextStep({ round: 1, verdict: "pass", unsupportedClaims: 0, fits: true })).toBe("ready");
     expect(nextStep({ round: 1, verdict: "pass", unsupportedClaims: 1, fits: true })).toBe("revise");
     expect(nextStep({ round: 1, verdict: "pass", unsupportedClaims: 0, fits: false })).toBe("revise");
-    expect(nextStep({ round: 3, verdict: "revise", unsupportedClaims: 2, fits: false })).toBe("ready");
+    expect(nextStep({ round: 2, verdict: "revise", unsupportedClaims: 2, fits: false })).toBe("ready");
   });
   it("spots clichés", () => {
     expect(clichesIn("Ever since I was a child I wanted to delve into finance")).toEqual(["ever since i was a child", "delve"]);

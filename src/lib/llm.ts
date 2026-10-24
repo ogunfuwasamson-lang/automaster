@@ -1,41 +1,66 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
+import type { ContentBlockParam, Message, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
+import { assertBudget } from "@/lib/budget";
+import { costOf } from "@/lib/pricing";
 
+// model tiers, chosen for a $25/user/month budget:
+// - write: essays, red team, strategy, profile cleanup. quality matters, volume is low.
+// - chat:  the interviewer. conversational quality matters, calls are small.
+// - cheap: web research loops and turning notes into structured data. this is where the tokens go,
+//          so it runs on haiku (~20x cheaper than sonnet).
 export const MODELS = {
-  // heavy reasoning: strategy, essays, red team
-  deep: process.env.AGENT_MODEL_DEEP ?? "claude-opus-5-5",
-  // everyday agent work: extraction, recon, follow-ups
-  fast: process.env.AGENT_MODEL_FAST ?? "claude-sonnet-5-5",
+  write: process.env.AGENT_MODEL_WRITE ?? "claude-sonnet-5-5",
+  chat: process.env.AGENT_MODEL_CHAT ?? "claude-sonnet-5-5",
+  cheap: process.env.AGENT_MODEL_CHEAP ?? "claude-haiku-5-5",
 } as const;
+export type Tier = keyof typeof MODELS;
 
 let client: Anthropic | null = null;
-function llm() {
+export function llm() {
   if (!client) client = new Anthropic(); // reads ANTHROPIC_API_KEY
   return client;
+}
+
+// system prompts are stable per agent: mark them cacheable so repeat calls pay ~5% for them
+export function cachedSystem(text: string): TextBlockParam[] {
+  return [{ type: "text", text, cache_control: { type: "ephemeral" } }];
+}
+
+export async function recordUsage(runId: string, model: string, msg: Pick<Message, "usage">, extra: Record<string, unknown> = {}) {
+  await admin()
+    .from("agent_runs")
+    .update({
+      input_tokens: msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0),
+      output_tokens: msg.usage.output_tokens,
+      cost_usd: costOf(model, msg.usage),
+      ...extra,
+    })
+    .eq("id", runId);
 }
 
 interface RunArgs<S extends z.ZodType> {
   userId: string;
   agent: string;
   jobId?: string;
-  tier?: keyof typeof MODELS;
+  tier?: Tier;
   promptVersion?: string;
   system: string;
+  // stable context reused across calls (fact sheet, brief): sent first and cached
+  cachePrefix?: string;
   prompt: string | ContentBlockParam[];
   schema: S;
   maxTokens?: number;
-  // thinking eats into max_tokens; off by default so structured output gets the full budget
-  think?: boolean;
 }
 
-// one structured call, logged to agent_runs. returns parsed output + run id for event linking.
+// one structured call: budget-checked, metered, logged to agent_runs.
 export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Promise<{ output: z.infer<S>; runId: string }> {
+  await assertBudget(args.userId, args.agent);
   const db = admin();
-  const model = MODELS[args.tier ?? "fast"];
+  const model = MODELS[args.tier ?? "write"];
   const { data: run, error } = await db
     .from("agent_runs")
     .insert({
@@ -46,26 +71,32 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
       prompt_version: args.promptVersion ?? "v1",
       // never store file bytes in the run log, just a marker
       input: {
-        system: args.system,
+        system: args.system.slice(0, 4000),
         prompt:
           typeof args.prompt === "string"
-            ? args.prompt
-            : args.prompt.map((b) => (b.type === "text" ? b : { type: b.type, omitted: true })),
+            ? args.prompt.slice(0, 20000)
+            : args.prompt.map((b) => (b.type === "text" ? { type: "text", text: b.text.slice(0, 20000) } : { type: b.type, omitted: true })),
       },
     })
     .select("id")
     .single();
   if (error) throw new Error(`agent_runs insert failed: ${error.message}`);
 
+  const content: ContentBlockParam[] = [
+    ...(args.cachePrefix ? [{ type: "text" as const, text: args.cachePrefix, cache_control: { type: "ephemeral" as const } }] : []),
+    ...(typeof args.prompt === "string" ? [{ type: "text" as const, text: args.prompt }] : args.prompt),
+  ];
+
+  let msg: Message | null = null;
   try {
     // stream so long outputs never hit http timeouts; parse ourselves so failures say why
-    const msg = await llm()
+    msg = await llm()
       .messages.stream({
         model,
-        max_tokens: (args.maxTokens ?? 8000) + (args.think ? 16000 : 0),
-        system: args.system,
-        messages: [{ role: "user", content: args.prompt }],
-        thinking: args.think ? { type: "adaptive" } : { type: "between_tools" },
+        max_tokens: args.maxTokens ?? 8000,
+        system: cachedSystem(args.system),
+        messages: [{ role: "user", content }],
+        thinking: { type: "between_tools" },
         output_config: { format: zodOutputFormat(args.schema) },
       })
       .finalMessage();
@@ -82,22 +113,12 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
     const checked = args.schema.safeParse(json);
     if (!checked.success) throw new Error(`output failed schema: ${checked.error.message.slice(0, 500)}`);
     const output = checked.data;
-    await db
-      .from("agent_runs")
-      .update({
-        status: "done",
-        output,
-        input_tokens: msg.usage.input_tokens,
-        output_tokens: msg.usage.output_tokens,
-        finished_at: new Date().toISOString(),
-      })
-      .eq("id", run.id);
+    await recordUsage(run.id, model, msg, { status: "done", output, finished_at: new Date().toISOString() });
     return { output: output as z.infer<S>, runId: run.id as string };
   } catch (e) {
-    await db
-      .from("agent_runs")
-      .update({ status: "failed", error: String(e), finished_at: new Date().toISOString() })
-      .eq("id", run.id);
+    // a failed call that reached the model was still billed: meter it
+    if (msg) await recordUsage(run.id, model, msg, {});
+    await db.from("agent_runs").update({ status: "failed", error: String(e), finished_at: new Date().toISOString() }).eq("id", run.id);
     throw e;
   }
 }

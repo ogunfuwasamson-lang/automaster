@@ -2,7 +2,7 @@
 // nothing it says can put a disqualified program on the shortlist.
 // strategy: admissions first. a program is held back only for things that block ADMISSION
 // (required tests they won't take, english proof they can't meet, closed deadlines).
-import type { Profile } from "@/lib/profile";
+import { TESTS_FOR, levelOf, type Profile } from "@/lib/profile";
 
 export interface DeadlineRow {
   round: string;
@@ -48,7 +48,7 @@ export function screen(p: Profile, f: ProgramFactsLite, today: string): { verdic
     verdict = "dropped";
   };
 
-  if (f.test_policy === "required" && p.goals.gmat_gre_plan === "avoid") drop("requires an admissions test (GRE/GMAT) and you want programs without one");
+  if (f.test_policy === "required" && p.goals.gmat_gre_plan === "avoid") drop(`requires an admissions test (${TESTS_FOR[levelOf(p)]}) and you want programs without one`);
   if (f.test_policy === "unknown") demote("test policy not confirmed");
 
   const hasEnglishTest = p.tests.some((t) => ["TOEFL", "IELTS", "Duolingo"].includes(t.name) && t.status !== "not_planned");

@@ -4,6 +4,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { logEvent } from "@/lib/events";
+import { checkLimit } from "@/lib/limits";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,6 +30,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   if (count) return NextResponse.json({ error: "already preparing" }, { status: 409 });
 
   if (app.status === "shortlisted") {
+    const blocked = await checkLimit(auth.user.id, "application");
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
     const { error } = await db.from("applications").update({ status: "preparing" }).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   }

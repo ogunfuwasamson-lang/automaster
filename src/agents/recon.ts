@@ -5,9 +5,11 @@ import { admin } from "@/lib/supabase/admin";
 import { runStructured } from "@/lib/llm";
 import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
-import { profileBrief, REGIONS } from "@/lib/profile";
+import { profileBrief, REGIONS, levelOf } from "@/lib/profile";
+import { levelGuide, programChecklist, levelName } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
+import { userPlan } from "@/lib/budget";
 import { screen, targetDeadline } from "@/lib/fit";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 
@@ -24,21 +26,16 @@ const regionList = (regions: string[] | null) => (regions?.length ? regions : ["
 // discover: a planner that fans out one discovery job per selected region,
 // each starting from that region's top-ranked universities and working down
 // ---------------------------------------------------------------------------
-const DISCOVER_SYSTEM = `you are the recon agent on a platform that helps applicants in ANY field apply to masters programs anywhere in the world.
+const DISCOVER_SYSTEM = `you are the recon agent on a platform that helps applicants in ANY field apply to bachelor's, master's and PhD programs anywhere in the world. the applicant's level and how admissions and funding work at that level are given in each request.
 you find programs worth applying to, and you are honest about admissions odds and funding.
 
 strategy: admissions first. the goal is as many good admits as possible, then the platform's closer agent works each admit for money (merit reconsideration, assistantships offered after admission, departmental awards, competing offers, outside scholarships). most schools never publish full-funding odds, so funding is information you report, NOT a reason to skip a program. never leave out a strong program because funding isn't advertised.
 
 order of search, always:
-1. start at the top: the region's highest-ranked universities (QS/THE/ARWU world top ~100, plus the strongest national names). for each, look for masters programs in the applicant's fields and degree types that fit their constraints. top schools often have programs people miss: specialised MS/MSc/MA/MiM programs, programs with no GRE/GMAT requirement or waivers for experienced professionals, one-year taught masters, joint programs.
+1. start at the top: the region's highest-ranked universities (QS/THE/ARWU world top ~100, plus the strongest national names). for each, look for programs at the applicant's level, in their fields and degree types, that fit their constraints. top schools often have programs people miss: specialised degrees, programs without a required admissions test or with waivers, joint and interdisciplinary programs.
 2. then strong schools just below that, which often fund more generously.
 3. then accessible options with good funding odds.
 don't default to an MBA (or any single degree) unless the applicant's degree types include it.
-
-funding varies by field and country, so reason from the applicant's actual field:
-- research-oriented masters (sciences, engineering, many social sciences) are often funded through research/teaching assistantships or by joining a lab.
-- professional masters (business, law, policy, design...) mostly offer merit scholarships, rarely full rides; say so plainly.
-- host-government and international scholarships matter a lot outside the US (e.g. Chevening and Commonwealth in the UK; Erasmus Mundus, DAAD, Eiffel, Swedish Institute, Holland and Swiss excellence awards in Europe; MEXT, GKS, Chinese Government and Singapore awards in Asia; Australia Awards; Vanier/university awards in Canada). treat these as leads to check against the applicant's citizenship, not as guarantees.
 
 search the web and use official university pages, not rankings blogs or agents' sites.`;
 
@@ -62,7 +59,7 @@ export const Candidates = z.object({
 // ---------------------------------------------------------------------------
 // research one program
 // ---------------------------------------------------------------------------
-const PROGRAM_SYSTEM = `you are the recon agent researching ONE masters program (any country, any field) for one applicant.
+const PROGRAM_SYSTEM = `you are the recon agent researching ONE program (bachelor's, master's or PhD; any country, any field) for one applicant.
 use the program's official pages first (admissions, requirements, tuition, deadlines, scholarships/assistantships, international students). fetch them. cite what you use.
 money: give amounts in USD (convert approximately) and mention the original currency in the notes.
 report facts exactly as the school states them, with dates in YYYY-MM-DD. when a fact isn't stated anywhere you found, say "not found", never guess.
@@ -241,8 +238,10 @@ export const recon: Record<string, Handler> = {
   "recon.discover": async (job) => {
     const profile = await getProfile(job.user_id);
     const only = (job.payload as { regions?: string[] }).regions;
-    const regions = only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions);
-    const perRegion = Math.max(5, Math.ceil(MAX_PROGRAMS / regions.length));
+    const { plan } = await userPlan(job.user_id);
+    const regions = (only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions)).slice(0, plan.maxRegions);
+    const total = Math.min(MAX_PROGRAMS, plan.programsPerRun);
+    const perRegion = Math.max(Math.min(5, total), Math.ceil(total / regions.length));
     for (const region of regions) {
       await enqueue({
         userId: job.user_id,
@@ -283,12 +282,14 @@ export const recon: Record<string, Handler> = {
       jobId: job.id,
       system: DISCOVER_SYSTEM,
       prompt: `region: ${REGIONS[region]}
+${levelGuide(levelOf(profile))}
+
 applicant:
 ${profileBrief(profile, row?.target_term)}
 
 today is ${today()}. target intake: ${row?.target_term ?? "fall-2027"}.
 ${already.length ? `already on their list (don't repeat):\n${already.join("\n")}\n` : ""}
-find ${count} masters programs in ${REGIONS[region]} that match their fields and degree types and respect their ADMISSION constraints (admissions tests, english route, deadlines). report funding signals, but don't filter on them.
+find ${count} ${levelName(levelOf(profile))} programs in ${REGIONS[region]} that match their fields and degree types and respect their ADMISSION constraints (admissions tests, english route, deadlines). report funding signals, but don't filter on them.
 work top-down: roughly half from the region's top-ranked universities, then strong, then accessible. give each its ranking context and official url.
 finish with honest strategy notes for this region: which of their constraints cost them the most admits here, what would open more, and where post-admission funding pushes tend to work (e.g. schools known to reconsider merit aid or post assistantships after admission).`,
       maxSearches: 6,
@@ -299,6 +300,7 @@ finish with honest strategy notes for this region: which of their constraints co
       userId: job.user_id,
       agent: "recon",
       jobId: job.id,
+      tier: "cheap",
       promptVersion: "discover-parse-v2",
       system: "turn research notes into structured data. only include programs the notes actually name. keep urls exactly as written; empty string when none. band: top = world top ~100 or a national flagship; strong = well-ranked below that; accessible = the rest.",
       prompt: `research notes:\n${found.text}\n\nsources seen:\n${found.sources.join("\n")}`,
@@ -359,7 +361,9 @@ intake: ${row?.target_term ?? "fall-2027"}. today: ${today()}.
 applicant:
 ${profileBrief(profile, row?.target_term)}
 
-find and report: degree type and length; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
+${levelGuide(levelOf(profile))}
+
+find and report: degree type and length; ${programChecklist(levelOf(profile))}; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
       maxSearches: 3,
       maxFetches: 3,
     });
@@ -368,6 +372,7 @@ find and report: degree type and length; admissions tests (GRE/GMAT/other) requi
       userId: job.user_id,
       agent: "recon",
       jobId: job.id,
+      tier: "cheap",
       promptVersion: "program-parse-v2",
       system: `turn research notes into structured program data. use only what the notes say. "unknown" or "" when the notes don't say. dates as YYYY-MM-DD; if a date has no year, assume the ${row?.target_term ?? "fall-2027"} cycle. fit judgement comes from the notes' assessment.`,
       prompt: `${cached ? "stored program facts (judge fit for THIS applicant from them):" : "research notes:"}\n${found.text}${
@@ -400,7 +405,7 @@ find and report: degree type and length; admissions tests (GRE/GMAT/other) requi
 // ---------------------------------------------------------------------------
 // scholarships: hunt by every eligibility hook in the profile, not just nationality
 // ---------------------------------------------------------------------------
-const SCHOLAR_SYSTEM = `you are the scholarship hunter on a masters application platform used by applicants from any country, in any field, applying anywhere.
+const SCHOLAR_SYSTEM = `you are the scholarship hunter on an application platform for bachelor's, master's and PhD applicants from any country, in any field, applying anywhere. only awards for the applicant's study level count.
 most applicants only search by nationality and miss most of the money. you search by every eligibility hook the applicant actually has. typical hooks, use the ones the profile supports:
 - host-country government awards for the regions they're targeting, checked against their citizenship
 - field-of-study and profession awards (their actual field and industry), professional bodies and associations
@@ -455,6 +460,7 @@ ${profile.notes.join("\n") || "(none)"}
 stories:
 ${profile.stories.map((s) => `- ${s.title}: ${s.summary}`).join("\n") || "(none)"}
 
+study level: ${levelName(levelOf(profile))}
 regions they're targeting: ${regionList(profile.preferences.regions).map((r) => REGIONS[r]).join(", ")}
 citizenship: ${profile.identity.citizenship ?? "unknown"}
 today is ${today()}. intake: ${term}.
@@ -467,6 +473,7 @@ first list every eligibility hook you see in this profile. then search for schol
     userId: job.user_id,
     agent: "recon",
     jobId: job.id,
+    tier: "cheap",
     promptVersion: "scholarships-parse-v1",
     system: `turn research notes into structured scholarship data. only include awards the notes actually name. keep urls exactly; "" when none. deadlines as YYYY-MM-DD when the notes give a full date, otherwise as written.`,
     prompt: `research notes:\n${found.text}`,

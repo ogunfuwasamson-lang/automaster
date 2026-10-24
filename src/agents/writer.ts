@@ -5,7 +5,8 @@ import { admin } from "@/lib/supabase/admin";
 import { runStructured } from "@/lib/llm";
 import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
-import { sortWork, type Profile } from "@/lib/profile";
+import { sortWork, levelOf, LEVEL_LABEL, type Profile } from "@/lib/profile";
+import { levelGuide, defaultEssay } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { withinLimit, nextStep, clichesIn, CLICHES, MAX_ROUNDS } from "@/lib/writing";
@@ -19,6 +20,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 // everything a writer may draw on. funding details and admin notes stay out.
 export function factSheet(p: Profile) {
   return {
+    applying_for: LEVEL_LABEL[levelOf(p)],
     name: p.identity.full_name,
     citizenship: p.identity.citizenship,
     lives_in: [p.identity.city, p.identity.country_of_residence].filter(Boolean).join(", "),
@@ -53,9 +55,10 @@ async function loadApp(userId: string, applicationId: string) {
 // ---------------------------------------------------------------------------
 // strategist: find what the program asks for, and decide how to position the applicant
 // ---------------------------------------------------------------------------
-const STRATEGIST_SYSTEM = `you are the strategist on a masters application platform (any field, any country).
+const STRATEGIST_SYSTEM = `you are the strategist on an application platform for bachelor's, master's and PhD applicants (any field, any country).
 for one program and one applicant you work out two things:
 1. exactly what written material the application asks for: every essay, statement, short answer and scholarship essay, with the official prompt text and word/character limit. use the program's official application pages. if prompts aren't published yet for this cycle, use last cycle's and say so.
+for a PhD, also name the faculty whose research fits the applicant (who to contact, why), and say whether this program expects contact or a proposal before applying. for a bachelor's, note the application system (Common App, UCAS...) and any supplemental essays.
 2. the positioning: the one clear story that makes this applicant make sense for this program. specific reasons this program (courses, research groups, faculty, centres, clinics, labs, partnerships) with where you found them. which of the applicant's own stories to use. the weak spots an admissions reader will notice (gaps, field switch, grades, missing tests) and how to address them honestly. what to avoid.
 never invent anything about the applicant. work only from the facts given.`;
 
@@ -77,6 +80,7 @@ export const Plan = z.object({
     why_this_program: z.array(z.string()),
     stories_to_use: z.array(z.string()),
     weaknesses_to_address: z.array(z.string()),
+    people_to_contact: z.array(z.string()), // phd: potential supervisors with why; others: [] unless useful
     avoid: z.array(z.string()),
     tone: z.string(),
   }),
@@ -90,6 +94,7 @@ function briefToText(b: z.infer<typeof Plan>["brief"], extra: { reqs: string[]; 
     list("why this program", b.why_this_program),
     list("stories to use", b.stories_to_use),
     list("weak spots to handle", b.weaknesses_to_address),
+    list("people to contact", b.people_to_contact),
     list("avoid", b.avoid),
     `## tone\n${b.tone}\n`,
     list("other requirements", extra.reqs),
@@ -101,7 +106,7 @@ function briefToText(b: z.infer<typeof Plan>["brief"], extra: { reqs: string[]; 
 // ---------------------------------------------------------------------------
 // writer
 // ---------------------------------------------------------------------------
-const WRITER_SYSTEM = `you are the writer on a masters application platform. you draft application essays FOR the applicant to edit and own. they will rewrite it in their own words before submitting; your job is a strong, honest first draft.
+const WRITER_SYSTEM = `you are the writer on an application platform for bachelor's, master's and PhD applicants. match the register to the level: a bachelor's personal statement sounds like a thoughtful school-leaver, not a professional; a PhD research statement is precise about questions, methods and fit with faculty. you draft application essays FOR the applicant to edit and own. they will rewrite it in their own words before submitting; your job is a strong, honest first draft.
 
 non-negotiable:
 - every fact, number, name, date and achievement must come from the applicant's fact sheet. if it isn't there, it doesn't go in. no invented anecdotes, quotes, feelings attributed to specific moments, or outcomes.
@@ -123,7 +128,7 @@ export const Draft = z.object({
 // ---------------------------------------------------------------------------
 // red team
 // ---------------------------------------------------------------------------
-const REDTEAM_SYSTEM = `you are the red team on a masters application platform. you read a draft as the toughest admissions reader at this program would, and you fact-check it against the applicant's fact sheet.
+const REDTEAM_SYSTEM = `you are the red team on an application platform for bachelor's, master's and PhD applicants. you read a draft as the toughest admissions reader at this program would, and you fact-check it against the applicant's fact sheet.
 
 check, in order:
 1. truth: list every claim in the essay that the fact sheet doesn't support, or that uses a disputed figure. this is the most important check. be strict: a rounded-up number or an embellished title counts.
@@ -151,12 +156,16 @@ export const writer: Record<string, Handler> = {
     const { app, program, school } = await loadApp(job.user_id, applicationId);
     const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
 
+    const level = levelOf(profile);
+    const fallback = defaultEssay(level);
     const found = await research({
       userId: job.user_id,
       agent: "strategist",
       jobId: job.id,
       system: STRATEGIST_SYSTEM,
-      prompt: `program: ${program.name} (${program.degree}) at ${school.name}${school.country ? `, ${school.country}` : ""}
+      prompt: `${levelGuide(level)}
+
+program: ${program.name} (${program.degree}) at ${school.name}${school.country ? `, ${school.country}` : ""}
 official page: ${program.url ?? "(find it)"}
 intake: ${row?.target_term ?? "fall-2027"}. today: ${today()}.
 recon's earlier read on fit: ${app.fit_reasoning ?? "none"}
@@ -174,9 +183,9 @@ find the application's written requirements (official prompts and limits), then 
       userId: job.user_id,
       agent: "strategist",
       jobId: job.id,
-      tier: "deep",
+      tier: "write",
       promptVersion: "plan-v1",
-      system: `turn the research notes into a structured application plan. essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one statement_of_purpose with prompt "no published prompt found: statement of purpose covering background, goals and fit" and word_limit "1000". brief: use only facts from this fact sheet:\n${JSON.stringify(factSheet(profile))}`,
+      system: `turn the research notes into a structured application plan. essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet:\n${JSON.stringify(factSheet(profile))}`,
       prompt: `research notes:\n${found.text}`,
       schema: Plan,
       maxTokens: 8000,
@@ -265,9 +274,10 @@ find the application's written requirements (official prompts and limits), then 
       userId: job.user_id,
       agent: "writer",
       jobId: job.id,
-      tier: "deep",
+      tier: "write",
       promptVersion: "write-v1",
       system: WRITER_SYSTEM,
+      cachePrefix: `applicant fact sheet (the only source of facts):\n${JSON.stringify(factSheet(profile))}`,
       prompt: `program: ${program.name} (${program.degree}) at ${school.name}
 piece: ${art.title} (${art.kind})
 prompt: ${art.prompt ?? "(none given)"}
@@ -275,9 +285,6 @@ word limit: ${art.word_limit ?? "none"}
 
 strategy brief:
 ${briefText}
-
-applicant fact sheet (the only source of facts):
-${JSON.stringify(factSheet(profile))}
 
 disputed figures (never use these numbers): ${disputed.join("; ") || "none"}
 ${
@@ -329,16 +336,14 @@ ${
       userId: job.user_id,
       agent: "redteam",
       jobId: job.id,
-      tier: "deep",
+      tier: "write",
       promptVersion: "review-v1",
       system: REDTEAM_SYSTEM,
+      cachePrefix: `applicant fact sheet (the only source of facts):\n${JSON.stringify(factSheet(profile))}`,
       prompt: `program: ${program.name} (${program.degree}) at ${school.name}
 piece: ${art.title}
 prompt: ${art.prompt ?? "(none)"}
 word limit: ${art.word_limit ?? "none"}
-
-applicant fact sheet:
-${JSON.stringify(factSheet(profile))}
 
 disputed figures (using any of these is an unsupported claim): ${disputed.join("; ") || "none"}
 

@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { daysUntil, upcomingDeadlines, type DeadlineRow } from "@/lib/fit";
 import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } from "./controls";
 import { REGIONS, loadProfile } from "@/lib/profile";
+import { userPlan } from "@/lib/budget";
 import Link from "next/link";
 import { PrepareButton } from "../applications/[id]/prepare-button";
 
@@ -177,6 +178,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
   const presentRegions = [...new Set(allRows.map((r) => r.programs.schools.region).filter(Boolean))] as string[];
   const rows = regionFilter ? allRows.filter((r) => r.programs.schools.region === regionFilter) : allRows;
   const prof = loadProfile(profRow?.profile);
+  const { plan } = await userPlan(auth.user.id);
   const FIT_ORDER: Record<string, number> = { strong: 0, possible: 1, long_shot: 2 };
   const scholarships = ((external ?? []) as unknown as Matched[])
     .filter((x) => x.funding_opportunities)
@@ -225,6 +227,8 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
         regions={prof.preferences.regions ?? []}
         degreeTypes={prof.goals.degree_types ?? []}
         allRegions={REGIONS}
+        level={prof.goals.study_level}
+        maxRegions={plan.maxRegions}
       />
 
       {presentRegions.length > 1 && (

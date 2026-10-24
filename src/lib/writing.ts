@@ -13,7 +13,7 @@ export function withinLimit(text: string, limit: number | null): { ok: boolean; 
   return { ok: true, words, note: "" };
 }
 
-export const MAX_ROUNDS = 3;
+export const MAX_ROUNDS = 2; // two passes catch most issues; a third rarely pays for itself
 
 export type Verdict = "pass" | "revise";
 

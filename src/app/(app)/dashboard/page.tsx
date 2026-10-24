@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/supabase/server";
 import Link from "next/link";
 import { PingButton } from "./ping-button";
 import { Decisions, type Decision } from "@/components/decisions";
+import { userPlan, monthSpend } from "@/lib/budget";
+import { CATEGORY_SHARE } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,8 @@ export default async function Dashboard() {
 
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }, { data: drafts }, { data: runs }, { data: blocked }] = await Promise.all([
+  const [{ plan, budget }, spend] = await Promise.all([userPlan(user.id), monthSpend(user.id)]);
+  const [{ data: grants }, { data: approvals }, { data: events }, { data: due }, { data: drafts }, { data: runs }, { data: blocked }, { count: parked }] = await Promise.all([
     sb.from("grants").select("capability, mode, undo_seconds, ceiling_cents").order("capability"),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }),
     sb.from("events").select("id, actor, action, created_at, context").order("created_at", { ascending: false }).limit(20),
@@ -26,6 +29,7 @@ export default async function Dashboard() {
     sb.from("events").select("id, application_id, context, created_at").eq("action", "artifact.ready_for_user").order("created_at", { ascending: false }).limit(5),
     sb.from("agent_runs").select("agent, input_tokens, output_tokens").gte("started_at", weekAgo).limit(2000),
     sb.from("jobs").select("id").eq("status", "queued").ilike("last_error", "%credit balance%").limit(1),
+    sb.from("jobs").select("id", { count: "exact", head: true }).eq("status", "queued").ilike("last_error", "budget:%"),
   ]);
   const usage = new Map<string, { runs: number; inTok: number; outTok: number }>();
   for (const r of runs ?? []) {
@@ -46,6 +50,22 @@ export default async function Dashboard() {
         </div>
         <PingButton />
       </header>
+
+      <section className="rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm">
+            <span className="font-medium">{plan.name}</span> plan · AI used this month: <span className="font-medium">${spend.total.toFixed(2)}</span> of ${budget.toFixed(2)}
+          </p>
+          <Link href="/pricing" className="text-sm text-neutral-500 underline">{plan.id === "free" ? "upgrade" : "plans"}</Link>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
+          <div className={`h-full ${spend.total / budget > 0.9 ? "bg-red-600" : spend.total / budget > 0.7 ? "bg-amber-500" : "bg-neutral-900 dark:bg-neutral-100"}`} style={{ width: `${Math.min(100, (100 * spend.total) / budget)}%` }} />
+        </div>
+        <p className="mt-2 text-xs text-neutral-500">
+          {(["research", "writing", "core"] as const).map((c) => `${c} $${spend.byCategory[c].toFixed(2)}/${(budget * CATEGORY_SHARE[c]).toFixed(2)}`).join(" · ")}
+        </p>
+        {parked ? <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{parked} task{parked > 1 ? "s are" : " is"} waiting for next month&apos;s allowance.{plan.id === "free" ? " upgrading releases them now." : ""}</p> : null}
+      </section>
 
       {blocked?.length ? (
         <p className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">

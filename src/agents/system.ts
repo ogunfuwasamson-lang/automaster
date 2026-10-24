@@ -15,6 +15,7 @@ export const system: Record<string, Handler> = {
       jobId: job.id,
       system: "you are a health check. reply with status ok and a five word note.",
       prompt: "ping",
+      tier: "cheap",
       schema: PingOut,
       maxTokens: 200,
     });

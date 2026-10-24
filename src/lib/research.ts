@@ -1,15 +1,14 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/messages/messages";
 import { admin } from "@/lib/supabase/admin";
-import { MODELS } from "@/lib/llm";
+import { MODELS, llm, cachedSystem } from "@/lib/llm";
+import { assertBudget } from "@/lib/budget";
+import { costOf, type Usage } from "@/lib/pricing";
 
 // web research with claude's server-side search + fetch tools.
 // returns free-text findings plus every url seen; a second structured call turns that into data.
 // kept separate from runStructured so a research failure never corrupts structured output.
 
-let client: Anthropic | null = null;
-const llm = () => (client ??= new Anthropic());
 
 export interface ResearchResult {
   text: string;
@@ -27,8 +26,10 @@ export async function research(args: {
   maxSearches?: number;
   maxFetches?: number;
 }): Promise<ResearchResult> {
+  await assertBudget(args.userId, args.agent);
   const db = admin();
-  const model = MODELS.fast;
+  // research loops read a lot of web content: they run on the cheap tier
+  const model = MODELS.cheap;
   const { data: run, error } = await db
     .from("agent_runs")
     .insert({
@@ -48,23 +49,25 @@ export async function research(args: {
   let inTok = 0;
   let outTok = 0;
   let searches = 0;
+  let cost = 0;
 
   try {
     // the server runs the search loop; long turns come back as pause_turn and we continue them
-    for (let round = 0; round < 6; round++) {
+    for (let round = 0; round < 4; round++) {
       const msg = await llm().messages.create({
         model,
-        max_tokens: 16000,
-        system: args.system,
+        max_tokens: 8000,
+        system: cachedSystem(args.system),
         messages,
         tools: [
           { type: "web_search_20250305", name: "web_search", max_uses: args.maxSearches ?? 8 },
           { type: "web_fetch_20250910", name: "web_fetch", max_uses: args.maxFetches ?? 6, max_content_tokens: 5000 },
         ],
       });
-      inTok += msg.usage.input_tokens;
+      inTok += msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);
       outTok += msg.usage.output_tokens;
       searches += msg.usage.server_tool_use?.web_search_requests ?? 0;
+      cost += costOf(model, msg.usage as Usage);
       content.push(...msg.content);
       if (msg.stop_reason !== "pause_turn") break;
       messages.push({ role: "assistant", content: msg.content });
@@ -93,6 +96,7 @@ export async function research(args: {
         output: { text: text.slice(0, 20000), sources: [...sources].slice(0, 50), searches },
         input_tokens: inTok,
         output_tokens: outTok,
+        cost_usd: cost,
         finished_at: new Date().toISOString(),
       })
       .eq("id", run.id);
@@ -100,7 +104,7 @@ export async function research(args: {
   } catch (e) {
     await db
       .from("agent_runs")
-      .update({ status: "failed", error: String(e), finished_at: new Date().toISOString() })
+      .update({ status: "failed", error: String(e), input_tokens: inTok, output_tokens: outTok, cost_usd: cost, finished_at: new Date().toISOString() })
       .eq("id", run.id);
     throw e;
   }

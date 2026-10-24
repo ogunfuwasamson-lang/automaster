@@ -1,6 +1,6 @@
 # automaster
 
-agents that run a masters application cycle for anyone, in any field, to universities anywhere
+agents that run a bachelor's, master's or PhD application cycle for anyone, in any field, to universities anywhere
 (US, Canada, UK, Europe, Asia, Australia/NZ, Middle East, Africa, Latin America): intake, shortlist,
 drafts, funding, submission prep. you review, they run.
 
@@ -84,3 +84,18 @@ TEST_DATABASE_URL=postgres://am:am@localhost/am_test npm test
 - **job stuck**: `select * from jobs where status in ('running','failed') order by created_at desc;` stale `running` jobs are reclaimed after 10 min, up to `max_attempts`.
 - **what did an agent do and why**: `select actor, action, reasoning, context from events where user_id = '<uid>' order by created_at desc;`
 - **llm spend**: `select agent, sum(input_tokens), sum(output_tokens) from agent_runs group by agent;`
+
+## plans and AI cost control
+
+| plan | price | AI budget / month | limits |
+|---|---|---|---|
+| free | $0 | $1.50 | 1 region, 1 shortlist run (6 programs), 1 application, 5 documents |
+| pro | $49 / month | $25 | all regions, 6 runs x 20 programs, 15 applications, 40 documents |
+| season pass | $199 / 6 months | $25 / month | same as pro, paid once per cycle |
+
+- every model call is metered (`agent_runs.cost_usd`, official per-token prices in `src/lib/pricing.ts`) and
+  budget-checked first. the monthly budget is split research 45% / writing 35% / core 20% so one feature can't starve the rest.
+- over budget: the call is refused, queued work parks until the 1st (or until the plan changes), the dashboard says so.
+- model tiers: haiku 5.5 for web research and parsing (the bulk of tokens), sonnet 5.5 for writing, review and chat.
+  system prompts and fact sheets are prompt-cached. program research is shared across users for 30 days.
+- per-user override: `profiles.monthly_budget_usd`. plan: `profiles.plan` (billing will set it).
