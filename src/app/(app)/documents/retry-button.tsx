@@ -1,22 +1,25 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function RetryButton({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   return (
-    <button
+    <Button
+      size="sm"
+      variant="secondary"
       disabled={busy}
       onClick={async () => {
         setBusy(true);
         await fetch(`/api/documents/${id}/retry`, { method: "POST" });
         router.refresh();
-        setTimeout(() => router.refresh(), 30000);
       }}
-      className="shrink-0 rounded border border-neutral-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-neutral-700"
     >
-      {busy ? "retrying…" : "retry"}
-    </button>
+      <RotateCcw className="size-3.5" aria-hidden />
+      {busy ? "Retrying…" : "Try again"}
+    </Button>
   );
 }

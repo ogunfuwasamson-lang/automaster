@@ -1,27 +1,36 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export function CleanupButton() {
-  const [state, setState] = useState<"idle" | "running">("idle");
+  const [running, setRunning] = useState(false);
   const router = useRouter();
   return (
-    <button
-      disabled={state === "running"}
-      title="merges duplicates and raises conflicting facts for you to settle"
+    <Button
+      variant="secondary"
+      disabled={running}
+      title="Merges duplicates and asks you to settle facts that disagree"
       onClick={async () => {
-        setState("running");
-        await fetch("/api/profile/cleanup", { method: "POST" });
+        setRunning(true);
+        const res = await fetch("/api/profile/cleanup", { method: "POST" });
+        if (!res.ok) {
+          setRunning(false);
+          return toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't start the tidy-up");
+        }
+        toast.success("Tidying your profile. This takes a minute or two.");
         // cleanup takes a minute or two
         setTimeout(() => router.refresh(), 60_000);
         setTimeout(() => {
           router.refresh();
-          setState("idle");
+          setRunning(false);
         }, 150_000);
       }}
-      className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-neutral-700"
     >
-      {state === "running" ? "cleaning up… (1–2 min)" : "clean up profile"}
-    </button>
+      <Sparkles className="size-4" aria-hidden />
+      {running ? "Tidying…" : "Tidy up profile"}
+    </Button>
   );
 }

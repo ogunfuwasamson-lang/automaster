@@ -13,22 +13,22 @@ export const USER_SETTABLE: Record<string, GrantMode[]> = {
 };
 
 export const CAPABILITY_LABEL: Record<string, { name: string; help: string }> = {
-  research: { name: "research schools and funding", help: "searching the web for programs, deadlines, scholarships" },
-  draft: { name: "draft essays and emails", help: "you always review essays before anything is submitted" },
-  prefill: { name: "fill application forms", help: "the runner fills portals from your profile" },
-  "school.add_drop": { name: "add or drop schools", help: "keep the shortlist current as research comes in" },
-  "email.follow_up": { name: "follow-up emails", help: "polite nudges on threads already started" },
-  "email.new_contact": { name: "first emails to schools", help: "fee waivers, funding requests, supervisor intros" },
-  submit: { name: "submit applications", help: "only ever after you approve the packet" },
-  "spend.app_fee": { name: "pay application fees", help: "only inside your fee envelope; the card is yours, in your browser" },
-  state_fact: { name: "new claims about you", help: "always you" },
-  sign: { name: "sign or certify anything", help: "always you; packet approval is your signature" },
-  "spend.deposit": { name: "enrollment deposits", help: "always you" },
+  research: { name: "Research schools and funding", help: "Searching the web for programs, deadlines, scholarships" },
+  draft: { name: "Draft essays and emails", help: "You always review essays before anything is submitted" },
+  prefill: { name: "Fill application forms", help: "Agents fill portals from your profile" },
+  "school.add_drop": { name: "Add or drop schools", help: "Keep the shortlist current as research comes in" },
+  "email.follow_up": { name: "Follow-up emails", help: "Polite nudges on threads already started" },
+  "email.new_contact": { name: "First emails to schools", help: "Fee waivers, funding requests, supervisor intros" },
+  submit: { name: "Submit applications", help: "Only ever after you sign the packet" },
+  "spend.app_fee": { name: "Pay application fees", help: "Only within the limit you set below" },
+  state_fact: { name: "New claims about you", help: "Always you" },
+  sign: { name: "Sign or certify anything", help: "Always you. Signing the packet is your signature" },
+  "spend.deposit": { name: "Enrollment deposits", help: "Always you" },
 };
 
 export const MODE_LABEL: Record<GrantMode, string> = {
-  auto: "on its own",
-  auto_undo: "on its own, with undo",
-  approve: "ask me first",
-  deny: "never",
+  auto: "On its own",
+  auto_undo: "On its own, with undo",
+  approve: "Ask me first",
+  deny: "Never",
 };

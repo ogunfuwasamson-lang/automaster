@@ -1,5 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import * as Popover from "@radix-ui/react-popover";
+import { ArrowUp, MessagesSquare, Mic, RotateCcw, Settings2, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Field, Select } from "@/components/ui/field";
 
 type Turn = { role: "agent" | "user"; content: string };
 type Phase = "idle" | "listening" | "thinking" | "speaking";
@@ -185,13 +190,13 @@ export function Interview({
         if (e.error === "language-not-supported" && settings.current.lang !== "en-US") {
           setLang("en-US");
           save("am.lang", "en-US");
-          setErr("your browser doesn't support that accent setting; switched to English (US). tap the mic again.");
+          setErr("Your browser doesn't support that accent setting, so it switched to English (US). Tap the mic again.");
           wantRef.current = false;
         } else if (e.error === "not-allowed") {
-          setErr("microphone blocked. allow mic access for this site in your browser settings.");
+          setErr("The microphone is blocked. Allow mic access for this site in your browser settings.");
           wantRef.current = false;
         } else if (e.error !== "aborted" && e.error !== "no-speech") {
-          setErr(`mic: ${e.error}`);
+          setErr(`Microphone problem: ${e.error}`);
         }
       };
       rec.onend = () => {
@@ -284,159 +289,199 @@ export function Interview({
     if (key === "am.speak" && !value) window.speechSynthesis?.cancel();
   };
 
+  const status =
+    phase === "listening"
+      ? handsFree
+        ? `Listening. Sends after a ${pauseMs / 1000} second pause, or tap to send now.`
+        : "Listening. Tap to send."
+      : phase === "speaking"
+        ? "Speaking. Tap the mic to interrupt."
+        : phase === "thinking"
+          ? "Thinking…"
+          : "";
+
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-49px)] max-w-2xl flex-col px-4 py-6">
-      <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto flex min-h-[calc(100dvh-12rem)] max-w-2xl flex-col lg:min-h-[calc(100dvh-6.5rem)]">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">interview</h1>
-          <p className="text-sm text-neutral-500">profile {pct}% complete</p>
+          <h1 className="font-display text-4xl font-semibold leading-none tracking-tight sm:text-5xl">Interview</h1>
+          <div className="mt-3 flex items-center gap-3 text-sm text-muted">
+            <span className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+              <span className="block h-full rounded-full bg-foreground transition-[width] duration-700" style={{ width: `${pct}%` }} />
+            </span>
+            Profile {pct}% complete
+          </div>
         </div>
-        {started && (
-          <button
-            onClick={() => {
-              finish(false);
-              window.speechSynthesis?.cancel();
-              setSessionId(null);
-              setTurns([]);
-              setPhase("idle");
-            }}
-            className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700"
-          >
-            new session
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <Button variant="ghost" size="sm" aria-label="Voice settings">
+                <Settings2 className="size-4" aria-hidden />
+                Voice
+              </Button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content align="end" sideOffset={6} className="z-50 w-80 space-y-4 rounded-xl border border-line bg-surface p-4 text-sm shadow-lg">
+                <label className="flex items-center justify-between gap-3">
+                  Read replies out loud
+                  <input type="checkbox" className="size-4 accent-[var(--color-foreground)]" checked={speak} onChange={(e) => toggle("am.speak", e.target.checked, setSpeak)} />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span>
+                    Hands-free
+                    <span className="block text-xs text-muted">Listens again after it speaks</span>
+                  </span>
+                  <input type="checkbox" className="size-4 accent-[var(--color-foreground)]" checked={handsFree} onChange={(e) => toggle("am.handsfree", e.target.checked, setHandsFree)} />
+                </label>
+                <Field label="Send after you pause for">
+                  <Select
+                    value={pauseMs}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      setPauseMs(v);
+                      save("am.pause", String(v));
+                    }}
+                  >
+                    {[2000, 3000, 4000, 6000, 8000].map((ms) => (
+                      <option key={ms} value={ms}>
+                        {ms / 1000} seconds
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Your accent, for recognition">
+                  <Select
+                    value={lang}
+                    onChange={(e) => {
+                      setLang(e.target.value);
+                      save("am.lang", e.target.value);
+                    }}
+                  >
+                    {LANGS.map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Its voice">
+                  <Select
+                    value={voiceName}
+                    onChange={(e) => {
+                      setVoiceName(e.target.value);
+                      save("am.voice", e.target.value);
+                    }}
+                  >
+                    <option value="">Best available</option>
+                    {voices.map((v) => (
+                      <option key={v.name} value={v.name}>
+                        {v.name} ({v.lang})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+          {started && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                finish(false);
+                window.speechSynthesis?.cancel();
+                setSessionId(null);
+                setTurns([]);
+                setPhase("idle");
+              }}
+            >
+              <RotateCcw className="size-3.5" aria-hidden />
+              New session
+            </Button>
+          )}
+        </div>
       </header>
 
-      <details className="mb-3 text-sm">
-        <summary className="cursor-pointer text-neutral-500">voice settings</summary>
-        <div className="mt-2 grid gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-800 sm:grid-cols-2">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={speak} onChange={(e) => toggle("am.speak", e.target.checked, setSpeak)} />
-            read replies out loud
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={handsFree} onChange={(e) => toggle("am.handsfree", e.target.checked, setHandsFree)} />
-            hands-free (listens again after it speaks)
-          </label>
-          <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="text-neutral-500">hands-free: send after you pause for</span>
-            <select
-              value={pauseMs}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                setPauseMs(v);
-                save("am.pause", String(v));
-              }}
-              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
-            >
-              {[2000, 3000, 4000, 6000, 8000].map((ms) => <option key={ms} value={ms}>{ms / 1000} seconds{ms === 3000 ? " (default)" : ""}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-neutral-500">your accent (for recognition)</span>
-            <select
-              value={lang}
-              onChange={(e) => {
-                setLang(e.target.value);
-                save("am.lang", e.target.value);
-              }}
-              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
-            >
-              {LANGS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-neutral-500">its voice</span>
-            <select
-              value={voiceName}
-              onChange={(e) => {
-                setVoiceName(e.target.value);
-                save("am.voice", e.target.value);
-              }}
-              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
-            >
-              <option value="">best available</option>
-              {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
-            </select>
-          </label>
-        </div>
-      </details>
-
-      <div className="mb-2 h-1 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
-        <div className="h-full bg-neutral-900 transition-all dark:bg-neutral-100" style={{ width: `${pct}%` }} />
-      </div>
-
-      <section className="flex-1 space-y-3 overflow-y-auto py-4">
+      <section className="flex-1 space-y-4 border-t border-line py-6" aria-live="polite">
         {!started && (
-          <div className="rounded-md border border-neutral-200 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-            it asks one thing at a time and fills your profile as you go. with hands-free on, just talk: it sends when you
-            pause and listens again after it answers. tap the mic anytime to interrupt it. you can stop whenever.
-            <div className="mt-3">
-              <button
-                onClick={() => send(null, false)}
-                disabled={phase === "thinking"}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
-              >
-                {phase === "thinking" ? "starting…" : "start interview"}
-              </button>
-            </div>
+          <div className="mx-auto max-w-md py-10 text-center">
+            <span className="mx-auto grid size-16 place-items-center rounded-full bg-board text-flap">
+              <MessagesSquare className="size-7" aria-hidden />
+            </span>
+            <h2 className="mt-5 text-xl font-semibold">A conversation, not a form</h2>
+            <p className="mt-2 text-[15px] leading-relaxed text-muted">
+              It asks one thing at a time and fills your profile as you go. With hands-free on, just talk: it sends when you pause and listens again after it answers. Stop whenever you like.
+            </p>
+            <Button size="lg" className="mt-6" onClick={() => send(null, false)} disabled={phase === "thinking"}>
+              {phase === "thinking" ? "Starting…" : "Start the interview"}
+            </Button>
           </div>
         )}
-        {turns.map((t, i) => (
-          <div key={i} className={t.role === "user" ? "flex justify-end" : "flex"}>
-            <p
-              className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-[15px] leading-relaxed ${
-                t.role === "user" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 dark:bg-neutral-900"
-              }`}
+        <AnimatePresence initial={false}>
+          {turns.map((t, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={t.role === "user" ? "flex justify-end" : "flex gap-3"}
             >
-              {t.content}
-            </p>
-          </div>
-        ))}
+              {t.role === "agent" && (
+                <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-board text-[11px] font-semibold text-flap" aria-hidden>
+                  am
+                </span>
+              )}
+              <p
+                className={`max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed ${
+                  t.role === "user" ? "rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-background" : "pt-1"
+                }`}
+              >
+                {t.content}
+              </p>
+            </motion.div>
+          ))}
+        </AnimatePresence>
         {interim && (
           <div className="flex justify-end">
-            <p className="max-w-[85%] rounded-2xl border border-dashed border-neutral-400 px-4 py-2 text-[15px] text-neutral-500">{interim}</p>
+            <p className="max-w-[85%] rounded-2xl rounded-br-md border border-dashed border-neutral-400 px-4 py-2.5 text-[15px] text-muted">{interim}</p>
           </div>
         )}
         {phase === "thinking" && started && (
-          <div className="flex gap-1 px-2 py-1">
-            {[0, 1, 2].map((i) => (
-              <span key={i} className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: `${i * 120}ms` }} />
-            ))}
+          <div className="flex items-center gap-3">
+            <span className="grid size-7 place-items-center rounded-full bg-board text-[11px] font-semibold text-flap" aria-hidden>
+              am
+            </span>
+            <span className="flex gap-1" aria-label="Thinking">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="size-1.5 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: `${i * 120}ms` }} />
+              ))}
+            </span>
           </div>
         )}
         <div ref={bottom} />
       </section>
 
-      {err && <p className="mb-2 text-sm text-red-600">{err}</p>}
+      {err && <p className="mb-2 rounded-lg border border-stop/40 bg-stop/8 px-3 py-2 text-sm">{err.charAt(0).toUpperCase() + err.slice(1)}</p>}
 
       {started && (
-        <footer className="sticky bottom-0 border-t border-neutral-200 bg-[var(--background)] pt-3 pb-2 dark:border-neutral-800">
-          <p className="mb-2 h-4 text-xs text-neutral-500">
-            {phase === "listening" ? (handsFree ? `listening… sends after a ${pauseMs / 1000}s pause, or tap to send now` : "listening… tap to send") : phase === "speaking" ? "speaking… tap the mic to interrupt" : phase === "thinking" ? "thinking…" : ""}
-          </p>
+        <footer className="sticky bottom-16 -mx-4 border-t border-line bg-background/95 px-4 pb-3 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0">
+          <p className="mb-2 h-4 text-xs text-muted">{status}</p>
           <div className="flex items-end gap-2">
             {voiceOk && (
               <button
                 onClick={micTap}
                 disabled={phase === "thinking"}
-                aria-label={phase === "listening" ? "stop and send" : "talk"}
-                className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white transition disabled:opacity-40 ${
-                  phase === "listening" ? "animate-pulse bg-red-600" : "bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900"
+                aria-label={phase === "listening" ? "Stop and send" : "Talk"}
+                className={`relative grid size-12 shrink-0 place-items-center rounded-full transition disabled:opacity-40 ${
+                  phase === "listening" ? "bg-stop text-white" : "bg-foreground text-background hover:bg-neutral-700 dark:hover:bg-neutral-200"
                 }`}
               >
-                {phase === "listening" ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2" /></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <rect x="9" y="3" width="6" height="11" rx="3" />
-                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                  </svg>
-                )}
+                {phase === "listening" && <span className="absolute inset-0 animate-ping rounded-full bg-stop/40" aria-hidden />}
+                {phase === "listening" ? <Square className="relative size-4 fill-current" /> : <Mic className="size-5" />}
               </button>
             )}
             <form
-              className="flex flex-1 gap-2"
+              className="flex flex-1 items-end gap-2 rounded-2xl border border-line bg-surface p-1.5 focus-within:border-focus"
               onSubmit={(e) => {
                 e.preventDefault();
                 const t = draft.trim();
@@ -457,19 +502,21 @@ export function Interview({
                   }
                 }}
                 rows={1}
-                placeholder={voiceOk ? "or type…" : "type your answer… (voice works in chrome)"}
-                className="min-h-12 flex-1 resize-none rounded-md border border-neutral-300 bg-transparent px-3 py-3 text-[15px] outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
+                aria-label="Your answer"
+                placeholder={voiceOk ? "Or type your answer" : "Type your answer (voice works in Chrome)"}
+                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-2 text-[15px] outline-none field-sizing-content"
               />
               <button
                 disabled={phase === "thinking" || !draft.trim()}
-                className="h-12 rounded-md bg-neutral-900 px-4 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+                aria-label="Send"
+                className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-background transition disabled:opacity-30"
               >
-                send
+                <ArrowUp className="size-4" />
               </button>
             </form>
           </div>
         </footer>
       )}
-    </main>
+    </div>
   );
 }

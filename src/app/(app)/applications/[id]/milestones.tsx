@@ -1,12 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PenLine, Trophy } from "lucide-react";
+import { toast } from "sonner";
 import { ATTESTATION } from "@/lib/attest";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select } from "@/components/ui/field";
+import { Panel } from "@/components/ui/page";
 
-// the applicant's own steps: approve the packet, confirm they submitted, record what the school decided
+// the applicant's own steps: sign the packet, confirm a self-submission, record what the school decided
 export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: string; status: string; essaysTotal: number; essaysApproved: number }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
   const [decision, setDecision] = useState("admitted");
   const [aid, setAid] = useState("");
   const [note, setNote] = useState("");
@@ -14,76 +18,116 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
   const [attest, setAttest] = useState(false);
   const router = useRouter();
 
-  async function act(body: Record<string, unknown>) {
+  async function act(body: Record<string, unknown>, ok: string) {
     setBusy(true);
-    setErr("");
     const res = await fetch(`/api/applications/${id}/status`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) setErr((await res.json().catch(() => ({}))).error ?? "failed");
+    if (!res.ok) toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't save that");
+    else toast.success(ok);
     setBusy(false);
     router.refresh();
   }
 
-  const btn = "rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900";
-  const input = "rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
-
-  return (
-    <section className="space-y-3 rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
-      <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">status: {status.replace(/_/g, " ")}</h2>
-
-      {(status === "preparing" || status === "ready_for_review") && (
-        <div className="space-y-2 text-sm">
-          <p>{essaysApproved}/{essaysTotal} pieces approved by you. when all are approved, sign the packet. the agents then find the school&apos;s portal, create your account and submit it.</p>
-          <label className="flex items-start gap-2 rounded-md bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-            <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5" />
-            <span>{ATTESTATION}</span>
-          </label>
-          <button disabled={busy || !attest || !essaysTotal || essaysApproved < essaysTotal} onClick={() => act({ action: "approve_packet", attest: true })} className={btn}>approve and sign packet</button>
+  if (status === "preparing" || status === "ready_for_review") {
+    const left = essaysTotal - essaysApproved;
+    const pct = essaysTotal ? Math.round((essaysApproved / essaysTotal) * 100) : 0;
+    return (
+      <Panel className="space-y-4 p-5" tone={left === 0 && essaysTotal ? "signal" : "plain"}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <PenLine className="size-4" aria-hidden />
+            Sign your packet
+          </h2>
+          <span className="text-sm text-muted tabular">
+            {essaysApproved} of {essaysTotal} pieces approved
+          </span>
         </div>
-      )}
-
-      {status === "packet_approved" && (
-        <div className="space-y-2 text-sm">
-          <p>packet signed. the agents are submitting it (see below). if you submit it yourself instead, confirm here.</p>
-          <button disabled={busy} onClick={() => act({ action: "mark_submitted" })} className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-neutral-700">I submitted it myself</button>
+        <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className="h-full rounded-full bg-foreground transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
-      )}
+        <p className="text-sm text-muted">
+          {!essaysTotal
+            ? "Pieces appear here once the strategist knows what this application asks for."
+            : left
+              ? `Approve ${left} more ${left === 1 ? "piece" : "pieces"} below, then sign. After that the agents find the portal, create your account and submit.`
+              : "Everything is approved. Sign below and the agents find the portal, create your account and submit."}
+        </p>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-background p-3.5 text-[13px] leading-relaxed">
+          <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-foreground)]" />
+          <span>{ATTESTATION}</span>
+        </label>
+        <Button disabled={busy || !attest || !essaysTotal || left > 0} onClick={() => act({ action: "approve_packet", attest: true }, "Signed. The agents are submitting it.")}>
+          {busy ? "Signing…" : "Sign and submit for me"}
+        </Button>
+      </Panel>
+    );
+  }
 
-      {["submitted", "under_review", "interview", "waitlisted"].includes(status) && (
-        <div className="space-y-2 text-sm">
-          <p>heard back? record it. an admit with your aid offer starts the funding agent on this school.</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={decision} onChange={(e) => setDecision(e.target.value)} className={input}>
-              <option value="admitted">admitted</option>
-              <option value="interview">interview invite</option>
-              <option value="waitlisted">waitlisted</option>
-              <option value="rejected">rejected</option>
-            </select>
-            {decision === "admitted" && (
-              <>
-                <input value={aid} onChange={(e) => setAid(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="aid offered, USD/yr (0 if none)" className={`${input} w-56`} />
-                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="aid details (scholarship name, assistantship...)" className={`${input} min-w-0 flex-1`} />
-                <label className="flex items-center gap-1 text-neutral-500">reply by <input type="date" value={acceptBy} onChange={(e) => setAcceptBy(e.target.value)} className={input} /></label>
-              </>
-            )}
-            <button
-              disabled={busy}
-              onClick={() =>
-                act({
-                  action: "record_decision",
-                  decision,
-                  ...(decision === "admitted" ? { aid_amount_usd: aid ? Number(aid) : 0, aid_note: note || undefined, accept_by: acceptBy || undefined } : {}),
-                })
-              }
-              className={btn}
-            >
-              save
-            </button>
-          </div>
+  if (status === "packet_approved") {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-5 py-3.5 text-sm">
+        <span className="text-muted">Signed. Submitted it yourself instead? Let us know so the agents stop.</span>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => act({ action: "mark_submitted" }, "Marked as submitted")}>
+          I submitted it myself
+        </Button>
+      </div>
+    );
+  }
+
+  if (["submitted", "under_review", "interview", "waitlisted"].includes(status)) {
+    return (
+      <Panel className="space-y-4 p-5">
+        <div>
+          <h2 className="font-semibold">Heard back?</h2>
+          <p className="mt-0.5 text-sm text-muted">The inbox watcher records most decisions for you. If one came another way, add it here. An admit with an aid offer starts the funding agent.</p>
         </div>
-      )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Decision">
+            <Select value={decision} onChange={(e) => setDecision(e.target.value)}>
+              <option value="admitted">Admitted</option>
+              <option value="interview">Interview invite</option>
+              <option value="waitlisted">Waitlisted</option>
+              <option value="rejected">Not admitted</option>
+            </Select>
+          </Field>
+          {decision === "admitted" && (
+            <>
+              <Field label="Aid offered per year, USD" hint="0 if none">
+                <Input inputMode="decimal" value={aid} onChange={(e) => setAid(e.target.value.replace(/[^0-9.]/g, ""))} />
+              </Field>
+              <Field label="Aid details" hint="Scholarship name, assistantship, and so on">
+                <Input value={note} onChange={(e) => setNote(e.target.value)} />
+              </Field>
+              <Field label="Reply by">
+                <Input type="date" value={acceptBy} onChange={(e) => setAcceptBy(e.target.value)} />
+              </Field>
+            </>
+          )}
+        </div>
+        <Button
+          disabled={busy}
+          onClick={() =>
+            act(
+              { action: "record_decision", decision, ...(decision === "admitted" ? { aid_amount_usd: aid ? Number(aid) : 0, aid_note: note || undefined, accept_by: acceptBy || undefined } : {}) },
+              "Decision recorded",
+            )
+          }
+        >
+          {busy ? "Saving…" : "Record decision"}
+        </Button>
+      </Panel>
+    );
+  }
 
-      {status === "admitted" && <p className="text-sm">admitted. the funding agent is working on this school: see the funding plan and drafts below.</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
-    </section>
-  );
+  if (status === "admitted") {
+    return (
+      <Panel tone="go" className="flex items-start gap-3 p-5 text-sm">
+        <Trophy className="mt-0.5 size-5 shrink-0 text-go" aria-hidden />
+        <p>
+          <span className="block font-semibold">Admitted.</span>
+          The funding agent is working on this school. Its plan and any emails it drafted are below.
+        </p>
+      </Panel>
+    );
+  }
+  return null;
 }

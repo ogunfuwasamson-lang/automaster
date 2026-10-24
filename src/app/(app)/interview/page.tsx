@@ -3,6 +3,7 @@ import { loadProfile, completeness } from "@/lib/profile";
 import { Interview } from "./interview";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Interview" };
 
 export default async function InterviewPage() {
   const auth = await requireUser();

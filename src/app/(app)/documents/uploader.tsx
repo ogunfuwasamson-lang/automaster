@@ -1,92 +1,78 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { browserClient } from "@/lib/supabase/browser";
+import { UploadCloud } from "lucide-react";
+import { toast } from "sonner";
+import { uploadDocument } from "@/lib/upload-client";
+import { Select } from "@/components/ui/field";
+import { DOC_KINDS } from "@/lib/doc-kinds";
 
-const KINDS = [
-  ["cv", "CV / resume"],
-  ["transcript", "transcript"],
-  ["degree_certificate", "degree certificate"],
-  ["test_score", "test score report"],
-  ["reference_letter", "reference letter"],
-  ["old_essay", "old essay / SOP"],
-  ["other", "other"],
-] as const;
-
-const MAX = 10 * 1024 * 1024;
-
-function safeName(name: string) {
-  return name.replace(/[^\w.\-]+/g, "_").slice(-120) || "file";
-}
+const KINDS = DOC_KINDS;
 
 export function Uploader({ userId }: { userId: string }) {
   const [kind, setKind] = useState<string>("cv");
   const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState("");
+  const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  async function upload(files: FileList | null) {
-    if (!files?.length) return;
-    setErr("");
-    const sb = browserClient();
-    for (const file of Array.from(files)) {
-      if (file.size > MAX) {
-        setErr(`${file.name} is over 10MB`);
-        continue;
-      }
+  async function upload(files: FileList | File[] | null) {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
+    let ok = 0;
+    for (const file of list) {
       setBusy(file.name);
-      const id = crypto.randomUUID();
-      const path = `${userId}/${id}/${safeName(file.name)}`;
-      const { error } = await sb.storage.from("documents").upload(path, file, { contentType: file.type || undefined });
-      if (error) {
-        setErr(`${file.name}: ${error.message}`);
-        continue;
-      }
-      const res = await fetch("/api/documents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, kind, filename: file.name, storagePath: path, mime: file.type || "", size: file.size }),
-      });
-      if (!res.ok) setErr(`${file.name}: ${(await res.json().catch(() => ({}))).error ?? res.statusText}`);
+      const err = await uploadDocument(userId, file, kind);
+      if (err) toast.error(err);
+      else ok++;
     }
     setBusy(null);
     if (input.current) input.current.value = "";
+    if (ok) toast.success(ok === 1 ? "Uploaded. Reading it now." : `${ok} files uploaded. Reading them now.`);
     router.refresh();
-    // extraction takes ~20-60s; refresh a couple of times so status updates
-    setTimeout(() => router.refresh(), 20000);
-    setTimeout(() => router.refresh(), 60000);
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-neutral-500" htmlFor="kind">this is a</label>
-        <select
-          id="kind"
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className="rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700"
-        >
-          {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <button
-          onClick={() => input.current?.click()}
-          disabled={!!busy}
-          className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
-        >
-          {busy ? `uploading ${busy}…` : "choose files"}
-        </button>
-        <input
-          ref={input}
-          type="file"
-          multiple
-          accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={(e) => upload(e.target.files)}
-        />
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        upload(e.dataTransfer.files);
+      }}
+      className={`rounded-2xl border-2 border-dashed p-6 transition-colors sm:p-8 ${over ? "border-foreground bg-neutral-100 dark:bg-neutral-900" : "border-line bg-surface"}`}
+    >
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="grid size-12 place-items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+          <UploadCloud className={`size-5 ${busy ? "animate-bounce" : ""}`} aria-hidden />
+        </span>
+        <div>
+          <p className="font-medium">{busy ? `Uploading ${busy}…` : "Drop files here"}</p>
+          <p className="mt-0.5 text-sm text-muted">PDF, Word, images or text, up to 10 MB each</p>
+        </div>
+        <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row">
+          <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="What kind of document">
+            {KINDS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </Select>
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            disabled={!!busy}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-foreground px-4 text-sm font-medium text-background hover:bg-neutral-700 disabled:opacity-45 dark:hover:bg-neutral-200"
+          >
+            Choose files
+          </button>
+        </div>
+        <input ref={input} type="file" multiple accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => upload(e.target.files)} />
       </div>
-      {err && <p className="text-sm text-red-600">{err}</p>}
     </div>
   );
 }

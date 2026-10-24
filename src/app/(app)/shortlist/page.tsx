@@ -4,9 +4,14 @@ import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } 
 import { REGIONS, loadProfile } from "@/lib/profile";
 import { userPlan } from "@/lib/budget";
 import Link from "next/link";
+import { ChevronDown, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
+import { PageHeader, Section, Notice, Empty } from "@/components/ui/page";
+import { ButtonLink } from "@/components/ui/button";
+import { Tag, chipClass } from "@/components/ui/chip";
 import { PrepareButton } from "../applications/[id]/prepare-button";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Shortlist" };
 
 interface Funding {
   name: string;
@@ -50,34 +55,35 @@ interface Matched {
   funding_opportunities: { name: string; sponsor: string | null; url: string | null; amount_note: string | null; deadline: string | null; eligibility: string | null; intl_eligible: boolean | null };
 }
 
-const FIT: Record<string, string> = {
-  strong: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  possible: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  long_shot: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
+const FIT: Record<string, [string, "go" | "plain" | "signal"]> = { strong: ["Strong fit", "go"], possible: ["Possible fit", "plain"], long_shot: ["Long shot", "plain"] };
+const TIER: Record<string, string> = { reach: "Reach", target: "Target", safety: "Safety" };
+const FUND: Record<string, [string, "go" | "plain" | "stop"]> = {
+  likely: ["Full funding likely", "go"],
+  possible: ["Full funding possible", "plain"],
+  rare: ["Full funding rare", "stop"],
+  unknown: ["Funding unclear", "plain"],
 };
-
-const TIER: Record<string, string> = {
-  reach: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-  target: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  safety: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-};
-const FUND: Record<string, string> = { likely: "full funding likely", possible: "full funding possible", rare: "full funding rare", unknown: "funding unclear" };
-const TEST: Record<string, string> = { required: "GRE/GMAT required", optional: "test optional", waivable: "test waivable", not_required: "no test", unknown: "test policy ?" };
-const ENG: Record<string, string> = { accepted: "MOI waiver ok", not_accepted: "needs english test", case_by_case: "MOI case by case", unknown: "english ?" };
-
-function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${className || "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>{children}</span>;
-}
+const TEST: Record<string, string> = { required: "GRE/GMAT required", optional: "Test optional", waivable: "Test waivable", not_required: "No test", unknown: "Test policy unclear" };
+const ENG: Record<string, string> = { accepted: "English waiver accepted", not_accepted: "Needs English test", case_by_case: "English waiver case by case", unknown: "English rules unclear" };
 
 function Due({ date, today }: { date: string | null; today: string }) {
-  if (!date) return <span className="text-neutral-400">no date</span>;
+  if (!date) return <span className="text-sm text-muted">No date yet</span>;
   const d = daysUntil(date, today);
-  const tone = d < 0 ? "text-neutral-400 line-through" : d <= 14 ? "text-red-600 font-medium" : d <= 45 ? "text-amber-600" : "";
+  const tone = d < 0 ? "text-muted line-through" : d <= 14 ? "font-medium text-stop" : "";
   return (
-    <span className={tone}>
-      {new Date(date + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}
-      <span className="ml-1 text-xs text-neutral-500">{d < 0 ? "passed" : `${d}d`}</span>
+    <span className={`text-sm tabular ${tone}`}>
+      {new Date(date + "T00:00:00Z").toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })}
+      <span className="ml-1.5 text-xs font-normal text-muted">{d < 0 ? "passed" : d === 0 ? "today" : `${d} days`}</span>
     </span>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-0.5 leading-relaxed">{children}</dd>
+    </div>
   );
 }
 
@@ -86,68 +92,117 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
   const fs = p.funding_signals ?? {};
   const flags = (r.fit_reasoning ?? "").split("\n").filter((l) => l.startsWith("⚑")).map((l) => l.slice(2));
   const reasoning = (r.fit_reasoning ?? "").split("\n").filter((l) => !l.startsWith("⚑")).join(" ");
+  const [fund, fundTone] = FUND[fs.full_funding_realistic ?? "unknown"] ?? FUND.unknown;
   return (
-    <details className="group rounded-md border border-neutral-200 dark:border-neutral-800">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{p.schools.name}</p>
-          <p className="truncate text-sm text-neutral-500">
-            {p.name} · {p.degree} · {[p.schools.city, p.schools.country].filter(Boolean).join(", ")}
-            {p.schools.ranking_note ? <span className="text-neutral-400"> · {p.schools.ranking_note}</span> : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {r.tier && <Badge className={TIER[r.tier]}>{r.tier}</Badge>}
-          {r.fit_score != null && <Badge>fit {r.fit_score}/10</Badge>}
-          <Badge>{FUND[fs.full_funding_realistic ?? "unknown"]}</Badge>
-        </div>
-        <div className="w-28 text-right text-sm"><Due date={r.target_deadline} today={today} /></div>
-      </summary>
-      <div className="space-y-3 border-t border-neutral-200 px-4 py-3 text-sm dark:border-neutral-800">
-        <div className="flex flex-wrap gap-1.5">
-          <Badge>{TEST[p.test_policy ?? "unknown"]}</Badge>
-          <Badge>{ENG[fs.english_moi_waiver ?? "unknown"]}</Badge>
-          {fs.post_study_work ? <Badge>{fs.post_study_work}</Badge> : p.stem_designated != null && <Badge>{p.stem_designated ? "STEM (36mo OPT)" : "not STEM"}</Badge>}
-          {p.app_fee_usd != null && <Badge>fee ${p.app_fee_usd}</Badge>}
-          {p.tuition_usd != null && <Badge>tuition ${p.tuition_usd.toLocaleString()}</Badge>}
-        </div>
-        {reasoning && <p className="text-neutral-700 dark:text-neutral-300">{reasoning}</p>}
-        {r.angle && <p><span className="text-neutral-500">your angle: </span>{r.angle}</p>}
-        {flags.length > 0 && (
-          <ul className="list-disc pl-5 text-amber-700 dark:text-amber-400">{flags.map((f) => <li key={f}>{f}</li>)}</ul>
+    <details className="group overflow-hidden rounded-xl border border-line bg-surface open:shadow-[0_1px_0_var(--color-line)]">
+      <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-3.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 sm:px-5">
+        {r.fit_score != null ? (
+          <span className="grid size-11 shrink-0 place-content-center rounded-full border-2 border-foreground/80 text-center leading-none" title={`Fit ${r.fit_score} out of 10`}>
+            <span className="font-display text-lg font-bold tabular">{r.fit_score}</span>
+          </span>
+        ) : (
+          <span className="size-11 shrink-0 rounded-full border-2 border-dashed border-line" aria-hidden />
         )}
-        {fs.summary && <p><span className="text-neutral-500">funding: </span>{fs.summary}</p>}
-        {p.funding_opportunities?.length > 0 && (
-          <ul className="space-y-1">
-            {p.funding_opportunities.map((f) => (
-              <li key={f.name}>
-                {f.url ? <a href={f.url} target="_blank" rel="noreferrer" className="underline">{f.name}</a> : f.name}
-                <span className="text-neutral-500"> · {f.kind.replace("_", " ")}{f.amount_note ? ` · ${f.amount_note}` : ""}{f.intl_eligible === false ? " · not for internationals" : ""}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2">
+            <span className="truncate font-medium">{p.schools.name}</span>
+            {r.tier && <span className="shrink-0 text-xs text-muted">{TIER[r.tier] ?? r.tier}</span>}
+          </span>
+          <span className="block truncate text-sm text-muted">
+            {p.name}
+            {[p.schools.city, p.schools.country].filter(Boolean).length ? `, ${[p.schools.city, p.schools.country].filter(Boolean).join(", ")}` : ""}
+          </span>
+          <span className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
+            <Tag tone={fundTone}>{fund}</Tag>
+          </span>
+        </span>
+        <span className="hidden sm:block">
+          <Tag tone={fundTone}>{fund}</Tag>
+        </span>
+        <span className="w-24 shrink-0 text-right">
+          <Due date={r.target_deadline} today={today} />
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="space-y-5 border-t border-line px-4 py-5 text-sm sm:px-5">
+        <div className="flex flex-wrap gap-1.5">
+          <Tag>{TEST[p.test_policy ?? "unknown"]}</Tag>
+          <Tag>{ENG[fs.english_moi_waiver ?? "unknown"]}</Tag>
+          {fs.post_study_work ? <Tag>{fs.post_study_work}</Tag> : p.stem_designated != null && <Tag>{p.stem_designated ? "STEM, 36 months OPT" : "Not STEM"}</Tag>}
+          {p.app_fee_usd != null && <Tag>{p.app_fee_usd ? `Fee $${p.app_fee_usd}` : "No fee"}</Tag>}
+          {p.tuition_usd != null && <Tag>Tuition ${p.tuition_usd.toLocaleString()}</Tag>}
+          {p.schools.ranking_note && <Tag>{p.schools.ranking_note}</Tag>}
+        </div>
+        {flags.length > 0 && (
+          <ul className="space-y-1 rounded-lg border border-signal/60 bg-signal/10 px-4 py-3">
+            {flags.map((f) => (
+              <li key={f} className="flex gap-2">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                {f}
               </li>
             ))}
           </ul>
         )}
-        {p.fee_waiver && <p><span className="text-neutral-500">fee waiver: </span>{p.fee_waiver}</p>}
-        {p.deadlines?.length > 0 && (
+        <dl className="grid gap-4 sm:grid-cols-2">
+          {reasoning && <Fact label="Why it fits">{reasoning}</Fact>}
+          {r.angle && <Fact label="Your angle">{r.angle}</Fact>}
+          {fs.summary && <Fact label="Funding">{fs.summary}</Fact>}
+          {p.fee_waiver && <Fact label="Fee waiver">{p.fee_waiver}</Fact>}
+        </dl>
+        {p.funding_opportunities?.length > 0 && (
           <div>
-            <p className="text-neutral-500">rounds</p>
-            <ul>
-              {p.deadlines.map((d) => (
-                <li key={d.round + d.date}>
-                  {d.round}: {d.date ? <Due date={d.date} today={today} /> : "date not found"}
-                  {d.funding_priority === "yes" && <span className="ml-1 text-xs text-emerald-700 dark:text-emerald-400">priority/funding round</span>}
+            <p className="mb-1.5 text-xs text-muted">Funding at this school</p>
+            <ul className="space-y-1">
+              {p.funding_opportunities.map((f) => (
+                <li key={f.name}>
+                  {f.url ? (
+                    <a href={f.url} target="_blank" rel="noreferrer" className="font-medium underline-offset-4 hover:underline">
+                      {f.name}
+                    </a>
+                  ) : (
+                    <span className="font-medium">{f.name}</span>
+                  )}
+                  <span className="text-muted">
+                    , {f.kind.replace(/_/g, " ")}
+                    {f.amount_note ? `, ${f.amount_note}` : ""}
+                    {f.intl_eligible === false ? ", not open to international students" : ""}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          {(p.url || r.portal_url) && <a href={p.url ?? r.portal_url!} target="_blank" rel="noreferrer" className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700">program page</a>}
-          {r.status === "shortlisted" && <PrepareButton id={r.id} replan={false} busy={false} label="prepare application" />}
-          {!["researching", "shortlisted", "dropped"].includes(r.status) && <Link href={`/applications/${r.id}`} className="rounded-md bg-neutral-900 px-2.5 py-1 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900">open application</Link>}
-          {r.status === "researching" && <MoveButton id={r.id} to="shortlisted" label="add to shortlist" />}
-          {(r.status === "researching" || r.status === "shortlisted") && <MoveButton id={r.id} to="dropped" label="drop" />}
-          {p.source_urls?.length > 0 && <span className="text-xs text-neutral-500">{p.source_urls.length} sources checked</span>}
+        {p.deadlines?.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-xs text-muted">Rounds</p>
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {p.deadlines.map((d) => (
+                <li key={d.round + d.date} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <span>
+                    {d.round}
+                    {d.funding_priority === "yes" && <span className="ml-2 text-xs text-go">Funding priority</span>}
+                  </span>
+                  {d.date ? <Due date={d.date} today={today} /> : <span className="text-sm text-muted">Date not found</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {r.status === "shortlisted" && <PrepareButton id={r.id} replan={false} busy={false} label="Prepare application" size="sm" />}
+          {!["researching", "shortlisted", "dropped"].includes(r.status) && (
+            <ButtonLink href={`/applications/${r.id}`} size="sm">
+              Open application
+            </ButtonLink>
+          )}
+          {r.status === "researching" && <MoveButton id={r.id} to="shortlisted" label="Add to shortlist" />}
+          {(p.url || r.portal_url) && (
+            <ButtonLink href={p.url ?? r.portal_url!} external size="sm" variant="secondary">
+              Program page <ExternalLink className="size-3.5" aria-hidden />
+            </ButtonLink>
+          )}
+          {(r.status === "researching" || r.status === "shortlisted") && <MoveButton id={r.id} to="dropped" label="Drop" />}
+          {p.source_urls?.length > 0 && <span className="ml-auto text-xs text-muted">Checked against {p.source_urls.length} official pages</span>}
         </div>
       </div>
     </details>
@@ -207,140 +262,155 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
     .sort((a, b) => a.d.date.localeCompare(b.d.date))
     .slice(0, 8);
 
-  return (
-    <main className="mx-auto max-w-4xl space-y-8 px-4 py-10">
-      {active.length > 0 && <AutoRefresh every={20000} />}
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">shortlist</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            {rows.length ? `${shortlisted.length} shortlisted · ${checking.length} need a check · ${dropped.length} dropped` : "recon reads official program pages and checks funding, tests, english waivers and deadlines for each one."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-start gap-2">
-          <ScholarshipButton running={active.some((j) => j.task === "scholarships")} />
-          <ReconButton running={active.some((j) => j.task !== "scholarships")} hasRows={rows.length > 0} />
-        </div>
-      </header>
+  const counts = [
+    shortlisted.length && `${shortlisted.length} shortlisted`,
+    checking.length && `${checking.length} to check`,
+    later.length && `${later.length} in progress`,
+  ].filter(Boolean);
 
-      <Preferences
-        regions={prof.preferences.regions ?? []}
-        degreeTypes={prof.goals.degree_types ?? []}
-        allRegions={REGIONS}
-        level={prof.goals.study_level}
-        maxRegions={plan.maxRegions}
+  return (
+    <div className="mx-auto max-w-4xl space-y-8">
+      {active.length > 0 && <AutoRefresh every={20000} />}
+      <PageHeader
+        title="Shortlist"
+        description={
+          rows.length
+            ? `${counts.join(", ")}. Recon checks each program's official pages for funding, tests, English rules and deadlines.`
+            : "Recon reads official program pages and checks funding, tests, English rules and deadlines for each one."
+        }
+        actions={
+          <>
+            <ScholarshipButton running={active.some((j) => j.task === "scholarships")} />
+            <ReconButton running={active.some((j) => j.task !== "scholarships")} hasRows={rows.length > 0} />
+          </>
+        }
       />
 
+      <Preferences regions={prof.preferences.regions ?? []} degreeTypes={prof.goals.degree_types ?? []} allRegions={REGIONS} level={prof.goals.study_level} maxRegions={plan.maxRegions} />
+
+      {active.length > 0 && (
+        <Notice tone="plain">
+          <span className="flex items-center gap-2">
+            <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden />
+            {active.filter((j) => j.task === "discover").length ? "Recon is finding programs." : `Recon is researching ${active.length} program${active.length === 1 ? "" : "s"}.`} This page updates on its own.
+          </span>
+        </Notice>
+      )}
+      {failed.length > 0 && !active.length && (
+        <Notice tone="stop">
+          {failed.length} search{failed.length === 1 ? "" : "es"} didn&apos;t finish. Choose Find more programs to run it again.
+        </Notice>
+      )}
+
       {presentRegions.length > 1 && (
-        <nav className="flex flex-wrap gap-1.5 text-sm">
-          <Link href="/shortlist" className={`rounded-full border px-3 py-1 ${!regionFilter ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-300 text-neutral-500 dark:border-neutral-700"}`}>
-            all regions
+        <nav className="flex flex-wrap gap-1.5" aria-label="Filter by region">
+          <Link href="/shortlist" className={chipClass(!regionFilter)} aria-current={!regionFilter ? "page" : undefined}>
+            All regions
           </Link>
           {presentRegions.map((r) => (
-            <Link
-              key={r}
-              href={`/shortlist?region=${r}`}
-              className={`rounded-full border px-3 py-1 ${regionFilter === r ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-300 text-neutral-500 dark:border-neutral-700"}`}
-            >
+            <Link key={r} href={`/shortlist?region=${r}`} className={chipClass(regionFilter === r)} aria-current={regionFilter === r ? "page" : undefined}>
               {REGIONS[r] ?? r}
             </Link>
           ))}
         </nav>
       )}
 
-      {active.length > 0 && (
-        <p className="rounded-md border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-          recon is working: {active.filter((j) => j.task === "discover").length ? "finding programs…" : `researching ${active.length} program${active.length === 1 ? "" : "s"}…`} this page updates on its own.
-        </p>
-      )}
-      {failed.length > 0 && (
-        <p className="rounded-md border border-red-200 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:text-red-400">
-          {failed.length} research job{failed.length === 1 ? "" : "s"} didn&apos;t finish. you can run &quot;find more programs&quot; again.
-        </p>
+      {!rows.length && !active.length && (
+        <Empty title="No programs yet" body="Set what to search for above, then build your shortlist. It takes a few minutes per region." action={<ReconButton running={false} hasRows={false} />} />
       )}
 
-      {notes.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">recon&apos;s read on your strategy</h2>
-          <ul className="list-disc space-y-1 rounded-md border border-neutral-200 py-3 pl-9 pr-4 text-sm dark:border-neutral-800">
-            {notes.map((n) => (
-              <li key={n.region + n.text}>
-                <span className="text-neutral-500">{REGIONS[n.region] ?? n.region}: </span>
-                {n.text}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {timeline.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">next deadlines</h2>
-          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
-            {timeline.map(({ r, d }) => (
-              <li key={r.id + d.round} className="flex items-center justify-between gap-3 px-4 py-2">
-                <span className="min-w-0 truncate">{r.programs.schools.name} · <span className="text-neutral-500">{d.round}{d.funding_priority === "yes" ? " (funding)" : ""}</span></span>
-                <Due date={d.date} today={today} />
-              </li>
-            ))}
-          </ul>
-        </section>
+      {(notes.length > 0 || timeline.length > 0) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {timeline.length > 0 && (
+            <Section title="Next deadlines">
+              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+                {timeline.map(({ r, d }) => (
+                  <li key={r.id + d.round} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                    <span className="min-w-0 truncate">
+                      {r.programs.schools.name}
+                      <span className="text-muted">
+                        , {d.round}
+                        {d.funding_priority === "yes" ? " (funding round)" : ""}
+                      </span>
+                    </span>
+                    <Due date={d.date} today={today} />
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+          {notes.length > 0 && (
+            <Section title="Recon's read on your strategy">
+              <ul className="space-y-2.5 rounded-xl border border-line bg-surface px-4 py-3.5 text-sm">
+                {notes.map((n) => (
+                  <li key={n.region + n.text} className="leading-relaxed">
+                    <span className="font-medium">{REGIONS[n.region] ?? n.region}.</span> {n.text}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+        </div>
       )}
 
       {shortlisted.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">shortlisted</h2>
-          {shortlisted.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}
-        </section>
+        <Section title="Shortlisted" description="Open one to see the details, then prepare it.">
+          <div className="space-y-2">{shortlisted.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
+        </Section>
       )}
       {checking.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">needs a check</h2>
-          <p className="text-sm text-neutral-500">something important is unconfirmed or weak (see the ⚑ flags). add it to the shortlist if you&apos;re ok with that.</p>
-          {checking.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}
-        </section>
+        <Section title="Worth a check" description="Something important is unconfirmed or weak. The flags inside say what. Add it if you're fine with that.">
+          <div className="space-y-2">{checking.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
+        </Section>
       )}
       {later.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">in progress</h2>
-          {later.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}
-        </section>
+        <Section title="In progress" action={<Link href="/applications" className="text-sm text-muted underline-offset-4 hover:underline">All applications</Link>}>
+          <div className="space-y-2">{later.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
+        </Section>
       )}
       {scholarships.length > 0 && (
-        <section>
-          <h2 className="mb-1 text-sm font-medium uppercase tracking-wide text-neutral-500">scholarships matched to you ({scholarships.length})</h2>
-          <p className="mb-3 text-sm text-neutral-500">found by your hooks: awards, ventures, employers, industry, leadership, region. not just nationality.</p>
-          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
+        <Section title={`Scholarships for you (${scholarships.length})`} description="Matched on what makes you stand out, like awards, ventures, employers and region, not only nationality.">
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface text-sm">
             {scholarships.map((x) => {
               const o = x.funding_opportunities;
+              const fit = x.fit ? FIT[x.fit] : null;
               return (
-                <li key={x.id} className="space-y-1 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {o.url ? <a href={o.url} target="_blank" rel="noreferrer" className="underline">{o.name}</a> : o.name}
-                      {o.sponsor && <span className="font-normal text-neutral-500"> · {o.sponsor}</span>}
+                <li key={x.id} className="space-y-1.5 px-4 py-3.5 sm:px-5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      {o.url ? (
+                        <a href={o.url} target="_blank" rel="noreferrer" className="font-medium underline-offset-4 hover:underline">
+                          {o.name}
+                        </a>
+                      ) : (
+                        <span className="font-medium">{o.name}</span>
+                      )}
+                      {o.sponsor && <span className="block text-muted">{o.sponsor}</span>}
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      {x.fit && <Badge className={FIT[x.fit]}>{x.fit.replace("_", " ")}</Badge>}
+                    <span className="flex items-center gap-2">
+                      {fit && <Tag tone={fit[1]}>{fit[0]}</Tag>}
                       {o.deadline && <Due date={o.deadline} today={today} />}
                     </span>
                   </div>
-                  {x.why && <p><span className="text-neutral-500">why you: </span>{x.why}</p>}
-                  <p className="text-neutral-500">
-                    {[o.amount_note, o.intl_eligible === false ? "not open to internationals" : null, o.eligibility].filter(Boolean).join(" · ")}
-                  </p>
+                  {x.why && <p className="leading-relaxed">{x.why}</p>}
+                  {(o.amount_note || o.intl_eligible === false || o.eligibility) && (
+                    <p className="text-muted">{[o.amount_note, o.intl_eligible === false ? "Not open to international students" : null, o.eligibility].filter(Boolean).join(". ")}</p>
+                  )}
                 </li>
               );
             })}
           </ul>
-        </section>
+        </Section>
       )}
       {dropped.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-sm text-neutral-500">dropped ({dropped.length})</summary>
-          <div className="mt-2 space-y-2">{dropped.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
+        <details className="group">
+          <summary className="flex cursor-pointer select-none items-center gap-1 text-sm text-muted hover:text-foreground">
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+            Dropped ({dropped.length})
+          </summary>
+          <div className="mt-3 space-y-2">{dropped.map((r) => <ProgramCard key={r.id} r={r} today={today} />)}</div>
         </details>
       )}
-    </main>
+    </div>
   );
 }
