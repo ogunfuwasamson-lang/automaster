@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleCheck, Copy, Mail, Puzzle, TriangleAlert } from "lucide-react";
+import { CircleCheck, Mail, Puzzle, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { CAPABILITY_LABEL, MODE_LABEL, USER_SETTABLE } from "@/lib/dial";
 import type { GrantMode } from "@/lib/policy";
@@ -197,56 +197,21 @@ export function MailCard({ available, email, status, error, notice }: { availabl
 }
 
 export function RunnerCard({ tokens }: { tokens: { id: string; label: string | null; created_at: string; last_used_at: string | null }[] }) {
-  const [fresh, setFresh] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const router = useRouter();
   return (
     <details className="group rounded-3xl border border-line bg-surface shadow-card">
       <summary className="flex cursor-pointer select-none items-center gap-3 px-5 py-4">
         <Puzzle className="size-4 shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">Browser extension (optional)</span>
-          <span className="block text-xs text-muted">Only for portals that block our servers</span>
+          <span className="block text-sm font-medium">Your Chrome</span>
+          <span className="block text-xs text-muted">{tokens.length ? "Connected" : "For portals that block cloud browsers"}</span>
         </span>
       </summary>
       <div className="space-y-4 border-t border-line px-5 py-4 text-sm">
-        <p>You don&apos;t need this: the agents submit from our servers. The extension lets the same work run in your own Chrome for the few portals that refuse servers.</p>
-        <ol className="list-decimal space-y-1.5 pl-5 text-muted">
-          <li>
-            <a href="/automaster-runner.zip" className="font-medium text-foreground underline underline-offset-4">
-              Download the extension
-            </a>{" "}
-            and unzip it.
-          </li>
-          <li>
-            In Chrome, open <code className="rounded bg-neutral-100 px-1 text-xs dark:bg-neutral-800">chrome://extensions</code>, turn on Developer mode, choose Load unpacked and pick the unzipped folder.
-          </li>
-          <li>Create a key below and paste it into the extension.</li>
-        </ol>
-        {fresh ? (
-          <div className="space-y-2 rounded-2xl border border-accent/25 bg-accent/[0.06] p-4">
-            <p className="text-xs text-muted">Your key. It&apos;s shown once, so paste it into the extension now.</p>
-            <p className="break-all font-mono text-sm">{fresh}</p>
-            <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(fresh).then(() => toast.success("Key copied"))}>
-              <Copy className="size-3.5" aria-hidden /> Copy
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              const r = await post("/api/runner/token", { label: "chrome" }).catch(() => null);
-              if (!r) toast.error("Couldn't create a key");
-              setFresh(r?.token ?? null);
-              setBusy(false);
-              router.refresh();
-            }}
-          >
-            Create extension key
-          </Button>
-        )}
+        <p>When a portal won&apos;t let the cloud browser in, the agents finish that application in a background tab of your own Chrome. Set it up once.</p>
+        <ButtonLink href="/connect-chrome" size="sm" variant="secondary">
+          {tokens.length ? "Connect another browser" : "Connect Chrome"}
+        </ButtonLink>
         {tokens.length ? (
           <ul className="divide-y divide-line rounded-lg border border-line">
             {tokens.map((t) => (

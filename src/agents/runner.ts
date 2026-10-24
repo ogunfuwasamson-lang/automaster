@@ -12,7 +12,8 @@ import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { openBrowser, type StorageState } from "@/lib/browser";
-import { runEngine, type EngineState, type NavInput } from "@/lib/cloud-engine";
+import { runEngine, type EngineDeps, type EngineState, type NavInput } from "@/lib/cloud-engine";
+import { fromPlaywright } from "@/lib/engine-page";
 import { resolve, keyMenu } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
@@ -69,7 +70,7 @@ ${buttons.join("\n") || "none"}`;
 const CredOut = z.object({ username: z.string(), password: z.string() });
 
 // a login the portal emailed to the applicant, read from their inbox and kept in the vault
-async function issuedLogin(userId: string, applicationId: string, jobId: string, host: string, since: number) {
+async function issuedLogin(userId: string, applicationId: string, jobId: string | null, host: string, since: number) {
   const root = hostRoot(host);
   const mails = await recentMail(userId, `newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => []);
   for (const m of mails.filter((x) => x.at >= since).sort((a, b) => b.at - a.at)) {
@@ -80,7 +81,7 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string,
         const { output } = await runStructured({
           userId,
           agent: "runner",
-          jobId,
+          jobId: jobId ?? undefined,
           promptVersion: "issued-login-v1",
           tier: "cheap",
           system: "extract the portal login (user id or username, and password) that this email gives the applicant. empty strings if the email doesn't contain one. copy them exactly.",
@@ -100,10 +101,113 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string,
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
-type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number };
+export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number };
 
-async function setRunner(applicationId: string, patch: Record<string, unknown>) {
+export async function setRunner(applicationId: string, patch: Record<string, unknown>) {
   await admin().from("applications").update({ ...patch, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
+}
+
+// everything the engine needs from our side (fill sheet, logins vault, inbox, the navigator model). the browser
+// is separate: playwright in the cloud, the applicant's chrome through the extension, or a live session.
+export interface DepsCtx {
+  userId: string;
+  applicationId: string;
+  jobId: string | null;
+  sheet: FillSheet;
+  readMail: boolean;
+  host: () => string;
+}
+export function serverDeps(c: DepsCtx): EngineDeps {
+  let lastNote = "";
+  return {
+    map: (fields) => mapFields(c.userId, c.sheet, fields),
+    file: (key) => sheetFile(c.userId, c.sheet, key),
+    canSubmit: () => submitDecision(c.userId, c.applicationId),
+    existingLogin: () => getLogin(c.userId, c.host(), c.applicationId),
+    createLogin: async (email) => {
+      const l = await createLogin(c.userId, c.applicationId, c.host(), email);
+      await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.account_created", applicationId: c.applicationId, channel: "portal", context: { host: c.host(), email } });
+      return l;
+    },
+    accountEmail: c.sheet.fields.email ?? "",
+    canReadMail: c.readMail,
+    navigate: async (n) => {
+      const { output } = await runStructured({
+        userId: c.userId,
+        agent: "runner",
+        jobId: c.jobId ?? undefined,
+        promptVersion: "nav-v1",
+        tier: "cheap",
+        system: NAV_SYSTEM,
+        cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(c.sheet)}`,
+        prompt: navPrompt(n, c.sheet),
+        schema: NavOut,
+        maxTokens: 400,
+      });
+      return output;
+    },
+    fillFromKey: (f, key) => resolve(f, key, c.sheet),
+    loginFromMail: c.readMail ? (since) => issuedLogin(c.userId, c.applicationId, c.jobId, c.host(), since) : undefined,
+    verification: (since) => findVerification(c.userId, c.host(), since),
+    progress: async (note) => {
+      if (note === lastNote) return;
+      lastNote = note;
+      await setRunner(c.applicationId, { runner_note: note });
+    },
+  };
+}
+
+export async function findVerification(userId: string, host: string, since: number) {
+  const root = hostRoot(host);
+  const mails = await recentMail(userId, `newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);
+  for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
+    const v = extractVerification(m, host);
+    if (v.code || v.link) return v;
+  }
+  return null;
+}
+
+// the portal showed a confirmation after we pressed submit
+export async function markSubmitted(userId: string, applicationId: string, programId: string | null, note: string, url: string | null, filled: number, via: string) {
+  const db = admin();
+  const { error } = await db.from("applications").update({ status: "submitted", runner_status: "submitted", runner_note: note, runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
+  if (error) throw new Error(error.message);
+  const eventId = await logEvent({ userId, actor: "agent:runner", action: "runner.submitted", applicationId, programId, channel: "portal", context: { url, filled, via } });
+  await logEvent({ userId, actor: "agent:runner", action: "application.submitted", applicationId, programId, channel: "portal" });
+  await recordOutcome({ userId, eventId, applicationId, kind: "proxy", label: "submitted", source: "runner" });
+}
+
+// the applicant's chrome extension has checked in within the last few minutes
+export async function extensionOnline(userId: string): Promise<boolean> {
+  const since = new Date(Date.now() - 4 * 60_000).toISOString();
+  const { count } = await admin().from("runner_tokens").select("id", { count: "exact", head: true }).eq("user_id", userId).is("revoked_at", null).gte("last_used_at", since);
+  return (count ?? 0) > 0;
+}
+
+// portals that refuse a cloud browser (bot walls, blocked sign-ups) usually accept the applicant's own chrome:
+// move the job there. the extension picks it up within a minute.
+export const BLOCKED_REASONS = new Set(["captcha", "account", "blocked"]);
+export async function handOffToChrome(userId: string, applicationId: string, state: RunnerState, why: string) {
+  await admin()
+    .from("applications")
+    .update({
+      runner_mode: "extension",
+      runner_status: "ready",
+      runner_note: "moved to your Chrome: this portal blocks cloud browsers. It carries on there within a minute",
+      runner_state: { ...state, reason: null, rechecks: 0, samePageCount: 0, storage_enc: undefined },
+      runner_session_id: null,
+      runner_live_url: null,
+      runner_updated_at: new Date().toISOString(),
+    })
+    .eq("id", applicationId);
+  await logEvent({ userId, actor: "agent:runner", action: "runner.moved_to_chrome", applicationId, channel: "portal", context: { why } });
+}
+
+// a live browser session is open for this application: the cloud runner leaves it alone
+async function liveActive(applicationId: string): Promise<boolean> {
+  const since = new Date(Date.now() - 90_000).toISOString();
+  const { data, error } = await admin().from("live_sessions").select("id").eq("application_id", applicationId).neq("status", "ended").gte("updated_at", since).limit(1);
+  return !error && !!data?.length;
 }
 
 export const runner: Record<string, Handler> = {
@@ -169,8 +273,11 @@ export const runner: Record<string, Handler> = {
     const { applicationId } = job.payload as { applicationId: string };
     const db = admin();
     const app = await loadApp(job.user_id, applicationId);
-    const { data: row0 } = await db.from("applications").select("runner_state").eq("id", applicationId).maybeSingle();
+    const { data: row0 } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
     if (!app || app.status !== "packet_approved" || !["ready", "running", "needs_you"].includes(app.runner_status as string)) return { skipped: "not queued" };
+    // the applicant's chrome has this one, or they're driving it in the live browser
+    if (row0?.runner_mode === "extension") return { skipped: "running in the applicant's chrome" };
+    if (await liveActive(applicationId)) return { skipped: "live browser open" };
     const portal = normalizeUrl(app.portal_url);
     const checked = (job.payload as { portalChecked?: boolean }).portalChecked;
     if (!portal || (!looksLikePortal(portal) && !checked && !(row0?.runner_state as RunnerState | null)?.last_url)) {
@@ -196,54 +303,9 @@ export const runner: Record<string, Handler> = {
       if (!page.url() || page.url() === "about:blank") await page.goto(normalizeUrl(state.last_url) ?? portal, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const host = () => new URL(page.url()).hostname;
       const readMail = await canReadMail(job.user_id).catch(() => false);
-      let lastNote = "";
-
       const { outcome, state: next, filled } = await runEngine(
-        page,
-        {
-          map: (fields) => mapFields(job.user_id, sheet, fields),
-          file: (key) => sheetFile(job.user_id, sheet, key),
-          canSubmit: () => submitDecision(job.user_id, applicationId),
-          existingLogin: () => getLogin(job.user_id, host(), applicationId),
-          createLogin: async (email) => {
-            const l = await createLogin(job.user_id, applicationId, host(), email);
-            await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.account_created", applicationId, channel: "portal", context: { host: host(), email } });
-            return l;
-          },
-          accountEmail: sheet.fields.email ?? "",
-          canReadMail: readMail,
-          navigate: async (n) => {
-            const { output } = await runStructured({
-              userId: job.user_id,
-              agent: "runner",
-              jobId: job.id,
-              promptVersion: "nav-v1",
-              tier: "cheap",
-              system: NAV_SYSTEM,
-              cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(sheet)}`,
-              prompt: navPrompt(n, sheet),
-              schema: NavOut,
-              maxTokens: 400,
-            });
-            return output;
-          },
-          fillFromKey: (f, key) => resolve(f, key, sheet),
-          loginFromMail: readMail ? (since) => issuedLogin(job.user_id, applicationId, job.id, host(), since) : undefined,
-          verification: async (since) => {
-            const root = hostRoot(host());
-            const mails = await recentMail(job.user_id, `newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);
-            for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
-              const v = extractVerification(m, host());
-              if (v.code || v.link) return v;
-            }
-            return null;
-          },
-          progress: async (note) => {
-            if (note === lastNote) return;
-            lastNote = note;
-            await setRunner(applicationId, { runner_note: note });
-          },
-        },
+        fromPlaywright(page),
+        serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host }),
         state,
         RUN_BUDGET_MS,
       );
@@ -277,11 +339,7 @@ export const runner: Record<string, Handler> = {
 
       if (outcome.kind === "submitted") {
         await db.from("applications").update({ runner_state: saved, runner_session_id: null }).eq("id", applicationId);
-        const { error } = await db.from("applications").update({ status: "submitted", runner_status: "submitted", runner_note: outcome.note, runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
-        if (error) throw new Error(error.message);
-        const eventId = await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.submitted", applicationId, programId: app.program_id, channel: "portal", context: { url: page.url(), filled } });
-        await logEvent({ userId: job.user_id, actor: "agent:runner", action: "application.submitted", applicationId, programId: app.program_id, channel: "portal" });
-        await recordOutcome({ userId: job.user_id, eventId, applicationId, kind: "proxy", label: "submitted", source: "runner" });
+        await markSubmitted(job.user_id, applicationId, app.program_id, outcome.note, page.url(), filled, "cloud");
         return { submitted: true, filled };
       }
 
@@ -290,6 +348,12 @@ export const runner: Record<string, Handler> = {
         await db.from("applications").update({ runner_state: saved, runner_session_id: ob.sessionId }).eq("id", applicationId);
         await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId }, runAt: new Date(Date.now() + (outcome.kind === "wait" ? outcome.seconds * 1000 : 0)) });
         return { outcome: outcome.kind, note: outcome.note, filled };
+      }
+
+      if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason) && (await extensionOnline(job.user_id))) {
+        // the portal won't take a cloud browser: the applicant's own chrome takes over from here
+        await handOffToChrome(job.user_id, applicationId, saved, outcome.note);
+        return { outcome: "moved_to_chrome", reason: outcome.reason, filled };
       }
 
       if (outcome.kind === "needs_you") {
@@ -310,7 +374,7 @@ export const runner: Record<string, Handler> = {
         if (!liveView) {
           const login = await getLogin(job.user_id, new URL(page.url()).hostname, applicationId).catch(() => null);
           const signIn = login ? " sign in with the login shown below," : "";
-          if (outcome.reason === "captcha") outcome.note = `this portal shows a bot check to automated browsers. open it yourself,${signIn} and finish the application there (your answers are on this page). or press try again later`;
+          if (outcome.reason === "captcha" || outcome.reason === "blocked") outcome.note = "this portal blocks cloud browsers. Open the live browser to get past the check yourself, or let it run in your Chrome";
           if (outcome.reason === "payment") outcome.note = `payment page: open the portal,${signIn} and pay the fee. the agents check back every 5 minutes and confirm the submission`;
           if (outcome.reason === "verification") outcome.note = outcome.note.replace("open the live view and enter it", "enter it on the portal");
           outcome.note = outcome.note.replace(/open the live view and /g, "open the portal and ");

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { PageHeader, Empty } from "@/components/ui/page";
 import { StatusPill, daysUntil } from "@/components/ui/status";
 import { ButtonLink } from "@/components/ui/button";
+import { BlockedBanner } from "@/components/runner/blocked-banner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Applications" };
@@ -12,6 +13,8 @@ interface Row {
   id: string;
   status: string;
   runner_status: string | null;
+  runner_note: string | null;
+  runner_state: { reason?: string } | null;
   target_deadline: string | null;
   programs: { name: string; degree: string; schools: { name: string; country: string | null } };
   artifacts: { kind: string; current_version: number; artifact_versions: { version: number; critique: { status?: string } | null; user_approved_at: string | null }[] }[];
@@ -40,10 +43,11 @@ export default async function Applications() {
   if (!auth) return null;
   const { data } = await auth.sb
     .from("applications")
-    .select("id, status, runner_status, target_deadline, programs(name, degree, schools(name, country)), artifacts(kind, current_version, artifact_versions(version, critique, user_approved_at))")
+    .select("id, status, runner_status, runner_note, runner_state, target_deadline, programs(name, degree, schools(name, country)), artifacts(kind, current_version, artifact_versions(version, critique, user_approved_at))")
     .not("status", "in", "(researching,shortlisted,dropped)")
     .order("target_deadline", { ascending: true, nullsFirst: false });
   const rows = (data ?? []) as unknown as Row[];
+  const blocked = rows.filter((r) => r.status === "packet_approved" && (r.runner_status === "needs_you" || r.runner_status === "failed") && (["captcha", "blocked", "account"].includes(r.runner_state?.reason ?? "") || /blocks? (automated|cloud)|bot check/i.test(r.runner_note ?? ""))).length;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -52,6 +56,7 @@ export default async function Applications() {
         description="Soonest deadline first."
         actions={<ButtonLink href="/shortlist" variant="secondary">Add from shortlist</ButtonLink>}
       />
+      <BlockedBanner count={blocked} />
       {rows.length ? (
         <div className="space-y-8">
           {GROUPS.map(([title, statuses]) => {

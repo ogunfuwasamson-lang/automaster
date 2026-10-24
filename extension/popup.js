@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const DEFAULT_API = "https://automaster-3p9i.vercel.app";
 const send = (msg) =>
   new Promise((resolve, reject) =>
     chrome.runtime.sendMessage(msg, (res) => {
@@ -7,10 +8,10 @@ const send = (msg) =>
     }),
   );
 
-const STATUS = { ready: "queued", running: "filling now", needs_you: "needs you", failed: "problem" };
+const STATUS = { ready: "queued", running: "working", needs_you: "needs you", failed: "problem" };
 
 async function render() {
-  const c = await chrome.storage.local.get({ token: "", auto: true, api: "https://automaster-3p9i.vercel.app" });
+  const c = await chrome.storage.local.get({ token: "", auto: true, api: DEFAULT_API });
   $("setup").hidden = !!c.token;
   $("main").hidden = !c.token;
   $("auto").checked = c.auto;
@@ -20,10 +21,16 @@ async function render() {
   try {
     const d = await send({ type: "popup:tasks" });
     $("paused").hidden = !d.paused;
+    const act = $("active");
+    act.hidden = !d.active;
+    if (d.active) {
+      act.className = "task now";
+      act.textContent = `${d.active.school}: ${d.active.phase}`;
+    }
     const box = $("tasks");
     box.innerHTML = "";
     if (!d.tasks.length) {
-      box.innerHTML = '<p class="muted">nothing queued. approve and sign a packet in automaster and it shows up here.</p>';
+      box.innerHTML = '<p class="muted">nothing to submit right now. approved applications show up here.</p>';
       return;
     }
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -31,9 +38,9 @@ async function render() {
       const el = document.createElement("div");
       el.className = "task";
       const head = document.createElement("div");
-      head.innerHTML = `<b></b> <span class="muted"></span>`;
+      head.innerHTML = "<b></b> <span class=\"muted\"></span>";
       head.querySelector("b").textContent = t.school;
-      head.querySelector("span").textContent = `· ${t.program}`;
+      head.querySelector("span").textContent = t.mode === "extension" ? "· in this browser" : "· cloud";
       const st = document.createElement("div");
       st.className = t.runner_status === "needs_you" || t.runner_status === "failed" ? "warn" : "muted";
       st.textContent = (STATUS[t.runner_status] || t.runner_status) + (t.note ? `: ${t.note}` : "");
@@ -41,15 +48,15 @@ async function render() {
       row.className = "row";
       const go = document.createElement("button");
       go.className = "primary";
-      go.textContent = t.runner_status === "ready" ? "start now" : "open portal";
-      go.disabled = !t.portal_url;
+      go.textContent = "run here now";
+      go.disabled = !t.portal_url || (d.active && d.active.taskId === t.id);
       go.onclick = () => send({ type: "popup:start", id: t.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
       row.appendChild(go);
-      if (tab && /^https:/.test(tab.url || "")) {
+      if (tab && /^https:/.test(tab.url || "") && !/automaster/.test(tab.url || "")) {
         const here = document.createElement("button");
-        here.textContent = "fill this page";
-        here.title = "use the portal page you have open";
-        here.onclick = () => send({ type: "popup:attach", id: t.id, school: t.school, tabId: tab.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
+        here.textContent = "use this tab";
+        here.title = "carry on from the portal page you have open";
+        here.onclick = () => send({ type: "popup:attach", id: t.id, tabId: tab.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
         row.appendChild(here);
       }
       el.append(head, st, row);
@@ -61,17 +68,22 @@ async function render() {
   }
 }
 
+$("connect").onclick = async () => {
+  const c = await chrome.storage.local.get({ api: DEFAULT_API });
+  chrome.tabs.create({ url: c.api.replace(/\/$/, "") + "/connect-chrome" });
+  window.close();
+};
 $("save").onclick = async () => {
   const token = $("token").value.trim();
   if (!/^amr_[\w-]{20,}$/.test(token)) return ($("saveMsg").textContent = "that doesn't look like a key");
   await chrome.storage.local.set({ token });
-  chrome.alarms.create("poll", { periodInMinutes: 3 });
+  chrome.alarms.create("poll", { periodInMinutes: 1 });
   render();
 };
 $("auto").onchange = (e) => chrome.storage.local.set({ auto: e.target.checked });
 $("refresh").onclick = () => send({ type: "popup:poll" }).finally(render);
 $("saveApi").onclick = async () => {
-  await chrome.storage.local.set({ api: $("api").value.trim() || "https://automaster-3p9i.vercel.app" });
+  await chrome.storage.local.set({ api: $("api").value.trim() || DEFAULT_API });
   render();
 };
 $("logout").onclick = async () => {

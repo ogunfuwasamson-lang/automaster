@@ -292,7 +292,7 @@ export function keyForLabel(label: string): string | null {
 }
 
 // fields the runner must never fill, whatever the label matching says
-export const NEVER_FILL = /passport|national\s*id|\bnin\b|\bssn\b|social\s*security|tax\s*id|\bbvn\b|password|passcode|\bpin\b|security\s*(question|answer)|card\s*(number|holder)|\bcvv\b|\bcvc\b|expir|iban|account\s*number|routing|signature/i;
+export { NEVER_FILL } from "@/lib/never-fill";
 
 // the certification box on a submit page
 export const CERTIFY = /\b(certify|attest|i\s*confirm|i\s*declare|i\s*affirm|i\s*agree\s*that\s*(the|all)\s*information|true\s*and\s*(complete|accurate)|my\s*own\s*work)\b/i;

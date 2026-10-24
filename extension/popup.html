@@ -18,15 +18,21 @@
   </head>
   <body>
     <h1>automaster runner</h1>
+    <style>.task.now{border-color:#4f46e5;background:#eef2ff}</style>
     <div id="setup">
-      <p class="muted">paste the key from automaster → settings → browser extension.</p>
-      <input id="token" type="password" placeholder="amr_…" />
-      <div class="row"><button class="primary" id="save">connect</button><span id="saveMsg" class="muted"></span></div>
+      <p class="muted">connect this browser to your automaster account. when a school's portal won't let the cloud browser in, the agents finish that application here.</p>
+      <div class="row"><button class="primary" id="connect">connect to automaster</button></div>
+      <details>
+        <summary class="muted">or paste a key</summary>
+        <input id="token" type="password" placeholder="amr_…" />
+        <div class="row"><button id="save">connect</button><span id="saveMsg" class="muted"></span></div>
+      </details>
     </div>
     <div id="main" hidden>
       <div class="row">
-        <label class="row" style="margin:0"><input type="checkbox" id="auto" /> submit approved applications automatically</label>
+        <label class="row" style="margin:0"><input type="checkbox" id="auto" /> pick up applications automaster sends here</label>
       </div>
+      <div id="active" class="task" hidden></div>
       <div id="paused" class="warn" hidden>agents are paused in automaster.</div>
       <div id="tasks"><p class="muted">loading…</p></div>
       <div class="row"><button id="refresh">check now</button></div>

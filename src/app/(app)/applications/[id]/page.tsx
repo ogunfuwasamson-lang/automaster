@@ -56,7 +56,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
+      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
@@ -212,6 +212,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           hasLogin={!!logins}
           missing={sheet?.missing ?? []}
           reason={((app as { runner_state?: { reason?: string } }).runner_state ?? {}).reason ?? null}
+          mode={(app as { runner_mode?: string }).runner_mode ?? "cloud"}
+          school={p.schools.name}
         />
       )}
 

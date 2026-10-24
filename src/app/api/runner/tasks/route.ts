@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const [{ data }, { data: cords }] = await Promise.all([
     db
       .from("applications")
-      .select("id, status, runner_status, runner_note, portal_url, attested_at, target_deadline, programs(name, url, app_fee_usd, schools(name))")
+      .select("id, status, runner_status, runner_note, runner_mode, runner_state, portal_url, attested_at, target_deadline, programs(name, url, app_fee_usd, schools(name))")
       .eq("user_id", uid)
       .eq("status", "packet_approved")
       .in("runner_status", ["ready", "running", "needs_you", "failed"])
@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
         portal_url: a.portal_url ?? p.url,
         runner_status: a.runner_status,
         note: a.runner_note,
+        // "extension": this browser runs it; "cloud": our servers do, unless the applicant presses start here
+        mode: a.runner_mode,
+        reason: (a.runner_state as { reason?: string } | null)?.reason ?? null,
+        resume_at: (a.runner_state as { resume_at?: number } | null)?.resume_at ?? null,
         fee_usd: p.app_fee_usd,
         attested: !!a.attested_at,
         deadline: a.target_deadline,

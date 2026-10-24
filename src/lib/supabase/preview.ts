@@ -76,6 +76,7 @@ const app = (id: string, s: { name: string; country: string }, prog: string, sta
   runner_updated_at: ago(30),
   runner_live_url: null,
   runner_state: {},
+  runner_mode: "cloud",
   programs: {
     id: `p-${id}`,
     name: prog,
@@ -98,7 +99,7 @@ const app = (id: string, s: { name: string; country: string }, prog: string, sta
 const APPS = [
   app("a1", { name: "University of Edinburgh", country: "United Kingdom" }, "MSc Finance and Technology", "packet_approved", 7, "needs_you", "add your country of birth in Profile, under Details for application forms, then choose Try again"),
   app("a2", { name: "Rice University, Jones School", country: "United States" }, "MBA, Full-time", "ready_for_review", 9),
-  app("a3", { name: "University of Toronto, Rotman", country: "Canada" }, "Master of Financial Risk Management", "packet_approved", 12, "needs_you", "this portal blocks automated sign-ups. Create the account yourself with the password shown on this application."),
+  { ...app("a3", { name: "University of Toronto, Rotman", country: "Canada" }, "Master of Financial Risk Management", "packet_approved", 12, "needs_you", "this portal blocks cloud browsers. Open the live browser to get past the check yourself, or let it run in your Chrome"), runner_state: { reason: "blocked" } },
   app("a4", { name: "Boston University Questrom", country: "United States" }, "Full-time MBA", "preparing", 20, "idle", null, [art("essay", "Why Questrom", false), art("short_answer", "Leadership", true)]),
   app("a5", { name: "Imperial College Business School", country: "United Kingdom" }, "MSc Innovation, Entrepreneurship and Management", "packet_approved", 31, "running"),
   app("a6", { name: "Georgetown McDonough", country: "United States" }, "MS Business Analytics", "submitted", 40, "submitted", "portal showed a confirmation"),

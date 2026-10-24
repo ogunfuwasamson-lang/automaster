@@ -128,3 +128,14 @@ describe("account creation buttons", () => {
   });
   it("reads UT Dallas's sign-in button", () => expect(isSignIn("Graduate Application Log in")).toBe(true));
 });
+
+describe("site-wide bot walls", () => {
+  it("spots cloudflare, imperva and plain access-denied pages", async () => {
+    const { isBlockPage } = await import("@/lib/cloud-engine");
+    expect(isBlockPage({ title: "Just a moment...", body: "" })).toBe(true);
+    expect(isBlockPage({ title: "Pardon Our Interruption", body: "" })).toBe(true);
+    expect(isBlockPage({ title: "Access Denied", body: "" })).toBe(true);
+    expect(isBlockPage({ title: "Apply", body: "Checking your browser before accessing apply.example.edu" })).toBe(true);
+    expect(isBlockPage({ title: "Graduate Admissions", body: "Create an account to start your application" })).toBe(false);
+  });
+});

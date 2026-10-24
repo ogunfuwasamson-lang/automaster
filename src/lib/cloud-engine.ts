@@ -1,10 +1,9 @@
 // the cloud runner's brain: looks at a portal page and decides the next move, then does it.
 // no db and no network of its own: everything outside the page comes in through deps, so the same
 // engine runs on vercel against browserbase and in tests against a local chromium.
-import type { Frame, Page } from "playwright-core";
+import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib/engine-page";
 import type { Fill, PageField } from "@/lib/runner-map";
-import { NEVER_FILL } from "@/lib/fillsheet";
-import { DOM_HELPER } from "@/lib/runner-dom";
+import { NEVER_FILL } from "@/lib/never-fill";
 
 export interface Snapshot {
   url: string;
@@ -43,7 +42,7 @@ export interface Login {
 
 export interface EngineDeps {
   map(fields: PageField[]): Promise<Fill[]>;
-  file(key: string): Promise<{ name: string; mime: string; buffer: Buffer }>;
+  file(key: string): Promise<EngineFile>;
   canSubmit(): Promise<{ allowed: boolean; reason: string }>;
   existingLogin(): Promise<Login | null>;
   createLogin(email: string): Promise<Login>;
@@ -54,10 +53,12 @@ export interface EngineDeps {
   // the general fallback: a model reads the page and picks one constrained next step
   navigate?(input: NavInput): Promise<NavAction | null>;
   // fill one field from a fill-sheet key (values never come from the model)
-  fillFromKey?(field: PageField, key: string): Fill | null;
+  fillFromKey?(field: PageField, key: string): Fill | null | Promise<Fill | null>;
   // a login this portal emailed to the applicant (peoplesoft-style systems issue their own); saved to the vault
   loginFromMail?(since: number): Promise<Login | null>;
   progress(note: string): Promise<void>;
+  // the applicant took the wheel (live browser): stop after the current step
+  shouldStop?(): boolean;
 }
 
 export interface NavInput {
@@ -77,7 +78,7 @@ export interface NavAction {
 
 export type Outcome =
   | { kind: "submitted"; note: string }
-  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" }
+  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" }
   | { kind: "wait"; note: string; seconds: number } // try again later (e.g. waiting for the verification email)
   | { kind: "continue"; note: string } // out of time in this run; pick up straight away
   | { kind: "failed"; note: string };
@@ -107,6 +108,11 @@ export function isSignIn(label: string): boolean {
 }
 export const CREATE_RE = CREATE;
 const findBy = (s: Snapshot, ok: (label: string) => boolean) => s.buttons.find((b) => ok(clean(b.label)) && goesSomewhere(s, b));
+// bot walls that stand in front of the whole site (cloudflare, imperva, akamai): a real browser usually gets
+// through in a few seconds, a cloud browser often never does
+const BLOCK_TITLE = /^(access denied|forbidden|403\b|request (blocked|rejected)|attention required|just a moment|pardon our interruption|are you a (robot|human)|you have been blocked|blocked)/i;
+const BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue)/i;
+export const isBlockPage = (s: Pick<Snapshot, "title" | "body">) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
 const TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
 
 // pure: what kind of page is this?
@@ -131,8 +137,8 @@ const frameOf = (page: Page): Frame => active.get(page) ?? page.mainFrame();
 
 async function snapFrame(f: Frame): Promise<Snapshot | null> {
   try {
-    await f.evaluate(DOM_HELPER);
-    return await f.evaluate(() => (window as unknown as { __am: { snapshot(): Snapshot } }).__am.snapshot());
+    await f.helper();
+    return await f.evaluate(() => (window as unknown as { __am: { snapshot(): Snapshot } }).__am.snapshot(), undefined);
   } catch {
     return null; // cross-origin ad frames and the like
   }
@@ -146,7 +152,8 @@ async function snapMain(page: Page): Promise<Snapshot> {
     await page.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => {});
     await sleep(800);
   }
-  return { url: page.url(), title: "", body: "", captcha: false, payment: false, confirmation: false, fingerprint: `blank:${page.url()}`, fields: [], allFields: [], buttons: [] };
+  const url = await page.url();
+  return { url, title: "", body: "", captcha: false, payment: false, confirmation: false, fingerprint: `blank:${url}`, fields: [], allFields: [], buttons: [] };
 }
 
 async function snap(page: Page): Promise<Snapshot> {
@@ -155,8 +162,8 @@ async function snap(page: Page): Promise<Snapshot> {
   const score = (x: Snapshot) => x.allFields.length * 3 + x.buttons.length;
   let confirmation = main.confirmation;
   let captcha = main.captcha;
-  for (const f of page.frames()) {
-    if (f === page.mainFrame() || !f.url().startsWith("http")) continue;
+  for (const f of await page.frames()) {
+    if (f.isMain || !f.url().startsWith("http")) continue;
     const s = await snapFrame(f);
     if (!s) continue;
     confirmation ||= s.confirmation;
@@ -178,7 +185,7 @@ async function click(page: Page, id: string) {
     }, sel)
     .catch(() => null);
   if (href) {
-    await page.goto(href, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.goto(href, { timeout: 45_000 });
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
     await sleep(1200);
     return;
@@ -208,11 +215,18 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
   const end = Date.now() + budgetMs;
   let filled = 0;
   while (Date.now() < end) {
+    if (deps.shouldStop?.()) return { outcome: { kind: "continue", note: "paused" }, state, filled };
     state.steps += 1;
     if (state.steps > 60) return { outcome: { kind: "needs_you", reason: "stuck", note: "this portal has more pages than one run allows; take over from here" }, state, filled };
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await sleep(800);
-    const s = await snap(page);
+    let s = await snap(page);
+    if (isBlockPage(s)) {
+      // give an interstitial a moment to clear on its own
+      await sleep(8000);
+      s = await snap(page);
+      if (isBlockPage(s)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
+    }
 
     // loop guard: the same page three times in a row means the portal won't take what we gave it
     state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
@@ -328,12 +342,12 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
         await fillText(page, box.id, v.code);
         const go = find(s, VERIFY_BTN);
         if (go) await click(page, go.id);
-        else await page.keyboard.press("Enter");
+        else await page.pressEnter();
         continue;
       }
       if (v.link) {
         await deps.progress("confirming your email with the portal");
-        await page.goto(v.link, { waitUntil: "domcontentloaded" });
+        await page.goto(v.link);
         continue;
       }
       return { outcome: { kind: "needs_you", reason: "verification", note: "found the verification email but couldn't use it; open the live view" }, state, filled };
@@ -430,13 +444,13 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
       return null;
     }
     log(`goto ${a.url}`);
-    await page.goto(a.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.goto(a.url, { timeout: 45_000 });
     await sleep(1200);
     return null;
   }
   if (a.action === "fill") {
     const f = s.fields.find((x) => x.id === a.target_id);
-    const fill = f && deps.fillFromKey ? deps.fillFromKey(f, a.sheet_key) : null;
+    const fill = f && deps.fillFromKey ? await deps.fillFromKey(f, a.sheet_key) : null;
     if (!f || !fill || NEVER_FILL.test(`${f.label} ${f.name ?? ""}`)) {
       log(`couldn't fill ${f?.label ?? a.target_id} from ${a.sheet_key}`);
       return null;
@@ -444,7 +458,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     log(`fill "${f.label.slice(0, 40)}" from ${a.sheet_key}`);
     if (fill.action === "upload") {
       const file = await deps.file(fill.file);
-      await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });
+      await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
     } else await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), fill);
     return null;
   }
@@ -484,7 +498,7 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
       }
       if (f.action === "upload") {
         const file = await deps.file(f.file);
-        await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });
+        await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
         n++;
         continue;
       }

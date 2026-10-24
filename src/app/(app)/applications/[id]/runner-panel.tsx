@@ -2,11 +2,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, Send, Square, TriangleAlert } from "lucide-react";
+import { Laptop, CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, MonitorPlay, Send, Square, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { sentence } from "@/components/ui/status";
+import { LiveBrowser } from "@/components/runner/live-browser";
+import { askExtension, useExtension } from "@/components/runner/use-extension";
 
 // the cloud runner: finds the portal, creates the account, fills, uploads and submits. nothing to install.
 export function RunnerPanel(props: {
@@ -21,12 +23,35 @@ export function RunnerPanel(props: {
   hasLogin: boolean;
   missing: string[];
   reason?: string | null;
+  mode?: string | null;
+  school: string;
 }) {
-  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null } = props;
+  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school } = props;
+  const [liveOpen, setLiveOpen] = useState(false);
+  const { ext, checked } = useExtension(runnerStatus === "running" || runnerStatus === "ready" ? 8000 : 0);
+  const inChrome = mode === "extension";
   const [url, setUrl] = useState(portalUrl ?? "");
   const [busy, setBusy] = useState(false);
   const [login, setLogin] = useState<{ host: string; email: string; password: string } | null>(null);
   const router = useRouter();
+
+  // hand this application to the applicant's own chrome
+  async function runInChrome() {
+    if (!ext.installed || !ext.paired) {
+      router.push(`/connect-chrome?then=${id}`);
+      return;
+    }
+    setBusy(true);
+    const res = await fetch(`/api/applications/${id}/runner`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "chrome" }) });
+    if (!res.ok) toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't do that");
+    else {
+      const r = await askExtension<{ ok?: boolean; error?: string }>("run", { id });
+      if (r && r.ok === false) toast.message(r.error ?? "Chrome will pick it up shortly");
+      else toast.success("Running in your Chrome. A tab opens in the background");
+    }
+    setBusy(false);
+    router.refresh();
+  }
 
   async function act(action: "queue" | "stop") {
     setBusy(true);
@@ -97,12 +122,13 @@ export function RunnerPanel(props: {
   }
 
   const stuck = runnerStatus === "needs_you" || runnerStatus === "failed";
+  const blocked = reason === "captcha" || reason === "blocked" || reason === "account";
   const fixInProfile = reason === "question" || reason === "missing" || /in profile|your profile|add your|upload it/i.test(note ?? "");
   const working = runnerStatus === "ready" || runnerStatus === "running";
   const head = {
     idle: "Ready to submit",
-    ready: "Starting: finding the portal",
-    running: "Working on the portal now",
+    ready: inChrome ? "Queued for your Chrome" : "Starting: finding the portal",
+    running: inChrome ? "Working in your Chrome" : "Working on the portal now",
     needs_you: "One step needs you",
     failed: "Submission hit a problem",
     submitted: "Submitted",
@@ -120,12 +146,39 @@ export function RunnerPanel(props: {
         </div>
       </div>
 
+      {liveOpen && <LiveBrowser applicationId={id} school={school} onClose={() => (setLiveOpen(false), router.refresh())} />}
+
+      {inChrome && (runnerStatus === "ready" || runnerStatus === "running") && checked && !ext.paired && (
+        <p className="rounded-2xl border border-signal/25 bg-signal/[0.06] px-4 py-3 text-sm">
+          This one runs in your Chrome, but Chrome isn&apos;t connected on this computer.{" "}
+          <Link href={`/connect-chrome?then=${id}`} className="font-semibold underline underline-offset-4">
+            Connect Chrome
+          </Link>{" "}
+          or open the live browser instead.
+        </p>
+      )}
+
+      {(stuck || working) && attested && !fixInProfile && (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant={stuck && !inChrome ? "signal" : "secondary"} disabled={busy} onClick={() => setLiveOpen(true)}>
+            <MonitorPlay className="size-4" aria-hidden />
+            {stuck ? "Open live browser" : "Watch live"}
+          </Button>
+          {!(inChrome && working) && (
+            <Button variant={stuck && blocked ? "signal" : "secondary"} disabled={busy} onClick={runInChrome}>
+              <Laptop className="size-4" aria-hidden />
+              {inChrome && stuck ? "Try again in my Chrome" : "Run in my Chrome"}
+            </Button>
+          )}
+        </div>
+      )}
+
       {runnerStatus === "needs_you" && liveUrl && (
-        <ButtonLink href={liveUrl} external variant="signal">
+        <ButtonLink href={liveUrl} external variant="secondary">
           Open the live view <ExternalLink className="size-4" aria-hidden />
         </ButtonLink>
       )}
-      {runnerStatus === "needs_you" && !liveUrl && (
+      {runnerStatus === "needs_you" && !liveUrl && !(reason === "captcha" || reason === "blocked") && (
         <div className="rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed">
           <p className="mb-2 text-xs font-bold text-muted">What to do</p>
           {fixInProfile ? (
@@ -137,13 +190,13 @@ export function RunnerPanel(props: {
             </>
           ) : reason === "account" ? (
             <p>
-              Create the account on{" "}
+              Quickest: choose Run in my Chrome and the agents create the account there. Or create it yourself on{" "}
               <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
                 the portal
               </a>{" "}
               with the email and password below, exactly as shown. The agents check every 5 minutes, sign in with them and finish the application.
             </p>
-          ) : reason === "captcha" || reason === "payment" || reason === "verification" || reason === "login" ? (
+          ) : reason === "payment" || reason === "verification" || reason === "login" ? (
             <p>
               Open{" "}
               <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
@@ -181,7 +234,7 @@ export function RunnerPanel(props: {
             Stop
           </Button>
         ) : (
-          <Button disabled={busy || !attested} onClick={() => act("queue")} title={attested ? "" : "Sign the packet first"}>
+          <Button disabled={busy || !attested} onClick={() => (inChrome && runnerStatus !== "idle" ? runInChrome() : act("queue"))} title={attested ? "" : "Sign the packet first"}>
             <Send className="size-4" aria-hidden />
             {runnerStatus === "idle" ? "Submit it for me" : "Try again"}
           </Button>
