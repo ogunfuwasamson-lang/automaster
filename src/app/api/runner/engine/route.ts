@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
   const { data: row } = await db.from("applications").select("runner_mode, runner_state, runner_status").eq("id", b.application).single();
   if (app.status !== "packet_approved" && b.op !== "finish") return NextResponse.json({ stop: "this application isn't approved for submitting" });
 
+  // paused or cancelled from automaster: the extension stops; nothing it sends changes the status
+  if (row?.runner_status === "idle" && b.op !== "start") {
+    if (b.op === "finish" || b.op === "save") {
+      const st = (row.runner_state ?? {}) as RunnerState;
+      if (st.paused) await db.from("applications").update({ runner_state: { ...st, ...(b.state as RunnerState), paused: true, last_url: b.url ?? st.last_url } }).eq("id", b.application);
+    }
+    return NextResponse.json({ stop: "paused or cancelled in automaster" });
+  }
   if (b.op === "progress") {
     await setRunner(b.application, { runner_note: b.note.slice(0, 300) });
     return NextResponse.json({ ok: true });

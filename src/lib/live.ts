@@ -10,7 +10,7 @@ import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { getLogin, markLogin } from "@/lib/vault";
 import { normalizeUrl } from "@/lib/portal-url";
-import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
+import { markSubmitted, serverDeps, setRunner, userHalted, type RunnerState } from "@/agents/runner";
 
 // the live browser: the cloud runner's browser, streamed into automaster as screenshots, with the applicant's
 // clicks and keys sent back. the agents drive until a step needs the applicant; the applicant does it in the
@@ -161,7 +161,8 @@ export async function runLiveSession(sessionId: string) {
       }
       stopAgent = false;
       await set({ status: "agent", prompt: "The agents are working on the portal. Choose Take control at any time." });
-      const deps = { ...serverDeps({ userId, applicationId, jobId: null, sheet, readMail, host }), shouldStop: () => stopAgent || ended || left() < 25_000 };
+      const base = serverDeps({ userId, applicationId, jobId: null, sheet, readMail, host });
+      const deps = { ...base, shouldStop: () => stopAgent || ended || left() < 25_000 || !!base.shouldStop?.() };
       const r = await runEngine(fromPlaywright(page), deps, state, Math.max(10_000, left() - 25_000));
       state = r.state;
       filled += r.filled;
@@ -200,8 +201,11 @@ export async function runLiveSession(sessionId: string) {
     }
     await ob.close(false);
     const next: RunnerState = { ...state, last_url: url, storage_enc: saved ? encrypt(JSON.stringify(saved)) : state.storage_enc, samePageCount: 0, rechecks: 0, reason: null };
-    if (submitted) {
-      await db.from("applications").update({ runner_state: next }).eq("id", applicationId);
+    const halted = submitted ? null : await userHalted(applicationId).catch(() => null);
+    if (submitted || halted === "cancelled") {
+      if (submitted) await db.from("applications").update({ runner_state: next }).eq("id", applicationId);
+    } else if (halted === "paused") {
+      await db.from("applications").update({ runner_state: { ...next, paused: true } }).eq("id", applicationId);
     } else {
       // the cloud runner picks up straight away from where the live browser left off, with its cookies
       await db.from("applications").update({ runner_state: next, runner_mode: "cloud", runner_status: "ready", runner_note: "picking up after the live browser", runner_updated_at: new Date().toISOString() }).eq("id", applicationId);

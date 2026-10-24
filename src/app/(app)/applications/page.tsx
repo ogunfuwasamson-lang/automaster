@@ -96,7 +96,7 @@ export default async function Applications() {
                             )}
                           </span>
                           <span className="hidden flex-col items-end gap-1 sm:flex">
-                            <StatusPill status={r.status} runner={r.runner_status} />
+                            <StatusPill status={r.status} runner={r.runner_status === "idle" && (r.runner_state as { paused?: boolean } | null)?.paused ? "paused" : r.runner_status} />
                             {days !== null && days >= 0 && writing ? <span className={`text-xs tabular ${urgent ? "font-medium text-stop" : "text-muted"}`}>{days === 0 ? "Due today" : `${days} days left`}</span> : null}
                           </span>
                           <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />

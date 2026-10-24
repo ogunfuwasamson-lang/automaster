@@ -101,7 +101,7 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string 
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
-export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number };
+export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean };
 
 export async function setRunner(applicationId: string, patch: Record<string, unknown>) {
   await admin().from("applications").update({ ...patch, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
@@ -119,7 +119,19 @@ export interface DepsCtx {
 }
 export function serverDeps(c: DepsCtx): EngineDeps {
   let lastNote = "";
+  // the applicant can pause or cancel at any time: running engines notice within a few seconds
+  let stopped = false;
+  let checkedAt = 0;
+  const check = async () => {
+    checkedAt = Date.now();
+    stopped = !!(await userHalted(c.applicationId));
+    return stopped;
+  };
   return {
+    shouldStop: () => {
+      if (Date.now() - checkedAt > 6000) void check().catch(() => {});
+      return stopped;
+    },
     map: (fields) => mapFields(c.userId, c.sheet, fields),
     file: (key) => sheetFile(c.userId, c.sheet, key),
     canSubmit: () => submitDecision(c.userId, c.applicationId),
@@ -152,6 +164,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     progress: async (note) => {
       if (note === lastNote) return;
       lastNote = note;
+      if (await check()) return;
       await setRunner(c.applicationId, { runner_note: note });
     },
   };
@@ -175,6 +188,13 @@ export async function markSubmitted(userId: string, applicationId: string, progr
   const eventId = await logEvent({ userId, actor: "agent:runner", action: "runner.submitted", applicationId, programId, channel: "portal", context: { url, filled, via } });
   await logEvent({ userId, actor: "agent:runner", action: "application.submitted", applicationId, programId, channel: "portal" });
   await recordOutcome({ userId, eventId, applicationId, kind: "proxy", label: "submitted", source: "runner" });
+}
+
+// paused or cancelled by the applicant while agents were working: "paused" keeps progress, "cancelled" drops it
+export async function userHalted(applicationId: string): Promise<"paused" | "cancelled" | null> {
+  const { data } = await admin().from("applications").select("runner_status, runner_state").eq("id", applicationId).maybeSingle();
+  if (data?.runner_status !== "idle") return null;
+  return (data.runner_state as { paused?: boolean } | null)?.paused ? "paused" : "cancelled";
 }
 
 // the applicant's chrome extension has checked in within the last few minutes
@@ -310,6 +330,13 @@ export const runner: Record<string, Handler> = {
         RUN_BUDGET_MS,
       );
 
+      const halted = await userHalted(applicationId);
+      if (halted) {
+        // paused: keep where it got to (page, cookies) for Resume. cancelled: nothing to keep
+        if (halted === "paused") await db.from("applications").update({ runner_state: { ...next, paused: true, last_url: page.url(), storage_enc: encrypt(JSON.stringify(await ob.storage())) }, runner_session_id: null }).eq("id", applicationId);
+        return { halted };
+      }
+
       const saved: RunnerState & { debug?: unknown } = {
         ...next,
         last_url: page.url(),
@@ -398,6 +425,7 @@ export const runner: Record<string, Handler> = {
       await db.from("applications").update({ runner_state: saved, runner_session_id: null, runner_status: "failed", runner_note: outcome.note }).eq("id", applicationId);
       return { outcome: "failed" };
     } catch (e) {
+      if (await userHalted(applicationId).catch(() => null)) return { halted: true };
       await setRunner(applicationId, { runner_status: "failed", runner_note: "something went wrong while working on the portal. Choose Try again; if it keeps happening, open the portal and finish that step yourself." }); // the raw error stays on the job for the operator view
       throw e;
     } finally {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "automaster runner",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Finishes your approved university applications in your own Chrome when a portal won't let automaster's cloud browser in.",
   "permissions": ["storage", "alarms", "notifications", "tabs", "scripting", "webNavigation"],
   "host_permissions": ["<all_urls>"],

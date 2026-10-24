@@ -523,7 +523,7 @@
   // extension/src/background.ts
   var DEFAULT_API = "https://automaster-3p9i.vercel.app";
   var RUN_MS = 4 * 6e4;
-  var VERSION = "0.3.0";
+  var VERSION = "0.3.1";
   var sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
   async function nap(ms) {
     const end = Date.now() + ms;
@@ -582,7 +582,20 @@
   function deps(taskId, start, tabId) {
     const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
     let lastNote = "";
+    let stop = false;
+    let checkedAt = 0;
     return {
+      shouldStop: () => {
+        if (Date.now() - checkedAt > 6e3) {
+          checkedAt = Date.now();
+          apiJson("/api/runner/tasks").then((d) => {
+            const t = d.tasks.find((x) => x.id === taskId);
+            stop = !t || t.mode !== "extension";
+          }).catch(() => {
+          });
+        }
+        return stop;
+      },
       map: async (fields) => (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
       file: async (key) => {
         if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
@@ -670,6 +683,10 @@
           host = void 0;
         }
         const fin = await eng(task.id, "finish", { state, url, filled, host, outcome }).catch(() => ({}));
+        if (fin.stop) {
+          notify(task.school, "Paused in automaster. The tab stays open; nothing else happens until you resume.");
+          break;
+        }
         if (outcome.kind === "continue") continue;
         if (outcome.kind === "wait") {
           await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "waiting for an email" });

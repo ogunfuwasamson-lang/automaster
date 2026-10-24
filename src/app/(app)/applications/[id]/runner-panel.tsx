@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Laptop, CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, MonitorPlay, Send, Square, TriangleAlert } from "lucide-react";
+import { Laptop, CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, MonitorPlay, Pause, Play, Send, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -25,8 +25,10 @@ export function RunnerPanel(props: {
   reason?: string | null;
   mode?: string | null;
   school: string;
+  paused?: boolean;
 }) {
-  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school } = props;
+  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false } = props;
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const { ext, checked } = useExtension(runnerStatus === "running" || runnerStatus === "ready" ? 8000 : 0);
   const inChrome = mode === "extension";
@@ -53,15 +55,21 @@ export function RunnerPanel(props: {
     router.refresh();
   }
 
-  async function act(action: "queue" | "stop") {
+  async function act(action: "queue" | "pause" | "resume" | "cancel") {
     setBusy(true);
     const res = await fetch(`/api/applications/${id}/runner`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, ...(action === "queue" && url && url !== portalUrl ? { portal_url: url } : {}) }),
     });
-    if (!res.ok) toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't do that");
-    else toast.success(action === "stop" ? "Stopped" : "The agents are on it");
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) toast.error(j.error ?? "Couldn't do that");
+    else {
+      toast.success({ queue: "The agents are on it", pause: "Paused. Nothing happens until you resume", resume: "Resuming where it stopped", cancel: "Cancelled. The agents have stopped" }[action]);
+      // a chrome job: tell the extension to pick it up now
+      if (action === "resume" && j.mode === "extension") await askExtension("run", { id });
+    }
+    setConfirmCancel(false);
     setBusy(false);
     router.refresh();
   }
@@ -126,7 +134,7 @@ export function RunnerPanel(props: {
   const fixInProfile = reason === "question" || reason === "missing" || /in profile|your profile|add your|upload it/i.test(note ?? "");
   const working = runnerStatus === "ready" || runnerStatus === "running";
   const head = {
-    idle: "Ready to submit",
+    idle: paused ? "Paused" : "Ready to submit",
     ready: inChrome ? "Queued for your Chrome" : "Starting: finding the portal",
     running: inChrome ? "Working in your Chrome" : "Working on the portal now",
     needs_you: "One step needs you",
@@ -138,13 +146,42 @@ export function RunnerPanel(props: {
     <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
       <div className="flex items-start gap-3">
         <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${stuck ? "bg-signal text-white shadow-[0_8px_18px_-8px_rgb(234_88_12/0.6)]" : "bg-accent/10 text-accent"}`}>
-          {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
+          {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : paused ? <Pause className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold tracking-[-0.02em]">{head}</h2>
-          {note ? <p className="mt-0.5 text-sm text-muted">{sentence(note)}</p> : null}
+          {paused ? (
+            <p className="mt-0.5 text-sm text-muted">The agents have stopped and kept their place. Resume carries on from the same page.</p>
+          ) : note && !(runnerStatus === "idle" && /cancelled by you|stopped by you/.test(note)) ? (
+            <p className="mt-0.5 text-sm text-muted">{sentence(note)}</p>
+          ) : null}
         </div>
+        {(working || stuck || paused) && (
+          <div className="flex shrink-0 gap-1.5">
+            {!paused && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => act("pause")} aria-label="Pause">
+                <Pause className="size-3.5" aria-hidden />
+                <span className="hidden sm:inline">Pause</span>
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={confirmCancel ? "danger" : "ghost"}
+              disabled={busy}
+              onClick={() => {
+                if (confirmCancel) return act("cancel");
+                setConfirmCancel(true);
+                setTimeout(() => setConfirmCancel(false), 5000);
+              }}
+              aria-label={confirmCancel ? "Confirm cancel" : "Cancel"}
+            >
+              <X className="size-3.5" aria-hidden />
+              <span className={confirmCancel ? "" : "hidden sm:inline"}>{confirmCancel ? "Cancel submission?" : "Cancel"}</span>
+            </Button>
+          </div>
+        )}
       </div>
+      {confirmCancel && <p className="-mt-2 text-xs text-muted">Cancelling stops the agents and clears their progress on the portal. Any portal account they made stays in Portal logins. Tap again to confirm.</p>}
 
       {liveOpen && <LiveBrowser applicationId={id} school={school} onClose={() => (setLiveOpen(false), router.refresh())} />}
 
@@ -228,10 +265,10 @@ export function RunnerPanel(props: {
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Portal link (optional, the agents find it)" aria-label="Portal link" />
-        {working ? (
-          <Button variant="secondary" disabled={busy} onClick={() => act("stop")}>
-            <Square className="size-3.5" aria-hidden />
-            Stop
+        {working ? null : paused ? (
+          <Button disabled={busy || !attested} onClick={() => act("resume")}>
+            <Play className="size-4" aria-hidden />
+            Resume
           </Button>
         ) : (
           <Button disabled={busy || !attested} onClick={() => (inChrome && runnerStatus !== "idle" ? runInChrome() : act("queue"))} title={attested ? "" : "Sign the packet first"}>

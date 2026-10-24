@@ -139,7 +139,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill status={app.status} runner={app.runner_status} />
+            <StatusPill status={app.status} runner={app.runner_status === "idle" && ((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused ? "paused" : app.runner_status} />
             {["shortlisted", "preparing", "ready_for_review"].includes(app.status) && <PrepareButton id={id} replan={!!brief} busy={strategizing} size="sm" />}
           </div>
         </div>
@@ -213,6 +213,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           missing={sheet?.missing ?? []}
           reason={((app as { runner_state?: { reason?: string } }).runner_state ?? {}).reason ?? null}
           mode={(app as { runner_mode?: string }).runner_mode ?? "cloud"}
+          paused={app.runner_status === "idle" && !!((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused}
           school={p.schools.name}
         />
       )}

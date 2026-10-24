@@ -10,7 +10,7 @@ declare const chrome: any;
 
 const DEFAULT_API = "https://automaster-3p9i.vercel.app";
 const RUN_MS = 4 * 60_000; // one engine run; the state is saved between runs
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 
 type Task = { id: string; school: string; program: string; portal_url: string | null; runner_status: string; note: string | null; mode: string; reason: string | null; resume_at: number | null };
 type Active = { taskId: string; school: string; tabId: number; startedAt: number; phase: string };
@@ -86,7 +86,22 @@ const sheets = new Map<string, { files: { key: string; url: string; filename: st
 function deps(taskId: string, start: { canReadMail: boolean; accountEmail: string }, tabId: number): EngineDeps {
   const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
   let lastNote = "";
+  // paused or cancelled in automaster: stop between steps
+  let stop = false;
+  let checkedAt = 0;
   return {
+    shouldStop: () => {
+      if (Date.now() - checkedAt > 6000) {
+        checkedAt = Date.now();
+        apiJson("/api/runner/tasks")
+          .then((d: { tasks: Task[] }) => {
+            const t = d.tasks.find((x) => x.id === taskId);
+            stop = !t || t.mode !== "extension";
+          })
+          .catch(() => {});
+      }
+      return stop;
+    },
     map: async (fields) =>
       (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
     file: async (key) => {
@@ -178,6 +193,10 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
         host = undefined;
       }
       const fin = await eng(task.id, "finish", { state, url, filled, host, outcome }).catch(() => ({}));
+      if ((fin as { stop?: string }).stop) {
+        notify(task.school, "Paused in automaster. The tab stays open; nothing else happens until you resume.");
+        break;
+      }
       if (outcome.kind === "continue") continue;
       if (outcome.kind === "wait") {
         await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "waiting for an email" });

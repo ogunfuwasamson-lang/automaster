@@ -20,6 +20,7 @@ export const RUNNER_STATUS: Record<string, { label: string; tone: "quiet" | "pla
   running: { label: "Submitting", tone: "plain" },
   needs_you: { label: "Needs you", tone: "signal" },
   failed: { label: "Problem", tone: "stop" },
+  paused: { label: "Paused", tone: "quiet" },
   submitted: { label: "Submitted", tone: "go" },
 };
 
