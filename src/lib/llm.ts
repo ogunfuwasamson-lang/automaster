@@ -56,15 +56,29 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
   if (error) throw new Error(`agent_runs insert failed: ${error.message}`);
 
   try {
-    const msg = await llm().messages.parse({
-      model,
-      max_tokens: args.maxTokens ?? 8000,
-      system: args.system,
-      messages: [{ role: "user", content: args.prompt }],
-      output_config: { format: zodOutputFormat(args.schema) },
-    });
-    const output = msg.parsed_output;
-    if (output == null) throw new Error(`model returned no parseable output (stop_reason=${msg.stop_reason})`);
+    // stream so long outputs never hit http timeouts; parse ourselves so failures say why
+    const msg = await llm()
+      .messages.stream({
+        model,
+        max_tokens: args.maxTokens ?? 8000,
+        system: args.system,
+        messages: [{ role: "user", content: args.prompt }],
+        output_config: { format: zodOutputFormat(args.schema) },
+      })
+      .finalMessage();
+    const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+    if (msg.stop_reason !== "end_turn") {
+      throw new Error(`model stopped early (stop_reason=${msg.stop_reason}, ${msg.usage.output_tokens} output tokens)`);
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch (pe) {
+      throw new Error(`unparseable output (${String(pe)}); tail: ${text.slice(-200)}`);
+    }
+    const checked = args.schema.safeParse(json);
+    if (!checked.success) throw new Error(`output failed schema: ${checked.error.message.slice(0, 500)}`);
+    const output = checked.data;
     await db
       .from("agent_runs")
       .update({
