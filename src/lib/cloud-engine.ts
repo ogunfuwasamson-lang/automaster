@@ -94,6 +94,18 @@ const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| hav
 const CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
 const REGISTER_PAGE = /(regist|create.?(an.?)?account|sign.?up|new.?user)/i;
 const LOGIN_LINK = /^(log ?in|login|sign ?in)( here| now)?$|^returning (users?|applicants?)/i;
+
+// sign-in buttons come in many wordings: "Graduate Applicant Login", "Applicant Log In", "Returning users",
+// "Existing applicants", "Already have an account?", "Access your application", "Log on". anything that says
+// sign in counts, unless it's somebody else's door (staff, faculty, recommenders, current students), a
+// third-party account (Google, LinkedIn...), or the opposite action (sign up, log out, reset).
+const SIGN_WORDS = /\b(log ?-?in|login|log ?on|logon|sign ?-?in)\b|^(returning|existing) (users?|applicants?|accounts?)\b|already (have|registered|created)( an)? account|access (my|your) (application|account|portal)/i;
+const NOT_MINE = /\b(sign ?-?up|register|create|new (user|applicant)|log ?out|sign ?out|faculty|staff|employees?|recommend(er|ers|ation)|referees?|reviewers?|admin(istrator)?|current students?|alumni|partners?|agents?|counsell?ors?|google|facebook|linkedin|apple|microsoft|github|forgot|reset|help|trouble)\b/i;
+export function isSignIn(label: string): boolean {
+  const l = label.replace(/\s+/g, " ").trim();
+  return l.length > 0 && l.length <= 48 && SIGN_WORDS.test(l) && !NOT_MINE.test(l);
+}
+const findBy = (s: Snapshot, ok: (label: string) => boolean) => s.buttons.find((b) => ok(clean(b.label)) && goesSomewhere(s, b));
 const TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
 
 // pure: what kind of page is this?
@@ -256,10 +268,11 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const isIdBox = /user\s*(id|name)|login\s*(id|name)|identifiant|oprid/i.test(`${user?.label ?? ""} ${user?.name ?? ""}`) && !/e-?mail/i.test(user?.label ?? "");
       if (user) await fillText(page, user.id, !login.login_email.includes("@") || !isIdBox ? login.login_email : login.login_email.split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
       await fillText(page, pw.id, login.password);
-      const go = find(s, SIGNIN);
-      if (!go) return { outcome: { kind: "needs_you", reason: "login", note: "couldn't find the sign-in button" }, state, filled };
+      const go = find(s, SIGNIN) ?? findBy(s, isSignIn);
       await deps.progress("signing in to the portal");
-      await click(page, go.id);
+      // no recognisable button: pressing enter in the password box submits the sign-in form on almost every portal
+      if (go) await click(page, go.id);
+      else await frameOf(page).press(`[data-am-id="${pw.id}"]`, "Enter").catch(() => {});
       const after = await snap(page);
       if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
         // a login that has never worked on this application: the applicant hasn't created the account yet
@@ -354,7 +367,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
-    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : undefined);
+    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : undefined) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : undefined);
     if (next) {
       await click(page, next.id);
       continue;

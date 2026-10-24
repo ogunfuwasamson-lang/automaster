@@ -7,6 +7,7 @@ import { normalizeUrl } from "@/lib/portal-url";
 import { runStructured } from "@/lib/llm";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
+import { baseSubject, mailText, parseFrom } from "@/lib/mail-text";
 
 // the inbox watcher: reads new emails from the applicant's schools, works out what each one means,
 // and puts anything that needs the applicant in their queue. read-only on gmail: nothing is changed there.
@@ -92,14 +93,34 @@ export async function checkInbox(userId: string, jobId?: string) {
       promptVersion: "inbox-v1",
       tier: "cheap",
       system: SYSTEM,
-      prompt: `from: ${m.from}\nsubject: ${m.subject}\n\n${(m.text || m.html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").slice(0, 5000)}`,
+      prompt: `from: ${m.from}\nsubject: ${m.subject}\n\n${mailText(m).slice(0, 5000)}`,
       schema: Classified,
       maxTokens: 400,
     });
 
-    // keep it with the application's correspondence
-    const { data: thread } = await db.from("threads").insert({ user_id: userId, application_id: match.applicationId, subject: m.subject.slice(0, 300), status: "open" }).select("id").single();
-    await db.from("messages").insert({ user_id: userId, thread_id: thread!.id, direction: "in", subject: m.subject.slice(0, 300), body: c.summary, purpose: c.kind, status: "sent", sent_at: new Date(m.at || Date.now()).toISOString(), gmail_message_id: id, to_email: acct?.email ?? null });
+    // keep it with the conversation it answers: the gmail thread first, then the same subject for this school,
+    // else a new conversation
+    const sender = parseFrom(m.from);
+    const subject = m.subject.slice(0, 300);
+    let threadId: string | null = null;
+    if (m.threadId) {
+      const { data: t } = await db.from("threads").select("id").eq("user_id", userId).eq("gmail_thread_id", m.threadId).limit(1).maybeSingle();
+      threadId = t?.id ?? null;
+    }
+    if (!threadId && match.applicationId) {
+      const { data: ts } = await db.from("threads").select("id, subject").eq("user_id", userId).eq("application_id", match.applicationId).order("created_at", { ascending: false }).limit(20);
+      threadId = (ts ?? []).find((t) => t.subject && baseSubject(t.subject) === baseSubject(subject))?.id ?? null;
+    }
+    if (!threadId) {
+      const { data: t } = await db.from("threads").insert({ user_id: userId, application_id: match.applicationId, subject, status: "open", gmail_thread_id: m.threadId }).select("id").single();
+      threadId = t!.id as string;
+    } else await db.from("threads").update({ status: "open" }).eq("id", threadId);
+
+    const base = { user_id: userId, thread_id: threadId, direction: "in", subject, purpose: c.kind, status: "sent", sent_at: new Date(m.at || Date.now()).toISOString(), gmail_message_id: id, to_email: acct?.email ?? null };
+    const full = { ...base, body: mailText(m) || c.summary, summary: c.summary, from_email: sender.email, from_name: sender.name, action_needed: c.action_needed || null, due_date: /^\d{4}-\d{2}-\d{2}$/.test(c.due_date) ? c.due_date : null };
+    const { error: insErr } = await db.from("messages").insert(full);
+    // before the inbox migration runs, the extra columns don't exist: keep the summary as the body
+    if (insErr) await db.from("messages").insert({ ...base, body: c.summary });
     await logEvent({ userId, actor: "agent:inbox", action: `inbox.${c.kind}`, applicationId: match.applicationId, channel: "email", context: { subject: m.subject, summary: c.summary, from: fromDomain } });
     added++;
 

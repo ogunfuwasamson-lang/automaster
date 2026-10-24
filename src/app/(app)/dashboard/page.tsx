@@ -30,7 +30,7 @@ import { Count } from "@/components/motion/count";
 import { Stagger, Rise } from "@/components/motion/reveal";
 import { DeadlineCard } from "@/components/home/deadline-card";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
-import { StopButton, CancelEmail, RetryRunner } from "./controls";
+import { StopButton, RetryRunner } from "./controls";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -78,7 +78,7 @@ export default async function Dashboard() {
     { data: apps },
     { data: drafts },
     { data: outgoing },
-    { data: inbound },
+    { count: draftMails },
     { data: events },
     { data: cords },
     { count: parked },
@@ -95,7 +95,7 @@ export default async function Dashboard() {
       .order("target_deadline", { ascending: true, nullsFirst: false }),
     sb.from("events").select("id, application_id, context, created_at").eq("action", "artifact.ready_for_user").order("created_at", { ascending: false }).limit(4),
     sb.from("messages").select("id, subject, to_email, send_after").eq("status", "scheduled").order("send_after"),
-    sb.from("messages").select("id, subject, body, purpose, sent_at, threads(application_id)").eq("direction", "in").order("sent_at", { ascending: false }).limit(4),
+    sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "out").in("status", ["draft", "pending_approval", "failed"]),
     sb.from("events").select("id, actor, action, created_at, context").not("action", "like", "guard.%").order("created_at", { ascending: false }).limit(8),
     sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
     sb.from("jobs").select("id", { count: "exact", head: true }).eq("status", "queued").ilike("last_error", "budget:%"),
@@ -103,6 +103,8 @@ export default async function Dashboard() {
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
 
+  const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
+  const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
   const p = loadProfile(prof?.profile);
   if (!p.goals.study_level && !docCount && !apps?.length) redirect("/onboarding");
 
@@ -299,25 +301,6 @@ export default async function Dashboard() {
         </Rise>
       )}
 
-      {outgoing?.length ? (
-        <Rise>
-          <Card className="p-5 sm:p-6">
-            <h2 className="text-lg font-bold tracking-[-0.02em]">Emails about to send</h2>
-            <p className="mt-0.5 text-sm text-muted">Agents wait a few minutes before sending, so you can take one back.</p>
-            <ul className="mt-3 divide-y divide-line">
-              {outgoing.map((m) => (
-                <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-bold">{m.subject}</span>
-                    <span className="text-[12.5px] text-muted">To {m.to_email}</span>
-                  </span>
-                  <CancelEmail id={m.id} sendAfter={m.send_after} />
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Rise>
-      ) : null}
 
       <Rise>
         <div className="grid gap-4 lg:grid-cols-12">
@@ -370,32 +353,23 @@ export default async function Dashboard() {
               )}
             </Card>
 
-            <Card className="p-5 sm:p-6">
-              <h2 className="mb-1 text-lg font-bold tracking-[-0.02em]">From your schools</h2>
-              {inbound?.length ? (
-                <ul>
-                  {inbound.map((m) => (
-                    <li key={m.id} className="flex gap-3 border-b border-dashed border-line py-3 last:border-0">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-                        <Inbox className="size-4" aria-hidden />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13.5px] font-bold">{m.subject}</span>
-                        <span className="line-clamp-2 text-xs leading-snug text-muted">{m.body}</span>
-                      </span>
-                      <span className="shrink-0 text-[11px] text-muted">{m.sent_at ? when(m.sent_at) : ""}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="py-4 text-sm text-muted">
-                  <Link href="/settings" className="font-semibold text-accent hover:underline">
-                    Connect Gmail
-                  </Link>{" "}
-                  and replies from your schools appear here.
-                </p>
-              )}
-            </Card>
+            <Link href="/messages" className="group block rounded-3xl border border-line bg-surface p-5 shadow-card transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lift sm:p-6">
+              <div className="flex items-center gap-3">
+                <span className="bg-hero-gradient relative grid size-11 shrink-0 place-items-center rounded-2xl text-white">
+                  <Inbox className="size-5" aria-hidden />
+                  {unread > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-signal px-1 text-[10.5px] font-bold ring-2 ring-surface">{unread}</span>}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-bold tracking-[-0.02em]">Messages</span>
+                  <span className="block text-[13px] text-muted">
+                    {unread || outgoing?.length || draftMails
+                      ? [unread && `${unread} new ${unread === 1 ? "reply" : "replies"}`, outgoing?.length && `${outgoing.length} sending soon`, draftMails && `${draftMails} to review`].filter(Boolean).join(", ")
+                      : "Emails to and from your schools"}
+                  </span>
+                </span>
+                <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
+              </div>
+            </Link>
           </div>
         </div>
       </Rise>

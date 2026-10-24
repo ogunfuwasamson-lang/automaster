@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classify, type Snapshot } from "@/lib/cloud-engine";
+import { classify, type Snapshot, isSignIn } from "@/lib/cloud-engine";
 import { extractVerification, hostRoot } from "@/lib/verify-mail";
 import { generatePassword } from "@/lib/vault";
 
@@ -107,5 +107,16 @@ describe("logins issued by email", () => {
     expect(extractCredentials({ subject: "Your account", text: "Your account has been created.\nUser ID: 12345678\nPassword: Xk9#pq2L\nPlease change it.", html: "" })).toEqual({ username: "12345678", password: "Xk9#pq2L" });
     expect(extractCredentials({ subject: "Création de compte", text: "", html: "<p>Code d'utilisateur : ADM0042</p><p>Mot de passe temporaire : a8Bq!z3</p>" })).toEqual({ username: "ADM0042", password: "a8Bq!z3" });
     expect(extractCredentials({ subject: "Newsletter", text: "Read our news", html: "" })).toEqual({ username: null, password: null });
+  });
+});
+
+describe("sign-in buttons, however they're worded", () => {
+  it("recognises the applicant's own sign-in", () => {
+    for (const l of ["Graduate Applicant Login", "Applicant Log In", "Log in", "Sign In", "Login here", "Returning users", "Existing applicants", "Already have an account? Sign in", "Access your application", "Log on", "Sign-in", "Graduate Admissions Login"])
+      expect(isSignIn(l), l).toBe(true);
+  });
+  it("leaves other doors and opposite actions alone", () => {
+    for (const l of ["Faculty Login", "Staff sign in", "Recommender Login", "Sign in with Google", "Log in with LinkedIn", "Sign up", "Log out", "Forgot your login?", "Current students log in", "Create an account", "Apply now", "Agent login"])
+      expect(isSignIn(l), l).toBe(false);
   });
 });

@@ -17,7 +17,7 @@ const ITEMS = [
 const isOn = (path: string, href: string) => path === href || path.startsWith(href + "/");
 
 // desktop: pill nav with a sliding ink indicator
-export function TopNav({ needsYou }: { needsYou: number }) {
+export function TopNav({ needsYou, unread = 0 }: { needsYou: number; unread?: number }) {
   const path = usePathname();
   return (
     <nav aria-label="Main" className="hidden items-center gap-0.5 lg:flex">
@@ -31,6 +31,11 @@ export function TopNav({ needsYou }: { needsYou: number }) {
               {href === "/dashboard" && needsYou > 0 ? (
                 <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold tabular ${on ? "bg-signal text-white" : "bg-signal/12 text-signal"}`} aria-label={`${needsYou} need you`}>
                   {needsYou}
+                </span>
+              ) : null}
+              {href === "/messages" && unread > 0 ? (
+                <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold tabular ${on ? "bg-accent-2 text-white" : "bg-accent/12 text-accent"}`} aria-label={`${unread} unread`}>
+                  {unread}
                 </span>
               ) : null}
             </span>
@@ -115,7 +120,7 @@ export function UserMenu({ name, email, paused, needsYou = 0 }: { name: string; 
 }
 
 // mobile: a floating glass tab bar
-export function TabBar({ needsYou }: { needsYou: number }) {
+export function TabBar({ needsYou, unread = 0 }: { needsYou: number; unread?: number }) {
   const path = usePathname();
   return (
     <nav aria-label="Main" className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-30 lg:hidden">
@@ -129,6 +134,7 @@ export function TabBar({ needsYou }: { needsYou: number }) {
                 <Icon className="relative size-5" aria-hidden />
                 <span className="relative">{label}</span>
                 {href === "/dashboard" && needsYou > 0 ? <span className="absolute right-[calc(50%-16px)] top-1.5 size-2 rounded-full bg-signal ring-2 ring-surface" aria-hidden /> : null}
+                {href === "/messages" && unread > 0 ? <span className="absolute right-[calc(50%-16px)] top-1.5 size-2 rounded-full bg-accent ring-2 ring-surface" aria-hidden /> : null}
               </Link>
             </li>
           );

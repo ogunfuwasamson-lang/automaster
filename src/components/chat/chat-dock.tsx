@@ -45,6 +45,7 @@ export function ChatDock() {
     >
       <Dialog.Trigger asChild>
         <button
+          hidden={path.startsWith("/messages")}
           className="bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+92px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-bold text-white shadow-[0_16px_36px_-10px_rgb(79_70_229/0.7)] transition-transform hover:-translate-y-0.5 lg:bottom-8 lg:right-8"
           aria-label="Talk to your interviewer"
         >

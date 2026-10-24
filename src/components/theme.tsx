@@ -78,7 +78,9 @@ export function ThemeSwitch({ compact = false }: { compact?: boolean }) {
 export function ThemeButton() {
   const [theme, set] = useTheme();
   const [dark, setDark] = useState(false);
-  useEffect(() => setDark(document.documentElement.dataset.theme === "dark"), [theme]);
+  useEffect(() => {
+    setDark(document.documentElement.dataset.theme === "dark");
+  }, [theme]);
   return (
     <button
       onClick={() => {

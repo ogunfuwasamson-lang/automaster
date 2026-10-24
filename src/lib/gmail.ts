@@ -102,10 +102,10 @@ export async function canReadMail(userId: string): Promise<boolean> {
 }
 
 // recent messages matching a gmail search, as plain text. used only to find portal verification codes/links.
-export async function recentMail(userId: string, q: string, max = 5): Promise<{ id: string; from: string; subject: string; text: string; html: string; at: number }[]> {
+export async function recentMail(userId: string, q: string, max = 5): Promise<{ id: string; threadId: string | null; from: string; subject: string; text: string; html: string; at: number }[]> {
   const { access } = await accessToken(userId);
   const h = { authorization: `Bearer ${access}` };
-  const list = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent(q)}`, { headers: h })).json()) as { messages?: { id: string }[] };
+  const list = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent(q)}`, { headers: h })).json()) as { messages?: { id: string; threadId?: string }[] };
   const out = [];
   for (const m of list.messages ?? []) {
     const msg = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, { headers: h })).json()) as GmailMsg;
@@ -118,7 +118,7 @@ export async function recentMail(userId: string, q: string, max = 5): Promise<{ 
     };
     walk(msg.payload);
     const dec = (t: string) => parts.filter((p) => p.mimeType === t && p.body?.data).map((p) => Buffer.from(p.body!.data!, "base64url").toString("utf8")).join("\n");
-    out.push({ id: m.id, from: header("from"), subject: header("subject"), text: dec("text/plain"), html: dec("text/html"), at: Number(msg.internalDate ?? 0) });
+    out.push({ id: m.id, threadId: m.threadId ?? null, from: header("from"), subject: header("subject"), text: dec("text/plain"), html: dec("text/html"), at: Number(msg.internalDate ?? 0) });
   }
   return out;
 }

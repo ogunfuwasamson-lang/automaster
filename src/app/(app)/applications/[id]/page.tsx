@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronDown, ChevronLeft, ExternalLink, LoaderCircle } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, LoaderCircle, Mail } from "lucide-react";
 import { StatusPill, daysUntil } from "@/components/ui/status";
 import { Empty, Notice, Section } from "@/components/ui/page";
 import { notFound } from "next/navigation";
@@ -9,9 +9,7 @@ import { AngleCard } from "./angle";
 import { AutoRefresh } from "../../shortlist/controls";
 import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
-import { OutreachDraft, type Draft } from "./outreach";
 import { admin } from "@/lib/supabase/admin";
-import { gmailConfigured } from "@/lib/gmail";
 import { RunnerPanel } from "./runner-panel";
 import { loadSheet } from "@/lib/runner";
 
@@ -55,18 +53,16 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const auth = await requireUser();
   if (!auth) return null;
   const { id } = await params;
-  const [{ data: app }, { data: jobs }, { data: threads }, { data: mailAcct }, { count: logins }] = await Promise.all([
+  const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }] = await Promise.all([
     auth.sb
       .from("applications")
       .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
-    auth.sb.from("threads").select("id, messages(id, purpose, to_email, subject, body, status, created_at, send_after, last_error)").eq("application_id", id).order("created_at"),
-    admin().from("mail_accounts").select("email, status").eq("user_id", auth.user.id).maybeSingle(),
+    auth.sb.from("threads").select("id, subject, messages(id, direction, subject, status, created_at, sent_at)").eq("application_id", id).order("created_at"),
     admin().from("portal_accounts").select("id", { count: "exact", head: true }).eq("user_id", auth.user.id).eq("application_id", id),
   ]);
-  const mail = gmailConfigured() && mailAcct?.status === "active" ? mailAcct.email : null;
   if (!app) notFound();
   const sheet = app.status === "packet_approved" ? await loadSheet(auth.user.id, id).catch(() => null) : null;
   const p = app.programs as unknown as { name: string; degree: string; url: string | null; app_fee_usd: number | null; schools: { name: string; country: string | null } };
@@ -86,10 +82,19 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   };
   const feePlan = planText("fee_plan");
   const fundingPlan = planText("funding_plan");
-  const drafts = ((threads ?? []) as unknown as { messages: (Draft & { created_at: string })[] }[])
-    .flatMap((t) => t.messages)
-    .filter((m) => m.status !== "cancelled")
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // emails live in Messages; here, only how this school's conversation stands
+  type Mini = { id: string; direction: "in" | "out"; subject: string | null; status: string; created_at: string; sent_at: string | null };
+  const convos = ((threads ?? []) as unknown as { id: string; subject: string | null; messages: Mini[] }[])
+    .map((t) => ({ ...t, messages: t.messages.filter((m) => m.status !== "cancelled").sort((a, b) => (a.sent_at ?? a.created_at).localeCompare(b.sent_at ?? b.created_at)) }))
+    .filter((t) => t.messages.length)
+    .sort((a, b) => (b.messages.at(-1)!.sent_at ?? b.messages.at(-1)!.created_at).localeCompare(a.messages.at(-1)!.sent_at ?? a.messages.at(-1)!.created_at));
+  const allMsgs = convos.flatMap((t) => t.messages);
+  const mailStats = {
+    sent: allMsgs.filter((m) => m.direction === "out" && m.status === "sent").length,
+    replies: allMsgs.filter((m) => m.direction === "in").length,
+    drafts: allMsgs.filter((m) => m.direction === "out" && ["draft", "pending_approval", "failed"].includes(m.status)).length,
+    sending: allMsgs.filter((m) => m.status === "scheduled").length,
+  };
 
   const essayData: EssayData[] = essays.map((e) => {
     const cur = e.artifact_versions.find((v) => v.version === e.current_version) ?? null;
@@ -233,8 +238,29 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         </Section>
       )}
 
-      {(feePlan || fundingPlan || drafts.length > 0) && (
-        <Section title="Fees and funding" description="Plans and emails from the funding agent. Nothing sends without your approval.">
+      {convos.length > 0 && (
+        <Link href={`/messages?t=${convos[0].id}`} className="group flex flex-wrap items-center gap-4 rounded-3xl border border-line bg-surface p-5 shadow-card transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lift">
+          <span className="bg-hero-gradient grid size-11 shrink-0 place-items-center rounded-2xl text-white">
+            <Mail className="size-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">Emails with {p.schools.name.split(",")[0]}</span>
+            <span className="block truncate text-[13px] text-muted">Latest: {convos[0].subject ?? convos[0].messages.at(-1)!.subject ?? "(no subject)"}</span>
+          </span>
+          <span className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
+            {mailStats.sent > 0 && <span className="rounded-lg bg-accent/10 px-2 py-1 text-accent">{mailStats.sent} sent</span>}
+            {mailStats.replies > 0 && <span className="rounded-lg bg-go/10 px-2 py-1 text-go">{mailStats.replies} {mailStats.replies === 1 ? "reply" : "replies"}</span>}
+            {mailStats.drafts > 0 && <span className="rounded-lg bg-pink-50 px-2 py-1 text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">{mailStats.drafts} to review</span>}
+            {mailStats.sending > 0 && <span className="rounded-lg bg-cyan-50 px-2 py-1 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">{mailStats.sending} sending</span>}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[13px] font-bold text-accent">
+            Open in Messages <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </span>
+        </Link>
+      )}
+
+      {(feePlan || fundingPlan) && (
+        <Section title="Fees and funding" description="Plans from the funding agent. Any emails it drafts wait for you in Messages.">
           {([["Funding plan after admission", fundingPlan], ["Application fee", feePlan]] as [string, string | null][]).map(([title, text]) =>
             text ? (
               <details key={title} className="group rounded-3xl border border-line bg-surface shadow-card" open={title.startsWith("Funding")}>
@@ -246,7 +272,6 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
               </details>
             ) : null,
           )}
-          {drafts.map((d) => <OutreachDraft key={`${d.id}:${d.status}`} d={d} mail={mail} />)}
         </Section>
       )}
     </div>

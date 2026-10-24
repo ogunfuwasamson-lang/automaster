@@ -19,6 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     sb.from("profiles").select("profile").single(),
   ]);
   const needsYou = (approvals ?? 0) + (runner ?? 0);
+  const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
+  const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
   const paused = !!cords?.length;
   const name = loadProfile(prof?.profile).identity.full_name ?? "";
 
@@ -33,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="glass mx-auto flex max-w-[1320px] items-center gap-4 rounded-[20px] border border-white/70 px-3 py-2 shadow-card dark:border-white/[0.06] sm:pl-5">
           <Wordmark href="/dashboard" small />
           <div className="mx-auto">
-            <TopNav needsYou={needsYou} />
+            <TopNav needsYou={needsYou} unread={unread} />
           </div>
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
             {paused ? (
@@ -47,7 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-12">{children}</main>
-      <TabBar needsYou={needsYou} />
+      <TabBar needsYou={needsYou} unread={unread} />
       <Suspense>
         <ChatDock />
       </Suspense>
