@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { PingButton } from "./ping-button";
 
@@ -6,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
   const auth = await requireUser();
-  if (!auth) redirect("/login");
+  if (!auth) return null;
   const { sb, user } = auth;
 
   const [{ data: grants }, { data: approvals }, { data: events }] = await Promise.all([

@@ -8,8 +8,8 @@ you review, they run.
 | phase | what | state |
 |---|---|---|
 | 0 | schema, autonomy policy, job queue, agent runtime, event log, tests | done |
-| 1 | intake: doc upload, extraction, voice interview | next |
-| 2 | recon + deadline tracker | |
+| 1 | intake: doc upload, extraction, voice interview | done |
+| 2 | recon + deadline tracker | next |
 | 3 | strategist, writer, red team | |
 | 4 | closer: funding hunt, gmail outreach | |
 | 5 | runner: fill sheets, browser extension | |

@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
@@ -24,7 +25,7 @@ interface RunArgs<S extends z.ZodType> {
   tier?: keyof typeof MODELS;
   promptVersion?: string;
   system: string;
-  prompt: string;
+  prompt: string | ContentBlockParam[];
   schema: S;
   maxTokens?: number;
 }
@@ -41,7 +42,14 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
       agent: args.agent,
       model,
       prompt_version: args.promptVersion ?? "v1",
-      input: { system: args.system, prompt: args.prompt },
+      // never store file bytes in the run log, just a marker
+      input: {
+        system: args.system,
+        prompt:
+          typeof args.prompt === "string"
+            ? args.prompt
+            : args.prompt.map((b) => (b.type === "text" ? b : { type: b.type, omitted: true })),
+      },
     })
     .select("id")
     .single();
