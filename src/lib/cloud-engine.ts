@@ -22,6 +22,7 @@ export interface Snapshot {
 
 export interface EngineState {
   steps: number;
+  signedIn?: boolean; // a sign-in with the stored login has worked at least once
   missing?: string[]; // fill-sheet keys a portal asked for that the profile doesn't have
   reachedSubmit?: boolean;
   submitClicked?: boolean;
@@ -120,7 +121,13 @@ async function snap(page: Page): Promise<Snapshot> {
 }
 
 async function click(page: Page, id: string) {
-  await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), frameOf(page).click(`[data-am-id="${id}"]`, { timeout: 10_000 })]);
+  const sel = `[data-am-id="${id}"]`;
+  try {
+    await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), frameOf(page).click(sel, { timeout: 8_000 })]);
+  } catch {
+    // something overlaps the button (peoplesoft's invisible layers, cookie bars): press it directly
+    await frameOf(page).evaluate((s) => (document.querySelector(s) as HTMLElement | null)?.click(), sel);
+  }
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
   await sleep(1200);
 }
@@ -191,10 +198,11 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       await click(page, go.id);
       const after = await snap(page);
       if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
-        // a login we generated that has never worked: the applicant hasn't created the account yet
-        if (login.status !== "verified") return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
+        // a login that has never worked on this application: the applicant hasn't created the account yet
+        if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
         return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. if you changed it, update it in automaster" }, state, filled };
       }
+      state.signedIn = true;
       continue;
     }
 

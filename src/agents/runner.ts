@@ -172,7 +172,7 @@ export const runner: Record<string, Handler> = {
           .catch(() => null),
       };
       const login = await getLogin(job.user_id, host()).catch(() => null);
-      if (login && login.status !== "verified" && (outcome.kind === "submitted" || next.steps > 3)) await markLogin(login.id, "verified");
+      if (login && login.status !== "verified" && (outcome.kind === "submitted" || next.signedIn)) await markLogin(login.id, "verified");
 
       if (outcome.kind === "submitted") {
         await db.from("applications").update({ runner_state: saved, runner_session_id: null }).eq("id", applicationId);
@@ -199,7 +199,7 @@ export const runner: Record<string, Handler> = {
         if (outcome.reason === "account") {
           // generate the password now so the applicant creates the account with it; we sign in with it after
           const login = await createLogin(job.user_id, applicationId, new URL(page.url()).hostname, sheet.fields.email ?? "");
-          outcome.note = `this portal blocks automated sign-ups. create the account yourself at ${portal}: use ${login.login_email} and the password under "your portal login" below. the agents sign in and finish the rest within 10 minutes`;
+          outcome.note = `this portal blocks automated sign-ups. create the account yourself at ${portal}: use ${login.login_email} and the password under "your portal login" below (already created it? make sure the password matches). the agents sign in and finish the rest within 10 minutes`;
           saved.last_url = portal; // start again from the landing page, which has the "log in" link
           saved.samePageCount = 0;
         }
