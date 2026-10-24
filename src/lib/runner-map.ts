@@ -118,7 +118,28 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
 }
 
 // turn a chosen sheet key into a fill for this field (or null if the sheet has no usable value)
+// a select labelled only "date of birth" is one part of a split date: tell which from its options
+export function datePart(options: string[]): "day" | "month" | "year" | null {
+  const o = options.map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (o.some((x) => /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/.test(x)) || o.includes("month") || o.includes("mm") || o.includes("mon")) return "month";
+  if (o.some((x) => /^(19|20)\d\d$/.test(x)) || o.includes("year") || o.includes("yyyy")) return "year";
+  const nums = o.filter((x) => /^\d{1,2}$/.test(x)).map(Number);
+  if (o.includes("day") || o.includes("dd") || (nums.length >= 28 && Math.max(...nums) === 31)) return "day";
+  if (nums.length === 12 && Math.max(...nums) === 12) return "month";
+  return null;
+}
+
 export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | null {
+  if (key === "date_of_birth" && f.type === "select") {
+    const part = datePart(f.options ?? []);
+    if (part) key = `dob_${part}`;
+  }
+  // "Sep 2027" style start lists: match the month-year
+  if (key === "entry_start" && (f.type === "select" || f.type === "radio") && sheet.fields.entry_start) {
+    const [mon, yr] = sheet.fields.entry_start.split(" ");
+    const hit = (f.options ?? []).find((o) => o.toLowerCase().includes(mon.slice(0, 3).toLowerCase()) && o.includes(yr));
+    if (hit) return { id: f.id, action: "choose", option: hit, source: key };
+  }
   if (key.startsWith("essay:")) {
     const e = sheet.essays.find((x) => `essay:${x.artifact_id}` === key);
     if (!e) return null;

@@ -1,7 +1,7 @@
 // the cloud runner's brain: looks at a portal page and decides the next move, then does it.
 // no db and no network of its own: everything outside the page comes in through deps, so the same
 // engine runs on vercel against browserbase and in tests against a local chromium.
-import type { Page } from "playwright-core";
+import type { Frame, Page } from "playwright-core";
 import type { Fill, PageField } from "@/lib/runner-map";
 import { NEVER_FILL } from "@/lib/fillsheet";
 import { DOM_HELPER } from "@/lib/runner-dom";
@@ -85,22 +85,50 @@ export function classify(s: Snapshot): "confirmation" | "captcha" | "payment" | 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// some portals (peoplesoft, older systems) put the form inside a frame: work in whichever frame holds it
+const active = new WeakMap<Page, Frame>();
+const frameOf = (page: Page): Frame => active.get(page) ?? page.mainFrame();
+
+async function snapFrame(f: Frame): Promise<Snapshot | null> {
+  try {
+    await f.evaluate(DOM_HELPER);
+    return await f.evaluate(() => (window as unknown as { __am: { snapshot(): Snapshot } }).__am.snapshot());
+  } catch {
+    return null; // cross-origin ad frames and the like
+  }
+}
+
 async function snap(page: Page): Promise<Snapshot> {
-  await page.evaluate(DOM_HELPER);
-  return page.evaluate(() => (window as unknown as { __am: { snapshot(): Snapshot } }).__am.snapshot());
+  const main = (await snapFrame(page.mainFrame()))!;
+  let best: { f: Frame; s: Snapshot } = { f: page.mainFrame(), s: main };
+  const score = (x: Snapshot) => x.allFields.length * 3 + x.buttons.length;
+  let confirmation = main.confirmation;
+  let captcha = main.captcha;
+  for (const f of page.frames()) {
+    if (f === page.mainFrame() || !f.url().startsWith("http")) continue;
+    const s = await snapFrame(f);
+    if (!s) continue;
+    confirmation ||= s.confirmation;
+    captcha ||= s.captcha;
+    if ((s.allFields.length || s.buttons.length > main.buttons.length) && score(s) > score(best.s)) best = { f, s };
+  }
+  active.set(page, best.f);
+  // page-level signals (bot checks, confirmations) count from any frame
+  return { ...best.s, captcha, confirmation, title: main.title || best.s.title };
 }
 
 async function click(page: Page, id: string) {
-  await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), page.click(`[data-am-id="${id}"]`, { timeout: 10_000 })]);
+  await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), frameOf(page).click(`[data-am-id="${id}"]`, { timeout: 10_000 })]);
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
   await sleep(1200);
 }
 
 async function fillText(page: Page, id: string, value: string) {
-  await page.fill(`[data-am-id="${id}"]`, value, { timeout: 10_000 });
+  await frameOf(page).fill(`[data-am-id="${id}"]`, value, { timeout: 10_000 });
 }
 
-const clean = (l: string) => l.replace(/[\u2190-\u21ff\u2794-\u27bf›»<>←→]+/g, " ").replace(/\s+/g, " ").trim();
+// bilingual portals label buttons "Log in / Ouvrez une session": match on the first language
+const clean = (l: string) => l.replace(/[\u2190-\u21ff\u2794-\u27bf›»<>←→]+/g, " ").split(/\s+\/\s+|\s+\|\s+/)[0].replace(/\s+/g, " ").trim();
 const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link));
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
@@ -118,7 +146,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     state.lastFingerprint = s.fingerprint;
     // a sign-up form that won't move even though everything is filled: the portal blocks automated sign-ups.
     // the applicant creates the account once (with our generated password); we sign in from then on.
-    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length) {
+    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !/(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error)/i.test(s.body)) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
     if (state.samePageCount >= 3) {
@@ -217,6 +245,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       await deps.progress(`filling ${s.fields.length} field${s.fields.length > 1 ? "s" : ""}`);
       filled += await applyFills(page, deps, s.fields, state);
       await acceptTerms(page, s);
+      await sleep(1500);
+      const tried = new Set(s.fields.map((f) => f.id));
+      const fresh = (await snap(page)).fields.filter((f) => !tried.has(f.id) || (f.options?.length ?? 0) > (s.fields.find((x) => x.id === f.id)?.options?.length ?? 0));
+      if (fresh.length) filled += await applyFills(page, deps, fresh, state);
     }
     const now = await snap(page);
     const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
@@ -237,7 +269,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
-    const next = find(now, NEXT) ?? (!s.fields.length ? (haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? find(now, CREATE) : undefined);
+    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) : undefined) ?? find(now, START) ?? (!s.fields.length ? find(now, CREATE) : undefined);
     if (next) {
       await click(page, next.id);
       continue;
@@ -271,11 +303,11 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
       }
       if (f.action === "upload") {
         const file = await deps.file(f.file);
-        await page.setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });
+        await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { name: file.name, mimeType: file.mime, buffer: file.buffer });
         n++;
         continue;
       }
-      const ok = await page.evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
+      const ok = await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
       if (ok) n++;
     } catch {
       /* a field we couldn't set stays empty and is reported as a question */
@@ -287,6 +319,6 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
 // account terms: covered by the applicant's signed authorization to create the account
 async function acceptTerms(page: Page, s: Snapshot) {
   for (const f of s.fields.filter((x) => x.type === "checkbox" && TERMS.test(x.label))) {
-    await page.evaluate((id) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply({ id, action: "check" }), f.id).catch(() => {});
+    await frameOf(page).evaluate((id) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply({ id, action: "check" }), f.id).catch(() => {});
   }
 }

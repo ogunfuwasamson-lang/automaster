@@ -61,11 +61,13 @@ export const runner: Record<string, Handler> = {
     const cand = normalizeUrl(output.portal_url);
     const schoolRoot = p.url ? rootOf(new URL(normalizeUrl(p.url) ?? "https://x.invalid").hostname) : null;
     const seen = (u: string) => found.text.includes(u.replace(/^https:\/\//, "").slice(0, 40)) || found.sources.some((x) => x.startsWith(new URL(u).origin));
-    let url = cand && (seen(cand) || (schoolRoot && rootOf(new URL(cand).hostname) === schoolRoot)) ? cand : null;
+    let url = cand && looksLikePortal(cand) && (seen(cand) || (schoolRoot && rootOf(new URL(cand).hostname) === schoolRoot)) ? cand : null;
     // the model passed: take the first application-site link the search itself turned up
     if (!url) {
       const links = [...found.sources, ...(found.text.match(/https?:\/\/[^\s)"'<>\]]+/g) ?? [])].map((u) => normalizeUrl(u)).filter((u): u is string => !!u);
-      url = links.find((u) => looksLikePortal(u) && (!schoolRoot || rootOf(new URL(u).hostname) === schoolRoot)) ?? links.find((u) => looksLikePortal(u)) ?? null;
+      // only an application *site* (apply./slate/portal host or login path), never a brochure page that merely mentions applying
+      const site = (u: string) => looksLikePortal(u) && /(^|\.)(apply|applygrad|gradapply|slate|portal|applications?|enligne)\.|account\/(login|register)|my\.site\.com|course-application|technolutions/i.test(new URL(u).hostname + new URL(u).pathname);
+      url = links.find((u) => site(u) && (!schoolRoot || rootOf(new URL(u).hostname) === schoolRoot)) ?? null;
     }
     let note = output.notes;
     if (!url && p.url) {

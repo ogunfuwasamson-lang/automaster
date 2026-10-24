@@ -26,7 +26,7 @@ const NON_ESSAY = new Set(["strategy", "fee_plan", "funding_plan", "video_or_int
 export async function loadApp(userId: string, applicationId: string) {
   const { data } = await admin()
     .from("applications")
-    .select("id, status, packet_approved_at, attested_at, portal_url, runner_status, program_id, programs(name, degree, url, app_fee_usd, school_id, schools(name)), artifacts(id, kind, title, prompt, current_version, artifact_versions(version, content, user_approved_at))")
+    .select("id, status, packet_approved_at, attested_at, portal_url, runner_status, program_id, programs(name, degree, url, app_fee_usd, school_id, schools(name, country)), artifacts(id, kind, title, prompt, current_version, artifact_versions(version, content, user_approved_at))")
     .eq("id", applicationId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -37,7 +37,7 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
   const db = admin();
   const app = await loadApp(userId, applicationId);
   if (!app || !app.packet_approved_at) return null;
-  const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string } };
+  const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string; country: string | null } };
   type Art = { id: string; kind: string; title: string; prompt: string | null; current_version: number; artifact_versions: { version: number; content: string; user_approved_at: string | null }[] };
   // only the exact versions the applicant approved
   const essays: SheetEssay[] = ((app.artifacts ?? []) as unknown as Art[])
@@ -61,6 +61,7 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
     degree: p.degree,
     portalUrl: app.portal_url ?? p.url,
     attested: !!app.attested_at,
+    schoolCountry: p.schools.country,
     // portal accounts use the connected gmail, so the agents can read the portal's verification emails.
     // an email the applicant typed into "details for application forms" still wins.
     accountEmail: (mail?.status === "active" ? mail.email : null) ?? prof?.email ?? user?.user?.email ?? null,

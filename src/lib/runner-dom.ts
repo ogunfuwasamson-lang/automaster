@@ -25,7 +25,7 @@ export const DOM_HELPER = String.raw`
     // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question
     // (slate renders birthdate as three selects inside one .form_question)
     if (!own || own.length <= 12) {
-      const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li");
+      const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li") || (el.parentElement && el.parentElement.closest("div, p, span"));
       const q = row && (row.querySelector(".form_label, legend, label:not([for]), th, .label, h3, h4") || null);
       const ctx = q ? textOf(q) : row ? textOf(row).slice(0, 120) : "";
       if (ctx && !own.toLowerCase().includes(ctx.toLowerCase())) own = (ctx + " " + own).trim();

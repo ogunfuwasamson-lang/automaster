@@ -52,6 +52,9 @@ describe("fill sheet", () => {
     expect(s.fields.entry_season).toBe("Fall");
     expect(s.fields.entry_year).toBe("2027");
     expect(s.fields.ielts_score).toBe("8.0");
+    expect(s.fields.applying_as).toBe("myself");
+    expect(s.fields.study_mode).toBe("Full-time");
+    expect(s.fields.entry_start).toBe("September 2027");
     expect(s.fields.rec1_email).toBe("grace@x.com");
   });
   it("lists what portals will ask for that's missing", () => {

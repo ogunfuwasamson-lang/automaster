@@ -34,6 +34,8 @@ export interface FillSheet {
   missing: string[]; // things portals usually need that we don't have
 }
 
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z]/g, "");
+
 function splitName(full: string | null | undefined) {
   const parts = (full ?? "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return { first: "", middle: "", last: "" };
@@ -52,6 +54,7 @@ export function buildSheet(a: {
   portalUrl: string | null;
   attested: boolean;
   accountEmail: string | null;
+  schoolCountry?: string | null;
   profile: Profile;
   details: PortalDetails;
   recommenders: RecommenderRow[];
@@ -82,7 +85,7 @@ export function buildSheet(a: {
   }
   set("gender", d.gender);
   set("citizenship", p.identity.citizenship);
-  set("country_of_birth", null);
+  set("country_of_birth", d.country_of_birth);
   set("country_of_residence", p.identity.country_of_residence);
   set("address_line1", d.address_line1);
   set("address_line2", d.address_line2);
@@ -106,6 +109,17 @@ export function buildSheet(a: {
     }
   }
   set("field_of_interest", p.goals.fields?.join(", "));
+  // answers most portals ask up front. applying through an agent is never the case here: the applicant applies.
+  set("applying_as", "myself");
+  set("study_mode", /part.?time|online|executive/i.test(`${a.program} ${a.degree ?? ""}`) ? (/online/i.test(a.program) ? "Online" : "Part-time") : "Full-time");
+  if (p.identity.citizenship && a.schoolCountry) {
+    const same = norm(p.identity.citizenship).startsWith(norm(a.schoolCountry).slice(0, 5)) || norm(a.schoolCountry).startsWith(norm(p.identity.citizenship).slice(0, 5));
+    set("visa_required", same ? "No" : "Yes");
+  }
+  if (p.goals.target_term) {
+    const m = p.goals.target_term.match(/(fall|autumn|spring|summer|winter)[\s-]*(\d{4})/i);
+    if (m) set("entry_start", `${({ fall: "September", autumn: "September", spring: "January", winter: "January", summer: "May" } as Record<string, string>)[m[1].toLowerCase()]} ${m[2]}`);
+  }
   set("research_interests", p.goals.research_interests?.join(", "));
   set("short_term_goal", p.goals.short_term_goal);
   set("long_term_goal", p.goals.long_term_goal);
@@ -209,6 +223,12 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(date\s*of\s*birth|birth\s*date|birthdate|dob)\b/i, "date_of_birth"],
   [/\b(gender|sex)\b/i, "gender"],
   [/\bcitizenship|nationality\b/i, "citizenship"],
+  [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
+  [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
+  [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent/i, "applying_as"],
+  [/\b(mode of study|study mode|attendance mode|full.?time or part.?time|part.?time or full.?time)\b|^\s*full.?time\s+part.?time\s*$|^\s*part.?time\s+full.?time\s*$/i, "study_mode"],
+  [/\b(do you|will you) (require|need) a (student )?visa|\bvisa (required|needed)|require a visa/i, "visa_required"],
+  [/\b(start date|intake|entry (date|point|month)|course start|commenc|when (do|would) you (like|want|intend) to start)/i, "entry_start"],
   [/\bcountry\s*of\s*(permanent\s*)?residen/i, "country_of_residence"],
   [/\b(address|street)\b.*\b(2|two|line\s*2)\b/i, "address_line2"],
   [/\b(street|address)(\s*line\s*1)?\b/i, "address_line1"],

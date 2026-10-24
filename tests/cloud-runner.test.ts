@@ -72,3 +72,21 @@ describe("slate-style birthdate", () => {
     expect(missingNote(["dob_month", "dob_day"])).toBe("add your date of birth under profile → details for application forms, then press try again");
   });
 });
+
+describe("real-portal regressions", () => {
+  it("rejects accommodation and brochure pages as portals", () => {
+    expect(looksLikePortal("https://rooms.le.ac.uk/student_portal/Account/Login")).toBe(false);
+    expect(looksLikePortal("https://www.manchester.ac.uk/study/masters/courses/list/13005/ma-international-education/application-and-selection/")).toBe(false);
+    expect(looksLikePortal("https://enligne.hec.ca/psp/GAPET/HEL/PSFT_CS_HEL/?cmd=login")).toBe(true);
+    expect(looksLikePortal("https://utdcomet.my.site.com/ApplicantPortal/s/gradapp/")).toBe(true);
+    expect(looksLikePortal("https://future.mcgill.ca/apply/")).toBe(true);
+  });
+  it("maps stirling's up-front questions", () => {
+    expect(keyForLabel("I am applying for myself I am applying using an education agent")).toBe("applying_as");
+    expect(keyForLabel("Permanent residence *")).toBe("country_of_residence");
+    expect(keyForLabel("Country / Region of birth *")).toBe("country_of_birth");
+    expect(keyForLabel("Do you require a visa to study in the UK?")).toBe("visa_required");
+    expect(keyForLabel("Mode of study")).toBe("study_mode");
+    expect(keyForLabel("Course start date")).toBe("entry_start");
+  });
+});

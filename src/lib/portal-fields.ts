@@ -11,6 +11,7 @@ export interface PortalDetails {
   state?: string | null;
   postal_code?: string | null;
   country?: string | null;
+  country_of_birth?: string | null;
   linkedin?: string | null;
   website?: string | null;
 }
@@ -27,6 +28,7 @@ export const PORTAL_DETAIL_FIELDS: { key: keyof PortalDetails; label: string; ty
   { key: "state", label: "state / province" },
   { key: "postal_code", label: "postal code" },
   { key: "country", label: "country", required: true },
+  { key: "country_of_birth", label: "country of birth" },
   { key: "linkedin", label: "linkedin url" },
   { key: "website", label: "website" },
 ];
