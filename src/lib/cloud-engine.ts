@@ -85,7 +85,7 @@ export type Outcome =
 const FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
 const NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
 const START = /^(start|begin|continue|resume) (my |an |your |a new |new )?application\b.{0,20}$|^apply( now| online| today| here)?( for (this|the) program.{0,30})?$|^start( here| now)?$|^(how to )?apply to (this|the) program$/i;
-const CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login)$/i;
+const CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here| e-?id| user ?id| username| applicant account)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login|(get|request) (an? )?(e-?id|account))[?!.]*$/i;
 const SIGNIN = /^(sign in|log ?in|login|continue|next|submit)$/i;
 const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next|(set|save|create|update|change|choose) (my |your |a )?password|save|activate( (my )?account)?|finish|complete( registration)?|confirm)$/i;
 const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
@@ -105,6 +105,7 @@ export function isSignIn(label: string): boolean {
   const l = label.replace(/\s+/g, " ").trim();
   return l.length > 0 && l.length <= 48 && SIGN_WORDS.test(l) && !NOT_MINE.test(l);
 }
+export const CREATE_RE = CREATE;
 const findBy = (s: Snapshot, ok: (label: string) => boolean) => s.buttons.find((b) => ok(clean(b.label)) && goesSomewhere(s, b));
 const TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
 

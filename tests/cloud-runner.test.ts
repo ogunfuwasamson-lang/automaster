@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classify, type Snapshot, isSignIn } from "@/lib/cloud-engine";
+import { classify, type Snapshot, isSignIn, CREATE_RE } from "@/lib/cloud-engine";
 import { extractVerification, hostRoot } from "@/lib/verify-mail";
 import { generatePassword } from "@/lib/vault";
 
@@ -119,4 +119,12 @@ describe("sign-in buttons, however they're worded", () => {
     for (const l of ["Faculty Login", "Staff sign in", "Recommender Login", "Sign in with Google", "Log in with LinkedIn", "Sign up", "Log out", "Forgot your login?", "Current students log in", "Create an account", "Apply now", "Agent login"])
       expect(isSignIn(l), l).toBe(false);
   });
+});
+
+describe("account creation buttons", () => {
+  it("recognises the usual wordings", () => {
+    for (const l of ["Create an eID", "Register for Account", "Create account", "Sign up", "New applicants", "Create a login", "Register", "Get an account"]) expect(CREATE_RE.test(l), l).toBe(true);
+    for (const l of ["Graduate Application Log in", "Forgot Password?", "Account FAQs"]) expect(CREATE_RE.test(l), l).toBe(false);
+  });
+  it("reads UT Dallas's sign-in button", () => expect(isSignIn("Graduate Application Log in")).toBe(true));
 });
