@@ -1,3 +1,4 @@
+import { ThemeButton } from "@/components/theme";
 import Link from "next/link";
 import { ArrowRight, Check, Compass, FileSignature, Fingerprint, Globe, Hand, PenLine, Search, ShieldCheck, Sparkles, Undo2, UserRound, Banknote } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
@@ -72,7 +73,7 @@ function Preview() {
                   </span>
                   <span className="hidden w-20 sm:block">
                     <span className="block h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-                      <span className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" style={{ width: `${(r.done / r.total) * 100}%` }} />
+                      <span className="block h-full rounded-full bg-bar-gradient" style={{ width: `${(r.done / r.total) * 100}%` }} />
                     </span>
                   </span>
                   <StatusPill status={r.status} />
@@ -115,6 +116,7 @@ export default function Home() {
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm font-semibold">
+          <ThemeButton />
           <Link href="/pricing" className="hidden rounded-xl px-3 py-2 text-muted hover:text-foreground sm:block">
             Pricing
           </Link>

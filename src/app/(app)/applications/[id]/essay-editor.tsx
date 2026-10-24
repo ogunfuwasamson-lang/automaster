@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleAlert, CircleCheck, LoaderCircle, Wand2 } from "lucide-react";
+import { ChevronDown, CircleAlert, CircleCheck, Lightbulb, LoaderCircle, Wand2 } from "lucide-react";
+import { Clamp } from "@/components/ui/clamp";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
 
 export interface EssayData {
   id: string;
@@ -63,105 +63,165 @@ export function EssayEditor({ e }: { e: EssayData }) {
     router.refresh();
   }
 
+  const [panel, setPanel] = useState<"claims" | "tips" | null>(null);
+  const tone = { working: "bg-neutral-100 text-muted dark:bg-neutral-800", approved: "bg-go/10 text-go", edited: "bg-accent/10 text-accent", ready: "bg-signal/10 text-signal", review: "bg-neutral-100 text-muted dark:bg-neutral-800", waiting: "bg-neutral-100 text-muted dark:bg-neutral-800" }[state];
+
   return (
     <article className="overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
-        <div className="min-w-0">
-          <h3 className="text-lg font-semibold">{cap(e.title)}</h3>
-          {e.prompt && <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">{e.prompt}</p>}
+      <header className="space-y-3 px-5 pb-4 pt-5 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold tracking-[-0.02em]">{cap(e.title)}</h3>
+          <span className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${tone}`}>
+            {state === "working" ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : state === "approved" ? <CircleCheck className="size-3.5" aria-hidden /> : <span className="size-1.5 rounded-full bg-current" aria-hidden />}
+            {STATE[state][0]}
+          </span>
         </div>
-        <span className={`inline-flex shrink-0 items-center gap-1.5 text-sm font-medium ${STATE[state][1]}`}>
-          {state === "working" ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : state === "approved" ? <CircleCheck className="size-4" aria-hidden /> : null}
-          {STATE[state][0]}
-        </span>
+        {e.prompt && (
+          <div className="rounded-2xl border-l-[3px] border-accent/50 bg-neutral-50 px-4 py-2.5 text-[13px] leading-relaxed text-muted dark:bg-neutral-900/60">
+            <Clamp lines={2}>{e.prompt}</Clamp>
+          </div>
+        )}
       </header>
 
       {e.version > 0 ? (
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_17rem]">
-          <div className="space-y-3 p-5">
+        <>
+          {/* the fact check, folded into two chips: open either for the detail */}
+          <div className="flex flex-wrap items-center gap-2 border-y border-line bg-neutral-50/60 px-5 py-2.5 sm:px-6 dark:bg-neutral-900/40">
+            <span className="mr-1 text-[11.5px] font-bold text-muted">Fact check</span>
+            {claims.length ? (
+              <button onClick={() => setPanel(panel === "claims" ? null : "claims")} aria-expanded={panel === "claims"} className="inline-flex items-center gap-1.5 rounded-full bg-stop/10 px-3 py-1 text-xs font-bold text-stop hover:bg-stop/15">
+                <CircleAlert className="size-3.5" aria-hidden />
+                {claims.length} claim{claims.length > 1 ? "s" : ""} not in your profile
+                <ChevronDown className={`size-3 transition-transform ${panel === "claims" ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-go/10 px-3 py-1 text-xs font-bold text-go">
+                <CircleCheck className="size-3.5" aria-hidden />
+                {c.edited_by_user ? "Your words, your facts" : "Every claim checks out"}
+              </span>
+            )}
+            {issues.length > 0 && (
+              <button onClick={() => setPanel(panel === "tips" ? null : "tips")} aria-expanded={panel === "tips"} className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold text-accent hover:bg-accent/15">
+                <Lightbulb className="size-3.5" aria-hidden />
+                {issues.length} suggestion{issues.length > 1 ? "s" : ""}
+                <ChevronDown className={`size-3 transition-transform ${panel === "tips" ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+            )}
+            {c.summary && !c.edited_by_user && <span className="hidden min-w-0 flex-1 truncate text-xs text-muted lg:block" title={c.summary}>{c.summary}</span>}
+          </div>
+          {panel === "claims" && claims.length > 0 && (
+            <ul className="space-y-1.5 border-b border-line bg-stop/[0.04] px-5 py-3 text-[13px] sm:px-6">
+              <li className="text-xs font-bold text-stop">Fix or remove these before approving</li>
+              {claims.map((u) => (
+                <li key={u} className="flex gap-2">
+                  <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-stop" aria-hidden />
+                  {u}
+                </li>
+              ))}
+            </ul>
+          )}
+          {panel === "tips" && issues.length > 0 && (
+            <ul className="grid gap-2 border-b border-line bg-accent/[0.03] px-5 py-3 text-[13px] sm:grid-cols-2 sm:px-6">
+              {issues.map((i, n) => (
+                <li key={n} className="rounded-2xl border border-line bg-surface p-3">
+                  <span className={`block font-bold ${i.severity === "high" ? "text-stop" : ""}`}>{cap(i.issue)}</span>
+                  {i.fix && <span className="mt-0.5 block leading-relaxed text-muted">{cap(i.fix)}</span>}
+                </li>
+              ))}
+              {c.hit_round_cap && !c.edited_by_user ? <li className="text-xs text-muted sm:col-span-2">The reviewer stopped after its last round with points left. Fix them in your edit.</li> : null}
+            </ul>
+          )}
+
+          <div className="space-y-3 px-5 py-5 sm:px-6">
             <textarea
               value={text}
               onChange={(ev) => setText(ev.target.value)}
-              rows={Math.min(30, Math.max(10, Math.ceil(text.length / 85)))}
+              rows={Math.min(14, Math.max(8, Math.ceil(text.length / 95)))}
               aria-label={`${e.title} text`}
-              className="w-full resize-y rounded-lg border border-transparent bg-transparent px-0 py-0 font-[family-name:var(--font-sans)] text-[16px] leading-[1.75] outline-none focus:border-line focus:px-3 focus:py-2"
+              className="max-h-[28rem] w-full resize-y rounded-2xl border border-line bg-background px-4 py-3.5 text-[15px] leading-[1.75] outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-4 focus:ring-accent/12"
             />
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-muted">
-              <span className={over ? "font-medium text-stop" : ""}>
-                {count} words{e.wordLimit ? ` of ${e.wordLimit}` : ""}
-              </span>
-              <span>
-                Version {e.version} of {e.versions}, {e.author === "user" ? "written by you" : "agent draft"}
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+              {e.wordLimit ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                    <span className={`block h-full rounded-full ${over ? "bg-stop" : "bg-bar-gradient"}`} style={{ width: `${Math.min(100, (count / e.wordLimit) * 100)}%` }} />
+                  </span>
+                  <span className={over ? "font-bold text-stop" : ""}>
+                    {count} of {e.wordLimit} words
+                  </span>
+                </span>
+              ) : (
+                <span>{count} words</span>
+              )}
+              <span className="ml-auto">
+                Version {e.version}, {e.author === "user" ? "written by you" : "agent draft"}
               </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" disabled={!dirty || !!busy} onClick={() => act({ action: "save", content: text }, "save", "Your edit is saved")}>
-                {busy === "save" ? "Saving…" : "Save my edit"}
-              </Button>
-              <Button
-                disabled={dirty || e.approved || !!busy || e.working || over}
-                title={dirty ? "Save your edit first" : over ? "Over the word limit" : ""}
-                onClick={() => act({ action: "approve", version: e.version }, "approve", "Approved as yours")}
-              >
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button disabled={dirty || e.approved || !!busy || e.working || over} title={dirty ? "Save your edit first" : over ? "Over the word limit" : ""} onClick={() => act({ action: "approve", version: e.version }, "approve", "Approved as yours")}>
                 <CircleCheck className="size-4" aria-hidden />
                 {busy === "approve" ? "Approving…" : e.approved ? "Approved" : "Approve as mine"}
               </Button>
+              <Button variant="secondary" disabled={!dirty || !!busy} onClick={() => act({ action: "save", content: text }, "save", "Your edit is saved")}>
+                {busy === "save" ? "Saving…" : "Save my edit"}
+              </Button>
+              {dirty && <span className="text-xs text-muted">Unsaved changes</span>}
             </div>
-            {dirty && <p className="text-xs text-muted">Unsaved changes. A revision starts from the last saved version.</p>}
             <form
-              className="flex gap-2 pt-1"
+              className="flex gap-2 rounded-2xl border border-dashed border-line p-1.5"
               onSubmit={(ev) => {
                 ev.preventDefault();
                 act({ action: "revise", notes }, "revise", "Sent to the writer").then(() => setNotes(""));
               }}
             >
-              <Input value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="Tell the writer what to change" />
-              <Button type="submit" variant="secondary" disabled={!!busy || e.working}>
-                <Wand2 className="size-4" aria-hidden />
+              <input value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="Ask the writer for a change, like: shorter opening, more on my Kuda work" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" aria-label="Ask the writer for a change" />
+              <Button type="submit" size="sm" variant="secondary" disabled={!!busy || e.working || !notes.trim()}>
+                <Wand2 className="size-3.5" aria-hidden />
                 {busy === "revise" ? "Sending…" : "Revise"}
               </Button>
             </form>
           </div>
-
-          <aside className="space-y-4 border-t border-line bg-neutral-50 p-5 text-sm dark:bg-neutral-950/40 lg:border-l lg:border-t-0">
-            <p className="font-semibold">Fact check</p>
-            {claims.length ? (
-              <div className="space-y-2">
-                <p className="flex items-start gap-2 text-stop">
-                  <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {claims.length} claim{claims.length > 1 ? "s aren't" : " isn't"} backed by your profile. Fix or remove before approving.
-                </p>
-                <ul className="space-y-1.5 pl-6 text-foreground">{claims.map((u) => <li key={u} className="list-disc">{u}</li>)}</ul>
-              </div>
-            ) : (
-              <p className="flex items-start gap-2 text-muted">
-                <CircleCheck className="mt-0.5 size-4 shrink-0 text-go" aria-hidden />
-                {c.edited_by_user ? "You've edited this. Every fact in it is yours to stand behind." : "Every claim matches your profile."}
-              </p>
-            )}
-            {c.summary && !c.edited_by_user ? <p className="leading-relaxed text-muted">{c.summary}</p> : null}
-            {issues.length ? (
-              <div className="space-y-2">
-                <p className="font-semibold">Suggestions</p>
-                <ul className="space-y-2.5">
-                  {issues.map((i, n) => (
-                    <li key={n} className="leading-relaxed">
-                      <span className={i.severity === "high" ? "font-medium text-stop" : "font-medium"}>{cap(i.issue)}</span>
-                      {i.fix && <span className="block text-muted">{cap(i.fix)}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {c.hit_round_cap && !c.edited_by_user ? <p className="text-muted">The reviewer stopped after its last round with points left. Fix them in your edit.</p> : null}
-          </aside>
-        </div>
+        </>
       ) : (
-        <p className="flex items-center gap-2 px-5 py-6 text-sm text-muted">
+        <p className="flex items-center gap-2 border-t border-line px-6 py-6 text-sm text-muted">
           {e.working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
           {e.working ? "The first draft is on its way." : "No draft yet."}
         </p>
       )}
     </article>
+  );
+}
+
+// one essay at a time: pills to switch, each showing where that piece stands
+export function EssayTabs({ essays }: { essays: EssayData[] }) {
+  const firstOpen = essays.findIndex((x) => !x.approved);
+  const [i, setI] = useState(firstOpen >= 0 ? firstOpen : 0);
+  const cur = essays[Math.min(i, essays.length - 1)];
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Essays">
+        {essays.map((x, n) => (
+          <button
+            key={x.id}
+            role="tab"
+            aria-selected={n === i}
+            onClick={() => setI(n)}
+            className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-bold transition-all ${
+              n === i ? "border-accent/30 bg-accent/[0.07] text-accent shadow-card" : "border-line bg-surface text-muted hover:text-foreground"
+            }`}
+          >
+            {x.working ? (
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+            ) : x.approved ? (
+              <CircleCheck className="size-3.5 text-go" aria-hidden />
+            ) : (
+              <span className={`size-2 rounded-full ${x.critique?.status === "ready" ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />
+            )}
+            {cap(x.title)}
+          </button>
+        ))}
+      </div>
+      <EssayEditor key={`${cur.id}:${cur.version}`} e={cur} />
+    </div>
   );
 }

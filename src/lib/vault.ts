@@ -2,6 +2,7 @@ import "server-only";
 import { randomInt } from "node:crypto";
 import { admin } from "@/lib/supabase/admin";
 import { decrypt, encrypt } from "@/lib/crypto";
+import { hostRoot } from "@/lib/verify-mail";
 
 // portal logins the agents create for the applicant. their email, a generated password, encrypted at rest.
 
@@ -26,13 +27,20 @@ export interface PortalLogin {
   status: string;
 }
 
-export async function getLogin(userId: string, host: string): Promise<PortalLogin | null> {
-  const { data } = await admin().from("portal_accounts").select("id, login_email, password_enc, status").eq("user_id", userId).eq("portal_host", host).maybeSingle();
-  return data ? { id: data.id, login_email: data.login_email, password: decrypt(data.password_enc), status: data.status } : null;
+// the login for a portal. portals often move sign-in to another subdomain (apply.x.edu -> login.x.edu) or an
+// identity host, so after the exact host we try this application's own login, then any login on the same site.
+export async function getLogin(userId: string, host: string, applicationId?: string): Promise<PortalLogin | null> {
+  const { data } = await admin().from("portal_accounts").select("id, application_id, portal_host, login_email, password_enc, status, created_at").eq("user_id", userId);
+  const rows = data ?? [];
+  const pick =
+    rows.find((r) => r.portal_host === host) ??
+    (applicationId ? rows.filter((r) => r.application_id === applicationId).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] : undefined) ??
+    rows.find((r) => hostRoot(r.portal_host) === hostRoot(host));
+  return pick ? { id: pick.id, login_email: pick.login_email, password: decrypt(pick.password_enc), status: pick.status } : null;
 }
 
 export async function createLogin(userId: string, applicationId: string, host: string, email: string): Promise<PortalLogin> {
-  const existing = await getLogin(userId, host);
+  const existing = await getLogin(userId, host, applicationId);
   if (existing) return existing;
   const password = generatePassword();
   const { data, error } = await admin()

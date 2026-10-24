@@ -66,10 +66,12 @@ export function Interview({
   initialSessionId,
   initialTurns,
   initialCompleteness,
+  embedded = false,
 }: {
   initialSessionId: string | null;
   initialTurns: Turn[];
   initialCompleteness: number;
+  embedded?: boolean; // inside the chat panel: fills it, no page chrome
 }) {
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
@@ -114,7 +116,7 @@ export function Interview({
   }, []);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth" });
+    bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns, phase, interim]);
 
   // ---- listening ----------------------------------------------------------
@@ -301,13 +303,13 @@ export function Interview({
           : "";
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-[28px] border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]">
-      <header className="flex flex-wrap items-end justify-between gap-3 pb-4">
+    <div className={embedded ? "flex h-full min-h-0 flex-col px-4 pt-4 sm:px-6" : "mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-[28px] border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]"}>
+      <header className={`flex flex-wrap items-end justify-between gap-3 pb-4 ${embedded ? "pr-10" : ""}`}>
         <div>
-          <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Interview</h1>
-          <div className="mt-3 flex items-center gap-3 text-sm text-muted">
+          {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Your interviewer</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Interview</h1>}
+          <div className={`flex items-center gap-3 text-sm text-muted ${embedded ? "mt-1.5" : "mt-3"}`}>
             <span className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-              <span className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))] transition-[width] duration-700" style={{ width: `${pct}%` }} />
+              <span className="block h-full rounded-full bg-bar-gradient transition-[width] duration-700" style={{ width: `${pct}%` }} />
             </span>
             Profile {pct}% complete
           </div>
@@ -321,7 +323,7 @@ export function Interview({
               </Button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content align="end" sideOffset={6} className="z-50 w-80 space-y-4 rounded-3xl border border-line bg-surface shadow-card p-4 text-sm shadow-lg">
+              <Popover.Content align="end" sideOffset={6} className="z-[70] w-80 space-y-4 rounded-3xl border border-line bg-surface shadow-card p-4 text-sm shadow-lg">
                 <label className="flex items-center justify-between gap-3">
                   Read replies out loud
                   <input type="checkbox" className="size-4 accent-[var(--color-foreground)]" checked={speak} onChange={(e) => toggle("am.speak", e.target.checked, setSpeak)} />
@@ -402,7 +404,7 @@ export function Interview({
         </div>
       </header>
 
-      <section className="flex-1 space-y-4 border-t border-line py-6" aria-live="polite">
+      <section className={`flex-1 space-y-4 border-t border-line py-6 ${embedded ? "min-h-0 overflow-y-auto" : ""}`} aria-live="polite">
         {!started && (
           <div className="mx-auto max-w-md py-10 text-center">
             <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white shadow-[0_16px_32px_-12px_rgb(79_70_229/0.6)]">
@@ -433,7 +435,7 @@ export function Interview({
               )}
               <p
                 className={`max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed ${
-                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-[linear-gradient(135deg,#4f46e5,#7c3aed)] px-4 py-2.5 text-white shadow-[0_8px_20px_-10px_rgb(79_70_229/0.6)]" : "pt-1"
+                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-hero-gradient px-4 py-2.5 text-white shadow-[0_8px_20px_-10px_rgb(79_70_229/0.6)]" : "pt-1"
                 }`}
               >
                 {t.content}
@@ -464,7 +466,7 @@ export function Interview({
       {err && <p className="mb-2 rounded-lg border border-stop/40 bg-stop/8 px-3 py-2 text-sm">{err.charAt(0).toUpperCase() + err.slice(1)}</p>}
 
       {started && (
-        <footer className="sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0">
+        <footer className={embedded ? "-mx-4 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 sm:-mx-6 sm:px-6" : "sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0"}>
           <p className="mb-2 h-4 text-xs text-muted">{status}</p>
           <div className="flex items-end gap-2">
             {voiceOk && (

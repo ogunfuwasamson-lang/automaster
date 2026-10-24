@@ -1,3 +1,4 @@
+import { resumeAfterProfileChange } from "@/lib/requeue";
 import { NextResponse, after, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
 
   await logEvent({ userId: uid, actor: "user", action: "document.uploaded", context: { documentId: b.id, kind: b.kind, filename: b.filename } });
   await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
+  // a new document can be exactly what a stopped submission was waiting for
+  await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);
   after(() => drain("inline-upload", 2).catch(() => {}));
   return NextResponse.json({ ok: true });
 }

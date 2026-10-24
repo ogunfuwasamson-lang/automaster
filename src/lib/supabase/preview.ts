@@ -143,7 +143,10 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
   ],
   mail_accounts: [{ email: "ada@example.com", status: "active", last_error: null }],
   runner_tokens: [],
-  portal_accounts: [{ id: "pa1", user_id: "u1", application_id: "a3" }],
+  portal_accounts: [
+    { id: "pa1", user_id: "u1", application_id: "a3", portal_host: "apply.rotman.utoronto.ca", login_email: "ada@example.com", status: "created", created_at: ago(400), applications: { id: "a3", portal_url: "https://apply.rotman.utoronto.ca", programs: { name: "MFRM", schools: { name: "University of Toronto, Rotman" } } } },
+    { id: "pa2", user_id: "u1", application_id: "a6", portal_host: "gradapply.georgetown.edu", login_email: "ada.okafor", status: "verified", created_at: ago(3000), applications: { id: "a6", portal_url: null, programs: { name: "MSBA", schools: { name: "Georgetown McDonough" } } } },
+  ],
   recommenders: [{ name: "Tunde Bakare", email: "tunde@example.com", title: "VP Partnerships", organization: "Paystack", relationship: "Manager", phone: null }],
   interview_turns: [
     { session_id: "s1", role: "agent", content: "Let's start with your work. What's the result you're proudest of at Paystack?", created_at: ago(30) },
@@ -151,7 +154,23 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     { session_id: "s1", role: "agent", content: "That's a strong number. What did you personally change to make that happen?", created_at: ago(28) },
   ],
   user_funding: [{ id: "f1", fit: "strong", why: "Rewards fintech founders and operators from Africa.", status: "suggested", funding_opportunities: { name: "Mastercard Foundation Scholars", sponsor: "Mastercard Foundation", url: null, amount_note: "Full tuition and living costs", deadline: day(45), eligibility: "African citizens", intl_eligible: true } }],
-  threads: [],
+  threads: [
+    {
+      id: "t1", subject: "Application fee waiver request", created_at: ago(3000), application_id: "a2",
+      contacts: { name: "Rice Admissions", email: "admissions@rice.edu" },
+      applications: { programs: { schools: { name: "Rice University, Jones School" } } },
+      messages: [
+        { id: "mm1", direction: "out", subject: "Application fee waiver request", body: "Dear Admissions team,\n\nI'm applying to the full-time MBA for Fall 2027 and would like to ask whether a fee waiver is available for applicants from Nigeria...\n\nKind regards,\nAda Okafor", status: "sent", to_email: "admissions@rice.edu", purpose: "fee_waiver", send_after: null, sent_at: ago(2900), created_at: ago(3000) },
+        { id: "mm2", direction: "in", subject: "Re: Application fee waiver request", body: "Hi Ada,\n\nThanks for reaching out. We've applied a fee waiver to your application. You'll see it at checkout.\n\nBest,\nJones School Admissions", status: "sent", to_email: null, purpose: null, send_after: null, sent_at: ago(240), created_at: ago(240) },
+      ],
+    },
+    {
+      id: "t2", subject: "Question about scholarship deadlines", created_at: ago(60), application_id: "a4",
+      contacts: { name: null, email: "gradadmissions@bu.edu" },
+      applications: { programs: { schools: { name: "Boston University Questrom" } } },
+      messages: [{ id: "mm3", direction: "out", subject: "Question about scholarship deadlines", body: "Hello, could you confirm whether Round 1 applicants are automatically considered for merit scholarships?", status: "scheduled", to_email: "gradadmissions@bu.edu", purpose: "scholarship_inquiry", send_after: new Date(Date.now() + 5 * 60_000).toISOString(), sent_at: null, created_at: ago(2) }],
+    },
+  ],
   agent_runs: [],
 };
 

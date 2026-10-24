@@ -4,8 +4,10 @@ import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } 
 import { REGIONS, loadProfile } from "@/lib/profile";
 import { userPlan } from "@/lib/budget";
 import Link from "next/link";
-import { ChevronDown, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
 import { PageHeader, Section, Notice, Empty } from "@/components/ui/page";
+import { Clamp } from "@/components/ui/clamp";
+import { StrategyNotes } from "./notes";
 import { ButtonLink } from "@/components/ui/button";
 import { Tag, chipClass } from "@/components/ui/chip";
 import { PrepareButton } from "../applications/[id]/prepare-button";
@@ -80,9 +82,11 @@ function Due({ date, today }: { date: string | null; today: string }) {
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-0.5 leading-relaxed">{children}</dd>
+    <div className="rounded-2xl bg-neutral-50 p-3.5 dark:bg-neutral-900/60">
+      <dt className="text-[11.5px] font-bold text-muted">{label}</dt>
+      <dd className="mt-1 leading-relaxed">
+        <Clamp lines={3}>{children}</Clamp>
+      </dd>
     </div>
   );
 }
@@ -344,15 +348,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
             </Section>
           )}
           {notes.length > 0 && (
-            <Section title="Recon's read on your strategy">
-              <ul className="space-y-2.5 rounded-3xl border border-line bg-surface shadow-card px-4 py-3.5 text-sm">
-                {notes.map((n) => (
-                  <li key={n.region + n.text} className="leading-relaxed">
-                    <span className="font-medium">{REGIONS[n.region] ?? n.region}.</span> {n.text}
-                  </li>
-                ))}
-              </ul>
-            </Section>
+            <StrategyNotes notes={notes} regions={REGIONS} />
           )}
         </div>
       )}
@@ -374,32 +370,46 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
       )}
       {scholarships.length > 0 && (
         <Section title={`Scholarships for you (${scholarships.length})`} description="Matched on what makes you stand out, like awards, ventures, employers and region, not only nationality.">
-          <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card text-sm">
+          <ul className="grid gap-4 md:grid-cols-2">
             {scholarships.map((x) => {
               const o = x.funding_opportunities;
               const fit = x.fit ? FIT[x.fit] : null;
+              const left = o.deadline ? daysUntil(o.deadline, today) : null;
               return (
-                <li key={x.id} className="space-y-1.5 px-4 py-3.5 sm:px-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <span className="min-w-0">
-                      {o.url ? (
-                        <a href={o.url} target="_blank" rel="noreferrer" className="font-medium underline-offset-4 hover:underline">
-                          {o.name}
-                        </a>
-                      ) : (
-                        <span className="font-medium">{o.name}</span>
-                      )}
-                      {o.sponsor && <span className="block text-muted">{o.sponsor}</span>}
+                <li key={x.id} className="group flex flex-col rounded-3xl border border-line bg-surface p-5 shadow-card transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-lift">
+                  <div className="flex items-start gap-3">
+                    <span className="bg-hero-gradient grid size-11 shrink-0 place-items-center rounded-2xl text-white">
+                      <Award className="size-5" aria-hidden />
                     </span>
-                    <span className="flex items-center gap-2">
-                      {fit && <Tag tone={fit[1]}>{fit[0]}</Tag>}
-                      {o.deadline && <Due date={o.deadline} today={today} />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-bold leading-snug tracking-[-0.01em]">{o.name}</span>
+                      {o.sponsor && <span className="block truncate text-[12.5px] text-muted">{o.sponsor}</span>}
                     </span>
+                    {fit && <Tag tone={fit[1]}>{fit[0]}</Tag>}
                   </div>
-                  {x.why && <p className="leading-relaxed">{x.why}</p>}
-                  {(o.amount_note || o.intl_eligible === false || o.eligibility) && (
-                    <p className="text-muted">{[o.amount_note, o.intl_eligible === false ? "Not open to international students" : null, o.eligibility].filter(Boolean).join(". ")}</p>
+                  {o.amount_note && <p className="text-gradient mt-4 text-xl font-bold leading-tight tracking-[-0.03em]">{o.amount_note}</p>}
+                  {x.why && (
+                    <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-[13px] leading-relaxed dark:bg-neutral-900/60">
+                      <p className="mb-0.5 text-[11px] font-bold text-muted">Why you</p>
+                      <Clamp lines={3}>{x.why}</Clamp>
+                    </div>
                   )}
+                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+                    {o.deadline && (
+                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${left !== null && left >= 0 && left <= 14 ? "bg-stop/10 text-stop" : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"}`}>
+                        <CalendarDays className="size-3.5" aria-hidden />
+                        {new Date(o.deadline + "T00:00:00Z").toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })}
+                        {left !== null && left >= 0 ? `, ${left} days` : ", passed"}
+                      </span>
+                    )}
+                    {o.intl_eligible === false && <Tag tone="stop">Not for international students</Tag>}
+                    {o.eligibility && <span className="min-w-0 truncate text-xs text-muted" title={o.eligibility}>{o.eligibility}</span>}
+                    {o.url && (
+                      <a href={o.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-bold text-accent hover:underline">
+                        Details <ExternalLink className="size-3.5" aria-hidden />
+                      </a>
+                    )}
+                  </div>
                 </li>
               );
             })}

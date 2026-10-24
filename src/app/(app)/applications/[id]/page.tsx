@@ -4,7 +4,8 @@ import { StatusPill, daysUntil } from "@/components/ui/status";
 import { Empty, Notice, Section } from "@/components/ui/page";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
-import { EssayEditor, type EssayData } from "./essay-editor";
+import { EssayTabs, type EssayData } from "./essay-editor";
+import { AngleCard } from "./angle";
 import { AutoRefresh } from "../../shortlist/controls";
 import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
@@ -57,7 +58,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const [{ data: app }, { data: jobs }, { data: threads }, { data: mailAcct }, { count: logins }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
+      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
@@ -165,7 +166,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         <ol className="grid grid-cols-5 gap-1.5" aria-label="Application progress">
           {JOURNEY.map((label, i) => (
             <li key={label} aria-current={i === step ? "step" : undefined}>
-              <span className={`block h-1.5 rounded-full ${i < step ? "bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" : i === step ? "bg-accent/35 animate-pulse" : "bg-neutral-200 dark:bg-neutral-800"}`} />
+              <span className={`block h-1.5 rounded-full ${i < step ? "bg-bar-gradient" : i === step ? "bg-accent/35 animate-pulse" : "bg-neutral-200 dark:bg-neutral-800"}`} />
               <span className={`mt-1.5 block text-xs ${i === step ? "font-semibold text-foreground" : i < step ? "text-foreground" : "text-muted"}`}>{label}</span>
             </li>
           ))}
@@ -205,36 +206,23 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           liveUrl={app.runner_live_url}
           hasLogin={!!logins}
           missing={sheet?.missing ?? []}
+          reason={((app as { runner_state?: { reason?: string } }).runner_state ?? {}).reason ?? null}
         />
       )}
 
-      {briefText && (
-        <details className="group rounded-3xl border border-line bg-surface shadow-card">
-          <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-5 py-4 font-medium">
-            <span>
-              Your angle for this school
-              <span className="block text-sm font-normal text-muted">The strategist&apos;s brief that the writer works from</span>
-            </span>
-            <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden />
-          </summary>
-          <div className="whitespace-pre-wrap border-t border-line px-5 py-4 text-sm leading-relaxed">{briefText}</div>
-        </details>
-      )}
+      {briefText && <AngleCard angle={(app as { angle?: string | null }).angle ?? null} brief={briefText} school={p.schools.name} />}
 
       {(essayData.length > 0 || !busy.length) && (
         <Section
           title="Essays and answers"
           description={
             essayData.length ? (
-              <>
-                Drafts are a starting point. Many schools ask you to certify your essays are your own work, and some ban AI-written ones. Rewrite in your own words, then approve. Approving means
-                &ldquo;this is mine and every fact in it is true.&rdquo;
-              </>
+              <>Drafts are a starting point: make them your own words, then approve. Approving means &ldquo;this is mine and every fact in it is true.&rdquo;</>
             ) : undefined
           }
         >
           {essayData.length ? (
-            <div className="space-y-5">{essayData.map((e) => <EssayEditor key={`${e.id}:${e.version}`} e={e} />)}</div>
+            <EssayTabs essays={essayData} />
           ) : (
             <Empty
               title="No essays yet"

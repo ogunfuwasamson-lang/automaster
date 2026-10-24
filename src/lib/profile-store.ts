@@ -1,4 +1,5 @@
 import "server-only";
+import { resumeAfterProfileChange } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { loadProfile, mergeProfile, type Profile, type ProfilePatch } from "@/lib/profile";
 import { logEvent } from "@/lib/events";
@@ -35,6 +36,7 @@ export async function applyPatch(
         agentRunId: source.agentRunId ?? null,
         context: { source: source.label, documentId: source.documentId, sections: Object.keys(patch) },
       });
+      await resumeAfterProfileChange(userId, source.label ?? "profile").catch(() => 0);
       return merged;
     }
     await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
@@ -56,7 +58,11 @@ export async function updateProfile(userId: string, fn: (p: Profile) => Profile)
       .eq("updated_at", data.updated_at)
       .select("id");
     if (uerr) throw new Error(`updateProfile write failed: ${uerr.message}`);
-    if (upd?.length) return next;
+    if (upd?.length) {
+      // a changed profile can unblock a stopped submission: resume those on their own
+      await resumeAfterProfileChange(userId, "profile").catch(() => 0);
+      return next;
+    }
     await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
   }
   throw new Error("updateProfile: too much contention");

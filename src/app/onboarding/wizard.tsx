@@ -2,7 +2,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, Mail, Mic, X, LoaderCircle } from "lucide-react";
+import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical } from "lucide-react";
+import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -15,8 +16,11 @@ const LEVELS: [string, string, string][] = [
   ["masters", "Master's", "MSc, MA, MBA, MiM and similar"],
   ["phd", "PhD", "Doctoral and research degrees"],
 ];
+const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-const STEPS = ["What you're applying for", "Where", "Your documents", "Your email", "Your interview"];
+const STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Your interview"];
+const STEP_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV and transcripts fill your profile", "Lets agents send and read for you", "Ten minutes, by voice or text"];
 
 async function save(body: Record<string, unknown>) {
   const res = await fetch("/api/profile/preferences", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -94,30 +98,59 @@ export function Onboarding(props: {
         <i />
         <i />
       </div>
-      <header className="relative z-10 mx-auto flex max-w-3xl items-center justify-between px-5 py-5">
+      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark href="/dashboard" />
-        <a href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground">Skip setup</a>
+        <div className="flex items-center gap-1">
+          <ThemeButton />
+          <a href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground">Skip setup</a>
+        </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-4 pb-20 sm:px-5">
-        <ol className="mb-10 grid grid-cols-5 gap-1.5" aria-label="Setup progress">
-          {STEPS.map((s, i) => (
-            <li key={s} className="space-y-2">
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/70 dark:bg-white/10">
-                <div className={`bg-accent-gradient h-full rounded-full transition-[width] duration-500 ${i + 1 <= step ? "w-full" : "w-0"}`} />
-              </div>
-              <button
-                onClick={() => i + 1 < step && setStep(i + 1)}
-                disabled={i + 1 >= step}
-                className={`hidden text-left text-xs sm:block ${i + 1 === step ? "font-bold text-foreground" : "font-medium text-muted"}`}
-                aria-current={i + 1 === step ? "step" : undefined}
-              >
-                {s}
-              </button>
-            </li>
-          ))}
-        </ol>
+      <main className="relative z-10 mx-auto grid max-w-6xl gap-6 px-4 pb-20 sm:px-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-8">
+        {/* the route: every step with what it's for, done ones ticked */}
+        <aside className="hidden lg:block">
+          <div className="glass sticky top-6 rounded-[28px] border border-white/80 p-5 shadow-card dark:border-white/[0.07]">
+            <p className="text-[15px] font-bold tracking-[-0.02em]">Set up your season</p>
+            <p className="mt-0.5 text-xs text-muted">About four minutes. You can change all of it later.</p>
+            <ol className="relative mt-5 space-y-1">
+              {STEPS.map((s, i) => {
+                const n = i + 1;
+                const Icon = STEP_ICON[i];
+                const done = n < step;
+                const now = n === step;
+                return (
+                  <li key={s}>
+                    <button
+                      onClick={() => done && setStep(n)}
+                      disabled={!done}
+                      aria-current={now ? "step" : undefined}
+                      className={`flex w-full items-start gap-3 rounded-2xl p-2.5 text-left transition-colors ${now ? "bg-accent/[0.08]" : done ? "hover:bg-neutral-100 dark:hover:bg-neutral-800" : ""}`}
+                    >
+                      <span className={`grid size-9 shrink-0 place-items-center rounded-xl transition-all ${now ? "bg-hero-gradient text-white shadow-[0_8px_18px_-8px_rgb(79_70_229/0.7)]" : done ? "bg-go/10 text-go" : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800"}`}>
+                        {done ? <Check className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
+                      </span>
+                      <span className="min-w-0 pt-0.5">
+                        <span className={`block text-[13.5px] font-bold ${now ? "text-accent" : done ? "" : "text-muted"}`}>{s}</span>
+                        <span className="block text-[11.5px] leading-snug text-muted">{STEP_HINT[i]}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </aside>
 
+        <div className="min-w-0">
+          <div className="mb-4 lg:hidden">
+            <div className="mb-2 flex items-center justify-between text-xs font-bold">
+              <span className="text-accent">Step {step} of {STEPS.length}</span>
+              <span className="text-muted">{STEPS[step - 1]}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/70 dark:bg-white/10">
+              <div className="bg-bar-gradient h-full rounded-full transition-[width] duration-500" style={{ width: `${(step / STEPS.length) * 100}%` }} />
+            </div>
+          </div>
         <AnimatePresence mode="wait">
           <motion.section
             key={step}
@@ -131,20 +164,26 @@ export function Onboarding(props: {
               <div className="space-y-8">
                 <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">What are you applying for?</h1>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {LEVELS.map(([k, label, hint]) => (
+                  {LEVELS.map(([k, label, hint]) => {
+                    const LI = LEVEL_ICON[k];
+                    return (
                     <button
                       key={k}
                       onClick={() => setLevel(k)}
                       className={`rounded-2xl border p-5 text-left transition-all duration-200 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent shadow-[0_12px_28px_-14px_rgb(79_70_229/0.6)]" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
                       aria-pressed={level === k}
                     >
+                      <span className={`mb-5 grid size-11 place-items-center rounded-2xl transition-all ${level === k ? "bg-hero-gradient text-white shadow-[0_10px_22px_-10px_rgb(79_70_229/0.7)]" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
+                        <LI className="size-5" aria-hidden />
+                      </span>
                       <span className={`block text-xl font-bold tracking-[-0.03em] ${level === k ? "text-accent" : ""}`}>{label}</span>
-                      <span className={`mt-1 block text-sm text-muted`}>{hint}</span>
+                      <span className="mt-1 block text-sm text-muted">{hint}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="space-y-3">
-                  <p className="font-medium">Which fields? <span className="font-normal text-muted">Add one or more, like finance or computer science.</span></p>
+                  <p className="font-bold">Which fields? <span className="font-normal text-muted">Add one or more, like finance or computer science.</span></p>
                   <div className="flex flex-wrap gap-2">
                     {fields.map((f) => (
                       <span key={f} className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 py-1.5 pl-3.5 pr-2 text-sm font-semibold text-accent ring-1 ring-accent/25">
@@ -167,7 +206,7 @@ export function Onboarding(props: {
                   </form>
                 </div>
                 <div className="space-y-3">
-                  <p className="font-medium">When do you want to start?</p>
+                  <p className="font-bold">When do you want to start?</p>
                   <div className="flex flex-wrap gap-2">
                     {TERMS.map((t) => (
                       <button key={t} onClick={() => setTerm(t)} className={chip(term === t)} aria-pressed={term === t}>{t}</button>
@@ -286,13 +325,14 @@ export function Onboarding(props: {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/interview" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
+                  <ButtonLink href="/dashboard?chat=open" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
                   <Button size="lg" variant="secondary" onClick={() => router.push("/dashboard")}>Go to my dashboard</Button>
                 </div>
               </div>
             )}
           </motion.section>
         </AnimatePresence>
+        </div>
       </main>
     </div>
   );

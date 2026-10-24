@@ -7,6 +7,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
+import { ThemeButton } from "@/components/theme";
 
 function LoginForm() {
   const signup = useSearchParams().get("mode") === "signup";
@@ -79,8 +80,9 @@ export default function Login() {
         <i />
         <i />
       </div>
-      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center px-5 py-5">
+      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark />
+        <ThemeButton />
       </header>
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-[420px]">

@@ -202,7 +202,7 @@ export const runner: Record<string, Handler> = {
           map: (fields) => mapFields(job.user_id, sheet, fields),
           file: (key) => sheetFile(job.user_id, sheet, key),
           canSubmit: () => submitDecision(job.user_id, applicationId),
-          existingLogin: () => getLogin(job.user_id, host()),
+          existingLogin: () => getLogin(job.user_id, host(), applicationId),
           createLogin: async (email) => {
             const l = await createLogin(job.user_id, applicationId, host(), email);
             await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.account_created", applicationId, channel: "portal", context: { host: host(), email } });
@@ -270,7 +270,7 @@ export const runner: Record<string, Handler> = {
           return all.sort((a, b) => b.fields.length - a.fields.length)[0] ?? null;
         })(),
       };
-      const login = await getLogin(job.user_id, host()).catch(() => null);
+      const login = await getLogin(job.user_id, host(), applicationId).catch(() => null);
       if (login && login.status !== "verified" && (outcome.kind === "submitted" || next.signedIn)) await markLogin(login.id, "verified");
 
       if (outcome.kind === "submitted") {
@@ -306,7 +306,7 @@ export const runner: Record<string, Handler> = {
         keep = recheck;
         const live = liveView ? await ob.liveUrl() : null;
         if (!liveView) {
-          const login = await getLogin(job.user_id, new URL(page.url()).hostname).catch(() => null);
+          const login = await getLogin(job.user_id, new URL(page.url()).hostname, applicationId).catch(() => null);
           const signIn = login ? " sign in with the login shown below," : "";
           if (outcome.reason === "captcha") outcome.note = `this portal shows a bot check to automated browsers. open it yourself,${signIn} and finish the application there (your answers are on this page). or press try again later`;
           if (outcome.reason === "payment") outcome.note = `payment page: open the portal,${signIn} and pay the fee. the agents check back every 10 minutes and confirm the submission`;
@@ -316,7 +316,7 @@ export const runner: Record<string, Handler> = {
         await db
           .from("applications")
           .update({
-            runner_state: { ...saved, rechecks: recheck ? (state.rechecks ?? 0) + 1 : 0, samePageCount: 0 },
+            runner_state: { ...saved, reason: outcome.reason, rechecks: recheck ? (state.rechecks ?? 0) + 1 : 0, samePageCount: 0 },
             runner_session_id: recheck ? ob.sessionId : null,
             runner_status: "needs_you",
             runner_note: outcome.note,

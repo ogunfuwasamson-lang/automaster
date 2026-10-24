@@ -1,3 +1,4 @@
+import { resumeAfterProfileChange } from "@/lib/requeue";
 import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
@@ -54,5 +55,6 @@ export async function POST(req: NextRequest) {
     await db.from("recommenders").insert(parsed.data.recommenders.map((r) => ({ user_id: uid, name: r.name, email: r.email || null, title: r.title || null, organization: r.organization || null, relationship: r.relationship || null, phone: r.phone || null })));
   }
   await logEvent({ userId: uid, actor: "user", action: "profile.details_saved", context: { recommenders: parsed.data.recommenders.length } });
-  return NextResponse.json({ ok: true });
+  const resumed = await resumeAfterProfileChange(uid, "form details");
+  return NextResponse.json({ ok: true, resumed });
 }

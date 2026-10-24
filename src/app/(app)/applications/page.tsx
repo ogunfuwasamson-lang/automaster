@@ -81,7 +81,7 @@ export default async function Applications() {
                             {writing && (
                               <span className="mt-2 flex items-center gap-2 text-xs text-muted">
                                 <span className="h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-                                  <span className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" style={{ width: essays.length ? `${(approved / essays.length) * 100}%` : "0%" }} />
+                                  <span className="block h-full rounded-full bg-bar-gradient" style={{ width: essays.length ? `${(approved / essays.length) * 100}%` : "0%" }} />
                                 </span>
                                 <span>
                                   {essays.length ? `${approved} of ${essays.length} approved` : "Planning"}

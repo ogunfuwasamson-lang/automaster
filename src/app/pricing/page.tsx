@@ -1,3 +1,4 @@
+import { ThemeButton } from "@/components/theme";
 import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { PLANS } from "@/lib/plans";
@@ -20,6 +21,7 @@ export default function Pricing() {
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm font-semibold">
+          <ThemeButton />
           <Link href="/login" className="rounded-xl px-3 py-2 text-muted hover:text-foreground">
             Sign in
           </Link>

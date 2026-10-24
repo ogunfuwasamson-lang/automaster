@@ -4,6 +4,7 @@ import { drain } from "@/lib/jobs";
 import { sendDue } from "@/lib/outbox";
 import { scheduleDigests } from "@/lib/digest";
 import { scheduleInbox } from "@/lib/inbox";
+import { sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/gmail";
 
@@ -26,6 +27,7 @@ async function handle(req: NextRequest) {
   const quarter = new Date().getUTCMinutes() % 15 === 0;
   const digests = quarter ? await scheduleDigests().catch(() => 0) : 0;
   if (quarter) await scheduleInbox().catch(() => 0);
+  if (quarter) await sweepResumable().catch(() => 0);
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);
   // portal work runs in its own function (it ships chromium). poke it when some is due: up to 3 in parallel.
   const { count } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("agent", "runner").eq("status", "queued").lte("run_at", new Date().toISOString());

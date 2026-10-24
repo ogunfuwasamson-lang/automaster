@@ -4,7 +4,9 @@ import { CirclePause } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { loadProfile } from "@/lib/profile";
 import { Wordmark } from "@/components/wordmark";
+import { Suspense } from "react";
 import { TopNav, TabBar, UserMenu } from "./nav";
+import { ChatDock } from "@/components/chat/chat-dock";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = await requireUser();
@@ -40,12 +42,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Paused
               </Link>
             ) : null}
-            <UserMenu name={name} email={user.email ?? ""} paused={paused} />
+            <UserMenu name={name} email={user.email ?? ""} paused={paused} needsYou={needsYou} />
           </div>
         </div>
       </header>
       <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-12">{children}</main>
       <TabBar needsYou={needsYou} />
+      <Suspense>
+        <ChatDock />
+      </Suspense>
     </div>
   );
 }

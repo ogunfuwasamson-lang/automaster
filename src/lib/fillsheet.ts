@@ -69,6 +69,9 @@ export function buildSheet(a: {
     if (v !== null && v !== undefined && String(v).trim() !== "") f[k] = String(v).trim();
   };
 
+  // a detail the applicant confirmed in conversation counts as much as one typed into the form details
+  const fact = (re: RegExp) => p.confirmed_facts.find((x) => re.test(x.topic))?.value ?? null;
+
   // personal
   set("full_name", p.identity.full_name);
   set("first_name", name.first);
@@ -78,16 +81,17 @@ export function buildSheet(a: {
   set("email", d.email || a.accountEmail);
   // portals that want a user id as well as an email: the email's local part
   set("username", (d.email || a.accountEmail || "").split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
-  set("phone", d.phone);
-  set("date_of_birth", d.date_of_birth);
-  if (d.date_of_birth && /^\d{4}-\d{2}-\d{2}$/.test(d.date_of_birth)) {
-    set("dob_year", d.date_of_birth.slice(0, 4));
-    set("dob_month", d.date_of_birth.slice(5, 7));
-    set("dob_day", d.date_of_birth.slice(8, 10));
+  set("phone", d.phone || fact(/\b(phone|mobile)\b/i));
+  const dob = d.date_of_birth || fact(/date of birth|birth ?date|\bdob\b/i);
+  set("date_of_birth", dob);
+  if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+    set("dob_year", dob.slice(0, 4));
+    set("dob_month", dob.slice(5, 7));
+    set("dob_day", dob.slice(8, 10));
   }
-  set("gender", d.gender);
+  set("gender", d.gender || fact(/\b(gender|sex)\b/i));
   set("citizenship", p.identity.citizenship);
-  set("country_of_birth", d.country_of_birth);
+  set("country_of_birth", d.country_of_birth || fact(/(country|place) of birth|birth ?(country|place)|born in/i));
   set("country_of_residence", p.identity.country_of_residence);
   set("address_line1", d.address_line1);
   set("address_line2", d.address_line2);

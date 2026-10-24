@@ -57,6 +57,19 @@ describe("fill sheet", () => {
     expect(s.fields.entry_start).toBe("September 2027");
     expect(s.fields.rec1_email).toBe("grace@x.com");
   });
+  it("uses details confirmed in conversation when the form details are blank", () => {
+    const p = profile();
+    p.confirmed_facts = [
+      { topic: "Country of birth", value: "Nigeria" },
+      { topic: "Gender", value: "Male" },
+    ];
+    const s = buildSheet({
+      applicationId: "app1", school: "Test U", program: "MS", degree: "MS", portalUrl: "https://apply.test.edu", attested: true, accountEmail: "a@x.com",
+      profile: p, details: { date_of_birth: "1994-05-17" }, recommenders: [], essays: [], documents: [],
+    });
+    expect(s.fields.country_of_birth).toBe("Nigeria");
+    expect(s.fields.gender).toBe("Male");
+  });
   it("lists what portals will ask for that's missing", () => {
     const s = sheet();
     expect(s.missing).toContain("transcript (upload it on documents)");
