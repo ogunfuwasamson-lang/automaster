@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
 import { loadProfile, profileGaps, completeness } from "@/lib/profile";
+import { Decisions, type Decision } from "@/components/decisions";
+import { CleanupButton } from "@/components/cleanup-button";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,10 @@ const money = (n: number | null) => (n == null ? null : `$${n.toLocaleString()}`
 export default async function ProfilePage() {
   const auth = await requireUser();
   if (!auth) return null;
-  const { data } = await auth.sb.from("profiles").select("profile").single();
+  const [{ data }, { data: decisions }] = await Promise.all([
+    auth.sb.from("profiles").select("profile").single(),
+    auth.sb.from("approvals").select("id, kind, title, summary, payload").eq("kind", "fact_confirm").eq("status", "pending").order("created_at"),
+  ]);
   const p = loadProfile(data?.profile);
   const gaps = profileGaps(p);
 
@@ -41,10 +46,27 @@ export default async function ProfilePage() {
             {completeness(p)}% complete. built from your documents and the interview. something wrong? tell the interviewer and it corrects it.
           </p>
         </div>
-        <Link href="/interview" className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">
-          {gaps.length ? `fill ${gaps.length} gaps` : "talk to interviewer"}
-        </Link>
+        <div className="flex gap-2">
+          <CleanupButton />
+          <Link href="/interview" className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">
+            {gaps.length ? `fill ${gaps.length} gaps` : "talk to interviewer"}
+          </Link>
+        </div>
       </header>
+
+      {decisions?.length ? (
+        <section>
+          <h2 className="mb-1 text-sm font-medium uppercase tracking-wide text-neutral-500">your sources disagree ({decisions.length})</h2>
+          <p className="mb-3 text-sm text-neutral-500">pick the right value. essays and forms will only use what you confirm here.</p>
+          <Decisions items={decisions as Decision[]} />
+        </section>
+      ) : null}
+
+      {p.confirmed_facts.length > 0 && (
+        <Section title="confirmed by you">
+          {p.confirmed_facts.map((f) => <Row key={f.topic} k={f.topic} v={f.value} />)}
+        </Section>
+      )}
 
       {gaps.length > 0 && (
         <Section title="still missing">
@@ -58,6 +80,7 @@ export default async function ProfilePage() {
         <Row k="fields" v={p.goals.fields} />
         <Row k="degree types" v={p.goals.degree_types} />
         <Row k="term" v={p.goals.target_term} />
+        <Row k="citizenship" v={p.identity.citizenship} />
         <Row k="gmat / gre" v={p.goals.gmat_gre_plan?.replace("_", " ")} />
         <Row k="right after" v={p.goals.short_term_goal} />
         <Row k="long term" v={p.goals.long_term_goal} />
@@ -131,6 +154,14 @@ export default async function ProfilePage() {
           <p className="py-2 text-sm text-neutral-400">—</p>
         )}
       </Section>
+
+      {p.notes.length > 0 && (
+        <Section title="other notes">
+          <ul className="list-disc space-y-1 py-2 pl-5 text-sm text-neutral-700 dark:text-neutral-300">
+            {p.notes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+        </Section>
+      )}
 
       {p.skills.length > 0 && (
         <Section title="skills">

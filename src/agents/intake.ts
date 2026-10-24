@@ -8,6 +8,7 @@ import { runStructured } from "@/lib/llm";
 import { WirePatch, fromWire, WIRE_GUIDE } from "@/lib/profile";
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
+import { scheduleConsolidate } from "./curator";
 
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
@@ -108,6 +109,7 @@ extract the facts from the document.`,
         agentRunId: runId,
         context: { documentId: doc.id, kind: output.detected_kind, issues: output.issues },
       });
+      await scheduleConsolidate(job.user_id);
       return { kind: output.detected_kind, issues: output.issues.length };
     } catch (e) {
       const last = job.attempts >= job.max_attempts;

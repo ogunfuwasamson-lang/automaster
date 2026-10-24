@@ -86,6 +86,10 @@ export const Profile = z.object({
   stories: z.array(Story),
   skills: z.array(z.string()),
   notes: z.array(z.string()),
+  // facts the user picked when sources disagreed. authoritative: agents never override these.
+  confirmed_facts: z.array(z.object({ topic: z.string(), value: z.string() })),
+  // gap keys the user answered without a clean value ("the budget decides"). never asked again.
+  skipped_gaps: z.array(z.string()),
 });
 export type Profile = z.infer<typeof Profile>;
 
@@ -103,6 +107,7 @@ export const ProfilePatch = z.object({
   stories: z.array(Story).optional(),
   skills: z.array(z.string()).optional(),
   notes: z.array(z.string()).optional(),
+  skipped_gaps: z.array(z.string()).optional(),
 });
 export type ProfilePatch = z.infer<typeof ProfilePatch>;
 
@@ -123,6 +128,8 @@ export function emptyProfile(): Profile {
     stories: [],
     skills: [],
     notes: [],
+    confirmed_facts: [],
+    skipped_gaps: [],
   };
 }
 
@@ -197,7 +204,19 @@ export function mergeProfile(base: Profile, patch: ProfilePatch): Profile {
     stories: mergeList(base.stories, patch.stories, (st) => norm(st.title)),
     skills: unionStrings(base.skills, patch.skills ?? []),
     notes: unionStrings(base.notes, patch.notes ?? []),
+    confirmed_facts: base.confirmed_facts,
+    skipped_gaps: unionStrings(base.skipped_gaps, patch.skipped_gaps ?? []),
   };
+}
+
+// a full rewrite (used by the cleanup agent): build fresh from the patch, keep user-confirmed facts
+export function rebuildProfile(patch: ProfilePatch, keep: Profile): Profile {
+  return { ...mergeProfile(emptyProfile(), patch), confirmed_facts: keep.confirmed_facts, skipped_gaps: keep.skipped_gaps };
+}
+
+export function confirmFact(p: Profile, topic: string, value: string): Profile {
+  const rest = p.confirmed_facts.filter((f) => norm(f.topic) !== norm(topic));
+  return { ...p, confirmed_facts: [...rest, { topic, value }] };
 }
 
 // what the interviewer still needs, in priority order.
@@ -213,6 +232,7 @@ export function profileGaps(p: Profile): Gap[] {
 
   if (!p.goals.fields?.length) g.push({ key: "goals.fields", ask: "which fields: finance, management, entrepreneurship, analytics, fintech, other" });
   if (!has(p.funding.need)) g.push({ key: "funding.need", ask: "full funding required, partial ok, or self-funded" });
+  if (!has(p.identity.citizenship)) g.push({ key: "identity.citizenship", ask: "citizenship (decides which scholarships they're eligible for)" });
   if (p.funding.need && p.funding.need !== "full" && !has(p.funding.annual_budget_usd))
     g.push({ key: "funding.annual_budget_usd", ask: "how much per year (USD) they can cover for tuition + living" });
   if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: "willing to take GMAT/GRE if it opens funding, or test-optional only" });
@@ -223,11 +243,12 @@ export function profileGaps(p: Profile): Gap[] {
   if (!has(p.goals.why_masters)) g.push({ key: "goals.why_masters", ask: "why a masters now, what gap it closes" });
   if (!has(p.recommenders.count_lined_up)) g.push({ key: "recommenders.count_lined_up", ask: "how many recommenders they can count on, and who (role, relationship)" });
   if (p.preferences.locations === null) g.push({ key: "preferences.locations", ask: "US regions or cities they want or want to avoid; cost of living matters" });
-  if (!has(p.preferences.max_applications)) g.push({ key: "preferences.max_applications", ask: "how many applications they want to send" });
+  if (!has(p.preferences.max_applications) && !has(p.funding.application_fee_budget_usd)) g.push({ key: "preferences.max_applications", ask: "how many applications they want to send" });
   if (!has(p.funding.application_fee_budget_usd)) g.push({ key: "funding.application_fee_budget_usd", ask: "total budget for application fees" });
   if (!has(p.goals.long_term_goal)) g.push({ key: "goals.long_term_goal", ask: "10-year goal" });
   if (p.stories.length < 3) g.push({ key: "stories", ask: `essay material: specific stories with numbers (have ${p.stories.length}, want 3+). leadership, a failure, a big win` });
-  return g;
+  const skipped = new Set(p.skipped_gaps);
+  return g.filter((x) => !skipped.has(x.key));
 }
 
 export function completeness(p: Profile): number {
@@ -251,7 +272,7 @@ export const SCALAR_FIELDS = [
 ] as const;
 
 export const LIST_FIELDS = [
-  "goals.fields", "goals.degree_types", "preferences.locations", "preferences.avoid", "skills", "notes",
+  "goals.fields", "goals.degree_types", "preferences.locations", "preferences.avoid", "skills", "notes", "skipped_gaps",
 ] as const;
 
 const ENUMS: Record<string, string[]> = {
@@ -287,6 +308,7 @@ export const WIRE_GUIDE = `patch format: every field is required. use "" for unk
 - facts: scalar fields you learned. value is a string. numbers as plain digits ("15000"). booleans "yes"/"no".
   enums: english.route test|waiver|undecided, goals.gmat_gre_plan will_take|avoid|undecided, funding.need full|partial|self.
 - lists: list fields. preferences.locations with values [] means "no preference".
+  skipped_gaps: gap keys (like "preferences.max_applications") the user answered without a clean value; record their answer in notes.
 - education / work / tests / stories: items to add or update. work.end "" means current role.`;
 
 const str = (s: string) => (s.trim() === "" ? null : s.trim());
@@ -329,6 +351,7 @@ export function fromWire(w: WirePatch): ProfilePatch {
     const values = l.values.map((v) => v.trim()).filter(Boolean);
     if (l.field === "skills") patch.skills = [...(patch.skills ?? []), ...values];
     else if (l.field === "notes") patch.notes = [...(patch.notes ?? []), ...values];
+    else if (l.field === "skipped_gaps") patch.skipped_gaps = [...(patch.skipped_gaps ?? []), ...values];
     else set(l.field, values);
   }
 
@@ -363,4 +386,25 @@ export function fromWire(w: WirePatch): ProfilePatch {
     patch.stories = stories.map((s) => ({ title: s.title.trim(), summary: s.summary.trim(), metrics: s.metrics.map((m) => m.trim()).filter(Boolean) }));
   }
   return patch;
+}
+
+// short text view of the profile for prompts that don't need every bullet (keeps latency down)
+export function profileBrief(p: Profile, targetTermFallback?: string | null): string {
+  const L: string[] = [];
+  const v = (x: unknown) => (x === null || x === undefined || x === "" ? "?" : Array.isArray(x) ? (x.length ? x.join(", ") : "none") : String(x));
+  L.push(`name: ${v(p.identity.full_name)} | citizenship: ${v(p.identity.citizenship)} | lives: ${v(p.identity.city)}, ${v(p.identity.country_of_residence)}`);
+  L.push(`term: ${v(p.goals.target_term ?? targetTermFallback)} | fields: ${v(p.goals.fields)} | degree types: ${v(p.goals.degree_types)} | gmat/gre: ${v(p.goals.gmat_gre_plan)}`);
+  L.push(`after masters: ${v(p.goals.short_term_goal)}`);
+  L.push(`long term: ${v(p.goals.long_term_goal)}`);
+  L.push(`why masters: ${v(p.goals.why_masters)}`);
+  L.push(`funding: need ${v(p.funding.need)}, can cover/yr ${v(p.funding.annual_budget_usd)}, fee budget ${v(p.funding.application_fee_budget_usd)}${p.funding.notes ? ` (${p.funding.notes})` : ""}`);
+  L.push(`english: ${v(p.english.route)} | tests: ${p.tests.map((t) => `${t.name} ${t.status}${t.score ? " " + t.score : ""}`).join(", ") || "none"}`);
+  L.push(`locations: ${p.preferences.locations === null ? "?" : p.preferences.locations.length ? p.preferences.locations.join(", ") : "anywhere"} | avoid: ${v(p.preferences.avoid)} | stem: ${v(p.preferences.stem_preferred)} | max apps: ${v(p.preferences.max_applications)}`);
+  L.push(`recommenders: ${v(p.recommenders.count_lined_up)}${p.recommenders.notes ? ` (${p.recommenders.notes})` : ""}`);
+  L.push(`education: ${p.education.map((e) => `${e.degree ?? "?"} ${e.field ?? ""} @ ${e.institution} ${e.end ?? ""} ${e.grade ?? ""}`.replace(/\s+/g, " ").trim()).join("; ") || "none"}`);
+  L.push(`work: ${p.work.map((w) => `${w.role} @ ${w.company} (${w.start ?? "?"}–${w.end ?? "now"})`).join("; ") || "none"}`);
+  L.push(`stories on file: ${p.stories.map((s) => s.title).join("; ") || "none"}`);
+  if (p.confirmed_facts.length) L.push(`confirmed by user: ${p.confirmed_facts.map((f) => `${f.topic} = ${f.value}`).join("; ")}`);
+  if (p.notes.length) L.push(`notes: ${p.notes.slice(-12).join(" | ")}`);
+  return L.join("\n");
 }

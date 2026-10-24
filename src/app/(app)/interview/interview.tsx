@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Turn = { role: "agent" | "user"; content: string };
+type Phase = "idle" | "listening" | "thinking" | "speaking";
 
 // minimal typing for the web speech api (not in the ts dom lib everywhere)
 interface Recognition {
@@ -23,14 +24,38 @@ function getRecognition(): RecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-function readPref(key: string, fallback: boolean) {
+function load<T extends string>(key: string, fallback: T): T {
   try {
-    const v = localStorage.getItem(key);
-    return v === null ? fallback : v === "1";
+    return (localStorage.getItem(key) as T) ?? fallback;
   } catch {
     return fallback;
   }
 }
+function save(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+// best-sounding english voices first; browsers ship very different sets
+function rankVoice(v: SpeechSynthesisVoice) {
+  const n = v.name.toLowerCase();
+  let s = 0;
+  if (!v.lang.toLowerCase().startsWith("en")) return -100;
+  if (/natural|neural|online/.test(n)) s += 50;
+  if (/google/.test(n)) s += 30;
+  if (/premium|enhanced/.test(n)) s += 25;
+  if (/samantha|aria|jenny|guy|daniel|serena/.test(n)) s += 10;
+  if (/en-ng|nigeria/.test(v.lang.toLowerCase() + n)) s += 5;
+  if (v.localService === false) s += 5;
+  return s;
+}
+
+const LANGS = [
+  ["en-NG", "English (Nigeria)"],
+  ["en-US", "English (US)"],
+  ["en-GB", "English (UK)"],
+] as const;
 
 export function Interview({
   initialSessionId,
@@ -44,141 +69,235 @@ export function Interview({
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
   const [pct, setPct] = useState(initialCompleteness);
-  const [thinking, setThinking] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
   const [interim, setInterim] = useState("");
   const [draft, setDraft] = useState("");
-  const [speak, setSpeak] = useState(true);
   const [err, setErr] = useState("");
   const [voiceOk, setVoiceOk] = useState(false);
+  const [speak, setSpeak] = useState(true);
+  const [handsFree, setHandsFree] = useState(true);
+  const [lang, setLang] = useState("en-NG");
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceName, setVoiceName] = useState("");
+
   const recRef = useRef<Recognition | null>(null);
   const finalRef = useRef("");
+  const interimRef = useRef("");
+  const sendOnEndRef = useRef(false);
+  // refs so callbacks created once (speech events) always see current values
+  const settings = useRef({ speak, handsFree, lang, voiceName, voiceOk, voices });
+  settings.current = { speak, handsFree, lang, voiceName, voiceOk, voices };
+  const sendRef = useRef<(text: string | null, viaVoice: boolean) => Promise<void>>(async () => {});
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setVoiceOk(!!getRecognition());
-    setSpeak(readPref("am.speak", true));
+    setSpeak(load("am.speak", "1") === "1");
+    setHandsFree(load("am.handsfree", "1") === "1");
+    setLang(load("am.lang", "en-NG"));
+    setVoiceName(load("am.voice", ""));
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const refresh = () => {
+      const list = synth.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en")).sort((a, b) => rankVoice(b) - rankVoice(a));
+      setVoices(list);
+    };
+    refresh();
+    synth.addEventListener?.("voiceschanged", refresh);
+    return () => synth.removeEventListener?.("voiceschanged", refresh);
   }, []);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
-  }, [turns, thinking, interim]);
+  }, [turns, phase, interim]);
 
-  const say = useCallback(
-    (text: string) => {
-      if (!speak || typeof window === "undefined" || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.05;
-      window.speechSynthesis.speak(u);
-    },
-    [speak],
-  );
-
-  const send = useCallback(
-    async (text: string | null, viaVoice: boolean) => {
-      setErr("");
-      if (text) setTurns((t) => [...t, { role: "user", content: text }]);
-      setThinking(true);
-      try {
-        const res = await fetch("/api/interview/turn", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sessionId, text, viaVoice }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? res.statusText);
-        setSessionId(data.sessionId);
-        setTurns((t) => [...t, { role: "agent", content: data.reply }]);
-        setPct(data.completeness);
-        say(data.reply);
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        setThinking(false);
-      }
-    },
-    [sessionId, say],
-  );
-
-  function startListening() {
+  // ---- listening ----------------------------------------------------------
+  const startListening = useCallback(() => {
     const Ctor = getRecognition();
-    if (!Ctor || thinking) return;
+    if (!Ctor) return;
     window.speechSynthesis?.cancel();
+    recRef.current?.abort();
     const rec = new Ctor();
-    rec.lang = "en-US";
+    rec.lang = settings.current.lang;
     rec.interimResults = true;
-    rec.continuous = true;
+    // hands-free: stop on a natural pause and send. manual: keep going until they tap.
+    rec.continuous = !settings.current.handsFree;
     finalRef.current = "";
+    interimRef.current = "";
+    sendOnEndRef.current = settings.current.handsFree;
     rec.onresult = (e) => {
-      let interimText = "";
+      let live = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
         if (r.isFinal) finalRef.current += r[0].transcript + " ";
-        else interimText += r[0].transcript;
+        else live += r[0].transcript;
       }
-      setInterim((finalRef.current + interimText).trim());
+      interimRef.current = live;
+      setInterim((finalRef.current + live).trim());
     };
     rec.onerror = (e) => {
-      if (e.error !== "aborted" && e.error !== "no-speech") setErr(`mic: ${e.error}`);
+      if (e.error === "language-not-supported" && settings.current.lang !== "en-US") {
+        setLang("en-US");
+        save("am.lang", "en-US");
+        setErr("your browser doesn't support that accent setting; switched to English (US). tap the mic again.");
+      } else if (e.error === "not-allowed") {
+        setErr("microphone blocked. allow mic access for this site in your browser settings.");
+      } else if (e.error !== "aborted" && e.error !== "no-speech") {
+        setErr(`mic: ${e.error}`);
+      }
     };
-    rec.onend = () => setListening(false);
-    recRef.current = rec;
-    setInterim("");
-    setListening(true);
-    rec.start();
-  }
-
-  function stopListening() {
-    recRef.current?.stop();
-    setListening(false);
-    // give the recogniser a beat to flush its final result
-    setTimeout(() => {
-      const text = (finalRef.current || "").trim() || interimRef.current.trim();
+    rec.onend = () => {
+      const text = (finalRef.current + " " + interimRef.current).trim();
       setInterim("");
-      if (text) send(text, true);
-    }, 400);
-  }
-  const interimRef = useRef("");
-  useEffect(() => {
-    interimRef.current = interim;
-  }, [interim]);
-
-  function toggleSpeak() {
-    const next = !speak;
-    setSpeak(next);
-    if (!next) window.speechSynthesis?.cancel();
+      recRef.current = null;
+      if (sendOnEndRef.current && text) {
+        void sendRef.current(text, true);
+      } else {
+        setPhase((p) => (p === "listening" ? "idle" : p));
+      }
+    };
+    recRef.current = rec;
+    setErr("");
+    setInterim("");
+    setPhase("listening");
     try {
-      localStorage.setItem("am.speak", next ? "1" : "0");
-    } catch {}
+      rec.start();
+    } catch {
+      setPhase("idle");
+    }
+  }, []);
+
+  function stopAndSend() {
+    sendOnEndRef.current = true;
+    recRef.current?.stop();
+  }
+
+  // ---- speaking -----------------------------------------------------------
+  const say = useCallback(
+    (text: string, then: () => void) => {
+      const synth = window.speechSynthesis;
+      if (!settings.current.speak || !synth) return then();
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const vs = settings.current.voices;
+      const v = vs.find((x) => x.name === settings.current.voiceName) ?? vs[0];
+      if (v) u.voice = v;
+      u.rate = 1.02;
+      u.onend = then;
+      u.onerror = () => then();
+      setPhase("speaking");
+      synth.speak(u);
+    },
+    [],
+  );
+
+  // ---- turn ---------------------------------------------------------------
+  const sessionRef = useRef(sessionId);
+  sessionRef.current = sessionId;
+
+  async function send(text: string | null, viaVoice: boolean) {
+    setErr("");
+    if (text) setTurns((t) => [...t, { role: "user", content: text }]);
+    setPhase("thinking");
+    try {
+      const res = await fetch("/api/interview/turn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: sessionRef.current, text, viaVoice }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? res.statusText);
+      setSessionId(data.sessionId);
+      setTurns((t) => [...t, { role: "agent", content: data.reply }]);
+      setPct(data.completeness);
+      say(data.reply, () => {
+        if (settings.current.handsFree && settings.current.voiceOk && !data.wrapUp) startListening();
+        else setPhase("idle");
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setPhase("idle");
+    }
+  }
+
+  sendRef.current = send;
+
+  function micTap() {
+    if (phase === "listening") return stopAndSend();
+    if (phase === "thinking") return;
+    startListening(); // also interrupts speech
   }
 
   const started = turns.length > 0;
+  const toggle = (key: string, value: boolean, set: (b: boolean) => void) => {
+    set(value);
+    save(key, value ? "1" : "0");
+    if (key === "am.speak" && !value) window.speechSynthesis?.cancel();
+  };
 
   return (
     <main className="mx-auto flex min-h-[calc(100vh-49px)] max-w-2xl flex-col px-4 py-6">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">interview</h1>
           <p className="text-sm text-neutral-500">profile {pct}% complete</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={toggleSpeak} className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700">
-            voice replies {speak ? "on" : "off"}
+        {started && (
+          <button
+            onClick={() => {
+              recRef.current?.abort();
+              window.speechSynthesis?.cancel();
+              setSessionId(null);
+              setTurns([]);
+              setPhase("idle");
+            }}
+            className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700"
+          >
+            new session
           </button>
-          {started && (
-            <button
-              onClick={() => {
-                setSessionId(null);
-                setTurns([]);
-              }}
-              className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs dark:border-neutral-700"
-            >
-              new session
-            </button>
-          )}
-        </div>
+        )}
       </header>
+
+      <details className="mb-3 text-sm">
+        <summary className="cursor-pointer text-neutral-500">voice settings</summary>
+        <div className="mt-2 grid gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-800 sm:grid-cols-2">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={speak} onChange={(e) => toggle("am.speak", e.target.checked, setSpeak)} />
+            read replies out loud
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={handsFree} onChange={(e) => toggle("am.handsfree", e.target.checked, setHandsFree)} />
+            hands-free (listens again after it speaks)
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-neutral-500">your accent (for recognition)</span>
+            <select
+              value={lang}
+              onChange={(e) => {
+                setLang(e.target.value);
+                save("am.lang", e.target.value);
+              }}
+              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
+            >
+              {LANGS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-neutral-500">its voice</span>
+            <select
+              value={voiceName}
+              onChange={(e) => {
+                setVoiceName(e.target.value);
+                save("am.voice", e.target.value);
+              }}
+              className="rounded-md border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
+            >
+              <option value="">best available</option>
+              {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+            </select>
+          </label>
+        </div>
+      </details>
 
       <div className="mb-2 h-1 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
         <div className="h-full bg-neutral-900 transition-all dark:bg-neutral-100" style={{ width: `${pct}%` }} />
@@ -187,15 +306,15 @@ export function Interview({
       <section className="flex-1 space-y-3 overflow-y-auto py-4">
         {!started && (
           <div className="rounded-md border border-neutral-200 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-            upload your CV and transcript first so it doesn&apos;t ask what it can read. then talk: tap the mic, speak, tap
-            again to send. it asks one thing at a time and fills your profile as you go. you can stop anytime.
+            it asks one thing at a time and fills your profile as you go. with hands-free on, just talk: it sends when you
+            pause and listens again after it answers. tap the mic anytime to interrupt it. you can stop whenever.
             <div className="mt-3">
               <button
                 onClick={() => send(null, false)}
-                disabled={thinking}
+                disabled={phase === "thinking"}
                 className="rounded-md bg-neutral-900 px-3 py-1.5 text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
               >
-                {thinking ? "starting…" : "start interview"}
+                {phase === "thinking" ? "starting…" : "start interview"}
               </button>
             </div>
           </div>
@@ -204,9 +323,7 @@ export function Interview({
           <div key={i} className={t.role === "user" ? "flex justify-end" : "flex"}>
             <p
               className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-[15px] leading-relaxed ${
-                t.role === "user"
-                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
-                  : "bg-neutral-100 dark:bg-neutral-900"
+                t.role === "user" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 dark:bg-neutral-900"
               }`}
             >
               {t.content}
@@ -218,63 +335,76 @@ export function Interview({
             <p className="max-w-[85%] rounded-2xl border border-dashed border-neutral-400 px-4 py-2 text-[15px] text-neutral-500">{interim}</p>
           </div>
         )}
-        {thinking && started && <p className="text-sm text-neutral-500">…</p>}
+        {phase === "thinking" && started && (
+          <div className="flex gap-1 px-2 py-1">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: `${i * 120}ms` }} />
+            ))}
+          </div>
+        )}
         <div ref={bottom} />
       </section>
 
       {err && <p className="mb-2 text-sm text-red-600">{err}</p>}
 
       {started && (
-        <footer className="sticky bottom-0 flex items-end gap-2 border-t border-neutral-200 bg-[var(--background)] pt-3 pb-2 dark:border-neutral-800">
-          {voiceOk && (
-            <button
-              onClick={listening ? stopListening : startListening}
-              disabled={thinking}
-              aria-label={listening ? "stop and send" : "start talking"}
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white transition disabled:opacity-40 ${
-                listening ? "animate-pulse bg-red-600" : "bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900"
-              }`}
-            >
-              {listening ? (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2" /></svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="9" y="3" width="6" height="11" rx="3" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                </svg>
-              )}
-            </button>
-          )}
-          <form
-            className="flex flex-1 gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const t = draft.trim();
-              if (!t || thinking) return;
-              setDraft("");
-              send(t, false);
-            }}
-          >
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  (e.currentTarget.form as HTMLFormElement).requestSubmit();
-                }
+        <footer className="sticky bottom-0 border-t border-neutral-200 bg-[var(--background)] pt-3 pb-2 dark:border-neutral-800">
+          <p className="mb-2 h-4 text-xs text-neutral-500">
+            {phase === "listening" ? (handsFree ? "listening… pause to send" : "listening… tap to send") : phase === "speaking" ? "speaking… tap the mic to interrupt" : phase === "thinking" ? "thinking…" : ""}
+          </p>
+          <div className="flex items-end gap-2">
+            {voiceOk && (
+              <button
+                onClick={micTap}
+                disabled={phase === "thinking"}
+                aria-label={phase === "listening" ? "stop and send" : "talk"}
+                className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-white transition disabled:opacity-40 ${
+                  phase === "listening" ? "animate-pulse bg-red-600" : "bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900"
+                }`}
+              >
+                {phase === "listening" ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2" /></svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                  </svg>
+                )}
+              </button>
+            )}
+            <form
+              className="flex flex-1 gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const t = draft.trim();
+                if (!t || phase === "thinking") return;
+                recRef.current?.abort();
+                window.speechSynthesis?.cancel();
+                setDraft("");
+                void send(t, false);
               }}
-              rows={1}
-              placeholder={voiceOk ? "or type…" : "type your answer… (voice works in chrome)"}
-              className="min-h-12 flex-1 resize-none rounded-md border border-neutral-300 bg-transparent px-3 py-3 text-[15px] outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
-            />
-            <button
-              disabled={thinking || !draft.trim()}
-              className="h-12 rounded-md bg-neutral-900 px-4 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
             >
-              send
-            </button>
-          </form>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    (e.currentTarget.form as HTMLFormElement).requestSubmit();
+                  }
+                }}
+                rows={1}
+                placeholder={voiceOk ? "or type…" : "type your answer… (voice works in chrome)"}
+                className="min-h-12 flex-1 resize-none rounded-md border border-neutral-300 bg-transparent px-3 py-3 text-[15px] outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
+              />
+              <button
+                disabled={phase === "thinking" || !draft.trim()}
+                className="h-12 rounded-md bg-neutral-900 px-4 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+              >
+                send
+              </button>
+            </form>
+          </div>
         </footer>
       )}
     </main>

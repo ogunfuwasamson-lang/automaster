@@ -125,3 +125,31 @@ describe("wire schema", () => {
     expect(parseNumber("about 20k")).toBeNull();
   });
 });
+
+describe("cleanup support", () => {
+  it("skipped gaps are never asked again", async () => {
+    const { profileGaps: gaps, mergeProfile: merge, emptyProfile: empty } = await import("@/lib/profile");
+    const p = merge(empty(), { skipped_gaps: ["preferences.max_applications", "goals.fields"] });
+    const keys = gaps(p).map((g) => g.key);
+    expect(keys).not.toContain("goals.fields");
+    expect(keys).not.toContain("preferences.max_applications");
+  });
+
+  it("rebuild replaces content but keeps user-confirmed facts and skips", async () => {
+    const { rebuildProfile, confirmFact, emptyProfile: empty, mergeProfile: merge } = await import("@/lib/profile");
+    let p = merge(empty(), { work: [{ company: "A", role: "x", start: null, end: null, location: null, highlights: [] }], skipped_gaps: ["stories"] });
+    p = confirmFact(p, "Trove volume", "$5M");
+    p = confirmFact(p, "trove  VOLUME", "$10M"); // same topic, new answer replaces
+    const r = rebuildProfile({ work: [{ company: "B", role: "y", start: null, end: null, location: null, highlights: [] }] }, p);
+    expect(r.work.map((w) => w.company)).toEqual(["B"]);
+    expect(r.confirmed_facts).toEqual([{ topic: "trove  VOLUME", value: "$10M" }]);
+    expect(r.skipped_gaps).toEqual(["stories"]);
+  });
+
+  it("brief stays short even for a big profile", async () => {
+    const { profileBrief, emptyProfile: empty } = await import("@/lib/profile");
+    const p = { ...empty(), work: Array.from({ length: 15 }, (_, i) => ({ company: `C${i}`, role: "r", start: "2020", end: null, location: null, highlights: Array(10).fill("long highlight text ".repeat(5)) })) };
+    expect(profileBrief(p, "fall-2027").length).toBeLessThan(2500);
+    expect(profileBrief(p, "fall-2027")).toContain("fall-2027");
+  });
+});

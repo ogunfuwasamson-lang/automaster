@@ -1,7 +1,8 @@
 import "server-only";
-import type { Job } from "@/lib/jobs";
+import type { Job } from "@/lib/queue";
 import { system } from "./system";
 import { intake } from "./intake";
+import { curator } from "./curator";
 
 export type Handler = (job: Job) => Promise<Record<string, unknown> | void>;
 
@@ -9,4 +10,5 @@ export type Handler = (job: Job) => Promise<Record<string, unknown> | void>;
 export const HANDLERS: Record<string, Handler> = {
   ...system,
   ...intake,
+  ...curator,
 };

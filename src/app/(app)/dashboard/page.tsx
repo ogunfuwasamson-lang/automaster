@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/supabase/server";
+import Link from "next/link";
 import { PingButton } from "./ping-button";
+import { Decisions, type Decision } from "@/components/decisions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +12,7 @@ export default async function Dashboard() {
 
   const [{ data: grants }, { data: approvals }, { data: events }] = await Promise.all([
     sb.from("grants").select("capability, mode, undo_seconds, ceiling_cents").order("capability"),
-    sb.from("approvals").select("id, title, kind, created_at").eq("status", "pending").order("urgency", { ascending: false }),
+    sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }),
     sb.from("events").select("id, actor, action, created_at, context").order("created_at", { ascending: false }).limit(20),
   ]);
 
@@ -27,11 +29,14 @@ export default async function Dashboard() {
       <section>
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">your queue</h2>
         {approvals?.length ? (
-          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-            {approvals.map((a) => (
-              <li key={a.id} className="px-4 py-3 text-sm">{a.title}</li>
-            ))}
-          </ul>
+          <>
+            <Decisions items={(approvals as Decision[]).slice(0, 3)} />
+            {approvals.length > 3 && (
+              <Link href="/profile" className="mt-2 inline-block text-sm text-neutral-500 underline">
+                {approvals.length - 3} more on your profile
+              </Link>
+            )}
+          </>
         ) : (
           <p className="text-sm text-neutral-500">nothing needs you right now.</p>
         )}

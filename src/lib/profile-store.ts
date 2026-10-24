@@ -41,3 +41,23 @@ export async function applyPatch(
   }
   throw new Error("applyPatch: too much contention");
 }
+
+// generic read-modify-write with the same optimistic concurrency as applyPatch
+export async function updateProfile(userId: string, fn: (p: Profile) => Profile): Promise<Profile> {
+  const db = admin();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await db.from("profiles").select("profile, updated_at").eq("id", userId).single();
+    if (error) throw new Error(`updateProfile read failed: ${error.message}`);
+    const next = fn(loadProfile(data.profile));
+    const { data: upd, error: uerr } = await db
+      .from("profiles")
+      .update({ profile: next })
+      .eq("id", userId)
+      .eq("updated_at", data.updated_at)
+      .select("id");
+    if (uerr) throw new Error(`updateProfile write failed: ${uerr.message}`);
+    if (upd?.length) return next;
+    await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+  }
+  throw new Error("updateProfile: too much contention");
+}
