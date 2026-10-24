@@ -67,11 +67,17 @@ export function Interview({
   initialTurns,
   initialCompleteness,
   embedded = false,
+  kickoff = false,
+  waiting = [],
+  onTurn,
 }: {
   initialSessionId: string | null;
   initialTurns: Turn[];
   initialCompleteness: number;
   embedded?: boolean; // inside the chat panel: fills it, no page chrome
+  kickoff?: boolean; // the interviewer speaks first (portal questions are waiting)
+  waiting?: { id: string; question: string; school: string | null }[];
+  onTurn?: () => void;
 }) {
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
@@ -266,6 +272,7 @@ export function Interview({
       setSessionId(data.sessionId);
       setTurns((t) => [...t, { role: "agent", content: data.reply }]);
       setPct(data.completeness);
+      onTurn?.();
       say(data.reply, () => {
         if (settings.current.handsFree && settings.current.voiceOk && !data.wrapUp) startListening(true);
         else setPhase("idle");
@@ -277,6 +284,14 @@ export function Interview({
   }
 
   sendRef.current = send;
+
+  // opened because a school's form is waiting on answers: the interviewer asks straight away
+  const kicked = useRef(false);
+  useEffect(() => {
+    if (!kickoff || kicked.current) return;
+    kicked.current = true;
+    void sendRef.current(null, false);
+  }, [kickoff]);
 
   function micTap() {
     if (phase === "listening") return stopAndSend();
@@ -404,6 +419,20 @@ export function Interview({
         </div>
       </header>
 
+      {waiting.length > 0 && (
+        <div className="mb-3 rounded-2xl border border-signal/25 bg-signal/[0.06] px-3.5 py-2.5 text-xs leading-relaxed">
+          <p className="font-semibold text-foreground">
+            {waiting.length === 1 ? "1 question" : `${waiting.length} questions`} from your applications
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-muted">
+            {waiting
+              .slice(0, 3)
+              .map((q) => `${q.school ? `${q.school.split(/[,(]/)[0].trim()}: ` : ""}${q.question}`)
+              .join(" · ")}
+          </p>
+          <p className="mt-1 text-muted">Your answers are saved to your profile and used on every form from now on.</p>
+        </div>
+      )}
       <section className={`flex-1 space-y-4 border-t border-line py-6 ${embedded ? "min-h-0 overflow-y-auto" : ""}`} aria-live="polite">
         {!started && (
           <div className="mx-auto max-w-md py-10 text-center">

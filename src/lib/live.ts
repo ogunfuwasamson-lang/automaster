@@ -11,6 +11,7 @@ import { logEvent } from "@/lib/events";
 import { getLogin, markLogin } from "@/lib/vault";
 import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, userHalted, type RunnerState } from "@/agents/runner";
+import { recordQuestions } from "@/lib/portal-questions";
 
 // the live browser: the cloud runner's browser, streamed into automaster as screenshots, with the applicant's
 // clicks and keys sent back. the agents drive until a step needs the applicant; the applicant does it in the
@@ -185,6 +186,7 @@ export async function runLiveSession(sessionId: string) {
         while (!ended && mode === "agent" && Date.now() < until) await sleep(500);
         continue;
       }
+      if (o.kind === "needs_you" && o.reason === "question") await recordQuestions(userId, applicationId, state.questions).catch(() => 0);
       mode = "you";
       await set({ status: "you", prompt: o.kind === "failed" ? "The agents hit a problem on this page. You can carry on yourself, or hand back to try again." : liveNote(o) });
     }

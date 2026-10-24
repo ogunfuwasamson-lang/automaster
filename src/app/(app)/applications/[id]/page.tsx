@@ -53,7 +53,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const auth = await requireUser();
   if (!auth) return null;
   const { id } = await params;
-  const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }] = await Promise.all([
+  const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }, { data: asked }] = await Promise.all([
     auth.sb
       .from("applications")
       .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
@@ -62,6 +62,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
     auth.sb.from("threads").select("id, subject, messages(id, direction, subject, status, created_at, sent_at)").eq("application_id", id).order("created_at"),
     admin().from("portal_accounts").select("id", { count: "exact", head: true }).eq("user_id", auth.user.id).eq("application_id", id),
+    // portal questions this application is waiting on (missing table before its migration: none)
+    admin().from("portal_questions").select("question").eq("user_id", auth.user.id).eq("application_id", id).eq("status", "open").order("created_at"),
   ]);
   if (!app) notFound();
   const sheet = app.status === "packet_approved" ? await loadSheet(auth.user.id, id).catch(() => null) : null;
@@ -215,6 +217,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           mode={(app as { runner_mode?: string }).runner_mode ?? "cloud"}
           paused={app.runner_status === "idle" && !!((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused}
           school={p.schools.name}
+          questions={(asked ?? []).map((q) => q.question as string)}
         />
       )}
 

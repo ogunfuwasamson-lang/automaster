@@ -7,29 +7,74 @@ import { LoaderCircle, MessagesSquare, X } from "lucide-react";
 import { Interview } from "@/app/(app)/interview/interview";
 
 type History = { sessionId: string | null; turns: { role: "agent" | "user"; content: string }[]; completeness: number };
+type Question = { id: string; question: string; school: string | null; applicationId: string | null };
 
-// the interviewer lives in a panel that opens from any page: a floating button, or any link with ?chat=open
+const SEEN = "am.q.seen";
+const seen = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN) ?? "[]");
+  } catch {
+    return [];
+  }
+};
+const markSeen = (ids: string[]) => {
+  try {
+    localStorage.setItem(SEEN, JSON.stringify([...new Set([...seen(), ...ids])].slice(-200)));
+  } catch {
+    /* private mode */
+  }
+};
+
+// the interviewer lives in a panel that opens from any page: a floating button, or any link with ?chat=open.
+// it also pops up by itself when an agent stops on a portal question the profile doesn't answer.
 export function ChatDock() {
   const params = useSearchParams();
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [hist, setHist] = useState<History | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [kickoff, setKickoff] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/interview/history");
     if (res.ok) setHist(await res.json());
   }, []);
 
+  // what the agents are waiting on; a question nobody has seen yet opens the panel
+  const check = useCallback(
+    async (allowPop: boolean) => {
+      const r = await fetch("/api/questions", { cache: "no-store" }).catch(() => null);
+      if (!r?.ok) return;
+      const qs = ((await r.json()).questions ?? []) as Question[];
+      setQuestions(qs);
+      const fresh = qs.filter((q) => !seen().includes(q.id));
+      if (allowPop && fresh.length && !open && !path.startsWith("/onboarding")) {
+        markSeen(qs.map((q) => q.id));
+        setKickoff(true);
+        setHist(null);
+        setOpen(true);
+      }
+    },
+    [open, path],
+  );
+
+  useEffect(() => {
+    void check(true);
+    const t = setInterval(() => void check(true), 60_000);
+    return () => clearInterval(t);
+  }, [check]);
+
   useEffect(() => {
     if (params.get("chat") === "open") {
+      setKickoff(questions.length > 0);
       setOpen(true);
       // drop the flag so a refresh or back doesn't reopen it
       const next = new URLSearchParams(params);
       next.delete("chat");
       router.replace(next.size ? `${path}?${next}` : path, { scroll: false });
     }
-  }, [params, path, router]);
+  }, [params, path, router, questions.length]);
 
   useEffect(() => {
     if (open && !hist) void load();
@@ -40,17 +85,24 @@ export function ChatDock() {
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) router.refresh(); // the interview may have filled the profile
+        if (o) setKickoff(questions.length > 0);
+        if (!o) {
+          setKickoff(false);
+          markSeen(questions.map((q) => q.id));
+          void check(false);
+          router.refresh(); // the interview may have filled the profile
+        }
       }}
     >
       <Dialog.Trigger asChild>
         <button
           hidden={path.startsWith("/messages")}
           className="bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+92px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-bold text-white shadow-[0_16px_36px_-10px_rgb(79_70_229/0.7)] transition-transform hover:-translate-y-0.5 lg:bottom-8 lg:right-8"
-          aria-label="Talk to your interviewer"
+          aria-label={questions.length ? `Talk to your interviewer: ${questions.length} questions waiting` : "Talk to your interviewer"}
         >
           <MessagesSquare className="size-5" aria-hidden />
           <span className="hidden sm:inline">Interviewer</span>
+          {questions.length > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-signal px-1.5 text-[11px] font-bold leading-5 text-white">{questions.length}</span>}
         </button>
       </Dialog.Trigger>
       <AnimatePresence>
@@ -72,7 +124,7 @@ export function ChatDock() {
                   <X className="size-5" />
                 </Dialog.Close>
                 {hist ? (
-                  <Interview embedded initialSessionId={hist.sessionId} initialTurns={hist.turns} initialCompleteness={hist.completeness} />
+                  <Interview embedded kickoff={kickoff} waiting={questions} onTurn={() => void check(false)} initialSessionId={hist.sessionId} initialTurns={hist.turns} initialCompleteness={hist.completeness} />
                 ) : (
                   <div className="grid flex-1 place-items-center text-muted">
                     <LoaderCircle className="size-6 animate-spin" aria-label="Loading" />

@@ -5,16 +5,20 @@ import { runStructured } from "@/lib/llm";
 import { WirePatch, fromWire, WIRE_GUIDE, profileGaps, completeness, profileBrief } from "@/lib/profile";
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
+import { answerQuestion, openQuestions } from "@/lib/portal-questions";
 
 export const TurnOut = z.object({
   reply: z.string(), // spoken aloud
   patch: WirePatch, // only facts the user just stated
   mode: z.enum(["gaps", "stories", "wrap_up"]),
+  // answers to the portal questions listed in the prompt, by id. skip = they said it doesn't apply / won't answer
+  portal_answers: z.array(z.object({ id: z.string(), answer: z.string(), skip: z.boolean() })),
 });
 
 const SYSTEM = `you are the intake interviewer on a platform that runs a bachelor's, master's or PhD application cycle (any field, any country) for one applicant. adjust to who they are: a school-leaver needs simple, encouraging questions; a researcher needs precise ones about their research. you talk with them by voice.
 
 your job, in order:
+0. portal questions come first when there are any: a school's application form is stopped until they're answered. ask them one at a time, say which school is asking, and if the question has options, offer them briefly (the closest few, not a long list). record each answer in portal_answers with the question's exact id, in the wording a form expects: an option's exact text when there are options, dates as YYYY-MM-DD, yes/no as "Yes"/"No". if they say it doesn't apply or they'd rather not answer, set skip true. don't also put these answers in the patch. when the last one is answered, tell them the agents are carrying on, then continue with the rest of your job.
 1. close the profile gaps (list provided, highest priority first).
 2. once gaps are closed, dig for essay material: concrete stories with numbers, a setback and what they learned, why this field, why now. this is mode "stories".
 3. wrap up when they want to stop, or when you have 3+ strong stories and no gaps.
@@ -55,11 +59,12 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
     await db.from("interview_turns").insert({ user_id: userId, session_id: sessionId, role: "user", content: userText, via_voice: viaVoice });
   }
 
-  const [profile, { data: history }, { data: docs }, { data: row }] = await Promise.all([
+  const [profile, { data: history }, { data: docs }, { data: row }, questions] = await Promise.all([
     getProfile(userId),
     db.from("interview_turns").select("role, content").eq("user_id", userId).order("created_at", { ascending: false }).limit(24),
     db.from("documents").select("filename, extracted").eq("user_id", userId).eq("status", "extracted"),
     db.from("profiles").select("target_term").eq("id", userId).single(),
+    openQuestions(userId),
   ]);
   const transcript = (history ?? []).reverse() as Turn[];
   const gaps = profileGaps(profile);
@@ -69,13 +74,16 @@ ${profileBrief(profile, row?.target_term)}
 
 documents on file: ${(docs ?? []).map((d) => (d.extracted as { kind?: string } | null)?.kind ?? d.filename).join(", ") || "none"}
 
+portal questions the agents are waiting on (ask these first):
+${questions.map((q) => `- [${q.id}] ${q.school ?? "a school"} asks: "${q.question}"${q.options.length ? ` (options: ${q.options.slice(0, 25).join(" / ")})` : ""}${q.field_type === "date" ? " (a date)" : ""}`).join("\n") || "(none)"}
+
 gaps, highest priority first:
 ${gaps.map((g, i) => `${i + 1}. [${g.key}] ${g.ask}`).join("\n") || "(none: move to stories, or wrap up)"}
 
 conversation so far (oldest first):
 ${transcript.map((t) => `${t.role === "agent" ? "you" : "them"}: ${t.content}`).join("\n") || "(nothing yet)"}
 
-${userText ? `they just said: ${userText}` : transcript.length ? "they came back to continue. pick up naturally where it makes sense." : "they just opened the interview. one short line on what this is, then your first question."}`;
+${userText ? `they just said: ${userText}` : questions.length ? "you opened the chat because a school's form needs answers. one short line saying so, then the first portal question." : transcript.length ? "they came back to continue. pick up naturally where it makes sense." : "they just opened the interview. one short line on what this is, then your first question."}`;
 
   const { output, runId } = await runStructured({
     userId,
@@ -88,7 +96,15 @@ ${userText ? `they just said: ${userText}` : transcript.length ? "they came back
     maxTokens: 2500,
   });
 
-  let updated = profile;
+  // answers to portal questions go into the profile (and restart the stopped applications)
+  const valid = new Set(questions.map((q) => q.id));
+  let answered = 0;
+  for (const a of output.portal_answers ?? []) {
+    if (!valid.has(a.id)) continue;
+    if (await answerQuestion(userId, a.id, a.skip ? null : a.answer).catch(() => false)) answered++;
+  }
+
+  let updated = answered ? await getProfile(userId) : profile;
   const patch = fromWire(output.patch);
   const patchKeys = Object.keys(patch);
   if (patchKeys.length) {
@@ -102,7 +118,7 @@ ${userText ? `they just said: ${userText}` : transcript.length ? "they came back
     action: "interview.turn",
     agentRunId: runId,
     channel: viaVoice ? "voice" : "text",
-    context: { sessionId, patched: patchKeys, mode: output.mode },
+    context: { sessionId, patched: patchKeys, mode: output.mode, portalAnswers: answered },
   });
 
   return {
@@ -110,5 +126,6 @@ ${userText ? `they just said: ${userText}` : transcript.length ? "they came back
     wrapUp: output.mode === "wrap_up",
     completeness: completeness(updated),
     gapsLeft: profileGaps(updated).length,
+    questionsLeft: questions.length - answered,
   };
 }

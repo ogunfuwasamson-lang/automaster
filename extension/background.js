@@ -1,10 +1,38 @@
 // automaster runner: built from extension/src by scripts/build-extension.mjs. don't edit by hand.
 "use strict";
 (() => {
+  // src/lib/labels.ts
+  function cleanLabel(label, options = []) {
+    let l = label.replace(/\s+/g, " ").replace(/\(?(required|optional)\)?/gi, "").trim();
+    const tails = [...options, "select", "select one", "choose", "choose one", "please select", "-- select --"].map((o) => o.trim().toLowerCase()).filter(Boolean).sort((a, b) => b.length - a.length);
+    for (let guard = 0; guard < 60; guard++) {
+      const low = l.toLowerCase();
+      const t = tails.find((o) => low.endsWith(` ${o}`) && low.length > o.length + 3);
+      if (!t) break;
+      l = l.slice(0, l.length - t.length).trim();
+    }
+    return l.replace(/\s*[*:]+\s*$/, "").trim();
+  }
+
   // src/lib/never-fill.ts
   var NEVER_FILL = /passport|national\s*id|\bnin\b|\bssn\b|social\s*security|tax\s*id|\bbvn\b|password|passcode|\bpin\b|security\s*(question|answer)|card\s*(number|holder)|\bcvv\b|\bcvc\b|expir|iban|account\s*number|routing|signature/i;
 
   // src/lib/cloud-engine.ts
+  function ask(state, f, key) {
+    const label = cleanLabel(f.label, f.options).slice(0, 200);
+    if (!label) return;
+    const list = state.questions ?? [];
+    const i = list.findIndex((q2) => q2.label.toLowerCase() === label.toLowerCase());
+    const q = { label, type: f.type, ...f.options?.length ? { options: f.options.filter((o) => o && !/^(select|choose|please|--)/i.test(o.trim())).slice(0, 40) } : {}, ...key ? { key } : {} };
+    if (i >= 0) list[i] = { ...list[i], ...q, key: key ?? list[i].key };
+    else list.push(q);
+    state.questions = list.slice(-12);
+  }
+  function questionNote(state) {
+    const qs = state.questions ?? [];
+    if (!qs.length) return missingNote(state.missing ?? []);
+    return `the portal asks ${qs.length === 1 ? "something" : `${qs.length} things`} your profile doesn't answer yet: ${qs.slice(0, 3).map((q) => q.label.slice(0, 60)).join("; ")}. Your interviewer will ask you, and the agents carry on once you answer`;
+  }
   var FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
   var NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
   var START = /^(start|begin|continue|resume) (my |an |your |a new |new )?application\b.{0,20}$|^apply( now| online| today| here)?( for (this|the) program.{0,30})?$|^start( here| now)?$|^(how to )?apply to (this|the) program$/i;
@@ -135,9 +163,10 @@
       }
       if (state.samePageCount >= 3) {
         const req = s.fields.map((f) => f.label.slice(0, 50));
-        const fix = missingNote(state.missing ?? []);
+        for (const f of s.fields.filter((x) => x.required)) if ((state.missing ?? []).length) ask(state, f);
+        const fix = (state.missing ?? []).length ? questionNote(state) : "";
         const err = (s.errors ?? []).join("; ").slice(0, 160);
-        const stop = { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
+        const stop = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
         if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
         const o2 = await navStep(page, deps2, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
         if (o2) return { outcome: o2, state, filled };
@@ -246,8 +275,8 @@
       const now = await snap(page);
       const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
       if (empty.length) {
-        const fix = missingNote(state.missing ?? []);
-        return { outcome: { kind: "needs_you", reason: "question", note: (fix || `answer ${empty.length} question${empty.length > 1 ? "s" : ""} your profile doesn't cover: ${empty.slice(0, 3).join("; ")}`).slice(0, 290) }, state, filled };
+        for (const f of now.fields.filter((x) => x.required)) ask(state, f);
+        return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
       }
       const submit = find(now, FINAL);
       if (submit) {
@@ -373,7 +402,11 @@
     for (const f of fills) {
       try {
         if (f.action === "skip") {
-          if (state && f.reason.startsWith("missing:") && safe.find((x) => x.id === f.id)?.required) state.missing = [.../* @__PURE__ */ new Set([...state.missing ?? [], f.reason.slice(8)])];
+          const field = safe.find((x) => x.id === f.id);
+          if (state && f.reason.startsWith("missing:") && field?.required) {
+            state.missing = [.../* @__PURE__ */ new Set([...state.missing ?? [], f.reason.slice(8)])];
+            ask(state, field, f.reason.slice(8));
+          }
           continue;
         }
         if (f.action === "upload") {

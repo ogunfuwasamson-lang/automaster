@@ -14,6 +14,7 @@ import { decrypt, encrypt } from "@/lib/crypto";
 import { openBrowser, type StorageState } from "@/lib/browser";
 import { runEngine, type EngineDeps, type EngineState, type NavInput } from "@/lib/cloud-engine";
 import { fromPlaywright } from "@/lib/engine-page";
+import { recordQuestions } from "@/lib/portal-questions";
 import { resolve, keyMenu } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
@@ -382,6 +383,8 @@ export const runner: Record<string, Handler> = {
         await handOffToChrome(job.user_id, applicationId, saved, outcome.note);
         return { outcome: "moved_to_chrome", reason: outcome.reason, filled };
       }
+
+      if (outcome.kind === "needs_you" && outcome.reason === "question") await recordQuestions(job.user_id, applicationId, next.questions).catch(() => 0);
 
       if (outcome.kind === "needs_you") {
         // bot checks and payments: the applicant finishes that step (live view, or their own browser with the

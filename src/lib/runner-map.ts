@@ -1,6 +1,7 @@
 // turns a portal page's fields into values from the fill sheet. pure; the model only ever picks a sheet KEY,
 // never writes a value, so it can't invent facts about the applicant.
 import { CERTIFY, NEVER_FILL, keyForLabel, type FillSheet } from "@/lib/fillsheet";
+import { cleanLabel as cleanLabelLocal } from "@/lib/labels";
 
 export interface PageField {
   id: string; // runner's handle for the element
@@ -89,6 +90,28 @@ export function keyForOptions(options: string[]): string | null {
   return null;
 }
 
+export { cleanLabel } from "@/lib/labels";
+
+// an answer the applicant gave to this same question before (on any school's portal)
+export function answerFor(label: string, sheet: FillSheet, options: string[] = []): string | null {
+  const l = norm(cleanLabelLocal(label, options));
+  if (!l || !sheet.answers?.length) return null;
+  const exact = sheet.answers.find((a) => norm(a.question) === l);
+  if (exact) return exact.key;
+  // nearly the same wording ("Country of birth" vs "Country of birth *"): most words in common
+  const words = new Set(l.split(" ").filter((w) => w.length > 2));
+  if (words.size < 2) return null;
+  let best: { key: string; score: number } | null = null;
+  for (const a of sheet.answers) {
+    const aw = norm(a.question).split(" ").filter((w) => w.length > 2);
+    if (aw.length < 2) continue;
+    const common = aw.filter((w) => words.has(w)).length;
+    const score = common / Math.max(words.size, aw.length);
+    if (score >= 0.8 && (!best || score > best.score)) best = { key: a.key, score };
+  }
+  return best?.key ?? null;
+}
+
 // first pass: rules only. returns fills plus the fields the model should look at.
 export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill[]; unresolved: PageField[] } {
   const fills: Fill[] = [];
@@ -115,6 +138,12 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
         fills.push({ id: f.id, action: "fill", value: sheet.essays.find((e) => e.artifact_id === essay)!.text, source: `essay:${essay}` });
         continue;
       }
+    }
+    const answered = answerFor(f.label, sheet, f.options);
+    const ra = answered ? resolve(f, answered, sheet) : null;
+    if (ra) {
+      fills.push(ra);
+      continue;
     }
     const key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
     const r = key ? resolve(f, key, sheet) : null;
@@ -160,7 +189,8 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
     const opt = bestOption(value, f.options ?? []);
     return opt ? { id: f.id, action: "choose", option: opt, source: key } : null;
   }
-  if (f.type === "checkbox") return null; // yes/no questions are the applicant's call
+  // yes/no boxes are the applicant's call: only ticked when they answered yes to this question
+  if (f.type === "checkbox") return key.startsWith("answer:") && /^(yes|y|true|i agree|agree|i do|correct)\b/i.test(value) ? { id: f.id, action: "check", source: key } : null;
   if (f.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   if (f.type === "number" && !/^-?\d+(\.\d+)?$/.test(value)) return null;
   if (f.type === "email" && !/@/.test(value)) return null;
@@ -172,5 +202,7 @@ export function keyMenu(sheet: FillSheet): string {
   const fields = Object.entries(sheet.fields).map(([k, v]) => `${k}: ${v.length > 50 ? `${v.slice(0, 50)}…` : v}`);
   const essays = sheet.essays.map((e) => `essay:${e.artifact_id}: ${e.title}${e.prompt ? ` (${e.prompt.slice(0, 80)})` : ""}`);
   const files = sheet.files.filter((f) => !f.key.startsWith("essay:")).map((f) => `${f.key}: file, ${f.label}`);
-  return [...fields, ...essays, ...files].join("\n");
+  // answers show the question they answer, so the model can match a reworded portal question
+  const answers = (sheet.answers ?? []).map((a) => `${a.key}: answers "${a.question.slice(0, 80)}"`);
+  return [...fields.filter((x) => !x.startsWith("answer:")), ...answers, ...essays, ...files].join("\n");
 }

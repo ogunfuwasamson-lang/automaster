@@ -26,8 +26,9 @@ export function RunnerPanel(props: {
   mode?: string | null;
   school: string;
   paused?: boolean;
+  questions?: string[];
 }) {
-  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false } = props;
+  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [] } = props;
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const { ext, checked } = useExtension(runnerStatus === "running" || runnerStatus === "ready" ? 8000 : 0);
@@ -218,7 +219,23 @@ export function RunnerPanel(props: {
       {runnerStatus === "needs_you" && !liveUrl && !(reason === "captcha" || reason === "blocked") && (
         <div className="rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed">
           <p className="mb-2 text-xs font-bold text-muted">What to do</p>
-          {fixInProfile ? (
+          {reason === "question" && questions.length > 0 ? (
+            <>
+              <p>
+                The form asks {questions.length === 1 ? "something" : `${questions.length} things`} your profile doesn&apos;t answer yet. Your interviewer asks you; each answer is saved to your profile, and the agents carry on by themselves.
+              </p>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">
+                {questions.slice(0, 6).map((q) => (
+                  <li key={q} className="truncate">
+                    {q}
+                  </li>
+                ))}
+              </ul>
+              <ButtonLink href="?chat=open" size="sm" className="mt-3">
+                Answer in the Interviewer
+              </ButtonLink>
+            </>
+          ) : fixInProfile ? (
             <>
               <p>Add the missing detail to your profile. The agents restart this application on their own as soon as you save; you don&apos;t need to press anything else.</p>
               <ButtonLink href="/profile?tab=details" size="sm" className="mt-3">

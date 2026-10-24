@@ -27,7 +27,7 @@ export async function resumeAfterProfileChange(userId: string, what: string): Pr
       .update({
         runner_status: "ready",
         runner_note: "picking up your profile update",
-        runner_state: { ...st, missing: [], samePageCount: 0, reason: null, rechecks: 0 },
+        runner_state: { ...st, missing: [], questions: [], samePageCount: 0, reason: null, rechecks: 0 },
         runner_updated_at: new Date().toISOString(),
       })
       .eq("id", a.id);

@@ -3,6 +3,7 @@
 // engine runs on vercel against browserbase and in tests against a local chromium.
 import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib/engine-page";
 import type { Fill, PageField } from "@/lib/runner-map";
+import { cleanLabel } from "@/lib/labels";
 import { NEVER_FILL } from "@/lib/never-fill";
 
 export interface Snapshot {
@@ -26,12 +27,38 @@ export interface EngineState {
   triedMailLogin?: boolean;
   signedIn?: boolean; // a sign-in with the stored login has worked at least once
   missing?: string[]; // fill-sheet keys a portal asked for that the profile doesn't have
+  // required portal questions nothing in the profile answers: the interviewer asks the applicant these
+  questions?: PortalQuestion[];
   reachedSubmit?: boolean;
   submitClicked?: boolean;
   accountAt?: number; // when we created the portal account (verification emails come after this)
   verifyWaitSince?: number;
   lastFingerprint?: string;
   samePageCount?: number;
+}
+
+export interface PortalQuestion {
+  label: string;
+  type: string;
+  options?: string[];
+  key?: string; // the fill-sheet key it maps to, when we know it (country_of_birth, phone...)
+}
+
+function ask(state: EngineState, f: PageField, key?: string) {
+  const label = cleanLabel(f.label, f.options).slice(0, 200);
+  if (!label) return;
+  const list = state.questions ?? [];
+  const i = list.findIndex((q) => q.label.toLowerCase() === label.toLowerCase());
+  const q: PortalQuestion = { label, type: f.type, ...(f.options?.length ? { options: f.options.filter((o) => o && !/^(select|choose|please|--)/i.test(o.trim())).slice(0, 40) } : {}), ...(key ? { key } : {}) };
+  if (i >= 0) list[i] = { ...list[i], ...q, key: key ?? list[i].key };
+  else list.push(q);
+  state.questions = list.slice(-12);
+}
+
+function questionNote(state: EngineState): string {
+  const qs = state.questions ?? [];
+  if (!qs.length) return missingNote(state.missing ?? []);
+  return `the portal asks ${qs.length === 1 ? "something" : `${qs.length} things`} your profile doesn't answer yet: ${qs.slice(0, 3).map((q) => q.label.slice(0, 60)).join("; ")}. Your interviewer will ask you, and the agents carry on once you answer`;
 }
 
 export interface Login {
@@ -241,9 +268,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     if (state.samePageCount >= 3) {
       const req = s.fields.map((f) => f.label.slice(0, 50));
-      const fix = missingNote(state.missing ?? []);
+      for (const f of s.fields.filter((x) => x.required)) if ((state.missing ?? []).length) ask(state, f);
+      const fix = (state.missing ?? []).length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
-      const stop: Outcome = { kind: "needs_you", reason: "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
+      const stop: Outcome = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
       if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
       // the usual moves aren't working on this page: let the navigator look at it
       const o = await navStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
@@ -366,8 +394,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     const now = await snap(page);
     const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
     if (empty.length) {
-      const fix = missingNote(state.missing ?? []);
-      return { outcome: { kind: "needs_you", reason: "question", note: (fix || `answer ${empty.length} question${empty.length > 1 ? "s" : ""} your profile doesn't cover: ${empty.slice(0, 3).join("; ")}`).slice(0, 290) }, state, filled };
+      for (const f of now.fields.filter((x) => x.required)) ask(state, f);
+      return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
     }
 
     const submit = find(now, FINAL);
@@ -493,7 +521,11 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
   for (const f of fills) {
     try {
       if (f.action === "skip") {
-        if (state && f.reason.startsWith("missing:") && safe.find((x) => x.id === f.id)?.required) state.missing = [...new Set([...(state.missing ?? []), f.reason.slice(8)])];
+        const field = safe.find((x) => x.id === f.id);
+        if (state && f.reason.startsWith("missing:") && field?.required) {
+          state.missing = [...new Set([...(state.missing ?? []), f.reason.slice(8)])];
+          ask(state, field, f.reason.slice(8));
+        }
         continue;
       }
       if (f.action === "upload") {

@@ -32,6 +32,8 @@ export interface FillSheet {
   essays: SheetEssay[];
   files: SheetFile[];
   missing: string[]; // things portals usually need that we don't have
+  // answers the applicant gave to portal questions (key "answer:<n>" in fields), matched to fields by question
+  answers?: { key: string; question: string }[];
 }
 
 const norm = (x: string) => x.toLowerCase().replace(/[^a-z]/g, "");
@@ -209,7 +211,11 @@ export function buildSheet(a: {
   if (!files.some((x) => x.key === "transcript")) missing.push("transcript (upload it on documents)");
   if (!a.recommenders.length) missing.push("recommenders' names and emails");
 
-  return { application_id: a.applicationId, school: a.school, program: a.program, portal_url: a.portalUrl, attested: a.attested, fields: f, essays: a.essays, files, missing };
+  // everything the applicant confirmed in conversation, including answers to portal questions
+  const answers = p.confirmed_facts.map((x, i) => ({ key: `answer:${i}`, question: x.topic }));
+  p.confirmed_facts.forEach((x, i) => set(`answer:${i}`, x.value));
+
+  return { application_id: a.applicationId, school: a.school, program: a.program, portal_url: a.portalUrl, attested: a.attested, fields: f, essays: a.essays, files, missing, answers };
 }
 
 // ---------------------------------------------------------------------------

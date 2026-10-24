@@ -232,3 +232,30 @@ describe("email text", () => {
     expect(t).not.toContain("earlier");
   });
 });
+
+describe("answers to portal questions", () => {
+  const withAnswers = () => {
+    const p = profile();
+    p.confirmed_facts = [
+      { topic: "Have you previously applied to this university?", value: "No" },
+      { topic: "How did you hear about our program?", value: "Online search" },
+      { topic: "I agree to receive text messages", value: "Yes" },
+    ];
+    return buildSheet({ applicationId: "a", school: "U", program: "MS", degree: "MS", portalUrl: null, attested: true, accountEmail: "a@x.com", profile: p, details: {}, recommenders: [], essays: [], documents: [] });
+  };
+  it("fills the same question on another portal, however it's punctuated", () => {
+    const s = withAnswers();
+    const fields = [
+      { id: "q1", label: "Have you previously applied to this university? *", type: "radio", options: ["Yes", "No"], required: true },
+      { id: "q2", label: "How did you hear about our program", type: "select", options: ["Friend", "Online search", "Fair"], required: true },
+      { id: "q3", label: "I agree to receive text messages", type: "checkbox" },
+    ];
+    const { fills } = mapByRules(fields, s);
+    expect(fills.find((f) => f.id === "q1")).toMatchObject({ action: "choose", option: "No" });
+    expect(fills.find((f) => f.id === "q2")).toMatchObject({ action: "choose", option: "Online search" });
+    expect(fills.find((f) => f.id === "q3")).toMatchObject({ action: "check" });
+  });
+  it("shows the model which question each answer is for", () => {
+    expect(keyMenu(withAnswers())).toContain('answer:1: answers "How did you hear about our program?"');
+  });
+});

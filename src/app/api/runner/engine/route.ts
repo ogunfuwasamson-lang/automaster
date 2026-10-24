@@ -7,6 +7,7 @@ import { getLogin, markLogin } from "@/lib/vault";
 import { logEvent } from "@/lib/events";
 import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
+import { recordQuestions } from "@/lib/portal-questions";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
   }
   if (o.kind === "needs_you") {
     const note = chromeNote(o.reason, o.note).slice(0, 300);
+    if (o.reason === "question") await recordQuestions(uid, b.application, state.questions).catch(() => 0);
     await db.from("applications").update({ runner_state: { ...state, reason: o.reason ?? null }, runner_status: "needs_you", runner_note: note, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
     if (row?.runner_status !== "needs_you") await logEvent({ userId: uid, actor: "agent:runner", action: "runner.needs_you", applicationId: b.application, channel: "portal", context: { reason: o.reason ?? null, note, via: "chrome" } });
     return NextResponse.json({ ok: true, note });
