@@ -102,12 +102,16 @@ export async function canReadMail(userId: string): Promise<boolean> {
 }
 
 // recent messages matching a gmail search, as plain text. used only to find portal verification codes/links.
-export async function recentMail(userId: string, q: string, max = 5): Promise<{ id: string; threadId: string | null; from: string; subject: string; text: string; html: string; at: number }[]> {
+// known: ids already handled, skipped before downloading (the inbox is checked every few minutes)
+export async function recentMail(userId: string, q: string, max = 5, known?: (ids: string[]) => Promise<Set<string>>): Promise<{ id: string; threadId: string | null; from: string; subject: string; text: string; html: string; at: number }[]> {
   const { access } = await accessToken(userId);
   const h = { authorization: `Bearer ${access}` };
   const list = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent(q)}`, { headers: h })).json()) as { messages?: { id: string; threadId?: string }[] };
   const out = [];
-  for (const m of list.messages ?? []) {
+  const listed = list.messages ?? [];
+  const skip = known && listed.length ? await known(listed.map((m) => m.id)) : new Set<string>();
+  for (const m of listed) {
+    if (skip.has(m.id)) continue;
     const msg = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, { headers: h })).json()) as GmailMsg;
     const header = (n: string) => msg.payload?.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? "";
     const parts: { mimeType?: string; body?: { data?: string } }[] = [];

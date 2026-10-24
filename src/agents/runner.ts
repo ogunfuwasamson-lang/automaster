@@ -22,7 +22,9 @@ import { hostRoot as rootOf } from "@/lib/verify-mail";
 // the signed packet from our servers. nothing to install for the applicant.
 
 const RUN_BUDGET_MS = 200_000; // stay well inside the function's 300s
-const RECHECKS = 8; // after a handoff (bot check, payment), look again this many times, 10 min apart
+// every recurring check on the platform runs every 5 minutes
+export const RECHECK_MINUTES = 5;
+const RECHECKS = 16; // after a handoff (bot check, payment), look again this many times, 5 min apart (about 80 minutes)
 
 const NavOut = z.object({
   action: z.enum(["click", "fill", "goto", "wait_email", "handoff", "done"]),
@@ -292,24 +294,24 @@ export const runner: Record<string, Handler> = {
 
       if (outcome.kind === "needs_you") {
         // bot checks and payments: the applicant finishes that step (live view, or their own browser with the
-        // login we show them). we look again every 10 minutes and carry on once it's done.
+        // login we show them). we look again every 5 minutes and carry on once it's done.
         const liveView = !!ob.sessionId;
         // a bot check only clears in the browser that saw it: without a live view, hand the portal over instead of looping
         if (outcome.reason === "account") {
           // generate the password now so the applicant creates the account with it; we sign in with it after
           const login = await createLogin(job.user_id, applicationId, new URL(page.url()).hostname, sheet.fields.email ?? "");
-          outcome.note = `this portal blocks automated sign-ups. Create the account yourself at ${portal} with ${login.login_email} and the password shown under "Your portal login" on this application. Already made it? Check the password matches. The agents sign in and finish the rest within 10 minutes.`;
+          outcome.note = `this portal blocks automated sign-ups. Create the account yourself at ${portal} with ${login.login_email} and the password shown under "Your portal login" on this application. Already made it? Check the password matches. The agents sign in and finish the rest within 5 minutes.`;
           saved.last_url = portal; // start again from the landing page, which has the "log in" link
           saved.samePageCount = 0;
         }
-        const recheck = (outcome.reason === "payment" || outcome.reason === "verification" || outcome.reason === "account" || (outcome.reason === "captcha" && liveView)) && (state.rechecks ?? 0) < (outcome.reason === "account" ? 36 : RECHECKS); // give people a few hours to create an account
+        const recheck = (outcome.reason === "payment" || outcome.reason === "verification" || outcome.reason === "account" || (outcome.reason === "captcha" && liveView)) && (state.rechecks ?? 0) < (outcome.reason === "account" ? 72 : RECHECKS); // about six hours to create an account
         keep = recheck;
         const live = liveView ? await ob.liveUrl() : null;
         if (!liveView) {
           const login = await getLogin(job.user_id, new URL(page.url()).hostname, applicationId).catch(() => null);
           const signIn = login ? " sign in with the login shown below," : "";
           if (outcome.reason === "captcha") outcome.note = `this portal shows a bot check to automated browsers. open it yourself,${signIn} and finish the application there (your answers are on this page). or press try again later`;
-          if (outcome.reason === "payment") outcome.note = `payment page: open the portal,${signIn} and pay the fee. the agents check back every 10 minutes and confirm the submission`;
+          if (outcome.reason === "payment") outcome.note = `payment page: open the portal,${signIn} and pay the fee. the agents check back every 5 minutes and confirm the submission`;
           if (outcome.reason === "verification") outcome.note = outcome.note.replace("open the live view and enter it", "enter it on the portal");
           outcome.note = outcome.note.replace(/open the live view and /g, "open the portal and ");
         }
@@ -325,7 +327,7 @@ export const runner: Record<string, Handler> = {
           })
           .eq("id", applicationId);
         if (app.runner_status !== "needs_you") await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.needs_you", applicationId, channel: "portal", context: { reason: outcome.reason, note: outcome.note } });
-        if (recheck) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId }, runAt: new Date(Date.now() + 10 * 60_000) });
+        if (recheck) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId }, runAt: new Date(Date.now() + RECHECK_MINUTES * 60_000) });
         return { outcome: "needs_you", reason: outcome.reason, filled };
       }
 

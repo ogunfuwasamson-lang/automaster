@@ -77,7 +77,10 @@ export async function checkInbox(userId: string, jobId?: string) {
   if (!domains.size) return { skipped: "no schools yet" };
   const acct = await mailAccount(userId);
   const roots = [...domains.keys()].slice(0, 40);
-  const mails = await recentMail(userId, `newer_than:3d from:(${roots.join(" OR ")})`, 25);
+  const mails = await recentMail(userId, `newer_than:3d from:(${roots.join(" OR ")})`, 25, async (ids) => {
+    const { data } = await db.from("messages").select("gmail_message_id").eq("user_id", userId).in("gmail_message_id", ids);
+    return new Set((data ?? []).map((r) => r.gmail_message_id as string));
+  });
   let added = 0;
   for (const m of mails) {
     const id = m.id;
@@ -162,7 +165,8 @@ export async function checkInbox(userId: string, jobId?: string) {
 // called by the worker a few times an hour
 export async function scheduleInbox(now = new Date()) {
   const { data } = await admin().from("mail_accounts").select("user_id, scopes").eq("status", "active");
-  const slot = `${now.toISOString().slice(0, 13)}:${Math.floor(now.getUTCMinutes() / 30)}`;
+  // one check per user per 5-minute slot
+  const slot = `${now.toISOString().slice(0, 13)}:${Math.floor(now.getUTCMinutes() / 5)}`;
   let n = 0;
   for (const a of data ?? []) {
     if (!(a.scopes ?? "").includes("gmail.readonly")) continue;

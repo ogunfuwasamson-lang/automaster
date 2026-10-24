@@ -141,7 +141,7 @@ export function RunnerPanel(props: {
               <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
                 the portal
               </a>{" "}
-              with the email and password below, exactly as shown. The agents check every 10 minutes, sign in with them and finish the application.
+              with the email and password below, exactly as shown. The agents check every 5 minutes, sign in with them and finish the application.
             </p>
           ) : reason === "captcha" || reason === "payment" || reason === "verification" || reason === "login" ? (
             <p>
@@ -149,7 +149,7 @@ export function RunnerPanel(props: {
               <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
                 the portal
               </a>
-              {hasLogin ? ", sign in with the login below" : ""} and do that one step. The agents check every 10 minutes and carry on.
+              {hasLogin ? ", sign in with the login below" : ""} and do that one step. The agents check every 5 minutes and carry on.
             </p>
           ) : (
             <p>
