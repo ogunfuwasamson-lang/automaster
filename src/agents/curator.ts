@@ -31,7 +31,9 @@ output the COMPLETE cleaned profile (it replaces the old one), plus a list of co
 
 merging rules:
 - one work entry per actual job. the same employer under different names ("Trove Finance Ltd", "Trove Technology Ltd", "Trove Finance (Trove Technology Ltd)") is one employer; use the fullest official name. the same role phrased differently is one role. a genuine promotion is a separate entry.
-- dates: keep explicit dates; if sources disagree on dates, that's a conflict.
+- dates: keep explicit dates; if sources disagree on dates, that's a conflict. the interview is the newest source:
+  when the applicant said in the interview that they left a job or started a new one, that wins over older CVs.
+- order work most recent first.
 - highlights: one bullet per distinct achievement, keep the most specific wording, max ~6 per role, strongest first.
 - education: one entry per degree. merge GPA, class, dates, country into it. drop secondary school.
 - stories: max 8, the strongest, no duplicates, each tied to one role.

@@ -36,6 +36,9 @@ hard rules:
 the patch:
 - only facts the user stated or confirmed in their latest message. never infer or pad.
 - a correction overwrites: put the corrected value in the patch.
+- career changes are facts too: a new job goes in work[] (company, role, start, end "" if current, location if said);
+  leaving a job means a work[] entry for that company and role with the end date. use the company and role names
+  exactly as they appear in the profile so the entry updates instead of duplicating.
 - a story is one concrete episode: title as a short handle, metrics exactly as they said them.
 
 ${WIRE_GUIDE}`;

@@ -65,7 +65,7 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
         max_tokens: (args.maxTokens ?? 8000) + (args.think ? 16000 : 0),
         system: args.system,
         messages: [{ role: "user", content: args.prompt }],
-        thinking: args.think ? { type: "adaptive" } : { type: "disabled" },
+        thinking: args.think ? { type: "adaptive" } : { type: "between_tools" },
         output_config: { format: zodOutputFormat(args.schema) },
       })
       .finalMessage();

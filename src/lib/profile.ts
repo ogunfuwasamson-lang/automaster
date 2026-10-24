@@ -408,3 +408,13 @@ export function profileBrief(p: Profile, targetTermFallback?: string | null): st
   if (p.notes.length) L.push(`notes: ${p.notes.slice(-12).join(" | ")}`);
   return L.join("\n");
 }
+
+// most recent first: current roles (no end date) on top, then by end, then start
+export function sortWork<T extends { start: string | null; end: string | null }>(work: T[]): T[] {
+  const key = (x: string | null) => (x ?? "").replace(/[^0-9]/g, "").padEnd(6, "0");
+  return [...work].sort((a, b) => {
+    if (!a.end !== !b.end) return a.end ? 1 : -1;
+    const e = key(b.end).localeCompare(key(a.end));
+    return e !== 0 ? e : key(b.start).localeCompare(key(a.start));
+  });
+}

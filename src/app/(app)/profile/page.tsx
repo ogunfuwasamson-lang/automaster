@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { loadProfile, profileGaps, completeness } from "@/lib/profile";
+import { loadProfile, profileGaps, completeness, sortWork } from "@/lib/profile";
 import { Decisions, type Decision } from "@/components/decisions";
 import { CleanupButton } from "@/components/cleanup-button";
 
@@ -109,7 +109,7 @@ export default async function ProfilePage() {
 
       <Section title="work">
         {p.work.length ? (
-          p.work.map((w, i) => (
+          sortWork(p.work).map((w, i) => (
             <div key={i} className="py-2 text-sm">
               <p className="font-medium">{w.role} · {w.company}</p>
               <p className="text-neutral-500">{[w.start, w.end ?? "present"].filter(Boolean).join("–")}{w.location ? ` · ${w.location}` : ""}</p>

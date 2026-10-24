@@ -153,3 +153,16 @@ describe("cleanup support", () => {
     expect(profileBrief(p, "fall-2027")).toContain("fall-2027");
   });
 });
+
+describe("sortWork", () => {
+  it("puts current roles first, then most recent", async () => {
+    const { sortWork } = await import("@/lib/profile");
+    const w = [
+      { company: "Trove", start: "2020-08", end: "2022-05" },
+      { company: "Finecore", start: "2026-02", end: null },
+      { company: "Vendy", start: "2024-07", end: "2025-12" },
+      { company: "NYSC", start: "2020-03", end: "2021-03" },
+    ];
+    expect(sortWork(w).map((x) => x.company)).toEqual(["Finecore", "Vendy", "Trove", "NYSC"]);
+  });
+});
