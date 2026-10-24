@@ -32,7 +32,7 @@ export default async function Applications() {
       {rows.length ? (
         <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {rows.map((r) => {
-            const essays = r.artifacts.filter((a) => a.kind !== "strategy");
+            const essays = r.artifacts.filter((a) => !["strategy", "fee_plan", "funding_plan", "video_or_interview"].includes(a.kind));
             const cur = (a: Row["artifacts"][number]) => a.artifact_versions.find((v) => v.version === a.current_version);
             const ready = essays.filter((a) => cur(a)?.critique?.status === "ready").length;
             const approved = essays.filter((a) => cur(a)?.user_approved_at).length;

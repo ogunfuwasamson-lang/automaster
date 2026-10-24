@@ -24,7 +24,7 @@ const Body = z.discriminatedUnion("action", [
   }),
 ]);
 
-const NON_ESSAY = new Set(["strategy", "video_or_interview"]);
+const NON_ESSAY = new Set(["strategy", "video_or_interview", "fee_plan", "funding_plan"]);
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUser();

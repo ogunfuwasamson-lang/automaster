@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { EssayEditor, type EssayData } from "./essay-editor";
 import { AutoRefresh } from "../../shortlist/controls";
 import { PrepareButton } from "./prepare-button";
+import { Milestones } from "./milestones";
+import { OutreachDraft, type Draft } from "./outreach";
 
 export const dynamic = "force-dynamic";
 
@@ -30,24 +32,37 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const auth = await requireUser();
   if (!auth) return null;
   const { id } = await params;
-  const [{ data: app }, { data: jobs }] = await Promise.all([
+  const [{ data: app }, { data: jobs }, { data: threads }] = await Promise.all([
     auth.sb
       .from("applications")
       .select("id, status, target_deadline, angle, programs(name, degree, url, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
-    auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam"]).in("status", ["queued", "running"]),
+    auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
+    auth.sb.from("threads").select("id, messages(id, purpose, to_email, subject, body, status, created_at)").eq("application_id", id).order("created_at"),
   ]);
   if (!app) notFound();
   const p = app.programs as unknown as { name: string; degree: string; url: string | null; schools: { name: string; country: string | null } };
   const arts = (app.artifacts ?? []) as unknown as Art[];
   const brief = arts.find((a) => a.kind === "strategy");
   const briefText = brief?.artifact_versions.find((v) => v.version === brief.current_version)?.content;
-  const essays = arts.filter((a) => a.kind !== "strategy").sort((a, b) => a.title.localeCompare(b.title));
+  const NOT_ESSAYS = new Set(["strategy", "fee_plan", "funding_plan"]);
+  const essays = arts.filter((a) => !NOT_ESSAYS.has(a.kind)).sort((a, b) => a.title.localeCompare(b.title));
   const busy = (jobs ?? []).filter((j) => {
     const pl = (j.payload ?? {}) as { applicationId?: string; artifactId?: string; versionId?: string };
     return pl.applicationId === id || essays.some((e) => e.id === pl.artifactId || e.artifact_versions.some((v) => v.id === pl.versionId));
   });
+
+  const planText = (kind: string) => {
+    const a = arts.find((x) => x.kind === kind);
+    return a?.artifact_versions.find((v) => v.version === a.current_version)?.content ?? null;
+  };
+  const feePlan = planText("fee_plan");
+  const fundingPlan = planText("funding_plan");
+  const drafts = ((threads ?? []) as unknown as { messages: (Draft & { created_at: string })[] }[])
+    .flatMap((t) => t.messages)
+    .filter((m) => m.status !== "cancelled")
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const essayData: EssayData[] = essays.map((e) => {
     const cur = e.artifact_versions.find((v) => v.version === e.current_version) ?? null;
@@ -93,11 +108,33 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         these drafts are a starting point. many schools ask you to certify that your essays are your own work, and some ban ai-written essays. rewrite them in your own words before you approve. approving means &quot;this is mine and every fact in it is true&quot;.
       </p>
 
+      <Milestones
+        id={id}
+        status={app.status}
+        essaysTotal={essayData.filter((e) => e.kind !== "video_or_interview").length}
+        essaysApproved={essayData.filter((e) => e.kind !== "video_or_interview" && e.approved).length}
+      />
+
       {briefText && (
         <details className="rounded-md border border-neutral-200 dark:border-neutral-800">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">positioning brief</summary>
           <div className="whitespace-pre-wrap border-t border-neutral-200 px-4 py-3 text-sm leading-relaxed dark:border-neutral-800">{briefText}</div>
         </details>
+      )}
+
+      {(feePlan || fundingPlan || drafts.length > 0) && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">money: fees and funding</h2>
+          {([["funding plan (after admission)", fundingPlan], ["application fee", feePlan]] as [string, string | null][]).map(([title, text]) =>
+            text ? (
+              <details key={title} className="rounded-md border border-neutral-200 dark:border-neutral-800" open={title.startsWith("funding")}>
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">{title}</summary>
+                <div className="whitespace-pre-wrap border-t border-neutral-200 px-4 py-3 text-sm leading-relaxed dark:border-neutral-800">{text}</div>
+              </details>
+            ) : null,
+          )}
+          {drafts.map((d) => <OutreachDraft key={`${d.id}:${d.status}`} d={d} />)}
+        </section>
       )}
 
       <section className="space-y-6">

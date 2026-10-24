@@ -21,8 +21,8 @@ drafts, funding, submission prep. you review, they run.
 | 1 | intake: doc upload, extraction, voice interview | done |
 | 2 | recon + deadline tracker | done |
 | 3 | strategist, writer, red team | done |
-| 4 | closer: post-admission funding, fee waivers, gmail outreach | next |
-| 5 | runner: fill sheets, browser extension | |
+| 4 | closer: fee waivers, post-admission funding, outreach drafts | done (sending is manual; gmail next) |
+| 5 | runner: fill sheets, browser extension | next |
 | 6 | dashboard polish, digest, ripcord ui | |
 
 ## how it's wired
