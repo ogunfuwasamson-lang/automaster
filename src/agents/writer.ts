@@ -9,7 +9,7 @@ import { sortWork, levelOf, LEVEL_LABEL, type Profile } from "@/lib/profile";
 import { levelGuide, defaultEssay } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
-import { withinLimit, nextStep, clichesIn, CLICHES, MAX_ROUNDS } from "@/lib/writing";
+import { withinLimit, nextStep, clichesIn, CLICHES, MAX_ROUNDS, disputedFigures, maskDisputed, placeholdersIn } from "@/lib/writing";
 
 // strategist -> writer -> red team -> (writer -> red team)* -> ready for the user.
 // hard rule across all three: nothing goes into a draft that isn't in the applicant's profile.
@@ -36,8 +36,21 @@ export function factSheet(p: Profile) {
 }
 
 async function disputedTopics(userId: string): Promise<string[]> {
-  const { data } = await admin().from("approvals").select("title").eq("user_id", userId).eq("kind", "fact_confirm").eq("status", "pending");
-  return (data ?? []).map((d) => d.title as string);
+  return (await disputed(userId)).titles;
+}
+
+// unsettled conflicts: their topics, and the actual figures to mask out of the fact sheet
+export async function disputed(userId: string): Promise<{ titles: string[]; figures: string[] }> {
+  const { data } = await admin().from("approvals").select("title, payload").eq("user_id", userId).eq("kind", "fact_confirm").eq("status", "pending");
+  const titles = (data ?? []).map((d) => d.title as string);
+  const options = (data ?? []).flatMap((d) => ((d.payload as { options?: string[] }).options ?? []));
+  return { titles, figures: disputedFigures(options) };
+}
+
+// the fact sheet an agent may write from: disputed figures already removed
+export async function safeFactSheet(userId: string, p: Profile) {
+  const { figures } = await disputed(userId);
+  return maskDisputed(factSheet(p), figures);
 }
 
 async function loadApp(userId: string, applicationId: string) {
@@ -112,6 +125,8 @@ non-negotiable:
 - every fact, number, name, date and achievement must come from the applicant's fact sheet. if it isn't there, it doesn't go in. no invented anecdotes, quotes, feelings attributed to specific moments, or outcomes.
 - never use a disputed figure (listed separately). describe that achievement without the number.
 - answer the exact prompt, inside the limit.
+- never leave placeholders, brackets or "[insert ...]". if the brief has no program specifics, write a short honest fit paragraph from what it does have.
+- no superlatives or firsts ("most senior", "first ever", "largest") unless the fact sheet says exactly that. don't turn volume into revenue or a pipeline into sales.
 
 how it should read:
 - first person, plain, specific, confident without bragging. short paragraphs. concrete over abstract: show what they did and what changed, with numbers.
@@ -172,7 +187,7 @@ recon's earlier read on fit: ${app.fit_reasoning ?? "none"}
 recon's suggested angle: ${app.angle ?? "none"}
 
 applicant fact sheet:
-${JSON.stringify(factSheet(profile))}
+${JSON.stringify(await safeFactSheet(job.user_id, profile))}
 
 find the application's written requirements (official prompts and limits), then research the program closely enough to position this applicant specifically.`,
       maxSearches: 6,
@@ -185,7 +200,7 @@ find the application's written requirements (official prompts and limits), then 
       jobId: job.id,
       tier: "write",
       promptVersion: "plan-v1",
-      system: `turn the research notes into a structured application plan. essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet:\n${JSON.stringify(factSheet(profile))}`,
+      system: `turn the research notes into a structured application plan. essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet ("[disputed figure]" = unconfirmed, don't use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}. why_this_program must name real, specific things from the notes; if the notes have none, say "research didn't find program specifics" instead of inventing.`,
       prompt: `research notes:\n${found.text}`,
       schema: Plan,
       maxTokens: 8000,
@@ -258,7 +273,7 @@ find the application's written requirements (official prompts and limits), then 
   },
 
   "writer.draft": async (job) => {
-    const { artifactId, round, userNotes } = job.payload as { artifactId: string; round: number; userNotes?: string };
+    const { artifactId, round, userNotes, strict } = job.payload as { artifactId: string; round: number; userNotes?: string; strict?: boolean };
     const db = admin();
     const { data: art, error } = await db
       .from("artifacts")
@@ -287,7 +302,7 @@ find the application's written requirements (official prompts and limits), then 
       tier: "write",
       promptVersion: "write-v1",
       system: WRITER_SYSTEM,
-      cachePrefix: `applicant fact sheet (the only source of facts):\n${JSON.stringify(factSheet(profile))}`,
+      cachePrefix: `applicant fact sheet (the only source of facts; "[disputed figure]" means the applicant hasn't confirmed that number, so leave it out):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
       prompt: `program: ${program.name} (${program.degree}) at ${school.name}
 piece: ${art.title} (${art.kind})
 prompt: ${art.prompt ?? "(none given)"}
@@ -299,7 +314,11 @@ ${briefText}
 disputed figures (never use these numbers): ${disputed.join("; ") || "none"}
 ${
   revising
-    ? `\nprevious draft (${prev!.author}):\n${prev!.content}\n\nreview of it:\n${JSON.stringify(prev!.critique ?? {})}\n${userNotes ? `\nthe applicant's own notes, follow them:\n${userNotes}\n` : ""}\nrevise: fix every high and medium issue, remove every unsupported claim, keep what works.`
+    ? `\nprevious draft (${prev!.author}):\n${prev!.content}\n\nreview of it:\n${JSON.stringify(prev!.critique ?? {})}\n${userNotes ? `\nthe applicant's own notes, follow them:\n${userNotes}\n` : ""}${
+    strict
+      ? `\nFINAL PASS: delete or rewrite every sentence containing any of these unsupported claims, using only what the fact sheet says. add nothing new. it's fine if the essay gets shorter:\n${((prev!.critique as { unsupported_claims?: string[] } | null)?.unsupported_claims ?? []).map((c) => `- ${c}`).join("\n")}`
+      : `\nrevise: first remove or correct EVERY unsupported claim listed in the review (each one, no exceptions), then fix high and medium issues, keep what works.`
+  }`
     : "\nwrite the first draft."
 }`,
       schema: Draft,
@@ -314,7 +333,7 @@ ${
       .single();
     if (verr) throw new Error(verr.message);
     await db.from("artifacts").update({ current_version: version }).eq("id", artifactId);
-    await enqueue({ userId: job.user_id, agent: "redteam", task: "review", payload: { versionId: v.id, round }, parentJobId: job.id });
+    await enqueue({ userId: job.user_id, agent: "redteam", task: "review", payload: { versionId: v.id, round, ...(strict ? { strict: true } : {}) }, parentJobId: job.id });
     await logEvent({
       userId: job.user_id,
       actor: "agent:writer",
@@ -328,7 +347,7 @@ ${
   },
 
   "redteam.review": async (job) => {
-    const { versionId, round } = job.payload as { versionId: string; round: number };
+    const { versionId, round, strict } = job.payload as { versionId: string; round: number; strict?: boolean };
     const db = admin();
     const { data: v, error } = await db
       .from("artifact_versions")
@@ -349,7 +368,7 @@ ${
       tier: "write",
       promptVersion: "review-v1",
       system: REDTEAM_SYSTEM,
-      cachePrefix: `applicant fact sheet (the only source of facts):\n${JSON.stringify(factSheet(profile))}`,
+      cachePrefix: `applicant fact sheet (the only source of facts; "[disputed figure]" means the applicant hasn't confirmed that number, so leave it out):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
       prompt: `program: ${program.name} (${program.degree}) at ${school.name}
 piece: ${art.title}
 prompt: ${art.prompt ?? "(none)"}
@@ -365,7 +384,11 @@ ${v.content}`,
 
     const limit = withinLimit(v.content, art.word_limit);
     const cliches = clichesIn(v.content);
-    const step = nextStep({ round, verdict: r.verdict, unsupportedClaims: r.unsupported_claims.length, fits: limit.ok });
+    const holes = placeholdersIn(v.content);
+    let step = strict ? "ready" : nextStep({ round, verdict: holes.length ? "revise" : r.verdict, unsupportedClaims: r.unsupported_claims.length, fits: limit.ok });
+    // never hand the user a draft with claims we know are unsupported: one strict cleanup pass first
+    const needsStrict = !strict && step === "ready" && (r.unsupported_claims.length > 0 || holes.length > 0);
+    if (needsStrict) step = "revise";
     const critique = {
       ...((v.critique as object) ?? {}),
       status: step === "ready" ? "ready" : "revising",
@@ -376,16 +399,23 @@ ${v.content}`,
       issues: [
         ...(limit.ok ? [] : [{ severity: "high", issue: limit.note, fix: "cut or expand to fit the limit" }]),
         ...(cliches.length ? [{ severity: "medium", issue: `clichés: ${cliches.join(", ")}`, fix: "replace with something specific to you" }] : []),
+        ...(holes.length ? [{ severity: "high", issue: `placeholders left in: ${holes.join(", ")}`, fix: "write the real content or cut the sentence" }] : []),
         ...r.issues,
       ],
       summary: r.summary,
       words: limit.words,
-      hit_round_cap: step === "ready" && round >= MAX_ROUNDS && (r.verdict !== "pass" || r.unsupported_claims.length > 0),
+      hit_round_cap: step === "ready" && (round >= MAX_ROUNDS || !!strict) && (r.verdict !== "pass" || r.unsupported_claims.length > 0),
     };
     await db.from("artifact_versions").update({ critique }).eq("id", versionId);
 
     if (step === "revise") {
-      await enqueue({ userId: job.user_id, agent: "writer", task: "draft", payload: { artifactId: art.id, round: round + 1 }, parentJobId: job.id });
+      await enqueue({
+        userId: job.user_id,
+        agent: "writer",
+        task: "draft",
+        payload: { artifactId: art.id, round: round + 1, ...(needsStrict ? { strict: true } : {}) },
+        parentJobId: job.id,
+      });
     }
     await logEvent({
       userId: job.user_id,

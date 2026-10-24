@@ -52,3 +52,33 @@ export function clichesIn(text: string): string[] {
   const t = text.toLowerCase();
   return CLICHES.filter((c) => t.includes(c));
 }
+
+// ---------------------------------------------------------------------------
+// disputed figures: the writer must not see numbers the applicant hasn't confirmed.
+// we mask them out of the fact sheet itself instead of trusting a "don't use" instruction.
+// ---------------------------------------------------------------------------
+const FIGURE = /(?:[$₦£€]\s?\d[\d,.]*\s?(?:k|m|bn|million|billion)?|\d[\d,.]*\s?(?:%|k\b|m\b|bn\b|million|billion)|\b\d{3,}[\d,.]*\b|\b\d+\+?[\s-](?:member|person|people)\b)/gi;
+
+export function disputedFigures(options: string[]): string[] {
+  const out = new Set<string>();
+  for (const o of options) for (const m of o.match(FIGURE) ?? []) out.add(m.trim().toLowerCase());
+  return [...out].filter((f) => f.length >= 2);
+}
+
+export function maskDisputed<T>(value: T, figures: string[]): T {
+  if (!figures.length) return value;
+  const esc = figures.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(${esc.join("|")})`, "gi");
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return v.replace(re, "[disputed figure]");
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "confirmed_facts" ? x : walk(x)]));
+    return v;
+  };
+  return walk(value) as T;
+}
+
+// drafts must never ship with template gaps
+export function placeholdersIn(text: string): string[] {
+  return text.match(/\[(?:[^\]]{0,60})\]|\{\{[^}]*\}\}|\b(?:TBD|TODO|XX+|lorem ipsum)\b|<insert[^>]*>/gi) ?? [];
+}

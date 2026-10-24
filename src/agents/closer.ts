@@ -7,7 +7,7 @@ import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
 import { LEVEL_LABEL, levelOf } from "@/lib/profile";
 import { logEvent } from "@/lib/events";
-import { factSheet } from "./writer";
+import { safeFactSheet } from "./writer";
 
 // the closer: money. fee waivers before applying; aid after admission.
 // it drafts; the applicant reads, edits and sends from their own email. nothing goes out on its own.
@@ -168,7 +168,7 @@ find: whether application fee waivers exist and who qualifies (e.g. by country, 
       jobId: job.id,
       promptVersion: "fee-v1",
       system: DRAFT_SYSTEM,
-      cachePrefix: `applicant fact sheet:\n${JSON.stringify(factSheet(profile))}`,
+      cachePrefix: `applicant fact sheet ("[disputed figure]" = unconfirmed, never use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
       prompt: `program: ${program.name} at ${school.name}
 today: ${today()}
 research on fees and contacts:
@@ -211,7 +211,7 @@ find every legitimate route to more money for an admitted international student:
       jobId: job.id,
       promptVersion: "funding-v1",
       system: DRAFT_SYSTEM,
-      cachePrefix: `applicant fact sheet:\n${JSON.stringify(factSheet(profile))}`,
+      cachePrefix: `applicant fact sheet ("[disputed figure]" = unconfirmed, never use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
       prompt: `admitted to: ${program.name} at ${school.name}
 aid offered here: ${aid.amount_usd ? `$${aid.amount_usd}` : "none stated"}${aid.note ? ` (${aid.note})` : ""}
 real competing offers the applicant holds (the ONLY ones you may mention): ${offers.length ? offers.join("; ") : "none"}
