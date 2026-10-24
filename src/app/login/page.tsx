@@ -1,47 +1,98 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Mail, ArrowLeft } from "lucide-react";
 import { browserClient } from "@/lib/supabase/browser";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
+import { Wordmark } from "@/components/wordmark";
+import { Flap } from "@/components/ui/board";
 
-export default function Login() {
+function LoginForm() {
+  const signup = useSearchParams().get("mode") === "signup";
   const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [err, setErr] = useState("");
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setState("sending");
+    setErr("");
     const { error } = await browserClient().auth.signInWithOtp({
-      email,
+      email: email.trim(),
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
-      setErr(error.message);
-      setState("error");
+      setErr(/rate/i.test(error.message) ? "Too many links requested. Wait a minute, then try again." : error.message);
+      setState("idle");
     } else setState("sent");
   }
 
-  return (
-    <main className="min-h-screen grid place-items-center px-4">
-      <form onSubmit={send} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">automaster</h1>
-        <p className="text-sm text-neutral-500">sign in with a magic link.</p>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@email.com"
-          className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
-        />
-        <button
-          disabled={state === "sending"}
-          className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
-        >
-          {state === "sending" ? "sending…" : "send link"}
+  if (state === "sent") {
+    return (
+      <div className="space-y-5" role="status">
+        <span className="grid size-12 place-items-center rounded-full bg-signal text-neutral-950">
+          <Mail className="size-5" aria-hidden />
+        </span>
+        <h1 className="font-display text-4xl font-semibold tracking-tight">Check your inbox</h1>
+        <p className="text-[15px] leading-relaxed text-muted">
+          We sent a sign-in link to <span className="font-medium text-foreground">{email}</span>. Open it on this device. It works once and
+          expires in an hour.
+        </p>
+        <button onClick={() => setState("idle")} className="inline-flex items-center gap-1.5 text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
+          <ArrowLeft className="size-4" aria-hidden /> Use a different email
         </button>
-        {state === "sent" && <p className="text-sm text-green-600">check your inbox.</p>}
-        {state === "error" && <p className="text-sm text-red-600">{err}</p>}
-      </form>
-    </main>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={send} className="space-y-6">
+      <div>
+        <h1 className="font-display text-4xl font-semibold tracking-tight">{signup ? "Start your season" : "Welcome back"}</h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-muted">
+          {signup ? "Enter your email and we'll send you a link to create your account. No password needed." : "Enter your email and we'll send you a sign-in link."}
+        </p>
+      </div>
+      <Field label="Email" error={err || null}>
+        <Input type="email" required autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+      </Field>
+      <Button type="submit" size="lg" className="w-full" disabled={state === "sending"}>
+        {state === "sending" ? "Sending link…" : signup ? "Create account" : "Send sign-in link"}
+      </Button>
+      <p className="text-sm text-muted">
+        {signup ? (
+          <>Already have an account? <a href="/login" className="font-medium text-foreground underline underline-offset-4">Sign in</a></>
+        ) : (
+          <>New here? <a href="/login?mode=signup" className="font-medium text-foreground underline underline-offset-4">Create an account</a></>
+        )}
+      </p>
+    </form>
+  );
+}
+
+export default function Login() {
+  return (
+    <div className="grid min-h-dvh lg:grid-cols-[1fr_minmax(0,34rem)]">
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-board p-10 text-flap lg:flex">
+        <Wordmark />
+        <div className="space-y-3">
+          <Flap text="NOW BOARDING" className="text-2xl" />
+          <p className="max-w-sm font-display text-5xl font-semibold leading-[0.95] tracking-tight">Every application, tracked like a departure.</p>
+          <p className="max-w-sm text-[15px] leading-relaxed text-[#b9c0cd]">See which schools are written, signed, submitted and decided, and the few steps that need you.</p>
+        </div>
+        <p className="text-sm text-[#8a93a6]">Bachelor&apos;s, master&apos;s and PhD, anywhere in the world.</p>
+      </aside>
+      <main className="flex flex-col px-6 py-8 sm:px-12">
+        <div className="lg:hidden">
+          <Wordmark />
+        </div>
+        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
+          <Suspense>
+            <LoginForm />
+          </Suspense>
+        </div>
+      </main>
+    </div>
   );
 }

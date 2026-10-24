@@ -11,8 +11,10 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.redirect(`${appUrl()}/login`);
   const q = req.nextUrl.searchParams;
   const back = (r: string) => {
-    const res = NextResponse.redirect(`${appUrl()}/settings?mail=${encodeURIComponent(r)}`);
+    const dest = req.cookies.get("am_mail_next")?.value === "/onboarding" ? "/onboarding" : "/settings";
+    const res = NextResponse.redirect(`${appUrl()}${dest}?mail=${encodeURIComponent(r)}`);
     res.cookies.delete({ name: "am_mail_state", path: "/api/mail" });
+    res.cookies.delete({ name: "am_mail_next", path: "/api/mail" });
     return res;
   };
   if (q.get("error")) return back(q.get("error") === "access_denied" ? "declined" : "error");

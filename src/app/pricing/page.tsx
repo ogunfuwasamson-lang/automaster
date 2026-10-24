@@ -1,38 +1,55 @@
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { PLANS } from "@/lib/plans";
+import { ButtonLink } from "@/components/ui/button";
+import { Wordmark } from "@/components/wordmark";
 
-export const metadata = { title: "pricing · automaster" };
+export const metadata = { title: "Pricing" };
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function Pricing() {
   const plans = [PLANS.free, PLANS.pro, PLANS.season];
   return (
-    <main className="mx-auto max-w-5xl px-4 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">pricing</h1>
-      <p className="mt-2 max-w-2xl text-neutral-500">
-        bachelor&apos;s, master&apos;s and PhD applications, anywhere in the world. agents research programs, draft and
-        fact-check your essays, and chase funding. you review and approve everything.
-      </p>
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
-        {plans.map((p) => (
-          <section key={p.id} className={`flex flex-col rounded-lg border p-6 ${p.id === "pro" ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-200 dark:border-neutral-800"}`}>
-            <h2 className="text-lg font-medium">{p.name}</h2>
-            <p className="mt-1 text-2xl font-semibold">{p.priceLabel}</p>
-            <p className="mt-1 text-sm text-neutral-500">{p.blurb}</p>
-            <ul className="mt-5 flex-1 space-y-2 text-sm">
-              {p.features.map((f) => <li key={f} className="flex gap-2"><span className="text-neutral-400">—</span>{f}</li>)}
-            </ul>
-            <Link
-              href="/login"
-              className={`mt-6 rounded-md px-3 py-2 text-center text-sm ${p.id === "pro" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "border border-neutral-300 dark:border-neutral-700"}`}
-            >
-              {p.id === "free" ? "start free" : `get ${p.name}`}
-            </Link>
-          </section>
-        ))}
-      </div>
-      <p className="mt-8 text-sm text-neutral-500">
-        no application fees are included: schools charge those directly, and the agents ask for fee waivers first.
-      </p>
-    </main>
+    <div className="min-h-dvh">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
+        <Wordmark />
+        <Link href="/login" className="rounded-lg px-3 py-2 text-sm text-muted hover:text-foreground">Sign in</Link>
+      </header>
+      <main className="mx-auto max-w-6xl px-5 pb-20 pt-8">
+        <h1 className="font-display text-6xl font-bold leading-none tracking-tight">Pricing</h1>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted">
+          One plan for trying it, one for a full season. Agents research programs, write and fact-check your essays, submit to the portals and
+          chase funding. You review and sign everything.
+        </p>
+        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+          {plans.map((p) => {
+            const featured = p.id === "pro";
+            return (
+              <section
+                key={p.id}
+                className={`flex flex-col rounded-2xl p-7 ${featured ? "bg-board text-flap" : "border border-line bg-surface"}`}
+              >
+                <h2 className={`font-display text-3xl font-semibold ${featured ? "text-signal" : ""}`}>{cap(p.name)}</h2>
+                <p className="mt-3 font-display text-5xl font-bold tracking-tight tabular">{p.priceLabel.split(" ")[0]}<span className={`ml-1 font-sans text-base font-normal ${featured ? "text-[#b9c0cd]" : "text-muted"}`}>{p.priceLabel.split(" ").slice(1).join(" ")}</span></p>
+                <p className={`mt-2 text-sm ${featured ? "text-[#b9c0cd]" : "text-muted"}`}>{cap(p.blurb)}.</p>
+                <ul className="mt-6 flex-1 space-y-3 text-sm">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex gap-2.5">
+                      <Check className={`mt-0.5 size-4 shrink-0 ${featured ? "text-signal" : "text-go"}`} aria-hidden />
+                      <span>{cap(f)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <ButtonLink href="/login?mode=signup" variant={featured ? "signal" : "secondary"} size="lg" className="mt-8 w-full">
+                  {p.id === "free" ? "Start free" : `Choose ${cap(p.name)}`}
+                </ButtonLink>
+              </section>
+            );
+          })}
+        </div>
+        <p className="mt-8 text-sm text-muted">Application fees are paid to schools directly, and agents ask for fee waivers first.</p>
+      </main>
+    </div>
   );
 }

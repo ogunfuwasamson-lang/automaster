@@ -188,7 +188,7 @@ export function buildSheet(a: {
   });
 
   const files: SheetFile[] = [];
-  const latest = (kind: string) => a.documents.filter((x) => x.kind === kind).at(-1);
+  const latest = (kind: string) => a.documents.filter((x) => x.kind === kind || (kind === "degree_cert" && x.kind === "degree_certificate")).at(-1);
   for (const [kind, label] of [["cv", "resume / CV"], ["transcript", "transcript"], ["degree_cert", "degree certificate"], ["test_score", "test score report"]] as const) {
     const doc = latest(kind);
     if (doc) files.push({ key: kind, label, url: `/api/runner/file?application=${a.applicationId}&document=${doc.id}`, filename: doc.filename });
