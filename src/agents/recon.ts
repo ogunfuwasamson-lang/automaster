@@ -5,7 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 import { runStructured } from "@/lib/llm";
 import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
-import { profileBrief } from "@/lib/profile";
+import { profileBrief, REGIONS } from "@/lib/profile";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { screen, targetDeadline } from "@/lib/fit";
@@ -15,49 +15,67 @@ const today = () => new Date().toISOString().slice(0, 10);
 export const slugify = (s: string) =>
   s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 
-const MAX_PROGRAMS = 25;
+const MAX_PROGRAMS = 30; // across all selected regions per run
+
+const regionList = (regions: string[] | null) => (regions?.length ? regions : ["us"]).filter((r) => REGIONS[r]);
 
 // ---------------------------------------------------------------------------
-// discover: find candidate programs
+// discover: a planner that fans out one discovery job per selected region,
+// each starting from that region's top-ranked universities and working down
 // ---------------------------------------------------------------------------
-const DISCOVER_SYSTEM = `you are the recon agent for an international applicant going to a US masters program.
-you find programs worth applying to, and you are honest about funding.
+const DISCOVER_SYSTEM = `you are the recon agent on a platform that helps applicants in ANY field apply to masters programs anywhere in the world.
+you find programs worth applying to, and you are honest about admissions odds and funding.
 
-how full funding for a business/finance master's actually happens in the US, for an international student:
-- graduate assistantships (tuition waiver + stipend), mostly at public universities, often in MS Management, MS Finance, MS Entrepreneurship, MS Business Analytics, MS Information Systems, or economics-adjacent programs. many are only offered after admission and some go mainly to PhD students; say so when that's the case.
-- full-tuition merit scholarships at some MBA/MS programs, usually competitive, sometimes with GMAT/GRE waivers for experienced applicants.
-- program-specific fellowships, and external awards open to the applicant's citizenship.
-most one-year business master's give partial scholarships at best. don't pretend otherwise.
+strategy: admissions first. the goal is as many good admits as possible, then the platform's closer agent works each admit for money (merit reconsideration, assistantships offered after admission, departmental awards, competing offers, outside scholarships). most schools never publish full-funding odds, so funding is information you report, NOT a reason to skip a program. never leave out a strong program because funding isn't advertised.
 
-search the web. go past the obvious top-20 list: mid-ranked and regional schools that fund internationals, STEM-designated programs, schools with test waivers for experienced professionals. look for real program pages, not rankings blogs.`;
+order of search, always:
+1. start at the top: the region's highest-ranked universities (QS/THE/ARWU world top ~100, plus the strongest national names). for each, look for masters programs in the applicant's fields and degree types that fit their constraints. top schools often have programs people miss: specialised MS/MSc/MA/MiM programs, programs with no GRE/GMAT requirement or waivers for experienced professionals, one-year taught masters, joint programs.
+2. then strong schools just below that, which often fund more generously.
+3. then accessible options with good funding odds.
+don't default to an MBA (or any single degree) unless the applicant's degree types include it.
+
+funding varies by field and country, so reason from the applicant's actual field:
+- research-oriented masters (sciences, engineering, many social sciences) are often funded through research/teaching assistantships or by joining a lab.
+- professional masters (business, law, policy, design...) mostly offer merit scholarships, rarely full rides; say so plainly.
+- host-government and international scholarships matter a lot outside the US (e.g. Chevening and Commonwealth in the UK; Erasmus Mundus, DAAD, Eiffel, Swedish Institute, Holland and Swiss excellence awards in Europe; MEXT, GKS, Chinese Government and Singapore awards in Asia; Australia Awards; Vanier/university awards in Canada). treat these as leads to check against the applicant's citizenship, not as guarantees.
+
+search the web and use official university pages, not rankings blogs or agents' sites.`;
 
 const Candidates = z.object({
   candidates: z.array(
     z.object({
       school: z.string(),
+      country: z.string(),
       program: z.string(),
       degree: z.string(),
       url: z.string(),
+      band: z.enum(["top", "strong", "accessible"]),
+      ranking_note: z.string(), // e.g. "QS world #12" or "top 5 in Germany"
       why: z.string(),
       funding_angle: z.string(),
     }),
   ),
-  external_funding: z.array(z.object({ name: z.string(), url: z.string(), notes: z.string() })),
   strategy_notes: z.array(z.string()),
 });
 
 // ---------------------------------------------------------------------------
 // research one program
 // ---------------------------------------------------------------------------
-const PROGRAM_SYSTEM = `you are the recon agent researching ONE US masters program for one applicant.
+const PROGRAM_SYSTEM = `you are the recon agent researching ONE masters program (any country, any field) for one applicant.
 use the program's official pages first (admissions, requirements, tuition, deadlines, scholarships/assistantships, international students). fetch them. cite what you use.
+money: give amounts in USD (convert approximately) and mention the original currency in the notes.
 report facts exactly as the school states them, with dates in YYYY-MM-DD. when a fact isn't stated anywhere you found, say "not found", never guess.
-then judge fit for this applicant honestly: tier (reach/target/safety), a 0-10 fit score, and red flags.`;
+then judge fit for this applicant honestly: tier (reach/target/safety) and a 0-10 fit score are about ADMISSION odds, not funding. red flags are things that block admission.
+also report funding levers that open up after admission: whether admits get considered for merit aid automatically, whether assistantships are posted after admission, whether aid can be appealed or reconsidered, and who to contact.`;
 
 const ProgramFacts = z.object({
   school_name: z.string(),
   school_city: z.string(),
-  school_state: z.string(),
+  school_state: z.string(), // state/province, "" if none
+  country: z.string(),
+  region: z.enum(["us", "canada", "uk", "europe", "asia", "australia_nz", "middle_east", "africa", "latin_america"]),
+  ranking_note: z.string(),
+  post_study_work: z.string(), // e.g. "STEM OPT up to 36 months", "UK Graduate Route 2 years"
   program_name: z.string(),
   degree: z.string(),
   program_url: z.string(),
@@ -109,7 +127,16 @@ async function upsertProgram(f: ProgramFacts, sources: string[]) {
   const { data: school, error: serr } = await db
     .from("schools")
     .upsert(
-      { slug, name: f.school_name, city: f.school_city || null, state: f.school_state || null, verified_at: new Date().toISOString() },
+      {
+        slug,
+        name: f.school_name,
+        city: f.school_city || null,
+        state: f.school_state || null,
+        country: f.country || null,
+        region: f.region,
+        ranking_note: f.ranking_note || null,
+        verified_at: new Date().toISOString(),
+      },
       { onConflict: "slug" },
     )
     .select("id")
@@ -139,6 +166,8 @@ async function upsertProgram(f: ProgramFacts, sources: string[]) {
           english_moi_waiver: f.english_moi_waiver,
           english_notes: f.english_notes,
           test_notes: f.test_notes,
+          post_study_work: f.post_study_work,
+          ranking_note: f.ranking_note,
         },
         source_urls: sources.slice(0, 20),
         verified_at: new Date().toISOString(),
@@ -207,59 +236,22 @@ async function placeApplication(userId: string, programId: string, f: ProgramFac
 }
 
 export const recon: Record<string, Handler> = {
+  // planner: one discovery job per selected region, plus the scholarship hunt
   "recon.discover": async (job) => {
     const profile = await getProfile(job.user_id);
-    const db = admin();
-    const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
-    const { data: existing } = await db
-      .from("applications")
-      .select("programs(name, schools(name))")
-      .eq("user_id", job.user_id);
-    const already = (existing ?? []).map((a) => {
-      const p = a.programs as unknown as { name: string; schools: { name: string } } | null;
-      return p ? `${p.schools.name}: ${p.name}` : "";
-    }).filter(Boolean);
-
-    const found = await research({
-      userId: job.user_id,
-      agent: "recon",
-      jobId: job.id,
-      system: DISCOVER_SYSTEM,
-      prompt: `applicant:
-${profileBrief(profile, row?.target_term)}
-
-today is ${today()}. target intake: ${row?.target_term ?? "fall-2027"}.
-${already.length ? `already on their list (don't repeat):\n${already.join("\n")}\n` : ""}
-find ${MAX_PROGRAMS} US masters programs that fit their fields and constraints, spread across reach, target and safety, with the strongest realistic path to full funding first. include each program's official url.
-also list external scholarships and fellowships they could win. don't stop at nationality: the dedicated scholarship agent runs separately, so a handful of strong leads is enough here.
-finish with honest strategy notes: which of their constraints cost them the most options, and what would open more funding.`,
-      maxSearches: 10,
-      maxFetches: 4,
-    });
-
-    const { output, runId } = await runStructured({
-      userId: job.user_id,
-      agent: "recon",
-      jobId: job.id,
-      promptVersion: "discover-parse-v1",
-      system: "turn research notes into structured data. only include programs and scholarships the notes actually name. keep urls exactly as written; empty string when none.",
-      prompt: `research notes:\n${found.text}\n\nsources seen:\n${found.sources.join("\n")}`,
-      schema: Candidates,
-      maxTokens: 8000,
-    });
-
-    const picks = output.candidates.slice(0, MAX_PROGRAMS);
-    for (const c of picks) {
+    const only = (job.payload as { regions?: string[] }).regions;
+    const regions = only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions);
+    const perRegion = Math.max(8, Math.ceil(MAX_PROGRAMS / regions.length));
+    for (const region of regions) {
       await enqueue({
         userId: job.user_id,
         agent: "recon",
-        task: "research_program",
-        payload: { school: c.school, program: c.program, degree: c.degree, url: c.url, why: c.why, funding_angle: c.funding_angle },
-        idempotencyKey: `research:${job.user_id}:${slugify(c.school)}:${slugify(c.program)}:${today()}`,
+        task: "discover_region",
+        payload: { region, count: perRegion },
+        idempotencyKey: `discover:${job.user_id}:${region}:${job.id}`,
         parentJobId: job.id,
       });
     }
-
     await enqueue({
       userId: job.user_id,
       agent: "recon",
@@ -267,13 +259,63 @@ finish with honest strategy notes: which of their constraints cost them the most
       idempotencyKey: `scholarships:${job.user_id}:${today()}`,
       parentJobId: job.id,
     });
+    await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.planned", context: { regions, perRegion } });
+    return { regions };
+  },
 
-    // external scholarships go straight into the world model
-    for (const s of output.external_funding) {
-      const { data: dupe } = await db.from("funding_opportunities").select("id").is("school_id", null).eq("name", s.name).maybeSingle();
-      if (!dupe) {
-        await db.from("funding_opportunities").insert({ name: s.name, kind: "external", url: s.url || null, eligibility: s.notes, verified_at: new Date().toISOString() });
-      }
+  "recon.discover_region": async (job) => {
+    const { region, count } = job.payload as { region: string; count: number };
+    const profile = await getProfile(job.user_id);
+    const db = admin();
+    const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
+    const { data: existing } = await db.from("applications").select("programs(name, schools(name))").eq("user_id", job.user_id);
+    const already = (existing ?? [])
+      .map((a) => {
+        const p = a.programs as unknown as { name: string; schools: { name: string } } | null;
+        return p ? `${p.schools.name}: ${p.name}` : "";
+      })
+      .filter(Boolean);
+
+    const found = await research({
+      userId: job.user_id,
+      agent: "recon",
+      jobId: job.id,
+      system: DISCOVER_SYSTEM,
+      prompt: `region: ${REGIONS[region]}
+applicant:
+${profileBrief(profile, row?.target_term)}
+
+today is ${today()}. target intake: ${row?.target_term ?? "fall-2027"}.
+${already.length ? `already on their list (don't repeat):\n${already.join("\n")}\n` : ""}
+find ${count} masters programs in ${REGIONS[region]} that match their fields and degree types and respect their ADMISSION constraints (admissions tests, english route, deadlines). report funding signals, but don't filter on them.
+work top-down: roughly half from the region's top-ranked universities, then strong, then accessible. give each its ranking context and official url.
+finish with honest strategy notes for this region: which of their constraints cost them the most admits here, what would open more, and where post-admission funding pushes tend to work (e.g. schools known to reconsider merit aid or post assistantships after admission).`,
+      maxSearches: 10,
+      maxFetches: 3,
+    });
+
+    const { output, runId } = await runStructured({
+      userId: job.user_id,
+      agent: "recon",
+      jobId: job.id,
+      promptVersion: "discover-parse-v2",
+      system: "turn research notes into structured data. only include programs the notes actually name. keep urls exactly as written; empty string when none. band: top = world top ~100 or a national flagship; strong = well-ranked below that; accessible = the rest.",
+      prompt: `research notes:\n${found.text}\n\nsources seen:\n${found.sources.join("\n")}`,
+      schema: Candidates,
+      maxTokens: 8000,
+    });
+
+    const order = { top: 0, strong: 1, accessible: 2 } as const;
+    const picks = [...output.candidates].sort((a, b) => order[a.band] - order[b.band]).slice(0, count);
+    for (const c of picks) {
+      await enqueue({
+        userId: job.user_id,
+        agent: "recon",
+        task: "research_program",
+        payload: { ...c, region },
+        idempotencyKey: `research:${job.user_id}:${slugify(c.school)}:${slugify(c.program)}:${today()}`,
+        parentJobId: job.id,
+      });
     }
 
     await logEvent({
@@ -282,23 +324,29 @@ finish with honest strategy notes: which of their constraints cost them the most
       action: "recon.discovered",
       agentRunId: runId,
       reasoning: output.strategy_notes.join("\n"),
-      context: { candidates: picks.length, external: output.external_funding.length, strategy_notes: output.strategy_notes, searches: found.searches },
+      context: { region, candidates: picks.length, strategy_notes: output.strategy_notes, searches: found.searches },
     });
-    return { candidates: picks.length };
+    return { region, candidates: picks.length };
   },
 
   "recon.research_program": async (job) => {
-    const p = job.payload as { school: string; program: string; degree: string; url: string; why: string; funding_angle: string };
+    const p = job.payload as {
+      school: string; program: string; degree: string; url: string; why: string; funding_angle: string;
+      country?: string; region?: string; ranking_note?: string;
+    };
     const profile = await getProfile(job.user_id);
     const db = admin();
     const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
+    const ug = profile.education.find((e) => /bach|b\.|bsc|ba|btech|b\.tech|hnd|licen/i.test(e.degree ?? "")) ?? profile.education[0];
+    const undergrad = ug ? `${ug.institution}${ug.country ? ` (${ug.country})` : ""}` : "their undergraduate university";
 
     const found = await research({
       userId: job.user_id,
       agent: "recon",
       jobId: job.id,
       system: PROGRAM_SYSTEM,
-      prompt: `program: ${p.program} (${p.degree}) at ${p.school}
+      prompt: `program: ${p.program} (${p.degree}) at ${p.school}${p.country ? `, ${p.country}` : ""}
+ranking context: ${p.ranking_note || "unknown"}
 starting url: ${p.url || "(find it)"}
 why it was picked: ${p.why}
 funding angle to verify: ${p.funding_angle}
@@ -307,7 +355,7 @@ intake: ${row?.target_term ?? "fall-2027"}. today: ${today()}.
 applicant:
 ${profileBrief(profile, row?.target_term)}
 
-find and report: degree and STEM designation; GMAT/GRE policy and any waiver rules; english requirements and whether a medium-of-instruction letter from a Nigerian university is accepted; application fee and fee waiver options; tuition and length; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
+find and report: degree type and length; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
       maxSearches: 5,
       maxFetches: 4,
     });
@@ -316,7 +364,7 @@ find and report: degree and STEM designation; GMAT/GRE policy and any waiver rul
       userId: job.user_id,
       agent: "recon",
       jobId: job.id,
-      promptVersion: "program-parse-v1",
+      promptVersion: "program-parse-v2",
       system: `turn research notes into structured program data. use only what the notes say. "unknown" or "" when the notes don't say. dates as YYYY-MM-DD; if a date has no year, assume the ${row?.target_term ?? "fall-2027"} cycle. fit judgement comes from the notes' assessment.`,
       prompt: `research notes:\n${found.text}`,
       schema: ProgramFacts,
@@ -346,21 +394,23 @@ find and report: degree and STEM designation; GMAT/GRE policy and any waiver rul
 // ---------------------------------------------------------------------------
 // scholarships: hunt by every eligibility hook in the profile, not just nationality
 // ---------------------------------------------------------------------------
-const SCHOLAR_SYSTEM = `you are the scholarship hunter on a US masters application platform.
-most applicants only search by nationality and miss most of the money. you search by every eligibility hook the applicant has:
-- talent, leadership and merit awards (leadership track record, team leadership, community impact)
-- founder and entrepreneurship awards and fellowships (they're building a startup)
-- competition winners and alumni networks (e.g. a hult prize win, accelerator alumni like y combinator companies they worked at)
-- employer- and industry-linked funding: fintech, payments, banking, sales/partnerships, professional associations in their field
-- field-of-study awards for business, finance, management, entrepreneurship, analytics, fintech
-- region and nationality: african, nigerian, sub-saharan, developing-country awards
-- underrepresented-group, first-generation, career-changer and experienced-professional awards when the profile supports them
-- loan-replacement and income-share options only if clearly legit, and say so
+const SCHOLAR_SYSTEM = `you are the scholarship hunter on a masters application platform used by applicants from any country, in any field, applying anywhere.
+most applicants only search by nationality and miss most of the money. you search by every eligibility hook the applicant actually has. typical hooks, use the ones the profile supports:
+- host-country government awards for the regions they're targeting, checked against their citizenship
+- field-of-study and profession awards (their actual field and industry), professional bodies and associations
+- employer-, alumni- and network-linked funding (companies, accelerators, programs they've been part of)
+- talent, leadership, merit and community-impact awards
+- founder/entrepreneurship fellowships if they've built something
+- competition winners and prize alumni networks
+- research, publication or innovation records
+- region and nationality awards (home country, home region, developing-country schemes)
+- identity- and circumstance-based awards (gender, first-generation, career changer, refugee, disability) ONLY when the profile states it
+- legit loan-replacement or income-share options, clearly labelled as such
 
 rules:
-- only real, currently-running programs for graduate study in the US (or portable to the US). check the official page.
+- only real, currently-running awards for graduate study in the regions they're targeting (or portable to them). check the official page.
 - for each one, name the exact profile fact that makes them eligible, and rate the match honestly: strong, possible, or long_shot.
-- note amounts, deadlines for the target intake, and whether internationals are eligible. "not found" when a page doesn't say.
+- amounts in USD (approximate, mention original currency), deadlines for the target intake, and whether their citizenship is eligible. "not found" when a page doesn't say.
 - skip scams, essay-mill "scholarships", and anything that charges a fee to apply.`;
 
 const Scholarships = z.object({
@@ -399,6 +449,8 @@ ${profile.notes.join("\n") || "(none)"}
 stories:
 ${profile.stories.map((s) => `- ${s.title}: ${s.summary}`).join("\n") || "(none)"}
 
+regions they're targeting: ${regionList(profile.preferences.regions).map((r) => REGIONS[r]).join(", ")}
+citizenship: ${profile.identity.citizenship ?? "unknown"}
 today is ${today()}. intake: ${term}.
 first list every eligibility hook you see in this profile. then search for scholarships and fellowships hook by hook. aim for 15-25 real options, strongest matches first.`,
     maxSearches: 12,

@@ -29,9 +29,12 @@ describe("screen", () => {
     const old = { ...good, deadlines: [{ round: "R1", date: "2026-10-01", funding_priority: "yes" as const, notes: "" }] };
     expect(screen(me, old, today).verdict).toBe("dropped");
   });
-  it("holds back for a check when english waiver isn't accepted or funding is rare", () => {
+  it("funding never blocks the shortlist (admissions first)", () => {
+    expect(screen(me, { ...good, full_funding_realistic: "rare" }, today).verdict).toBe("shortlisted");
+    expect(screen(me, { ...good, full_funding_realistic: "unknown" }, today).verdict).toBe("shortlisted");
+  });
+  it("holds back for a check when english waiver isn't accepted or deadlines are unknown", () => {
     expect(screen(me, { ...good, english_moi_waiver: "not_accepted" }, today).verdict).toBe("researching");
-    expect(screen(me, { ...good, full_funding_realistic: "rare" }, today).verdict).toBe("researching");
     expect(screen(me, { ...good, deadlines: [] }, today).verdict).toBe("researching");
   });
   it("an english test on file makes the waiver question moot", () => {

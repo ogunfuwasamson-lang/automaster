@@ -23,7 +23,7 @@ const CurateOut = z.object({
   changes: z.string(), // two or three plain lines on what was cleaned
 });
 
-const SYSTEM = `you are the curator agent on a US masters application platform. you turn a messy applicant profile into one clean, consistent record that essay writers and recruiters-of-schools can rely on.
+const SYSTEM = `you are the curator agent on a masters application platform (any field, any country). you turn a messy applicant profile into one clean, consistent record that essay writers and recruiters-of-schools can rely on.
 
 the profile was assembled from several CV versions, old essays, letters, and an interview, so it has duplicates and contradictions.
 

@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/supabase/server";
 import { daysUntil, upcomingDeadlines, type DeadlineRow } from "@/lib/fit";
-import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton } from "./controls";
+import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } from "./controls";
+import { REGIONS, loadProfile } from "@/lib/profile";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +33,9 @@ interface Row {
     fee_waiver: string | null;
     tuition_usd: number | null;
     deadlines: DeadlineRow[];
-    funding_signals: { full_funding_realistic?: string; summary?: string; english_moi_waiver?: string; test_notes?: string; english_notes?: string };
+    funding_signals: { full_funding_realistic?: string; summary?: string; english_moi_waiver?: string; test_notes?: string; english_notes?: string; post_study_work?: string };
     source_urls: string[];
-    schools: { name: string; city: string | null; state: string | null };
+    schools: { name: string; city: string | null; state: string | null; country: string | null; region: string | null; ranking_note: string | null };
     funding_opportunities: Funding[];
   };
 }
@@ -58,7 +60,7 @@ const TIER: Record<string, string> = {
   safety: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
 };
 const FUND: Record<string, string> = { likely: "full funding likely", possible: "full funding possible", rare: "full funding rare", unknown: "funding unclear" };
-const TEST: Record<string, string> = { required: "GMAT/GRE required", optional: "test optional", waivable: "test waivable", not_required: "no test", unknown: "test policy ?" };
+const TEST: Record<string, string> = { required: "GRE/GMAT required", optional: "test optional", waivable: "test waivable", not_required: "no test", unknown: "test policy ?" };
 const ENG: Record<string, string> = { accepted: "MOI waiver ok", not_accepted: "needs english test", case_by_case: "MOI case by case", unknown: "english ?" };
 
 function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -87,7 +89,10 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{p.schools.name}</p>
-          <p className="truncate text-sm text-neutral-500">{p.name} · {p.degree}{p.schools.state ? ` · ${p.schools.state}` : ""}</p>
+          <p className="truncate text-sm text-neutral-500">
+            {p.name} · {p.degree} · {[p.schools.city, p.schools.country].filter(Boolean).join(", ")}
+            {p.schools.ranking_note ? <span className="text-neutral-400"> · {p.schools.ranking_note}</span> : null}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {r.tier && <Badge className={TIER[r.tier]}>{r.tier}</Badge>}
@@ -100,7 +105,7 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
         <div className="flex flex-wrap gap-1.5">
           <Badge>{TEST[p.test_policy ?? "unknown"]}</Badge>
           <Badge>{ENG[fs.english_moi_waiver ?? "unknown"]}</Badge>
-          {p.stem_designated != null && <Badge>{p.stem_designated ? "STEM (36mo OPT)" : "not STEM"}</Badge>}
+          {fs.post_study_work ? <Badge>{fs.post_study_work}</Badge> : p.stem_designated != null && <Badge>{p.stem_designated ? "STEM (36mo OPT)" : "not STEM"}</Badge>}
           {p.app_fee_usd != null && <Badge>fee ${p.app_fee_usd}</Badge>}
           {p.tuition_usd != null && <Badge>tuition ${p.tuition_usd.toLocaleString()}</Badge>}
         </div>
@@ -145,25 +150,30 @@ function ProgramCard({ r, today }: { r: Row; today: string }) {
   );
 }
 
-export default async function Shortlist() {
+export default async function Shortlist({ searchParams }: { searchParams: Promise<{ region?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
+  const { region: regionFilter } = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
 
-  const [{ data: apps }, { data: jobs }, { data: strat }, { data: external }] = await Promise.all([
+  const [{ data: apps }, { data: jobs }, { data: strat }, { data: external }, { data: profRow }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, tier, fit_score, fit_reasoning, angle, target_deadline, portal_url, programs(id, name, degree, url, stem_designated, test_policy, app_fee_usd, fee_waiver, tuition_usd, deadlines, funding_signals, source_urls, schools(name, city, state), funding_opportunities(name, kind, amount_note, intl_eligible, url))")
+      .select("id, status, tier, fit_score, fit_reasoning, angle, target_deadline, portal_url, programs(id, name, degree, url, stem_designated, test_policy, app_fee_usd, fee_waiver, tuition_usd, deadlines, funding_signals, source_urls, schools(name, city, state, country, region, ranking_note), funding_opportunities(name, kind, amount_note, intl_eligible, url))")
       .order("target_deadline", { ascending: true, nullsFirst: false }),
     auth.sb.from("jobs").select("task, status, last_error").eq("agent", "recon").order("created_at", { ascending: false }).limit(60),
-    auth.sb.from("events").select("context, created_at").eq("action", "recon.discovered").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    auth.sb.from("events").select("context, created_at").eq("action", "recon.discovered").order("created_at", { ascending: false }).limit(6),
     auth.sb
       .from("user_funding")
       .select("id, fit, why, status, funding_opportunities(name, sponsor, url, amount_note, deadline, eligibility, intl_eligible)")
       .limit(60),
+    auth.sb.from("profiles").select("profile").single(),
   ]);
 
-  const rows = (apps ?? []) as unknown as Row[];
+  const allRows = (apps ?? []) as unknown as Row[];
+  const presentRegions = [...new Set(allRows.map((r) => r.programs.schools.region).filter(Boolean))] as string[];
+  const rows = regionFilter ? allRows.filter((r) => r.programs.schools.region === regionFilter) : allRows;
+  const prof = loadProfile(profRow?.profile);
   const FIT_ORDER: Record<string, number> = { strong: 0, possible: 1, long_shot: 2 };
   const scholarships = ((external ?? []) as unknown as Matched[])
     .filter((x) => x.funding_opportunities)
@@ -176,7 +186,16 @@ export default async function Shortlist() {
 
   const active = (jobs ?? []).filter((j) => j.status === "queued" || j.status === "running");
   const failed = (jobs ?? []).filter((j) => j.status === "failed");
-  const notes = ((strat?.context as { strategy_notes?: string[] } | null)?.strategy_notes ?? []) as string[];
+  // latest strategy notes per region
+  const seenRegion = new Set<string>();
+  const notes: { region: string; text: string }[] = [];
+  for (const e of strat ?? []) {
+    const c = (e.context ?? {}) as { region?: string; strategy_notes?: string[] };
+    const r = c.region ?? "us";
+    if (seenRegion.has(r)) continue;
+    seenRegion.add(r);
+    for (const t of c.strategy_notes ?? []) notes.push({ region: r, text: t });
+  }
 
   const timeline = shortlisted
     .flatMap((r) => upcomingDeadlines(r.programs.deadlines ?? [], today).map((d) => ({ r, d })))
@@ -199,6 +218,29 @@ export default async function Shortlist() {
         </div>
       </header>
 
+      <Preferences
+        regions={prof.preferences.regions ?? []}
+        degreeTypes={prof.goals.degree_types ?? []}
+        allRegions={REGIONS}
+      />
+
+      {presentRegions.length > 1 && (
+        <nav className="flex flex-wrap gap-1.5 text-sm">
+          <Link href="/shortlist" className={`rounded-full border px-3 py-1 ${!regionFilter ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-300 text-neutral-500 dark:border-neutral-700"}`}>
+            all regions
+          </Link>
+          {presentRegions.map((r) => (
+            <Link
+              key={r}
+              href={`/shortlist?region=${r}`}
+              className={`rounded-full border px-3 py-1 ${regionFilter === r ? "border-neutral-900 dark:border-neutral-100" : "border-neutral-300 text-neutral-500 dark:border-neutral-700"}`}
+            >
+              {REGIONS[r] ?? r}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       {active.length > 0 && (
         <p className="rounded-md border border-neutral-200 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
           recon is working: {active.filter((j) => j.task === "discover").length ? "finding programs…" : `researching ${active.length} program${active.length === 1 ? "" : "s"}…`} this page updates on its own.
@@ -214,7 +256,12 @@ export default async function Shortlist() {
         <section>
           <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">recon&apos;s read on your strategy</h2>
           <ul className="list-disc space-y-1 rounded-md border border-neutral-200 py-3 pl-9 pr-4 text-sm dark:border-neutral-800">
-            {notes.map((n) => <li key={n}>{n}</li>)}
+            {notes.map((n) => (
+              <li key={n.region + n.text}>
+                <span className="text-neutral-500">{REGIONS[n.region] ?? n.region}: </span>
+                {n.text}
+              </li>
+            ))}
           </ul>
         </section>
       )}

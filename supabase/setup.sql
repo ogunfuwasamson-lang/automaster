@@ -628,3 +628,9 @@ create policy "docs_upload_own" on storage.objects for insert to authenticated
 alter table user_funding add column if not exists fit text check (fit in ('strong', 'possible', 'long_shot'));
 alter table user_funding add column if not exists why text;
 alter table funding_opportunities add column if not exists sponsor text;
+
+-- schools anywhere in the world
+alter table schools add column if not exists country text;
+alter table schools add column if not exists region text;
+alter table schools add column if not exists ranking_note text;
+create index if not exists schools_region_idx on schools(region);

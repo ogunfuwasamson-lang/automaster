@@ -19,7 +19,7 @@ describe("mergeProfile", () => {
   });
 
   it("empty array marks a question as answered", () => {
-    const p = mergeProfile(emptyProfile(), { preferences: { locations: [], avoid: null, stem_preferred: null, max_applications: null } });
+    const p = mergeProfile(emptyProfile(), { preferences: { regions: null, locations: [], avoid: null, stem_preferred: null, max_applications: null } });
     expect(p.preferences.locations).toEqual([]);
     expect(profileGaps(p).map((g) => g.key)).not.toContain("preferences.locations");
   });
@@ -34,7 +34,7 @@ describe("mergeProfile", () => {
 describe("gaps", () => {
   it("empty profile starts with field choice and funding", () => {
     const keys = profileGaps(emptyProfile()).map((g) => g.key);
-    expect(keys.slice(0, 2)).toEqual(["goals.fields", "funding.need"]);
+    expect(keys.slice(0, 4)).toEqual(["goals.fields", "preferences.regions", "goals.degree_types", "funding.need"]);
     expect(completeness(emptyProfile())).toBeLessThan(10);
   });
 
@@ -164,5 +164,18 @@ describe("sortWork", () => {
       { company: "NYSC", start: "2020-03", end: "2021-03" },
     ];
     expect(sortWork(w).map((x) => x.company)).toEqual(["Finecore", "Vendy", "Trove", "NYSC"]);
+  });
+});
+
+describe("regions", () => {
+  it("normalizes region words", async () => {
+    const { normalizeRegions } = await import("@/lib/profile");
+    expect(normalizeRegions(["USA", "the UK", "Germany", "Asia", "latin america", "mars"])).toEqual(["us", "uk", "europe", "asia", "latin_america"]);
+  });
+  it("asks for regions and degree types early, in any field", async () => {
+    const { profileGaps, emptyProfile } = await import("@/lib/profile");
+    const keys = profileGaps(emptyProfile()).map((g) => g.key);
+    expect(keys.slice(0, 3)).toEqual(["goals.fields", "preferences.regions", "goals.degree_types"]);
+    expect(JSON.stringify(profileGaps(emptyProfile()))).not.toMatch(/finance|fintech/);
   });
 });

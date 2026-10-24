@@ -7,6 +7,18 @@
 //   * array of items  = merged into the existing list by a natural key
 import * as z from "zod/v4";
 
+export const REGIONS: Record<string, string> = {
+  us: "United States",
+  canada: "Canada",
+  uk: "United Kingdom",
+  europe: "Europe (EU/EEA, Switzerland)",
+  asia: "Asia",
+  australia_nz: "Australia & New Zealand",
+  middle_east: "Middle East",
+  africa: "Africa",
+  latin_america: "Latin America",
+};
+
 const s = () => z.string().nullable();
 const n = () => z.number().nullable();
 
@@ -74,7 +86,8 @@ export const Profile = z.object({
     notes: s(),
   }),
   preferences: z.object({
-    locations: z.array(z.string()).nullable(), // [] = no preference, null = not asked
+    regions: z.array(z.string()).nullable(), // REGIONS keys; null = not asked
+    locations: z.array(z.string()).nullable(), // specific countries/cities. [] = no preference, null = not asked
     avoid: z.array(z.string()).nullable(),
     stem_preferred: z.boolean().nullable(),
     max_applications: n(),
@@ -123,7 +136,7 @@ export function emptyProfile(): Profile {
       long_term_goal: null, why_masters: null, gmat_gre_plan: null,
     },
     funding: { need: null, annual_budget_usd: null, application_fee_budget_usd: null, notes: null },
-    preferences: { locations: null, avoid: null, stem_preferred: null, max_applications: null },
+    preferences: { regions: null, locations: null, avoid: null, stem_preferred: null, max_applications: null },
     recommenders: { count_lined_up: null, notes: null },
     stories: [],
     skills: [],
@@ -230,19 +243,21 @@ export function profileGaps(p: Profile): Gap[] {
   const g: Gap[] = [];
   const has = (v: unknown) => v !== null && v !== undefined && v !== "";
 
-  if (!p.goals.fields?.length) g.push({ key: "goals.fields", ask: "which fields: finance, management, entrepreneurship, analytics, fintech, other" });
+  if (!p.goals.fields?.length) g.push({ key: "goals.fields", ask: "which fields or subjects they want to study (any discipline)" });
+  if (!p.preferences.regions?.length) g.push({ key: "preferences.regions", ask: `where they want to study: ${Object.values(REGIONS).join(", ")} (one or several)` });
+  if (!p.goals.degree_types?.length) g.push({ key: "goals.degree_types", ask: "which degree types they'd consider (e.g. MS/MSc, MA, MBA, MiM, MEng, MPhil, LLM, MPP), and whether research or taught" });
   if (!has(p.funding.need)) g.push({ key: "funding.need", ask: "full funding required, partial ok, or self-funded" });
   if (!has(p.identity.citizenship)) g.push({ key: "identity.citizenship", ask: "citizenship (decides which scholarships they're eligible for)" });
   if (p.funding.need && p.funding.need !== "full" && !has(p.funding.annual_budget_usd))
     g.push({ key: "funding.annual_budget_usd", ask: "how much per year (USD) they can cover for tuition + living" });
-  if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: "willing to take GMAT/GRE if it opens funding, or test-optional only" });
+  if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: "willing to take admissions tests like the GRE or GMAT if it opens more programs or funding, or only programs that don't require them" });
   if (!p.education.length) g.push({ key: "education", ask: "undergrad institution, degree, field, years" });
   else if (!p.education.some((e) => has(e.grade) || has(e.gpa))) g.push({ key: "education.grade", ask: "degree class or GPA and its scale" });
   if (!has(p.english.route)) g.push({ key: "english.route", ask: "english proof: TOEFL/IELTS/Duolingo, or medium-of-instruction waiver from their university" });
   if (!has(p.goals.short_term_goal)) g.push({ key: "goals.short_term_goal", ask: "what job they want right after the masters, ideally role + company type + where" });
   if (!has(p.goals.why_masters)) g.push({ key: "goals.why_masters", ask: "why a masters now, what gap it closes" });
   if (!has(p.recommenders.count_lined_up)) g.push({ key: "recommenders.count_lined_up", ask: "how many recommenders they can count on, and who (role, relationship)" });
-  if (p.preferences.locations === null) g.push({ key: "preferences.locations", ask: "US regions or cities they want or want to avoid; cost of living matters" });
+  if (p.preferences.locations === null) g.push({ key: "preferences.locations", ask: "specific countries or cities they want or want to avoid within those regions; cost of living matters" });
   if (!has(p.preferences.max_applications) && !has(p.funding.application_fee_budget_usd)) g.push({ key: "preferences.max_applications", ask: "how many applications they want to send" });
   if (!has(p.funding.application_fee_budget_usd)) g.push({ key: "funding.application_fee_budget_usd", ask: "total budget for application fees" });
   if (!has(p.goals.long_term_goal)) g.push({ key: "goals.long_term_goal", ask: "10-year goal" });
@@ -272,7 +287,7 @@ export const SCALAR_FIELDS = [
 ] as const;
 
 export const LIST_FIELDS = [
-  "goals.fields", "goals.degree_types", "preferences.locations", "preferences.avoid", "skills", "notes", "skipped_gaps",
+  "goals.fields", "goals.degree_types", "preferences.regions", "preferences.locations", "preferences.avoid", "skills", "notes", "skipped_gaps",
 ] as const;
 
 const ENUMS: Record<string, string[]> = {
@@ -308,6 +323,7 @@ export const WIRE_GUIDE = `patch format: every field is required. use "" for unk
 - facts: scalar fields you learned. value is a string. numbers as plain digits ("15000"). booleans "yes"/"no".
   enums: english.route test|waiver|undecided, goals.gmat_gre_plan will_take|avoid|undecided, funding.need full|partial|self.
 - lists: list fields. preferences.locations with values [] means "no preference".
+  preferences.regions values must be keys from: ${Object.keys(REGIONS).join(", ")}.
   skipped_gaps: gap keys (like "preferences.max_applications") the user answered without a clean value; record their answer in notes.
 - education / work / tests / stories: items to add or update. work.end "" means current role.`;
 
@@ -352,6 +368,7 @@ export function fromWire(w: WirePatch): ProfilePatch {
     if (l.field === "skills") patch.skills = [...(patch.skills ?? []), ...values];
     else if (l.field === "notes") patch.notes = [...(patch.notes ?? []), ...values];
     else if (l.field === "skipped_gaps") patch.skipped_gaps = [...(patch.skipped_gaps ?? []), ...values];
+    else if (l.field === "preferences.regions") set(l.field, normalizeRegions(values));
     else set(l.field, values);
   }
 
@@ -399,6 +416,7 @@ export function profileBrief(p: Profile, targetTermFallback?: string | null): st
   L.push(`why masters: ${v(p.goals.why_masters)}`);
   L.push(`funding: need ${v(p.funding.need)}, can cover/yr ${v(p.funding.annual_budget_usd)}, fee budget ${v(p.funding.application_fee_budget_usd)}${p.funding.notes ? ` (${p.funding.notes})` : ""}`);
   L.push(`english: ${v(p.english.route)} | tests: ${p.tests.map((t) => `${t.name} ${t.status}${t.score ? " " + t.score : ""}`).join(", ") || "none"}`);
+  L.push(`regions: ${v(p.preferences.regions)}`);
   L.push(`locations: ${p.preferences.locations === null ? "?" : p.preferences.locations.length ? p.preferences.locations.join(", ") : "anywhere"} | avoid: ${v(p.preferences.avoid)} | stem: ${v(p.preferences.stem_preferred)} | max apps: ${v(p.preferences.max_applications)}`);
   L.push(`recommenders: ${v(p.recommenders.count_lined_up)}${p.recommenders.notes ? ` (${p.recommenders.notes})` : ""}`);
   L.push(`education: ${p.education.map((e) => `${e.degree ?? "?"} ${e.field ?? ""} @ ${e.institution} ${e.end ?? ""} ${e.grade ?? ""}`.replace(/\s+/g, " ").trim()).join("; ") || "none"}`);
@@ -417,4 +435,23 @@ export function sortWork<T extends { start: string | null; end: string | null }>
     const e = key(b.end).localeCompare(key(a.end));
     return e !== 0 ? e : key(b.start).localeCompare(key(a.start));
   });
+}
+
+// map free-ish region words to REGIONS keys; unknown words are dropped
+export function normalizeRegions(values: string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of values) {
+    const v = raw.toLowerCase().trim();
+    if (REGIONS[v]) out.add(v);
+    else if (/\b(usa|us|united states|america)\b/.test(v) && !/latin/.test(v)) out.add("us");
+    else if (/canada/.test(v)) out.add("canada");
+    else if (/\b(uk|united kingdom|britain|england|scotland|wales)\b/.test(v)) out.add("uk");
+    else if (/europe|\beu\b|germany|france|netherlands|ireland|sweden|switzerland|italy|spain|finland|denmark|norway|belgium|austria/.test(v)) out.add("europe");
+    else if (/asia|china|japan|korea|singapore|hong kong|india|taiwan|malaysia/.test(v)) out.add("asia");
+    else if (/australia|new zealand/.test(v)) out.add("australia_nz");
+    else if (/middle east|uae|dubai|qatar|saudi|israel/.test(v)) out.add("middle_east");
+    else if (/africa|south africa|kenya|ghana|rwanda|egypt/.test(v)) out.add("africa");
+    else if (/latin|brazil|mexico|chile|argentina/.test(v)) out.add("latin_america");
+  }
+  return [...out];
 }

@@ -1,7 +1,17 @@
 # automaster
 
-agents that run a US masters application cycle: intake, shortlist, drafts, funding hunt, submission prep.
-you review, they run.
+agents that run a masters application cycle for anyone, in any field, to universities anywhere
+(US, Canada, UK, Europe, Asia, Australia/NZ, Middle East, Africa, Latin America): intake, shortlist,
+drafts, funding, submission prep. you review, they run.
+
+## strategy: admissions first
+
+1. **get as many good admits as possible.** recon searches each region you pick from its top-ranked
+   universities down, and only holds a program back for things that block admission (a required test
+   you won't take, english proof you can't meet, closed deadlines). funding is shown, never used as a filter.
+2. **then work every admit for money.** the closer agent (phase 4) goes after merit reconsideration,
+   assistantships posted after admission, departmental awards, competing offers, and outside scholarships
+   matched to the applicant's own hooks (field, employers, awards, ventures, region, citizenship).
 
 ## status
 

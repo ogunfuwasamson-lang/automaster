@@ -81,7 +81,7 @@ export default async function ProfilePage() {
         <Row k="degree types" v={p.goals.degree_types} />
         <Row k="term" v={p.goals.target_term} />
         <Row k="citizenship" v={p.identity.citizenship} />
-        <Row k="gmat / gre" v={p.goals.gmat_gre_plan?.replace("_", " ")} />
+        <Row k="admissions tests" v={p.goals.gmat_gre_plan?.replace("_", " ")} />
         <Row k="right after" v={p.goals.short_term_goal} />
         <Row k="long term" v={p.goals.long_term_goal} />
         <Row k="why a masters" v={p.goals.why_masters} />

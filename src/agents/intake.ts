@@ -19,7 +19,7 @@ const ExtractOut = z.object({
   issues: z.array(z.string()), // anything unreadable, inconsistent, or worth asking about
 });
 
-const SYSTEM = `you are the intake agent for a US masters application platform.
+const SYSTEM = `you are the intake agent for a platform that runs masters applications to universities anywhere in the world, for applicants in any field.
 you read one applicant document and pull out facts for their structured profile.
 
 rules:
