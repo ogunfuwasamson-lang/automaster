@@ -83,8 +83,10 @@ export default async function Applications() {
                                 <span className="h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
                                   <span className="block h-full rounded-full bg-foreground" style={{ width: essays.length ? `${(approved / essays.length) * 100}%` : "0%" }} />
                                 </span>
-                                {essays.length ? `${approved} of ${essays.length} approved` : "Planning"}
-                                {ready ? <span className="font-medium text-foreground">, {ready} ready for you</span> : null}
+                                <span>
+                                  {essays.length ? `${approved} of ${essays.length} approved` : "Planning"}
+                                  {ready ? <span className="font-medium text-foreground">, {ready} ready for you</span> : null}
+                                </span>
                               </span>
                             )}
                           </span>
