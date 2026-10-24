@@ -28,6 +28,8 @@ interface RunArgs<S extends z.ZodType> {
   prompt: string | ContentBlockParam[];
   schema: S;
   maxTokens?: number;
+  // thinking eats into max_tokens; off by default so structured output gets the full budget
+  think?: boolean;
 }
 
 // one structured call, logged to agent_runs. returns parsed output + run id for event linking.
@@ -60,9 +62,10 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
     const msg = await llm()
       .messages.stream({
         model,
-        max_tokens: args.maxTokens ?? 8000,
+        max_tokens: (args.maxTokens ?? 8000) + (args.think ? 16000 : 0),
         system: args.system,
         messages: [{ role: "user", content: args.prompt }],
+        thinking: args.think ? { type: "adaptive" } : { type: "disabled" },
         output_config: { format: zodOutputFormat(args.schema) },
       })
       .finalMessage();

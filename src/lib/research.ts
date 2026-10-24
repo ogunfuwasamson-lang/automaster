@@ -54,7 +54,7 @@ export async function research(args: {
     for (let round = 0; round < 6; round++) {
       const msg = await llm().messages.create({
         model,
-        max_tokens: 8000,
+        max_tokens: 16000,
         system: args.system,
         messages,
         tools: [
