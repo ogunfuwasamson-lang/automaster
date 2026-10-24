@@ -10,9 +10,10 @@ import type { Job } from "@/lib/queue";
 
 
 // claim and run due jobs. backoff on failure: 1m, 5m, 25m.
-export async function drain(worker: string, max = 5) {
+export async function drain(worker: string, max = 5, onlyAgent: "runner" | null = null) {
   const db = admin();
-  const { data: jobs, error } = await db.rpc("claim_jobs", { worker, max_jobs: max });
+  // browser jobs only run where chromium is bundled (/api/runner/work)
+  const { data: jobs, error } = await db.rpc("claim_jobs_for", { worker, max_jobs: max, only_agent: onlyAgent });
   if (error) throw new Error(`claim_jobs failed: ${error.message}`);
 
   // run claimed jobs in parallel so one slow agent call doesn't push the rest past the function timeout

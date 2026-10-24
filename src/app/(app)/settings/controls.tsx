@@ -130,7 +130,7 @@ export function MailCard({ available, email, status, error, notice }: { availabl
             sending as <span className="font-medium">{email}</span>
             {status !== "active" && <span className="text-red-600"> · {error ?? "needs reconnecting"}</span>}
           </p>
-          <p className="text-xs text-neutral-500">send-only access: automaster can send as you but can&apos;t read, search or delete your mail. sent emails appear in your gmail sent folder.</p>
+          <p className="text-xs text-neutral-500">automaster sends as you and looks only for portal verification emails. sent emails appear in your gmail sent folder.</p>
           <div className="flex gap-2">
             {status !== "active" && <a href="/api/mail/connect" className={btn}>reconnect</a>}
             <button disabled={busy} onClick={async () => { setBusy(true); await post("/api/mail/disconnect").catch(() => {}); setBusy(false); router.refresh(); }} className={ghost}>disconnect</button>
@@ -138,8 +138,8 @@ export function MailCard({ available, email, status, error, notice }: { availabl
         </>
       ) : (
         <>
-          <p className="text-sm">connect gmail so approved emails (fee waivers, funding requests) go out from your own address automatically.</p>
-          <p className="text-xs text-neutral-500">send-only access. we can&apos;t read your inbox.</p>
+          <p className="text-sm">connect gmail so approved emails go out from your own address, and so the agents can read the verification codes portals send when they create your accounts.</p>
+          <p className="text-xs text-neutral-500">the agents only search your inbox for portal verification emails. they never delete or change anything.</p>
           <a href="/api/mail/connect" className={`${btn} inline-block`}>connect gmail</a>
         </>
       )}
@@ -153,8 +153,8 @@ export function RunnerCard({ tokens }: { tokens: { id: string; label: string | n
   const router = useRouter();
   return (
     <section className={card}>
-      <h2 className="text-sm font-medium">browser extension (the runner)</h2>
-      <p className="text-sm">the runner works in your own Chrome on a computer, where you&apos;re signed in to the portals. after you approve a packet it opens the school&apos;s portal, fills every section from your profile, uploads your approved essays and CV, and submits. it stops for you at passwords, bot checks and payments.</p>
+      <h2 className="text-sm font-medium">optional: browser extension</h2>
+      <p className="text-sm">you don&apos;t need this: the agents submit from our servers. the extension is for portals that block servers, so the same work can run in your own Chrome instead.</p>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
         <li><a href="/automaster-runner.zip" className="underline">download the extension</a> and unzip it.</li>
         <li>in Chrome open <span className="font-mono text-xs">chrome://extensions</span>, switch on developer mode, click &quot;load unpacked&quot; and pick the unzipped folder.</li>

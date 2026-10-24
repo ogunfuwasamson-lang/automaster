@@ -7,6 +7,7 @@ import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 import { ATTESTATION } from "@/lib/attest";
+import { queueRunner } from "@/agents/runner";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -72,9 +73,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         packet_snapshot: { ...snapshot, attestation: ATTESTATION },
         attested_at: snapshot.approved_at,
         attestation: ATTESTATION,
-        runner_status: grant?.mode === "auto" ? "ready" : "idle",
+        runner_status: "idle",
         runner_note: null,
       });
+      // signed: the cloud runner takes it from here (finds the portal, creates the account, fills, submits)
+      if (grant?.mode === "auto") {
+        await queueRunner(uid, id);
+        after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
+      }
       await logEvent({ userId: uid, actor: "user", action: "packet.approved", applicationId: id, programId: app.program_id, context: snapshot });
       return NextResponse.json({ ok: true });
     }

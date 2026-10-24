@@ -32,7 +32,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
 
       {(status === "preparing" || status === "ready_for_review") && (
         <div className="space-y-2 text-sm">
-          <p>{essaysApproved}/{essaysTotal} pieces approved by you. when all are approved, approve the packet. the runner then takes it to the school&apos;s portal and submits it.</p>
+          <p>{essaysApproved}/{essaysTotal} pieces approved by you. when all are approved, sign the packet. the agents then find the school&apos;s portal, create your account and submit it.</p>
           <label className="flex items-start gap-2 rounded-md bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
             <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5" />
             <span>{ATTESTATION}</span>
@@ -43,7 +43,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
 
       {status === "packet_approved" && (
         <div className="space-y-2 text-sm">
-          <p>packet approved and signed. the runner below submits it from your browser. if you submit it yourself instead, confirm here.</p>
+          <p>packet signed. the agents are submitting it (see below). if you submit it yourself instead, confirm here.</p>
           <button disabled={busy} onClick={() => act({ action: "mark_submitted" })} className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-neutral-700">I submitted it myself</button>
         </div>
       )}

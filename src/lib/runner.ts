@@ -8,6 +8,7 @@ import { buildSheet, type FillSheet, type PortalDetails, type RecommenderRow, ty
 import { mapByRules, resolve, keyMenu, type Fill, type PageField } from "@/lib/runner-map";
 import { runStructured } from "@/lib/llm";
 import { guard } from "@/lib/guard";
+import { textPdf } from "@/lib/pdf";
 
 // the extension authenticates with a personal key (Authorization: Bearer amr_...). we keep only its hash.
 export async function runnerUser(req: NextRequest): Promise<string | null> {
@@ -116,4 +117,20 @@ export async function submitDecision(userId: string, applicationId: string) {
   const v = await guard(userId, "submit", { agent: "runner", schoolId, packetApproved: true });
   if (v.kind === "allow" || v.kind === "allow_with_undo") return { allowed: true, reason: "packet approved and attested" };
   return { allowed: false, reason: v.kind === "needs_approval" ? "your dial says to ask you before submitting" : v.reason };
+}
+
+// the bytes behind a fill-sheet file key: an approved essay as pdf, or one of the applicant's documents
+export async function sheetFile(userId: string, sheet: FillSheet, key: string): Promise<{ name: string; mime: string; buffer: Buffer }> {
+  const f = sheet.files.find((x) => x.key === key);
+  if (!f) throw new Error(`not in the packet: ${key}`);
+  if (key.startsWith("essay:")) {
+    const e = sheet.essays.find((x) => `essay:${x.artifact_id}` === key)!;
+    return { name: f.filename, mime: "application/pdf", buffer: textPdf(e.title, e.text) };
+  }
+  const docId = new URL(f.url, "http://x").searchParams.get("document")!;
+  const db = admin();
+  const { data: doc } = await db.from("documents").select("storage_path, filename, mime_type").eq("id", docId).eq("user_id", userId).single();
+  const { data: blob, error } = await db.storage.from("documents").download(doc!.storage_path);
+  if (error || !blob) throw new Error("couldn't read " + f.label);
+  return { name: doc!.filename, mime: doc!.mime_type ?? "application/octet-stream", buffer: Buffer.from(await blob.arrayBuffer()) };
 }

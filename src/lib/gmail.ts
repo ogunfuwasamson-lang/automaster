@@ -5,7 +5,10 @@ import { buildMime, toBase64Url } from "@/lib/mime";
 
 // send-only gmail access. scope gmail.send lets us send as the applicant and nothing else:
 // we can't read, search or delete their mail.
-export const GMAIL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.send"];
+// unless GMAIL_READ=0 we also ask for read access, so agents can pick up portal verification codes and
+// school emails. gmail.readonly is a restricted scope: fine for test users, needs google's security review to launch.
+export const GMAIL_READ = process.env.GMAIL_READ !== "0";
+export const GMAIL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.send", ...(GMAIL_READ ? ["https://www.googleapis.com/auth/gmail.readonly"] : [])];
 
 export function gmailConfigured(): boolean {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.TOKEN_ENCRYPTION_KEY);
@@ -78,12 +81,11 @@ export async function disconnect(userId: string) {
 
 export class MailAuthError extends Error {}
 
-export async function sendAs(userId: string, m: { to: string; subject: string; body: string; fromName?: string | null; threadId?: string | null }) {
+async function accessToken(userId: string) {
   const acct = await mailAccount(userId);
   if (!acct || acct.status !== "active") throw new MailAuthError("gmail not connected");
-  let access: string;
   try {
-    access = (await tokenCall({ refresh_token: decrypt(acct.refresh_token_enc), grant_type: "refresh_token" })).access_token;
+    return { acct, access: (await tokenCall({ refresh_token: decrypt(acct.refresh_token_enc), grant_type: "refresh_token" })).access_token as string };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (/invalid_grant/.test(msg)) {
@@ -92,6 +94,39 @@ export async function sendAs(userId: string, m: { to: string; subject: string; b
     }
     throw e;
   }
+}
+
+export async function canReadMail(userId: string): Promise<boolean> {
+  const { data } = await admin().from("mail_accounts").select("scopes, status").eq("user_id", userId).maybeSingle();
+  return data?.status === "active" && (data.scopes ?? "").includes("gmail.readonly");
+}
+
+// recent messages matching a gmail search, as plain text. used only to find portal verification codes/links.
+export async function recentMail(userId: string, q: string, max = 5): Promise<{ from: string; subject: string; text: string; html: string; at: number }[]> {
+  const { access } = await accessToken(userId);
+  const h = { authorization: `Bearer ${access}` };
+  const list = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent(q)}`, { headers: h })).json()) as { messages?: { id: string }[] };
+  const out = [];
+  for (const m of list.messages ?? []) {
+    const msg = (await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, { headers: h })).json()) as GmailMsg;
+    const header = (n: string) => msg.payload?.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+    const parts: { mimeType?: string; body?: { data?: string } }[] = [];
+    const walk = (p?: GmailPart) => {
+      if (!p) return;
+      parts.push(p);
+      p.parts?.forEach(walk);
+    };
+    walk(msg.payload);
+    const dec = (t: string) => parts.filter((p) => p.mimeType === t && p.body?.data).map((p) => Buffer.from(p.body!.data!, "base64url").toString("utf8")).join("\n");
+    out.push({ from: header("from"), subject: header("subject"), text: dec("text/plain"), html: dec("text/html"), at: Number(msg.internalDate ?? 0) });
+  }
+  return out;
+}
+type GmailPart = { mimeType?: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] };
+type GmailMsg = { internalDate?: string; payload?: GmailPart };
+
+export async function sendAs(userId: string, m: { to: string; subject: string; body: string; fromName?: string | null; threadId?: string | null }) {
+  const { acct, access } = await accessToken(userId);
   const raw = toBase64Url(buildMime({ from: acct.email, fromName: m.fromName, to: m.to, subject: m.subject, body: m.body }));
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",

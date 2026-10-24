@@ -167,6 +167,14 @@ d("database invariants", () => {
     expect(ids.size).toBe(3);
   });
 
+  it("browser jobs only go to the runner function", async () => {
+    await db.query(`insert into jobs(user_id, agent, task) values ($1, 'runner', 'run'), ($1, 'writer', 'draft')`, [ALICE]);
+    const general = await db.query(`select agent from claim_jobs_for('w', 10, null)`);
+    expect(general.rows.map((r) => r.agent)).not.toContain("runner");
+    const browser = await db.query(`select agent from claim_jobs_for('w', 10, 'runner')`);
+    expect(browser.rows.map((r) => r.agent)).toEqual(["runner"]);
+  });
+
   it("deleting a user cascades cleanly, events included", async () => {
     await db.query(`insert into events(user_id, actor, action) values ($1, 'agent:test', 'x')`, [BOB]);
     await db.query(`delete from auth.users where id = $1`, [BOB]);

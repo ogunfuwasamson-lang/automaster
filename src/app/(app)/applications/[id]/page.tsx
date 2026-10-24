@@ -36,15 +36,16 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const auth = await requireUser();
   if (!auth) return null;
   const { id } = await params;
-  const [{ data: app }, { data: jobs }, { data: threads }, { data: mailAcct }] = await Promise.all([
+  const [{ data: app }, { data: jobs }, { data: threads }, { data: mailAcct }, { count: logins }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
+      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
     auth.sb.from("threads").select("id, messages(id, purpose, to_email, subject, body, status, created_at, send_after, last_error)").eq("application_id", id).order("created_at"),
     admin().from("mail_accounts").select("email, status").eq("user_id", auth.user.id).maybeSingle(),
+    admin().from("portal_accounts").select("id", { count: "exact", head: true }).eq("user_id", auth.user.id).eq("application_id", id),
   ]);
   const mail = gmailConfigured() && mailAcct?.status === "active" ? mailAcct.email : null;
   if (!app) notFound();
@@ -131,6 +132,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           portalUrl={app.portal_url ?? p.url}
           fee={p.app_fee_usd}
           attested={!!app.attested_at}
+          liveUrl={app.runner_live_url}
+          hasLogin={!!logins}
           missing={sheet?.missing ?? []}
         />
       )}

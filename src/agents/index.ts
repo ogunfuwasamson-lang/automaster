@@ -6,6 +6,7 @@ import { curator } from "./curator";
 import { recon } from "./recon";
 import { writer } from "./writer";
 import { closer } from "./closer";
+import { runner } from "./runner";
 
 export type Handler = (job: Job) => Promise<Record<string, unknown> | void>;
 
@@ -17,4 +18,5 @@ export const HANDLERS: Record<string, Handler> = {
   ...recon,
   ...writer,
   ...closer,
+  ...runner,
 };

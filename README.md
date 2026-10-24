@@ -22,7 +22,7 @@ drafts, funding, submission prep. you review, they run.
 | 2 | recon + deadline tracker | done |
 | 3 | strategist, writer, red team | done |
 | 4 | closer: fee waivers, post-admission funding, outreach; sends through the applicant's gmail | done |
-| 5 | runner: fill sheet + chrome extension that fills and submits approved packets | done |
+| 5 | cloud runner: finds the portal, creates the account, fills, uploads and submits signed packets from our servers (extension optional) | done |
 | 6 | dashboard (pipeline, stop button, outgoing mail, runner), editable dial, morning digest | done |
 
 ## how it's wired
@@ -55,7 +55,22 @@ hard floors enforced in the database, not just the app:
 
 ripcords (`ripcords` table) stop everything, one agent, one capability, or one school until released.
 
-## the runner (phase 5)
+## the cloud runner (phase 5)
+
+nothing to install. when the applicant signs a packet, `runner.run` jobs (only claimed by `/api/runner/work`, the one
+function that bundles chromium via `@sparticuz/chromium`) drive the portal from our servers:
+
+- `runner.find_portal` researches the official application url if we don't have it.
+- `cloud-engine.ts` classifies each page (login, sign-up, verification, form, captcha, payment, confirmation) and acts.
+  sign-up uses the applicant's email and a generated 16-char password kept aes-gcm encrypted in `portal_accounts`;
+  the applicant can reveal it on the application page and change it later.
+- verification codes/links are read from the applicant's gmail (read scope), matched to the portal's domain.
+- each run lasts ~200s; cookies are saved encrypted in `applications.runner_state` so the next run resumes.
+- bot checks, payments and unanswerable questions hand off to the applicant (`needs_you`); we re-check every
+  10 minutes and carry on once they've done that one step. captchas are never solved automatically.
+- set `BROWSERBASE_API_KEY` to use browserbase instead (long-lived sessions + a live view link for handoffs).
+
+## the browser extension (optional)
 
 a chrome extension (`extension/`, zipped to `public/automaster-runner.zip` by `npm run pack:extension`) that works in the
 applicant's own browser, where they're already signed in to portals:

@@ -3,6 +3,8 @@ import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
+import { queueRunner } from "@/agents/runner";
+import { after } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -21,9 +23,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (parsed.data.action === "queue") {
     if (app.status !== "packet_approved") return NextResponse.json({ error: "approve the packet first" }, { status: 400 });
     if (parsed.data.portal_url && !/^https:\/\//.test(parsed.data.portal_url)) return NextResponse.json({ error: "portal link must start with https://" }, { status: 400 });
-    await db.from("applications").update({ runner_status: "ready", runner_note: null, runner_updated_at: new Date().toISOString(), ...(parsed.data.portal_url ? { portal_url: parsed.data.portal_url } : {}) }).eq("id", id);
+    if (parsed.data.portal_url) await db.from("applications").update({ portal_url: parsed.data.portal_url }).eq("id", id);
+    await queueRunner(auth.user.id, id);
+    after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
   } else {
-    await db.from("applications").update({ runner_status: "idle", runner_note: "stopped by you", runner_updated_at: new Date().toISOString() }).eq("id", id);
+    await db.from("applications").update({ runner_status: "idle", runner_note: "stopped by you", runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", id);
+    await db.from("jobs").update({ status: "cancelled", last_error: "stopped by you" }).eq("user_id", auth.user.id).eq("agent", "runner").eq("status", "queued").contains("payload", { applicationId: id });
   }
   await logEvent({ userId: auth.user.id, actor: "user", action: parsed.data.action === "queue" ? "runner.queued" : "runner.stopped", applicationId: id });
   return NextResponse.json({ ok: true });
