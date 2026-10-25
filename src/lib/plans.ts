@@ -40,8 +40,8 @@ export const PLANS: Record<PlanId, Plan> = {
   pro: {
     id: "pro",
     name: "pro",
-    priceLabel: "$49 / month",
-    blurb: "run your whole application season",
+    priceLabel: "Free",
+    blurb: "run your whole application season, free",
     aiBudgetUsd: 25,
     maxRegions: 9,
     programsPerRun: 20,
@@ -60,7 +60,7 @@ export const PLANS: Record<PlanId, Plan> = {
     id: "season",
     name: "season pass",
     priceLabel: "$199 / 6 months",
-    blurb: "everything in Pro for one admissions cycle, ~32% less",
+    blurb: "everything in Pro, paid once for one admissions cycle",
     aiBudgetUsd: 25,
     maxRegions: 9,
     programsPerRun: 20,
@@ -71,6 +71,8 @@ export const PLANS: Record<PlanId, Plan> = {
   },
 };
 
+// pro is free for everyone: accounts on the old free tier (or none) get pro's limits
 export function planOf(id: string | null | undefined): Plan {
-  return PLANS[(id as PlanId) ?? "free"] ?? PLANS.free;
+  if (id === "season") return PLANS.season;
+  return PLANS.pro;
 }

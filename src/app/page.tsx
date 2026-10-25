@@ -29,7 +29,7 @@ const FAQ = [
   ["Does it write my essays for me?", "It drafts them from facts in your profile and your interview, then checks every claim against your documents. You edit them into your own words and approve each one. Nothing is sent without your signature."],
   ["What do I still have to do myself?", "Read and sign your packets, pay application fees, and tick the odd bot check a portal shows. Everything else, from finding the portal to uploading documents, the agents do."],
   ["What happens when a portal asks something my profile doesn't cover?", "Your interviewer pops up and asks you. The answer is saved to your profile, so no other school has to ask again, and the agents carry on by themselves."],
-  ["How much does it cost?", "Your first application is free. After that it's one monthly plan; application fees are paid to schools directly, and the agents ask for waivers first."],
+  ["How much does it cost?", "Pro is free: every region, up to 15 applications, essays and submission. If you'd rather pay once for the whole cycle, there's a Season pass. Application fees are paid to schools directly, and the agents ask for waivers first."],
 ];
 
 const REGIONS = ["United Kingdom", "Canada", "United States", "Germany", "Netherlands", "France", "Singapore", "Australia"];
@@ -89,7 +89,7 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="mt-2.5 flex flex-wrap justify-between gap-2 text-[13px] text-muted">
-                  <span>Your first application is free.</span>
+                  <span>Free. No card needed.</span>
                   <a href="#how" className="underline decoration-line underline-offset-4 hover:text-foreground">
                     See how a season runs
                   </a>

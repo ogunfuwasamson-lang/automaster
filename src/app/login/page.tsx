@@ -91,7 +91,7 @@ export default function Login() {
             </Suspense>
           </div>
           <ul className="mt-6 space-y-2 px-2 text-sm text-muted">
-            {["No password. Every sign-in is a one-time email link.", "Your first application is free.", "Bachelor's, master's and PhD, anywhere in the world."].map((t) => (
+            {["No password. Every sign-in is a one-time email link.", "Free to use. No card needed.", "Bachelor's, master's and PhD, anywhere in the world."].map((t) => (
               <li key={t} className="flex items-center gap-2.5">
                 <span className="grid size-5 place-items-center rounded-full bg-accent/10 text-accent">
                   <Check className="size-3" aria-hidden />

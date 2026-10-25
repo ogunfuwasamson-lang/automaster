@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const cleanRegions = regions?.filter((r) => REGIONS[r]);
   const { plan } = await userPlan(auth.user.id);
   if (cleanRegions && cleanRegions.length > plan.maxRegions) {
-    return NextResponse.json({ error: `your ${plan.name} plan covers ${plan.maxRegions} region${plan.maxRegions > 1 ? "s" : ""}. upgrade to pro for all of them.` }, { status: 402 });
+    return NextResponse.json({ error: `your ${plan.name} plan covers ${plan.maxRegions} region${plan.maxRegions > 1 ? "s" : ""}.` }, { status: 402 });
   }
   await updateProfile(auth.user.id, (p) => ({
     ...p,

@@ -7,7 +7,7 @@ import { monthStartUTC } from "@/lib/pricing";
 export async function checkLimit(userId: string, what: "recon_run" | "application" | "document"): Promise<string | null> {
   const db = admin();
   const { plan } = await userPlan(userId);
-  const upgrade = plan.id === "free" ? " upgrade to pro for more." : "";
+  const upgrade = "";
   if (what === "recon_run") {
     const { count } = await db
       .from("jobs")

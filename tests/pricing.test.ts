@@ -50,8 +50,11 @@ describe("plans", () => {
     expect(PLANS.pro.aiBudgetUsd / 49).toBeLessThanOrEqual(0.52);
     expect(PLANS.season.aiBudgetUsd * 6 / 199).toBeLessThan(0.76);
   });
-  it("unknown plan falls back to free", () => {
-    expect(planOf("enterprise").id).toBe("free");
-    expect(planOf(null).id).toBe("free");
+  it("pro is free for everyone: unknown, old free and missing plans all get pro", () => {
+    expect(planOf("enterprise").id).toBe("pro");
+    expect(planOf("free").id).toBe("pro");
+    expect(planOf(null).id).toBe("pro");
+    expect(planOf("season").id).toBe("season");
+    expect(PLANS.pro.priceLabel).toBe("Free");
   });
 });
