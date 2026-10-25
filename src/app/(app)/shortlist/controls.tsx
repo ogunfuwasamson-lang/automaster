@@ -106,12 +106,12 @@ export function Preferences({ regions, degreeTypes, allRegions, level, maxRegion
   const summary = [levelLabel, regions.map((r) => allRegions[r] ?? r).join(", ") || "No regions yet"].join(" in ");
 
   return (
-    <details className="group rounded-3xl border border-line bg-surface shadow-card" open={!regions.length}>
+    <details className="group rounded-xl border border-line bg-surface shadow-card" open={!regions.length}>
       <summary className="flex cursor-pointer select-none items-center gap-3 px-5 py-3.5">
         <SlidersHorizontal className="size-4 shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">What recon searches for</span>
-          <span className="block truncate text-sm text-muted">{summary}</span>
+          <span className="label-mono block">What recon searches for</span>
+          <span className="mt-1 block text-[13.5px] leading-snug">{summary}</span>
         </span>
         <span className="text-sm text-muted group-open:hidden">Change</span>
       </summary>
