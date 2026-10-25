@@ -141,3 +141,9 @@ TEST_DATABASE_URL=postgres://am:am@localhost/am_test npm test
 - model tiers: haiku 5.5 for web research and parsing (the bulk of tokens), sonnet 5.5 for writing, review and chat.
   system prompts and fact sheets are prompt-cached. program research is shared across users for 30 days.
 - per-user override: `profiles.monthly_budget_usd`. plan: `profiles.plan` (billing will set it).
+
+## email
+
+- **sign-in links** are sent by supabase through resend smtp (`smtp.resend.com:465`, user `resend`, sender `Ivyward <hello@tryivyward.com>`). set in supabase → authentication → emails → smtp settings. the rate limit (30/hour to start) is under authentication → rate limits.
+- **Ivyward's own email** (the daily digest) goes from the applicant's gmail if they connected it, otherwise through resend (`src/lib/mailer.ts`, needs `RESEND_API_KEY`; optional `EMAIL_FROM`, `EMAIL_REPLY_TO`).
+- **emails to schools** always go from the applicant's own gmail (`src/lib/gmail.ts`), never from Ivyward's domain.
