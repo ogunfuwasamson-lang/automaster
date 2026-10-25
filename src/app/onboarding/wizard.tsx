@@ -42,6 +42,7 @@ export function Onboarding(props: {
   docCount: number;
   mailEmail: string | null;
   mailAvailable: boolean;
+  mailVia?: "composio" | "google";
   mailNotice: string | null;
 }) {
   const router = useRouter();
@@ -300,11 +301,18 @@ export function Onboarding(props: {
                 {props.mailEmail ? (
                   <p className="flex items-center gap-2 text-[15px]"><Check className="size-5 text-go" aria-hidden />Connected as <span className="font-medium">{props.mailEmail}</span></p>
                 ) : props.mailAvailable ? (
-                  <ButtonLink href="/api/mail/connect?next=/onboarding" size="lg" variant="accent"><Mail className="size-4" aria-hidden />Connect Gmail</ButtonLink>
+                  <div className="space-y-3">
+                    {props.mailVia === "composio" && (
+                      <p className="max-w-xl text-sm leading-relaxed text-muted">
+                        Google will ask you to allow <span className="font-medium text-foreground">Composio</span>, the service Ivyward uses to connect to Gmail securely, so Google shows its name instead of ours. You can disconnect it in Settings at any time.
+                      </p>
+                    )}
+                    <ButtonLink href="/api/mail/connect?next=/onboarding" size="lg" variant="accent"><Mail className="size-4" aria-hidden />Connect Gmail</ButtonLink>
+                  </div>
                 ) : (
                   <p className="text-sm text-muted">Email connection isn&apos;t available yet. You can add it later in settings.</p>
                 )}
-                {props.mailNotice && props.mailNotice !== "connected" ? <p className="text-sm text-stop">Gmail wasn&apos;t connected. Try again, and tick both permissions on Google&apos;s screen.</p> : null}
+                {props.mailNotice && props.mailNotice !== "connected" ? <p className="text-sm text-stop">Gmail wasn&apos;t connected. Try again, and allow each permission on Google&apos;s screen.</p> : null}
                 <div className="flex gap-3">
                   <Button size="lg" variant={props.mailEmail ? "primary" : "secondary"} onClick={() => next()}>{props.mailEmail ? "Continue" : "Do this later"}</Button>
                   <Button size="lg" variant="ghost" onClick={() => setStep(3)}>Back</Button>

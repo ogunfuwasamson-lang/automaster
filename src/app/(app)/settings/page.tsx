@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { gmailConfigured } from "@/lib/gmail";
+import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
 import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard } from "./controls";
 import type { GrantMode } from "@/lib/policy";
@@ -39,7 +39,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       <PageHeader title="Settings" description="What the agents do on their own, and where they act for you." />
 
       <Group title="Gmail" description="Lets the agents email as you and read what schools send back.">
-        <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} />
+        <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} via={composioMail() ? "composio" : "google"} />
       </Group>
 
       <Group title="Autonomy" description="Choose what happens without asking. Signing and new claims about you always come to you.">

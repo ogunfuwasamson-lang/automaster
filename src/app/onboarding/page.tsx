@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { loadProfile, REGIONS } from "@/lib/profile";
-import { gmailConfigured } from "@/lib/gmail";
+import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { userPlan } from "@/lib/budget";
 import { Onboarding } from "./wizard";
 
@@ -35,6 +35,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       docCount={docs ?? 0}
       mailEmail={mail?.status === "active" ? mail.email : null}
       mailAvailable={gmailConfigured()}
+      mailVia={composioMail() ? "composio" : "google"}
       mailNotice={sp.mail ?? null}
     />
   );

@@ -23,6 +23,9 @@ export default function Privacy() {
         <p>
           If you connect Gmail, the agents use it to send emails you&apos;ve approved and to read messages from schools and application portals (replies, verification codes, logins a portal emails you). We keep only the messages that relate to your applications. We don&apos;t read unrelated mail for any other purpose, and Google user data is never used to train AI models or for advertising. You can disconnect Gmail in Settings at any time, which revokes our access.
         </p>
+        <p>
+          We connect to Gmail through Composio, an integration service. When you connect, Google asks you to allow Composio, which holds the Gmail access on Ivyward&apos;s behalf and passes our requests to Google. Messages the agents read or send pass through Composio to reach us. Composio acts only on Ivyward&apos;s instructions for your account and doesn&apos;t use your mail for anything else. Disconnecting Gmail in Settings removes that connection.
+        </p>
       </section>
       <section>
         <h2>How the agents use your data</h2>
@@ -40,7 +43,7 @@ export default function Privacy() {
       </section>
       <section>
         <h2>Where it&apos;s stored</h2>
-        <p>Data is stored with our hosting and database providers (Vercel and Supabase) and is encrypted in transit. Portal passwords and Gmail access tokens are additionally encrypted with our own keys.</p>
+        <p>Data is stored with our hosting and database providers (Vercel and Supabase) and is encrypted in transit. Our email providers handle only the messages they carry: Resend sends Ivyward&apos;s own emails, and Composio carries the Gmail connection. Portal passwords are additionally encrypted with our own keys.</p>
       </section>
       <section>
         <h2>Your control</h2>

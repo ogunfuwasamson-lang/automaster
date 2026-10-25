@@ -133,13 +133,13 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
   );
 }
 
-export function MailCard({ available, email, status, error, notice }: { available: boolean; email: string | null; status: string | null; error: string | null; notice: string | null }) {
+export function MailCard({ available, email, status, error, notice, via }: { available: boolean; email: string | null; status: string | null; error: string | null; notice: string | null; via?: "composio" | "google" }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const NOTICE: Record<string, [string, "go" | "stop"]> = {
     connected: ["Gmail connected. Approved emails send from your address, and replies from schools appear on your home page.", "go"],
     declined: ["You cancelled on Google's screen, so nothing was connected.", "stop"],
-    scope: ["Google didn't grant the Gmail permissions. Try again and tick each Gmail box.", "stop"],
+    scope: ["Google didn't grant the Gmail permissions. Try again and allow each one.", "stop"],
     expired: ["That link expired. Try again.", "stop"],
     error: ["Couldn't connect Gmail. Try again.", "stop"],
     unavailable: ["Gmail isn't switched on for this app yet.", "stop"],
@@ -187,6 +187,11 @@ export function MailCard({ available, email, status, error, notice }: { availabl
             Connect Gmail so approved emails go out from your own address, the agents can read the codes portals send when they create your accounts, and replies from your schools land on your home page.
           </p>
           <p className="text-xs text-muted">They never delete or change anything in your inbox.</p>
+          {via === "composio" && (
+            <p className="rounded-lg border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
+              Google will ask you to allow <span className="font-medium text-foreground">Composio</span>. That&apos;s the service Ivyward uses to connect to Gmail securely, so Google shows its name instead of ours. Ivyward only uses your Gmail for your applications, and you can disconnect it here at any time.
+            </p>
+          )}
           <ButtonLink href="/api/mail/connect" variant="signal">
             <Mail className="size-4" aria-hidden /> Connect Gmail
           </ButtonLink>
