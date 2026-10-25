@@ -68,6 +68,7 @@ export function Interview({
   initialCompleteness,
   embedded = false,
   kickoff = false,
+  say: firstMessage = null,
   waiting = [],
   onTurn,
 }: {
@@ -76,6 +77,7 @@ export function Interview({
   initialCompleteness: number;
   embedded?: boolean; // inside the chat panel: fills it, no page chrome
   kickoff?: boolean; // the interviewer speaks first (portal questions are waiting)
+  say?: string | null; // a message the applicant typed elsewhere (the home page box): sent straight away
   waiting?: { id: string; question: string; school: string | null }[];
   onTurn?: () => void;
 }) {
@@ -290,8 +292,8 @@ export function Interview({
   useEffect(() => {
     if (!kickoff || kicked.current) return;
     kicked.current = true;
-    void sendRef.current(null, false);
-  }, [kickoff]);
+    void sendRef.current(firstMessage || null, false);
+  }, [kickoff, firstMessage]);
 
   function micTap() {
     if (phase === "listening") return stopAndSend();

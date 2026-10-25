@@ -184,6 +184,15 @@ select:focus-visible {
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }
 
+/* small monospaced labels on data ("past 7 days", "days") */
+.label-mono {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* the small tracked label above landing sections ("/ how it works") */
 .kicker {
   font-size: 12px;

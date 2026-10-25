@@ -35,6 +35,7 @@ export function ChatDock() {
   const [hist, setHist] = useState<History | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [kickoff, setKickoff] = useState(false);
+  const [say, setSay] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/interview/history");
@@ -67,11 +68,15 @@ export function ChatDock() {
 
   useEffect(() => {
     if (params.get("chat") === "open") {
-      setKickoff(questions.length > 0);
+      const said = params.get("say");
+      setSay(said || null);
+      setKickoff(!!said || questions.length > 0);
+      if (said) setHist(null);
       setOpen(true);
       // drop the flag so a refresh or back doesn't reopen it
       const next = new URLSearchParams(params);
       next.delete("chat");
+      next.delete("say");
       router.replace(next.size ? `${path}?${next}` : path, { scroll: false });
     }
   }, [params, path, router, questions.length]);
@@ -88,6 +93,7 @@ export function ChatDock() {
         if (o) setKickoff(questions.length > 0);
         if (!o) {
           setKickoff(false);
+          setSay(null);
           markSeen(questions.map((q) => q.id));
           void check(false);
           router.refresh(); // the interview may have filled the profile
@@ -124,7 +130,7 @@ export function ChatDock() {
                   <X className="size-5" />
                 </Dialog.Close>
                 {hist ? (
-                  <Interview embedded kickoff={kickoff} waiting={questions} onTurn={() => void check(false)} initialSessionId={hist.sessionId} initialTurns={hist.turns} initialCompleteness={hist.completeness} />
+                  <Interview embedded kickoff={kickoff} say={say} waiting={questions} onTurn={() => void check(false)} initialSessionId={hist.sessionId} initialTurns={hist.turns} initialCompleteness={hist.completeness} />
                 ) : (
                   <div className="grid flex-1 place-items-center text-muted">
                     <LoaderCircle className="size-6 animate-spin" aria-label="Loading" />

@@ -30,9 +30,9 @@ export function Section({ title, description, action, children, className = "" }
 }
 
 // the card: white, generously rounded, a soft lifted shadow
-export function Card({ children, className = "", hover = false }: { children: ReactNode; className?: string; hover?: boolean }) {
+export function Card({ children, className = "", hover = false, id }: { children: ReactNode; className?: string; hover?: boolean; id?: string }) {
   return (
-    <div className={`rounded-3xl border border-line bg-surface shadow-card ${hover ? "transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift" : ""} ${className}`}>
+    <div id={id} className={`rounded-3xl border border-line bg-surface shadow-card ${hover ? "transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lift" : ""} ${className}`}>
       {children}
     </div>
   );

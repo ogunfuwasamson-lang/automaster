@@ -29,6 +29,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { Count } from "@/components/motion/count";
 import { Stagger, Rise } from "@/components/motion/reveal";
 import { DeadlineCard } from "@/components/home/deadline-card";
+import { AskBox } from "@/components/home/ask-box";
+import { CampusInk } from "@/components/landing/campus-ink";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
 
@@ -140,39 +142,33 @@ export default async function Dashboard() {
   const nextDays = next ? daysUntil(next.target_deadline) : null;
   const count = (sts: string[]) => list.filter((a) => sts.includes(a.status)).length;
   const stats: [typeof Layers, string, number, string][] = [
-    [Layers, "Programs tracked", list.length, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [Layers, "Programs tracked", list.length, "text-muted"],
     [FilePenLine, "Essays in progress", count(["preparing", "ready_for_review"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
-    [FileSignature, "Packets signed", count(["packet_approved"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [FileSignature, "Packets signed", count(["packet_approved"]), "text-muted"],
     [Send, "Submitted", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   ];
 
   return (
-    <Stagger className="space-y-6">
+    <Stagger className="relative space-y-6">
+      <CampusInk className="pointer-events-none absolute -top-10 left-1/2 h-[380px] w-screen max-w-none -translate-x-1/2 opacity-60" />
       <Rise>
-        <header className="flex flex-wrap items-end justify-between gap-5 pb-2">
+        <header className="relative flex flex-wrap items-end justify-between gap-5 pb-2">
           <div>
-            <span className="glass inline-flex items-center gap-2 rounded-full border border-line py-1 pl-1 pr-3 text-[12.5px] font-semibold shadow-card">
-              {paused ? (
-                <span className="rounded-full bg-stop px-2 py-0.5 text-[11px] font-bold text-white">Paused</span>
-              ) : (
-                <span className="rounded-full bg-go/10 px-2 py-0.5 text-[11px] font-semibold text-go">Live</span>
-              )}
-              {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"} right now` : "Agents are standing by"}
-            </span>
-            <h1 className="mt-4 text-4xl font-bold leading-[1.05] tracking-[-0.045em] sm:text-[46px]">
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+              {needsCount ? (
+                <a href="#needs-you" className="inline-flex items-center gap-1.5 font-medium text-signal hover:underline">
+                  <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                  {needsCount} {needsCount === 1 ? "thing needs" : "things need"} you
+                </a>
+              ) : null}
+              <span className={`inline-flex items-center gap-1.5 ${paused ? "text-stop" : "text-muted"}`}>
+                <span className={`size-1.5 rounded-full ${paused ? "bg-stop" : working ? "animate-pulse bg-go" : "bg-neutral-400"}`} aria-hidden />
+                {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"}` : "Agents are standing by"}
+              </span>
+            </p>
+            <h1 className="mt-3 text-[40px] leading-[1.05] sm:text-[52px]">
               {greeting()}
               {first ? `, ${first}` : ""}.
-              <br />
-              {needsCount ? (
-                <>
-                  <span className="text-gradient">
-                    {needsCount} {needsCount === 1 ? "thing" : "things"}
-                  </span>{" "}
-                  {needsCount === 1 ? "needs" : "need"} you.
-                </>
-              ) : (
-                <span className="text-gradient">You&apos;re all caught up.</span>
-              )}
             </h1>
             <p className="mt-3 text-base text-muted">
               {next && nextDays !== null
@@ -187,6 +183,12 @@ export default async function Dashboard() {
             </ButtonLink>
           </div>
         </header>
+      </Rise>
+
+      <Rise>
+        <div className="relative max-w-3xl">
+          <AskBox />
+        </div>
       </Rise>
 
       {(paused || !!parked || !!billing?.length) && (
@@ -222,25 +224,25 @@ export default async function Dashboard() {
                 blocker={stuck.find((s) => s.id === next.id)?.runner_note ? sentence(stuck.find((s) => s.id === next.id)!.runner_note).split(". ")[0] : null}
               />
             ) : (
-              <div className="bg-hero-gradient flex h-full flex-col justify-between rounded-3xl p-6 text-white">
-                <p className="text-[13px] font-semibold text-white/80">Next deadline</p>
+              <div className="flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-6 shadow-card">
+                <p className="label-mono">Next deadline</p>
                 <div>
-                  <p className="mt-6 text-2xl font-bold tracking-[-0.02em]">Build your shortlist to start the clock.</p>
-                  <Link href="/shortlist" className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0f1222]">
+                  <p className="mt-6 font-serif text-[26px] leading-tight">Build your shortlist to start the clock.</p>
+                  <ButtonLink href="/shortlist" className="mt-5">
                     Open shortlist <ArrowRight className="size-4" aria-hidden />
-                  </Link>
+                  </ButtonLink>
                 </div>
               </div>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4 lg:col-span-6">
             {stats.map(([Icon, label, n, tone]) => (
-              <Link key={label} href="/applications" className="group flex flex-col rounded-3xl border border-line bg-surface p-5 shadow-card transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-lift">
-                <span className={`grid size-10 place-items-center rounded-xl ${tone}`}>
-                  <Icon className="size-[18px]" aria-hidden />
+              <Link key={label} href="/applications" className="group flex flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-700">
+                <span className="flex items-center justify-between">
+                  <span className="label-mono">{label}</span>
+                  <Icon className={`size-4 ${tone}`} aria-hidden />
                 </span>
-                <Count value={n} className="mt-6 block text-[34px] font-bold leading-none tracking-[-0.045em]" />
-                <span className="mt-1.5 text-[12.5px] font-semibold text-muted">{label}</span>
+                <Count value={n} className="mt-8 block font-serif text-[48px] leading-none tabular" />
               </Link>
             ))}
           </div>
@@ -249,7 +251,7 @@ export default async function Dashboard() {
 
       {needsCount > 0 && (
         <Rise>
-          <Card className="p-5 sm:p-6">
+          <Card className="scroll-mt-24 p-5 sm:p-6" id="needs-you">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2.5 text-lg font-bold tracking-[-0.02em]">
                 Needs you
