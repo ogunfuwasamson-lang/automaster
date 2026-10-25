@@ -1,6 +1,6 @@
 import "server-only";
 import { admin } from "@/lib/supabase/admin";
-import { openBrowser, type StorageState } from "@/lib/browser";
+import type { StorageState } from "@/lib/browser";
 import { runEngine, type Outcome } from "@/lib/cloud-engine";
 import { fromPlaywright } from "@/lib/engine-page";
 import { loadApp, loadSheet } from "@/lib/runner";
@@ -75,6 +75,7 @@ export async function runLiveSession(sessionId: string) {
   await setRunner(applicationId, { runner_status: "running", runner_note: "working in the live browser" });
   await logEvent({ userId, actor: "user", action: "runner.live_opened", applicationId, channel: "portal" });
 
+  const { openBrowser } = await import("@/lib/browser");
   const ob = await openBrowser({ storage });
   const page = ob.page;
   await page.setViewportSize(VIEW).catch(() => {});

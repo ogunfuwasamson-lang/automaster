@@ -11,7 +11,7 @@ import { createLogin, getLogin, markLogin, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
-import { openBrowser, type StorageState } from "@/lib/browser";
+import type { StorageState } from "@/lib/browser";
 import { runEngine, type EngineDeps, type EngineState, type NavInput } from "@/lib/cloud-engine";
 import { fromPlaywright } from "@/lib/engine-page";
 import { recordQuestions } from "@/lib/portal-questions";
@@ -347,6 +347,8 @@ export const runner: Record<string, Handler> = {
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
+    // loaded only here, so the many routes that share this file don't carry the browser library
+    const { openBrowser } = await import("@/lib/browser");
     const ob = await openBrowser({ sessionId: row?.runner_session_id, storage });
     let keep = false;
     try {
