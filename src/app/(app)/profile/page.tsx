@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CampusInk } from "@/components/landing/campus-ink";
+import { SceneInk } from "@/components/landing/page-ink";
 import { BadgeCheck, Briefcase, CircleDashed, GraduationCap, Languages, MapPin, MessagesSquare, SlidersHorizontal, Target, Wallet } from "lucide-react";
 import { Clamp } from "@/components/ui/clamp";
 import { ButtonLink } from "@/components/ui/button";
@@ -92,8 +92,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-6xl space-y-6">
       {/* hero */}
       <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-        <div className="relative h-16 overflow-hidden border-b border-line bg-background sm:h-20">
-          <CampusInk className="absolute inset-x-0 bottom-0 h-[240px] w-full opacity-80" />
+        <div className="relative h-24 overflow-hidden border-b border-line bg-background sm:h-32">
+          <SceneInk name="cloister" className="absolute inset-x-0 bottom-0 h-[260px] w-full" />
         </div>
         <div className="flex flex-wrap items-end gap-4 px-5 pb-4 sm:px-6">
           <span className="-mt-9 grid size-[72px] shrink-0 place-items-center rounded-full border-4 border-surface bg-hero-gradient font-serif text-2xl text-white">{initials || "?"}</span>
