@@ -3,7 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 
-// reasons a submission stops that the applicant fixes in automaster itself (a missing profile detail, an
+// reasons a submission stops that the applicant fixes in Ivyward itself (a missing profile detail, an
 // unanswered question, a missing document). when their profile or documents change, the agents pick these
 // up again on their own: nobody should have to press "try again" after filling in what was asked.
 const FIXABLE_IN_APP = new Set(["question", "missing"]);

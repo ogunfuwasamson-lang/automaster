@@ -32,8 +32,8 @@ const Body = z.discriminatedUnion("op", [
 
 // what to tell the applicant when their own chrome stops
 function chromeNote(reason: string | undefined, note: string) {
-  if (reason === "captcha") return "a bot check is showing in the automaster tab in Chrome. Complete it there; the agents carry on by themselves";
-  if (reason === "payment") return "payment page: pay the application fee in the automaster tab in Chrome. The agents confirm the submission after";
+  if (reason === "captcha") return "a bot check is showing in the Ivyward tab in Chrome. Complete it there; the agents carry on by themselves";
+  if (reason === "payment") return "payment page: pay the application fee in the Ivyward tab in Chrome. The agents confirm the submission after";
   if (reason === "blocked" || reason === "account") return "this portal blocked the agents even in your Chrome. Open the tab they left and finish that step; they pick up again after";
   if (reason === "verification") return note.replace(/open the live view and /g, "");
   return note.replace(/open the live view and /g, "open the portal tab in Chrome and ").replace(/open the live view/g, "open the portal tab in Chrome");
@@ -51,13 +51,13 @@ export async function POST(req: NextRequest) {
   const { data: row } = await db.from("applications").select("runner_mode, runner_state, runner_status").eq("id", b.application).single();
   if (app.status !== "packet_approved" && b.op !== "finish") return NextResponse.json({ stop: "this application isn't approved for submitting" });
 
-  // paused or cancelled from automaster: the extension stops; nothing it sends changes the status
+  // paused or cancelled from Ivyward: the extension stops; nothing it sends changes the status
   if (row?.runner_status === "idle" && b.op !== "start") {
     if (b.op === "finish" || b.op === "save") {
       const st = (row.runner_state ?? {}) as RunnerState;
       if (st.paused) await db.from("applications").update({ runner_state: { ...st, ...(b.state as RunnerState), paused: true, last_url: b.url ?? st.last_url } }).eq("id", b.application);
     }
-    return NextResponse.json({ stop: "paused or cancelled in automaster" });
+    return NextResponse.json({ stop: "paused or cancelled in Ivyward" });
   }
   if (b.op === "progress") {
     await setRunner(b.application, { runner_note: b.note.slice(0, 300) });

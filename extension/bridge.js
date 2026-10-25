@@ -1,4 +1,4 @@
-// automaster runner: the bridge between the automaster site and this extension. it only runs on automaster's
+// Ivyward runner: the bridge between the Ivyward site and this extension. it only runs on Ivyward's
 // own pages, lets the site know the extension is here, and passes on "connect this browser" and "run now".
 (() => {
   const send = (msg) =>

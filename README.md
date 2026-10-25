@@ -1,4 +1,4 @@
-# automaster
+# Ivyward
 
 agents that run a bachelor's, master's or PhD application cycle for anyone, in any field, to universities anywhere
 (US, Canada, UK, Europe, Asia, Australia/NZ, Middle East, Africa, Latin America): intake, shortlist,
@@ -72,7 +72,7 @@ function that bundles chromium via `@sparticuz/chromium`) drive the portal from 
 
 ## the browser extension (optional)
 
-a chrome extension (`extension/`, zipped to `public/automaster-runner.zip` by `npm run pack:extension`) that works in the
+a chrome extension (`extension/`, zipped to `public/ivyward-runner.zip` by `npm run pack:extension`) that works in the
 applicant's own browser, where they're already signed in to portals:
 
 1. the applicant approves and **signs** the packet (`applications.attestation`). that statement is what lets the runner

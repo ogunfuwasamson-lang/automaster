@@ -59,11 +59,11 @@ export function ConnectChrome({ then }: { then: { id: string; school: string } |
         {step(
           1,
           ext.installed,
-          "Add the automaster runner to Chrome",
+          "Add the Ivyward runner to Chrome",
           <>
             <p className="text-muted">Download it, unzip it, open <code className="rounded bg-neutral-100 px-1 text-xs dark:bg-neutral-800">chrome://extensions</code>, switch on Developer mode (top right), choose Load unpacked and pick the unzipped folder. Works in Chrome, Edge and Brave on a computer.</p>
             <div className="flex flex-wrap gap-2">
-              <ButtonLink href="/automaster-runner.zip" size="sm" variant={ext.installed ? "secondary" : "primary"}>
+              <ButtonLink href="/ivyward-runner.zip" size="sm" variant={ext.installed ? "secondary" : "primary"}>
                 <Download className="size-3.5" aria-hidden /> Download the extension
               </ButtonLink>
               <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText("chrome://extensions").then(() => toast.success("Copied. Paste it into the address bar"))}>

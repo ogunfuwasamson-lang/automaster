@@ -1,4 +1,4 @@
-// automaster runner: the background worker of the chrome extension.
+// Ivyward runner: the background worker of the chrome extension.
 // runs the same portal engine as the cloud runner, but in a tab of the applicant's own chrome: their network,
 // their browser, so portals that refuse cloud browsers let it in. it never solves bot checks: when one shows,
 // it brings the tab forward, asks the applicant to complete it, and carries on once it's gone.
@@ -8,7 +8,7 @@ import { chromePage } from "./chrome-page";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const chrome: any;
 
-const DEFAULT_API = "https://automaster-3p9i.vercel.app";
+const DEFAULT_API = "https://tryivyward.com";
 const RUN_MS = 4 * 60_000; // one engine run; the state is saved between runs
 const VERSION = "0.3.1";
 
@@ -31,12 +31,12 @@ async function cfg(): Promise<{ api: string; token: string; auto: boolean }> {
 
 async function api(path: string, opts: RequestInit = {}) {
   const c = await cfg();
-  if (!c.token) throw new Error("not connected: open automaster and choose Connect Chrome");
+  if (!c.token) throw new Error("not connected: open Ivyward and choose Connect Chrome");
   const res = await fetch(c.api.replace(/\/$/, "") + path, {
     ...opts,
     headers: { authorization: `Bearer ${c.token}`, ...(opts.body ? { "content-type": "application/json" } : {}), ...((opts.headers as Record<string, string>) || {}) },
   });
-  if (res.status === 401) throw new Error("this browser was disconnected: connect it again from automaster");
+  if (res.status === 401) throw new Error("this browser was disconnected: connect it again from Ivyward");
   return res;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +86,7 @@ const sheets = new Map<string, { files: { key: string; url: string; filename: st
 function deps(taskId: string, start: { canReadMail: boolean; accountEmail: string }, tabId: number): EngineDeps {
   const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
   let lastNote = "";
-  // paused or cancelled in automaster: stop between steps
+  // paused or cancelled in Ivyward: stop between steps
   let stop = false;
   let checkedAt = 0;
   return {
@@ -194,7 +194,7 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
       }
       const fin = await eng(task.id, "finish", { state, url, filled, host, outcome }).catch(() => ({}));
       if ((fin as { stop?: string }).stop) {
-        notify(task.school, "Paused in automaster. The tab stays open; nothing else happens until you resume.");
+        notify(task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
         break;
       }
       if (outcome.kind === "continue") continue;
@@ -204,7 +204,7 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
         continue;
       }
       if (outcome.kind === "submitted") {
-        notify(`${task.school}: submitted`, "The application went in. automaster has recorded it.");
+        notify(`${task.school}: submitted`, "The application went in. Ivyward has recorded it.");
         break;
       }
       if (outcome.kind === "needs_you" && (outcome.reason === "captcha" || outcome.reason === "blocked")) {
@@ -251,7 +251,7 @@ async function poll() {
   }
   if (data.paused || !c.auto) return;
   const now = Date.now();
-  // jobs automaster moved to this browser (the portal refused the cloud runner), one at a time
+  // jobs Ivyward moved to this browser (the portal refused the cloud runner), one at a time
   const next = data.tasks.find((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && (!t.resume_at || t.resume_at <= now));
   if (next) runTask(next);
 }
@@ -265,7 +265,7 @@ chrome.alarms.onAlarm.addListener((a: { name: string }) => a.name === "poll" && 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handle(msg: any, sender: any) {
-  // from the automaster site (bridge.js): pairing and "run now"
+  // from the Ivyward site (bridge.js): pairing and "run now"
   if (msg.type === "bridge:hello") {
     const c = await cfg();
     const a = await getActive();

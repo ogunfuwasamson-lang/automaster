@@ -14,9 +14,9 @@ export function Mark({ className = "size-6" }: { className?: string }) {
 
 export function Wordmark({ small = false, href = "/" }: { small?: boolean; href?: string }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2" aria-label="automaster home">
+    <Link href={href} className="inline-flex items-center gap-2" aria-label="Ivyward home">
       <Mark className={small ? "size-[22px]" : "size-6"} />
-      <span className={`font-serif tracking-[-0.02em] ${small ? "text-[20px]" : "text-[22px]"}`}>automaster</span>
+      <span className={`font-serif tracking-[-0.02em] ${small ? "text-[20px]" : "text-[22px]"}`}>Ivyward</span>
     </Link>
   );
 }

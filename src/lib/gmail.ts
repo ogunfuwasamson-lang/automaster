@@ -47,7 +47,7 @@ async function tokenCall(body: Record<string, string>) {
 
 export async function connect(userId: string, code: string) {
   const t = await tokenCall({ code, grant_type: "authorization_code", redirect_uri: redirectUri() });
-  if (!t.refresh_token) throw new Error("google didn't return offline access; remove automaster from your google account permissions and connect again");
+  if (!t.refresh_token) throw new Error("google didn't return offline access; remove Ivyward from your google account permissions and connect again");
   if (!(t.scope ?? "").includes("gmail.send")) throw new Error("gmail send permission wasn't granted. tick the box on google's consent screen.");
   const claims = JSON.parse(Buffer.from((t.id_token ?? "..").split(".")[1] ?? "", "base64url").toString() || "{}") as { email?: string };
   if (!claims.email) throw new Error("couldn't read your gmail address");

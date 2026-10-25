@@ -6,7 +6,7 @@
 /* dark mode follows the data-theme attribute the theme switch sets (light, dark, or the device setting) */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* automaster: "paper". an off-white page, ink type, serif titles, hairline borders. black is the action
+/* Ivyward: "paper". an off-white page, ink type, serif titles, hairline borders. black is the action
    colour; one academic oxblood marks the brand and links. status colours are quiet, deep tints. */
 
 :root {

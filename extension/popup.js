@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const DEFAULT_API = "https://automaster-3p9i.vercel.app";
+const DEFAULT_API = "https://tryivyward.com";
 const send = (msg) =>
   new Promise((resolve, reject) =>
     chrome.runtime.sendMessage(msg, (res) => {
@@ -52,7 +52,7 @@ async function render() {
       go.disabled = !t.portal_url || (d.active && d.active.taskId === t.id);
       go.onclick = () => send({ type: "popup:start", id: t.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
       row.appendChild(go);
-      if (tab && /^https:/.test(tab.url || "") && !/automaster/.test(tab.url || "")) {
+      if (tab && /^https:/.test(tab.url || "") && !/ivyward|automaster/i.test(tab.url || "")) {
         const here = document.createElement("button");
         here.textContent = "use this tab";
         here.title = "carry on from the portal page you have open";

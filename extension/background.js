@@ -1,4 +1,4 @@
-// automaster runner: built from extension/src by scripts/build-extension.mjs. don't edit by hand.
+// Ivyward runner: built from extension/src by scripts/build-extension.mjs. don't edit by hand.
 "use strict";
 (() => {
   // src/lib/labels.ts
@@ -557,7 +557,7 @@
   }
 
   // extension/src/background.ts
-  var DEFAULT_API = "https://automaster-3p9i.vercel.app";
+  var DEFAULT_API = "https://tryivyward.com";
   var RUN_MS = 4 * 6e4;
   var VERSION = "0.3.1";
   var sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -573,12 +573,12 @@
   }
   async function api(path, opts = {}) {
     const c = await cfg();
-    if (!c.token) throw new Error("not connected: open automaster and choose Connect Chrome");
+    if (!c.token) throw new Error("not connected: open Ivyward and choose Connect Chrome");
     const res = await fetch(c.api.replace(/\/$/, "") + path, {
       ...opts,
       headers: { authorization: `Bearer ${c.token}`, ...opts.body ? { "content-type": "application/json" } : {}, ...opts.headers || {} }
     });
-    if (res.status === 401) throw new Error("this browser was disconnected: connect it again from automaster");
+    if (res.status === 401) throw new Error("this browser was disconnected: connect it again from Ivyward");
     return res;
   }
   async function apiJson(path, opts) {
@@ -720,7 +720,7 @@
         }
         const fin = await eng(task.id, "finish", { state, url, filled, host, outcome }).catch(() => ({}));
         if (fin.stop) {
-          notify(task.school, "Paused in automaster. The tab stays open; nothing else happens until you resume.");
+          notify(task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
           break;
         }
         if (outcome.kind === "continue") continue;
@@ -730,7 +730,7 @@
           continue;
         }
         if (outcome.kind === "submitted") {
-          notify(`${task.school}: submitted`, "The application went in. automaster has recorded it.");
+          notify(`${task.school}: submitted`, "The application went in. Ivyward has recorded it.");
           break;
         }
         if (outcome.kind === "needs_you" && (outcome.reason === "captcha" || outcome.reason === "blocked")) {

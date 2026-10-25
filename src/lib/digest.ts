@@ -60,7 +60,7 @@ export async function runDigest(userId: string) {
     const acct = await mailAccount(userId);
     if (acct?.status === "active") {
       try {
-        await sendAs(userId, { to: acct.email, subject: `automaster: ${digest.headline}`, body: digestText(digest, appUrl(), name), fromName: "automaster" });
+        await sendAs(userId, { to: acct.email, subject: `Ivyward: ${digest.headline}`, body: digestText(digest, appUrl(), name), fromName: "Ivyward" });
         via = "gmail";
       } catch {
         via = null;

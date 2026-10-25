@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-// talks to the automaster runner extension through its bridge script (it runs on automaster's own pages)
+// talks to the Ivyward runner extension through its bridge script (it runs on Ivyward's own pages)
 export type ExtState = { installed: boolean; paired: boolean; version: string | null; running: { id: string; school: string; phase: string } | null };
 
 const post = (type: string, data: Record<string, unknown> = {}) => window.postMessage({ source: "automaster-app", type, ...data }, window.location.origin);

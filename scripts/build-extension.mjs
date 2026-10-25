@@ -17,7 +17,7 @@ await build({
   platform: "browser",
   tsconfig: path.join(root, "tsconfig.json"),
   legalComments: "none",
-  banner: { js: "// automaster runner: built from extension/src by scripts/build-extension.mjs. don't edit by hand." },
+  banner: { js: "// Ivyward runner: built from extension/src by scripts/build-extension.mjs. don't edit by hand." },
 });
 const dom = readFileSync(path.join(root, "src/lib/runner-dom.ts"), "utf8");
 const m = dom.match(/String\.raw`([\s\S]*)`;\s*$/);

@@ -6,10 +6,10 @@ export default function Terms() {
   return (
     <LegalPage title="Terms of use" updated="25 October 2026">
       <section>
-        <p>These terms cover your use of automaster. By creating an account, you agree to them.</p>
+        <p>These terms cover your use of Ivyward. By creating an account, you agree to them.</p>
       </section>
       <section>
-        <h2>What automaster does</h2>
+        <h2>What Ivyward does</h2>
         <p>
           AI agents help you research programs, draft and check essays, fill in and submit applications, and follow up with schools. You stay responsible for your applications: you review and sign each packet before it&apos;s submitted, and anything that speaks for you waits for your approval unless you choose otherwise in Settings.
         </p>
@@ -28,11 +28,11 @@ export default function Terms() {
       </section>
       <section>
         <h2>Acceptable use</h2>
-        <p>Use automaster only for your own applications. Don&apos;t use it to apply in someone else&apos;s name, to break a school&apos;s rules, or to get around a portal&apos;s security.</p>
+        <p>Use Ivyward only for your own applications. Don&apos;t use it to apply in someone else&apos;s name, to break a school&apos;s rules, or to get around a portal&apos;s security.</p>
       </section>
       <section>
         <h2>Ending your account</h2>
-        <p>You can stop using automaster at any time and ask us to delete your account. We may suspend accounts that break these terms.</p>
+        <p>You can stop using Ivyward at any time and ask us to delete your account. We may suspend accounts that break these terms.</p>
       </section>
       <section>
         <h2>Contact</h2>

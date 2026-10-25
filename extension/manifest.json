@@ -1,18 +1,42 @@
 {
   "manifest_version": 3,
-  "name": "automaster runner",
-  "version": "0.3.1",
-  "description": "Finishes your approved university applications in your own Chrome when a portal won't let automaster's cloud browser in.",
-  "permissions": ["storage", "alarms", "notifications", "tabs", "scripting", "webNavigation"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "background.js" },
+  "name": "Ivyward runner",
+  "version": "0.4.0",
+  "description": "Finishes your approved university applications in your own Chrome when a portal won't let Ivyward's cloud browser in.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["https://automaster-3p9i.vercel.app/*", "http://localhost/*", "http://127.0.0.1/*"],
-      "js": ["bridge.js"],
+      "matches": [
+        "https://tryivyward.com/*",
+        "https://www.tryivyward.com/*",
+        "https://automaster-3p9i.vercel.app/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
       "run_at": "document_start"
     }
   ],
-  "action": { "default_popup": "popup.html", "default_title": "automaster runner" },
-  "icons": { "128": "icon.png" }
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Ivyward runner"
+  },
+  "icons": {
+    "128": "icon.png"
+  }
 }

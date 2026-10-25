@@ -8,7 +8,7 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { ProductTabs } from "@/components/landing/product-tabs";
 import { requireUser } from "@/lib/supabase/server";
 
-export const metadata = { title: { absolute: "automaster: your university applications, done for you" } };
+export const metadata = { title: { absolute: "Ivyward: your university applications, done for you" } };
 
 const STEPS = [
   { t: "Tell us about you", d: "Upload your CV and transcripts, then talk to the interviewer for ten minutes. It fills your profile and asks only what's missing." },
@@ -58,7 +58,7 @@ export default async function Home() {
             <ThemeButton />
             {signedIn ? (
               <ButtonLink href="/dashboard" size="sm">
-                Open automaster
+                Open Ivyward
               </ButtonLink>
             ) : (
               <>
@@ -81,7 +81,7 @@ export default async function Home() {
             <HeroIn>
               <h1 className="mx-auto max-w-3xl text-[46px] leading-[1.04] sm:text-[76px]">Your university applications, done for you.</h1>
               <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-lg">
-                Tell automaster about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every portal, and chase fee waivers and funding. You review and sign.
+                Tell Ivyward about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every portal, and chase fee waivers and funding. You review and sign.
               </p>
               <form action="/login" className="mx-auto mt-10 max-w-2xl text-left">
                 <input type="hidden" name="mode" value="signup" />
@@ -119,7 +119,7 @@ export default async function Home() {
         </section>
 
         <section className="border-y border-line bg-surface/60 py-12">
-          <p className="kicker text-center">/ Applicants on automaster apply to programs in</p>
+          <p className="kicker text-center">/ Applicants on Ivyward apply to programs in</p>
           <ul className="mx-auto mt-6 flex max-w-5xl flex-wrap items-center justify-center gap-x-8 gap-y-3 px-5 font-serif text-[20px] text-neutral-400 dark:text-neutral-500">
             {REGIONS.map((r) => (
               <li key={r}>{r}</li>
@@ -180,7 +180,7 @@ export default async function Home() {
         <section className="relative overflow-hidden border-t border-line">
           <CampusInk className="absolute inset-x-0 bottom-0 h-[420px] w-full opacity-70" />
           <div className="relative mx-auto max-w-3xl px-5 py-24 text-center">
-            <h2 className="font-serif text-[38px] leading-tight sm:text-[56px]">Let automaster run your applications.</h2>
+            <h2 className="font-serif text-[38px] leading-tight sm:text-[56px]">Let Ivyward run your applications.</h2>
             <p className="mx-auto mt-4 max-w-lg text-[17px] text-muted">Upload your CV and watch your shortlist take shape in minutes.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <ButtonLink href="/login?mode=signup" size="lg">

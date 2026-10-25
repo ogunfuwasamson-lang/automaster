@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { THEME_SCRIPT } from "@/components/theme";
 
 export const metadata: Metadata = {
-  title: { default: "automaster", template: "%s · automaster" },
+  title: { default: "Ivyward", template: "%s · Ivyward" },
   description: "Agents that run your university applications, from shortlist to submission. Bachelor's, master's and PhD, anywhere in the world.",
 };
 

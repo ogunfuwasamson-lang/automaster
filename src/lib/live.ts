@@ -13,7 +13,7 @@ import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, userHalted, type RunnerState } from "@/agents/runner";
 import { recordQuestions } from "@/lib/portal-questions";
 
-// the live browser: the cloud runner's browser, streamed into automaster as screenshots, with the applicant's
+// the live browser: the cloud runner's browser, streamed into Ivyward as screenshots, with the applicant's
 // clicks and keys sent back. the agents drive until a step needs the applicant; the applicant does it in the
 // same browser (bot check, payment, a question) and hands back. one session lasts as long as a function may run.
 
@@ -172,7 +172,7 @@ export async function runLiveSession(sessionId: string) {
       if (o.kind === "submitted") {
         submitted = true;
         await markSubmitted(userId, applicationId, app.program_id, o.note, page.url(), filled, "live");
-        await set({ status: "you", prompt: "Submitted. The portal showed a confirmation and automaster has recorded it." });
+        await set({ status: "you", prompt: "Submitted. The portal showed a confirmation and Ivyward has recorded it." });
         await sleep(4000);
         break;
       }
