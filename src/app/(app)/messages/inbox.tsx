@@ -206,7 +206,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
 
   return (
     <div>
-      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
+      <div className="grid h-[calc(100dvh-12.5rem)] min-h-[34rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-12.5rem)] lg:min-h-[40rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
         {/* list */}
         <aside className={`flex min-h-0 flex-col border-line lg:border-r ${open ? "hidden lg:flex" : "flex"}`}>
           <div className="space-y-2.5 border-b border-line p-3">
@@ -538,6 +538,7 @@ function DraftCard({ m, canSend, onChange }: { m: InboxMsg; canSend: boolean; on
 
 function Composer({ threadId, canSend, replyTo, intent, onChange }: { threadId: string; canSend: boolean; replyTo: string; intent: "reply" | "follow_up"; onChange: () => void }) {
   const [body, setBody] = useState("");
+  const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState<string | undefined>();
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -572,7 +573,7 @@ function Composer({ threadId, canSend, replyTo, intent, onChange }: { threadId: 
   }
 
   return (
-    <footer className="border-t border-line bg-surface p-3 sm:p-4">
+    <footer className="border-t border-line bg-surface px-3 py-2.5 sm:px-4 sm:py-3">
       {asking && (
         <div className="mb-2 flex gap-2">
           <input autoFocus value={notes} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => e.key === "Enter" && draft()} placeholder="What should it say? (optional) e.g. ask if the deadline can move" className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-background px-3 text-sm outline-none focus:border-accent" />
@@ -587,7 +588,9 @@ function Composer({ threadId, canSend, replyTo, intent, onChange }: { threadId: 
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          rows={body ? Math.min(10, Math.max(3, Math.ceil(body.length / 80))) : 2}
+          rows={body ? Math.min(8, Math.max(3, Math.ceil(body.length / 80))) : composing ? 3 : 1}
+          onFocus={() => setComposing(true)}
+          onBlur={() => setComposing(false)}
           placeholder={intent === "follow_up" ? "Write a follow-up…" : `Reply${replyTo ? ` to ${replyTo}` : ""}…`}
           aria-label="Your reply"
           className="w-full resize-none bg-transparent px-2.5 py-2 text-[14px] leading-relaxed outline-none"
