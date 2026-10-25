@@ -8,7 +8,7 @@ const send = (msg) =>
     }),
   );
 
-const STATUS = { ready: "queued", running: "working", needs_you: "needs you", failed: "problem" };
+const STATUS = { ready: "Queued", running: "Working", needs_you: "Needs you", failed: "Problem" };
 
 async function render() {
   const c = await chrome.storage.local.get({ token: "", auto: true, api: DEFAULT_API });
@@ -30,7 +30,7 @@ async function render() {
     const box = $("tasks");
     box.innerHTML = "";
     if (!d.tasks.length) {
-      box.innerHTML = '<p class="muted">nothing to submit right now. approved applications show up here.</p>';
+      box.innerHTML = '<p class="muted">Nothing to submit right now. Applications you've approved show up here.</p>';
       return;
     }
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -40,7 +40,7 @@ async function render() {
       const head = document.createElement("div");
       head.innerHTML = "<b></b> <span class=\"muted\"></span>";
       head.querySelector("b").textContent = t.school;
-      head.querySelector("span").textContent = t.mode === "extension" ? "· in this browser" : "· cloud";
+      head.querySelector("span").textContent = t.mode === "extension" ? "in this browser" : "cloud";
       const st = document.createElement("div");
       st.className = t.runner_status === "needs_you" || t.runner_status === "failed" ? "warn" : "muted";
       st.textContent = (STATUS[t.runner_status] || t.runner_status) + (t.note ? `: ${t.note}` : "");
@@ -48,13 +48,13 @@ async function render() {
       row.className = "row";
       const go = document.createElement("button");
       go.className = "primary";
-      go.textContent = "run here now";
+      go.textContent = "Run here now";
       go.disabled = !t.portal_url || (d.active && d.active.taskId === t.id);
       go.onclick = () => send({ type: "popup:start", id: t.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
       row.appendChild(go);
       if (tab && /^https:/.test(tab.url || "") && !/ivyward|automaster/i.test(tab.url || "")) {
         const here = document.createElement("button");
-        here.textContent = "use this tab";
+        here.textContent = "Use this tab";
         here.title = "carry on from the portal page you have open";
         here.onclick = () => send({ type: "popup:attach", id: t.id, tabId: tab.id }).then(() => window.close(), (e) => ($("err").textContent = e.message));
         row.appendChild(here);
@@ -75,7 +75,7 @@ $("connect").onclick = async () => {
 };
 $("save").onclick = async () => {
   const token = $("token").value.trim();
-  if (!/^amr_[\w-]{20,}$/.test(token)) return ($("saveMsg").textContent = "that doesn't look like a key");
+  if (!/^amr_[\w-]{20,}$/.test(token)) return ($("saveMsg").textContent = "That doesn't look like a key");
   await chrome.storage.local.set({ token });
   chrome.alarms.create("poll", { periodInMinutes: 1 });
   render();

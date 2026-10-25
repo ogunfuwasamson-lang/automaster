@@ -8,6 +8,8 @@
       input[type="text"], input[type="password"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d4d4d4; border-radius: 6px; font: inherit; }
       button { padding: 5px 10px; border-radius: 6px; border: 1px solid #d4d4d4; background: #fff; font: inherit; cursor: pointer; }
       button.primary { background: #171717; color: #fff; border-color: #171717; }
+      h1 { display: flex; align-items: center; gap: 8px; }
+      h1 img { width: 18px; height: 18px; }
       .row { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
       .muted { color: #737373; font-size: 12px; }
       .task { border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; margin: 6px 0; }
@@ -17,29 +19,29 @@
     </style>
   </head>
   <body>
-    <h1>Ivyward runner</h1>
-    <style>.task.now{border-color:#4f46e5;background:#eef2ff}</style>
+    <h1><img src="icons/icon-32.png" alt="" />Ivyward runner</h1>
+    <style>.task.now{border-color:#9b2c4e;background:#fbf1f4}</style>
     <div id="setup">
-      <p class="muted">connect this browser to your Ivyward account. when a school's portal won't let the cloud browser in, the agents finish that application here.</p>
-      <div class="row"><button class="primary" id="connect">connect to Ivyward</button></div>
+      <p class="muted">Connect this browser to your Ivyward account. When a school's portal won't let Ivyward's cloud browser in, the agents finish that application here, in a tab you can watch.</p>
+      <div class="row"><button class="primary" id="connect">Connect to Ivyward</button></div>
       <details>
-        <summary class="muted">or paste a key</summary>
+        <summary class="muted">Or paste a key</summary>
         <input id="token" type="password" placeholder="amr_…" />
-        <div class="row"><button id="save">connect</button><span id="saveMsg" class="muted"></span></div>
+        <div class="row"><button id="save">Connect</button><span id="saveMsg" class="muted"></span></div>
       </details>
     </div>
     <div id="main" hidden>
       <div class="row">
-        <label class="row" style="margin:0"><input type="checkbox" id="auto" /> pick up applications Ivyward sends here</label>
+        <label class="row" style="margin:0"><input type="checkbox" id="auto" /> Pick up applications Ivyward sends here</label>
       </div>
       <div id="active" class="task" hidden></div>
-      <div id="paused" class="warn" hidden>agents are paused in Ivyward.</div>
-      <div id="tasks"><p class="muted">loading…</p></div>
-      <div class="row"><button id="refresh">check now</button></div>
+      <div id="paused" class="warn" hidden>Agents are paused in Ivyward.</div>
+      <div id="tasks"><p class="muted">Loading…</p></div>
+      <div class="row"><button id="refresh">Check now</button></div>
       <details>
-        <summary class="muted">settings</summary>
+        <summary class="muted">Settings</summary>
         <div class="row"><input id="api" type="text" /></div>
-        <div class="row"><button id="saveApi">save server</button><button id="logout">disconnect</button></div>
+        <div class="row"><button id="saveApi">Save server</button><button id="logout">Disconnect</button></div>
       </details>
     </div>
     <p id="err" class="err"></p>

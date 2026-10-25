@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Ivyward runner",
-  "version": "0.4.0",
-  "description": "Finishes your approved university applications in your own Chrome when a portal won't let Ivyward's cloud browser in.",
+  "version": "1.0.0",
+  "description": "Finishes your approved university applications in your own Chrome when a school's portal won't let Ivyward's cloud browser in.",
   "permissions": [
     "storage",
     "alarms",
@@ -21,10 +21,7 @@
     {
       "matches": [
         "https://tryivyward.com/*",
-        "https://www.tryivyward.com/*",
-        "https://automaster-3p9i.vercel.app/*",
-        "http://localhost/*",
-        "http://127.0.0.1/*"
+        "https://www.tryivyward.com/*"
       ],
       "js": [
         "bridge.js"
@@ -34,9 +31,17 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Ivyward runner"
+    "default_title": "Ivyward runner",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   },
   "icons": {
-    "128": "icon.png"
-  }
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "homepage_url": "https://tryivyward.com"
 }
