@@ -6,6 +6,8 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { ProductTabs } from "@/components/landing/product-tabs";
 import { SiteFooter, SiteHeader } from "@/components/landing/site-chrome";
 import { SiteJsonLd } from "@/components/seo/json-ld";
+import { CompareSection, SectionHead, WhoSection } from "@/components/landing/sections";
+import { SeasonSteps } from "@/components/landing/season-steps";
 import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
 import { SITE } from "@/lib/site";
@@ -16,28 +18,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const STEPS = [
-  { t: "Tell us about you", d: "Upload your CV and transcripts, then talk to the interviewer for ten minutes. It fills your profile and asks only what's missing." },
-  { t: "Get your shortlist", d: "Agents search the regions you pick, from the top-ranked schools down, and keep the programs you can realistically get into." },
-  { t: "Approve your essays", d: "Drafts are written from facts in your profile and checked for any claim you couldn't back up. You edit, then sign." },
-  { t: "Agents submit", d: "They find each portal, create your account, fill every page and upload your documents. You step in only for bot checks and fees." },
-  { t: "Work every admit for money", d: "After an offer, agents look for merit reconsideration, assistantships and scholarships, and draft the emails." },
-];
 
-const WHO = [
-  { t: "Applying from abroad", d: "Every country has its own portals, document rules and deadlines. The agents read each school's own pages, so you aren't decoding the rules yourself." },
-  { t: "Working while you apply", d: "Short on evenings? The agents handle the forms, uploads and follow-ups. Your time goes on your essays and your decisions." },
-  { t: "Applying for funding", d: "Fee waivers, scholarships, assistantships, merit reconsideration: the agents ask wherever it's worth asking, and tell you what came back." },
-];
 
-// what changes with Ivyward, row by row. kept factual: no numbers we can't stand behind.
-const COMPARE: { row: string; self: string; consultant: string; ivyward: string }[] = [
-  { row: "Finding programs", self: "Hours on rankings and program pages", consultant: "A list from their experience", ivyward: "Agents check each program's official pages against your profile" },
-  { row: "Essays", self: "Written from scratch for every school", consultant: "Edited with you over several calls", ivyward: "Drafted from your own facts and fact-checked. You edit and sign" },
-  { row: "Application portals", self: "Every page, for every school, by you", consultant: "Usually still you", ivyward: "Accounts created, pages filled, documents uploaded for you" },
-  { row: "Fees and funding", self: "Up to you to ask", consultant: "Advice on where to ask", ivyward: "Agents ask for fee waivers, scholarships and merit aid" },
-  { row: "Cost", self: "Your time", consultant: "Often charged per school or as a package", ivyward: "Free for up to 15 applications" },
-];
 
 const CONTROL = [
   { t: "Every fact is yours", d: "Agents only use what's in your profile. When your documents disagree, you pick." },
@@ -98,76 +80,13 @@ export default async function Home() {
         </section>
 
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24" aria-labelledby="how-h">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 id="how-h" className="font-serif text-[36px] leading-tight sm:text-[48px]">
-              A whole application season, run for you.
-            </h2>
-            <p className="mt-4 text-[17px] text-muted">Five stages, from your first upload to the funding conversation after an admit.</p>
-          </div>
-          <ol className="mt-14 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-5">
-            {STEPS.map((s, i) => (
-              <li key={s.t} className="bg-surface p-6">
-                <span className="font-serif text-[15px] text-brand tabular">{i + 1}</span>
-                <h3 className="mt-3 font-serif text-[21px] leading-snug">{s.t}</h3>
-                <p className="mt-2 text-[14.5px] leading-relaxed text-muted">{s.d}</p>
-              </li>
-            ))}
-          </ol>
+          <SectionHead id="how-h" one="A whole application season," two="run for you." sub="Five stages, from your first upload to the funding conversation after an admit." />
+          <SeasonSteps />
         </section>
 
-        <section className="mx-auto max-w-6xl px-5 pb-24" aria-labelledby="who-h">
-          <h2 id="who-h" className="max-w-xl font-serif text-[34px] leading-tight sm:text-[42px]">
-            Made for the applications that take the most out of you.
-          </h2>
-          <div className="mt-10 grid gap-10 sm:grid-cols-3">
-            {WHO.map((w) => (
-              <div key={w.t} className="border-t-2 border-ink pt-5">
-                <h3 className="font-serif text-[22px] leading-snug">{w.t}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-muted">{w.d}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <WhoSection />
 
-        <section id="compare" className="scroll-mt-20 border-y border-line bg-surface/60 py-24" aria-labelledby="compare-h">
-          <div className="mx-auto max-w-6xl px-5">
-            <div className="max-w-2xl">
-              <h2 id="compare-h" className="font-serif text-[34px] leading-tight sm:text-[42px]">
-                On your own, with a consultant, or with Ivyward.
-              </h2>
-              <p className="mt-4 text-[17px] text-muted">The same application season, three ways. In every one of them, you sign your own applications.</p>
-            </div>
-            <div className="mt-12 overflow-hidden rounded-xl border border-line bg-surface" role="table" aria-label="Ivyward compared with applying on your own or with a consultant">
-              <div role="row" className="hidden grid-cols-[1fr_1.2fr_1.2fr_1.4fr] border-b border-line text-[13px] text-muted sm:grid">
-                <span role="columnheader" className="px-5 py-3.5" />
-                <span role="columnheader" className="px-5 py-3.5">On your own</span>
-                <span role="columnheader" className="px-5 py-3.5">With a consultant</span>
-                <span role="columnheader" className="bg-ink/[0.035] px-5 py-3.5 font-medium text-foreground dark:bg-white/[0.04]">
-                  With Ivyward
-                </span>
-              </div>
-              {COMPARE.map((c) => (
-                <div key={c.row} role="row" className="grid border-b border-line last:border-0 sm:grid-cols-[1fr_1.2fr_1.2fr_1.4fr]">
-                  <span role="rowheader" className="px-5 pb-1 pt-5 font-medium sm:py-5">
-                    {c.row}
-                  </span>
-                  <span role="cell" className="px-5 py-1.5 text-[14.5px] text-muted sm:py-5">
-                    <span className="mr-1.5 text-xs text-neutral-400 sm:hidden">On your own:</span>
-                    {c.self}
-                  </span>
-                  <span role="cell" className="px-5 py-1.5 text-[14.5px] text-muted sm:py-5">
-                    <span className="mr-1.5 text-xs text-neutral-400 sm:hidden">Consultant:</span>
-                    {c.consultant}
-                  </span>
-                  <span role="cell" className="bg-ink/[0.035] px-5 pb-5 pt-1.5 text-[14.5px] dark:bg-white/[0.04] sm:py-5">
-                    <span className="mr-1.5 text-xs font-medium sm:hidden">Ivyward:</span>
-                    {c.ivyward}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <CompareSection />
 
         <section className="mx-auto max-w-6xl px-5 py-24" aria-labelledby="control-h">
           <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
