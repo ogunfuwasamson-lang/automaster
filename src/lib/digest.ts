@@ -3,6 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { buildDigest, digestText, localHour, type Digest } from "@/lib/activity";
 import { appUrl, mailAccount, sendAs } from "@/lib/gmail";
+import { sendSystem, systemMailReady } from "@/lib/mailer";
 
 const DIGEST_HOUR = 7;
 
@@ -50,20 +51,35 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
   return { digest, since, name };
 }
 
-// the system.digest job: build, store, email it to the applicant themselves if gmail is connected
+// the system.digest job: build, store, and email it to the applicant: from their own Gmail if it's connected
+// (it lands as a note to self), otherwise from Ivyward through Resend
 export async function runDigest(userId: string) {
   const db = admin();
   const now = new Date();
   const { digest, since, name } = await makeDigest(userId, now);
   let via: string | null = null;
   if (!digest.empty) {
+    const subject = `Ivyward: ${digest.headline}`;
+    const body = digestText(digest, appUrl(), name);
     const acct = await mailAccount(userId);
     if (acct?.status === "active") {
       try {
-        await sendAs(userId, { to: acct.email, subject: `Ivyward: ${digest.headline}`, body: digestText(digest, appUrl(), name), fromName: "Ivyward" });
+        await sendAs(userId, { to: acct.email, subject, body, fromName: "Ivyward" });
         via = "gmail";
       } catch {
         via = null;
+      }
+    }
+    if (!via && systemMailReady()) {
+      const { data } = await db.auth.admin.getUserById(userId);
+      const to = data.user?.email;
+      if (to) {
+        try {
+          await sendSystem({ to, subject, text: body, unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
+          via = "resend";
+        } catch {
+          via = null;
+        }
       }
     }
   }

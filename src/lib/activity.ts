@@ -157,7 +157,7 @@ export function buildDigest(d: DigestInput): Digest {
 
 export function digestText(g: Digest, appUrl: string, name: string | null): string {
   const sec = (h: string, xs: string[]) => (xs.length ? `${h}\n${xs.map((x) => `- ${x}`).join("\n")}\n\n` : "");
-  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off on your dashboard.`;
+  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off in settings: ${appUrl}/settings`;
 }
 
 // is it digest time (7am) for this timezone?
