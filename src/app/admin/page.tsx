@@ -6,7 +6,7 @@ import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/
 import { planOf } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Operator" };
+export const metadata = { title: "Operator", robots: { index: false, follow: false } };
 
 // operator-only view of AI cost per user. regular users get a 404.
 export default async function Admin() {

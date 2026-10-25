@@ -9,6 +9,9 @@ import { TopNav, TabBar, UserMenu } from "./nav";
 import { ChatDock } from "@/components/chat/chat-dock";
 import { PageInk } from "@/components/landing/page-ink";
 
+// the signed-in app is private: keep it out of search results
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = await requireUser();
   if (!auth) redirect("/login");

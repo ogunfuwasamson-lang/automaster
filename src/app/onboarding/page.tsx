@@ -7,7 +7,7 @@ import { userPlan } from "@/lib/budget";
 import { Onboarding } from "./wizard";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Get started" };
+export const metadata = { title: "Get started", robots: { index: false, follow: false } };
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string }> }) {
   const auth = await requireUser();

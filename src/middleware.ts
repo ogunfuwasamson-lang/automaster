@@ -18,6 +18,14 @@ const PUBLIC = [
   "/pricing",
   "/privacy",
   "/terms",
+  // search engines and AI crawlers: the sitemap, robots rules, llms.txt and the share-card images
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/opengraph-image",
+  "/twitter-image",
+  "/icon",
+  "/apple-icon",
 ];
 
 export async function middleware(req: NextRequest) {

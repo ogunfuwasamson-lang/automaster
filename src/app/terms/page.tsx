@@ -1,6 +1,10 @@
 import { LegalPage, Contact } from "@/components/legal/legal-page";
 
-export const metadata = { title: "Terms" };
+export const metadata = {
+  title: "Terms of use",
+  description: "The terms for using Ivyward, the AI agents that prepare and submit university applications you approve.",
+  alternates: { canonical: "/terms" },
+};
 
 export default function Terms() {
   return (

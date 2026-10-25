@@ -1,6 +1,10 @@
 import { LegalPage, Contact } from "@/components/legal/legal-page";
 
-export const metadata = { title: "Privacy" };
+export const metadata = {
+  title: "Privacy policy",
+  description: "What Ivyward keeps, how the agents use it, how Gmail is connected through Composio, and the controls you have over your data.",
+  alternates: { canonical: "/privacy" },
+};
 
 export default function Privacy() {
   return (

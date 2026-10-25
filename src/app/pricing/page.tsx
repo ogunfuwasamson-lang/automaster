@@ -1,33 +1,30 @@
-import { ThemeButton } from "@/components/theme";
+import type { Metadata } from "next";
 import { CampusInk } from "@/components/landing/campus-ink";
-import Link from "next/link";
 import { Check } from "lucide-react";
 import { PLANS } from "@/lib/plans";
 import { ButtonLink } from "@/components/ui/button";
-import { Wordmark } from "@/components/wordmark";
+import { SiteFooter, SiteHeader } from "@/components/landing/site-chrome";
+import { BreadcrumbJsonLd, SiteJsonLd } from "@/components/seo/json-ld";
+import { requireUser } from "@/lib/supabase/server";
 
-export const metadata = { title: "Pricing" };
+export const metadata: Metadata = {
+  title: "Pricing",
+  description: "Ivyward's Pro plan is free: every region, up to 15 university applications per cycle, essays and portal submission. Or pay once for the cycle with a $199 Season pass.",
+  alternates: { canonical: "/pricing" },
+};
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export default function Pricing() {
+export default async function Pricing() {
   const plans = [PLANS.pro, PLANS.season];
+  const signedIn = !!(await requireUser().catch(() => null));
   return (
     <div className="relative min-h-dvh overflow-x-clip">
-      <CampusInk className="absolute inset-x-0 top-0 h-[560px] w-full" />
-      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <Wordmark />
-        <nav className="flex items-center gap-1 text-sm font-semibold">
-          <ThemeButton />
-          <Link href="/login" className="rounded-xl px-3 py-2 text-muted hover:text-foreground">
-            Sign in
-          </Link>
-          <ButtonLink href="/login?mode=signup" size="sm">
-            Start free
-          </ButtonLink>
-        </nav>
-      </header>
-      <main className="relative z-10 mx-auto max-w-6xl px-5 pb-24 pt-12 text-center">
+      <SiteJsonLd />
+      <BreadcrumbJsonLd items={[["Ivyward", "/"], ["Pricing", "/pricing"]]} />
+      <SiteHeader signedIn={signedIn} />
+      <CampusInk className="absolute inset-x-0 top-16 h-[560px] w-full" />
+      <main className="relative z-10 mx-auto max-w-6xl px-5 pb-24 pt-16 text-center">
         <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Pro is free. All of it.</h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
           Agents research programs, write and fact-check your essays, submit to the portals and chase funding. You review and sign everything. Prefer to pay once for the cycle? That&apos;s the Season pass.
@@ -62,16 +59,8 @@ export default function Pricing() {
           })}
         </div>
         <p className="mt-12 text-sm text-muted">Application fees are paid to schools directly, and agents ask for fee waivers first.</p>
-        <p className="mt-3 text-sm text-muted">
-          <Link href="/privacy" className="hover:text-foreground">
-            Privacy
-          </Link>{" "}
-          ·{" "}
-          <Link href="/terms" className="hover:text-foreground">
-            Terms
-          </Link>
-        </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }

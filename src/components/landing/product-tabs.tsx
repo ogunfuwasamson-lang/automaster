@@ -4,7 +4,8 @@ import { Check, CircleDot, FileText, Mail, Search } from "lucide-react";
 import { StatusPill } from "@/components/ui/status";
 import { Mark } from "@/components/wordmark";
 
-// the product, one stage at a time: tabs over a framed preview. illustrative data only.
+// the product, one stage at a time: tabs over a framed preview. illustrative data only: every school, person and
+// address here is invented, so nothing reads as a real university endorsing Ivyward.
 const TABS = ["Find programs", "Write essays", "Fill portals", "Read replies", "Win funding"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -22,11 +23,11 @@ function Frame({ path, children }: { path: string; children: React.ReactNode }) 
 }
 
 const PROGRAMS = [
-  ["University of Toronto", "MSc Management Analytics", "Canada", "Strong", "Merit aid likely"],
-  ["University of Edinburgh", "MSc Finance", "United Kingdom", "Strong", "Fee waiver offered"],
-  ["TU Munich", "MSc Management and Technology", "Germany", "Good", "No tuition"],
-  ["NUS Business School", "MSc Business Analytics", "Singapore", "Reach", "Scholarships open"],
-  ["HEC Montréal", "MSc International Business", "Canada", "Good", "Entrance award"],
+  ["Northfield University", "MSc Management Analytics", "Canada", "Strong", "Merit aid likely"],
+  ["Kingsbridge University", "MSc Finance", "United Kingdom", "Strong", "Fee waiver offered"],
+  ["Halden Technical University", "MSc Management and Technology", "Germany", "Good", "No tuition"],
+  ["Lakemoor Business School", "MSc Business Analytics", "Singapore", "Reach", "Scholarships open"],
+  ["Ashby School of Management", "MSc International Business", "Canada", "Good", "Entrance award"],
 ];
 
 function Body({ tab }: { tab: Tab }) {
@@ -64,13 +65,13 @@ function Body({ tab }: { tab: Tab }) {
     );
   if (tab === "Write essays")
     return (
-      <Frame path="Edinburgh · Statement of purpose · draft 2">
+      <Frame path="Kingsbridge · Statement of purpose · draft 2">
         <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
           <div className="space-y-3 font-serif text-[16px] leading-relaxed">
             <p>
-              At Vendy I closed partnerships with <mark className="rounded bg-go/10 px-0.5 text-inherit">four commercial banks</mark> in eighteen months, and learned how much of fintech is trust, built slowly and then all at once.
+              At a payments startup I closed partnerships with <mark className="rounded bg-go/10 px-0.5 text-inherit">four commercial banks</mark> in eighteen months, and learned how much of fintech is trust, built slowly and then all at once.
             </p>
-            <p className="text-muted">Edinburgh&apos;s finance and technology track is where I want to put numbers behind that instinct…</p>
+            <p className="text-muted">Kingsbridge&apos;s finance and technology track is where I want to put numbers behind that instinct…</p>
           </div>
           <div className="space-y-2 text-[13px]">
             <p className="text-[11.5px] text-muted">Fact check</p>
@@ -86,10 +87,10 @@ function Body({ tab }: { tab: Tab }) {
     );
   if (tab === "Fill portals")
     return (
-      <Frame path="Toronto · application portal">
+      <Frame path="Northfield · application portal">
         <ol className="space-y-3 text-[13.5px]">
           {[
-            ["Found the portal", "apply.utoronto.ca", true],
+            ["Found the portal", "apply.northfield.edu", true],
             ["Created your account", "with your Gmail, password saved in Portal logins", true],
             ["Filled 6 sections", "84 answers from your profile", true],
             ["Uploaded documents", "CV, transcript, statement of purpose", true],
@@ -108,11 +109,11 @@ function Body({ tab }: { tab: Tab }) {
     );
   if (tab === "Read replies")
     return (
-      <Frame path="Messages · University of Edinburgh">
+      <Frame path="Messages · Kingsbridge University">
         <div className="space-y-3 text-[13.5px]">
           <div className="rounded-lg border border-line p-3">
             <p className="flex items-center gap-2 text-[12px] text-muted">
-              <Mail className="size-3.5" aria-hidden /> admissions@ed.ac.uk · 2 hours ago
+              <Mail className="size-3.5" aria-hidden /> admissions@kingsbridge.edu · 2 hours ago
             </p>
             <p className="mt-1.5 font-medium">Your application fee waiver</p>
             <p className="mt-1 text-muted">We&apos;re pleased to confirm that your application fee has been waived…</p>
@@ -128,9 +129,9 @@ function Body({ tab }: { tab: Tab }) {
     <Frame path="Offers · funding">
       <ul className="divide-y divide-line text-[13.5px]">
         {[
-          ["University of Toronto", "Admitted", "Asked for merit reconsideration: draft ready", "admitted"],
-          ["HEC Montréal", "Admitted", "Entrance award applied for", "admitted"],
-          ["University of Edinburgh", "Under review", "Scholarship form submitted", "under_review"],
+          ["Northfield University", "Admitted", "Asked for merit reconsideration: draft ready", "admitted"],
+          ["Ashby School of Management", "Admitted", "Entrance award applied for", "admitted"],
+          ["Kingsbridge University", "Under review", "Scholarship form submitted", "under_review"],
         ].map(([s, , d, st]) => (
           <li key={s} className="flex items-center gap-3 py-3">
             <FileText className="size-4 shrink-0 text-muted" aria-hidden />
