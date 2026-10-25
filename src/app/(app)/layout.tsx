@@ -7,6 +7,7 @@ import { Wordmark } from "@/components/wordmark";
 import { Suspense } from "react";
 import { TopNav, TabBar, UserMenu } from "./nav";
 import { ChatDock } from "@/components/chat/chat-dock";
+import { PageInk } from "@/components/landing/page-ink";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = await requireUser();
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
+      <PageInk />
       <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-7 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">{children}</main>
       <TabBar needsYou={needsYou} unread={unread} />
       <Suspense>
