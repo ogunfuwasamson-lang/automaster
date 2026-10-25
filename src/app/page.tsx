@@ -6,6 +6,7 @@ import { Wordmark } from "@/components/wordmark";
 import { HeroIn } from "@/components/landing/hero-motion";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { ProductTabs } from "@/components/landing/product-tabs";
+import { requireUser } from "@/lib/supabase/server";
 
 export const metadata = { title: { absolute: "automaster: your university applications, done for you" } };
 
@@ -34,7 +35,9 @@ const FAQ = [
 
 const REGIONS = ["United Kingdom", "Canada", "United States", "Germany", "Netherlands", "France", "Singapore", "Australia"];
 
-export default function Home() {
+export default async function Home() {
+  // signed in already: the header takes you back into the app instead of offering sign-in
+  const signedIn = !!(await requireUser().catch(() => null));
   return (
     <div className="relative min-h-dvh overflow-x-clip">
       <header className="glass sticky top-0 z-30 border-b border-line">
@@ -53,12 +56,20 @@ export default function Home() {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <ThemeButton />
-            <ButtonLink href="/login" size="sm" variant="secondary" className="hidden sm:inline-flex">
-              Sign in
-            </ButtonLink>
-            <ButtonLink href="/login?mode=signup" size="sm">
-              Start free
-            </ButtonLink>
+            {signedIn ? (
+              <ButtonLink href="/dashboard" size="sm">
+                Open automaster
+              </ButtonLink>
+            ) : (
+              <>
+                <ButtonLink href="/login" size="sm" variant="secondary" className="hidden sm:inline-flex">
+                  Sign in
+                </ButtonLink>
+                <ButtonLink href="/login?mode=signup" size="sm">
+                  Start free
+                </ButtonLink>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -205,6 +216,12 @@ export default function Home() {
             </Link>
             <Link href="/login?mode=signup" className="block text-muted hover:text-foreground">
               Create an account
+            </Link>
+            <Link href="/privacy" className="block text-muted hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/terms" className="block text-muted hover:text-foreground">
+              Terms
             </Link>
           </div>
         </div>

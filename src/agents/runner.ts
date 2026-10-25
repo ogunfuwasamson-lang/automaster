@@ -256,7 +256,7 @@ export const runner: Record<string, Handler> = {
       system: "extract the online application portal url from the research: where an applicant creates an account or signs in to apply. if only the program page is known, return \"\".",
       prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 40).join(" ")}`,
       schema: PortalOut,
-      maxTokens: 600,
+      maxTokens: 1500,
     });
     // accept it if it came out of the research (text or sources) or sits on the school's own domain
     const cand = normalizeUrl(output.portal_url);
@@ -279,6 +279,21 @@ export const runner: Record<string, Handler> = {
       // no portal found: start from the program page and follow its "apply" link
       url = normalizeUrl(p.url);
       note = "starting from the program page";
+    }
+    if (!url) {
+      // no program page on file either: start from the school's own page the search found (how-to-apply pages first);
+      // the navigator follows its "apply" links from there
+      const GENERIC = /^(university|universite|universidad|school|business|college|management|institute|graduate|faculty|of|the|and|de|des|du)$/i;
+      const tokens = p.schools.name.toLowerCase().normalize("NFKD").replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !GENERIC.test(w));
+      const official = found.sources
+        .map((u) => normalizeUrl(u))
+        .filter((u): u is string => !!u)
+        .filter((u) => /\.(edu|ac\.[a-z]{2}|edu\.[a-z]{2})$|\.(fr|ca|de|nl|ch|sg)$/i.test(new URL(u).hostname) && tokens.some((t) => new URL(u).hostname.includes(t.slice(0, 6))))
+        .sort((a, b) => Number(/apply|admission|how-to/i.test(b)) - Number(/apply|admission|how-to/i.test(a)));
+      if (official[0]) {
+        url = official[0];
+        note = "starting from the school's admissions page";
+      }
     }
     if (!url) {
       await setRunner(applicationId, { runner_status: "needs_you", runner_note: "couldn't find the application portal link. paste it on the application page and press try again" });
@@ -311,7 +326,9 @@ export const runner: Record<string, Handler> = {
     if (!sheet) return { skipped: "no approved packet" };
     const { data: row } = await db.from("applications").select("runner_state, runner_session_id").eq("id", applicationId).single();
     const state = ((row?.runner_state ?? {}) as RunnerState) || {};
-    state.steps ??= 0;
+    // per-run counters start fresh each run; the engine keeps a lifetime total as a runaway guard
+    state.steps = 0;
+    state.navCalls = 0;
     const storage = state.storage_enc ? (JSON.parse(decrypt(state.storage_enc)) as StorageState) : null;
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });

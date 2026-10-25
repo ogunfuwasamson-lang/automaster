@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useMounted } from "@/components/use-mounted";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -88,6 +89,11 @@ function short(iso: string) {
   if (new Date().toDateString() === d.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   if (diff < 6 * DAY) return d.toLocaleDateString(undefined, { weekday: "short" });
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+// times depend on the viewer's clock and time zone: render them only in the browser
+function When({ iso, f }: { iso: string; f: (iso: string) => string }) {
+  const mounted = useMounted();
+  return <>{mounted ? f(iso) : ""}</>;
 }
 const long = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -248,7 +254,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-2">
                               <span className={`truncate text-[13.5px] ${isUnread ? "font-extrabold" : "font-bold"}`}>{t.school}</span>
-                              <span className={`shrink-0 text-[11px] tabular ${isUnread ? "font-bold text-accent" : "text-muted"}`}>{short(at(l))}</span>
+                              <span className={`shrink-0 text-[11px] tabular ${isUnread ? "font-bold text-accent" : "text-muted"}`}><When iso={at(l)} f={short} /></span>
                             </span>
                             <span className={`block truncate text-[12.5px] ${isUnread ? "font-bold" : "font-medium"}`}>{t.subject ?? l.subject ?? "(no subject)"}</span>
                             <span className="mt-0.5 block truncate text-[12px] text-muted">
@@ -419,7 +425,7 @@ function MessageCard({ m, school, me, defaultOpen, onChange }: { m: InboxMsg; sc
             {open ? (mine ? `to ${m.to_email ?? "the school"}${me ? `, from ${me}` : ""}` : m.from_email ? `from ${m.from_email}` : "") : (m.direction === "in" ? m.summary ?? m.body : m.body).replace(/\s+/g, " ").slice(0, 120)}
           </span>
         </span>
-        <span className="shrink-0 text-[11.5px] text-muted">{long(at(m))}</span>
+        <span className="shrink-0 text-[11.5px] text-muted"><When iso={at(m)} f={long} /></span>
       </button>
       {open && (
         <div className="border-t border-line/70 px-4 pb-4 pt-3 sm:px-5">

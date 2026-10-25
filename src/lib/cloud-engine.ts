@@ -23,6 +23,7 @@ export interface Snapshot {
 export interface EngineState {
   steps: number;
   navCalls?: number;
+  totalSteps?: number; // across every run on this application
   navHistory?: string[];
   triedMailLogin?: boolean;
   signedIn?: boolean; // a sign-in with the stored login has worked at least once
@@ -244,7 +245,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
   while (Date.now() < end) {
     if (deps.shouldStop?.()) return { outcome: { kind: "continue", note: "paused" }, state, filled };
     state.steps += 1;
-    if (state.steps > 60) return { outcome: { kind: "needs_you", reason: "stuck", note: "this portal has more pages than one run allows; take over from here" }, state, filled };
+    state.totalSteps = (state.totalSteps ?? 0) + 1;
+    // one run ends at 60 steps and the next carries on; only a portal that never ends stops for good
+    if (state.steps > 60) return { outcome: { kind: "continue", note: "continuing on the next pages" }, state, filled };
+    if (state.totalSteps > 600) return { outcome: { kind: "needs_you", reason: "stuck", note: "the agents have been through this portal hundreds of pages without finishing; please check where it stands" }, state, filled };
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await sleep(800);
     let s = await snap(page);
@@ -268,8 +272,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     if (state.samePageCount >= 3) {
       const req = s.fields.map((f) => f.label.slice(0, 50));
-      for (const f of s.fields.filter((x) => x.required)) if ((state.missing ?? []).length) ask(state, f);
-      const fix = (state.missing ?? []).length ? questionNote(state) : "";
+      // required boxes still empty after three tries: the profile doesn't answer them, so ask the applicant
+      const stillEmpty = s.fields.filter((x) => x.required && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+      for (const f of stillEmpty) ask(state, f);
+      const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
       const stop: Outcome = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
       if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
@@ -329,9 +335,10 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
           }
         }
         if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
-        return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. if you changed it, update it in automaster" }, state, filled };
+        return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. Check it under Portal logins (or reset it on the portal and save the new one there); the agents sign in again by themselves" }, state, filled };
       }
-      state.signedIn = true;
+      // only count it as signed in once the sign-in form has actually gone away
+      if (classify(after) !== "login") state.signedIn = true;
       continue;
     }
 

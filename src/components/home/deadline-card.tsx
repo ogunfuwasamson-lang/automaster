@@ -18,7 +18,7 @@ export function DeadlineCard({ id, school, program, deadline, blocker }: { id: s
     [Math.floor((left % 86_400_000) / 3_600_000), "hours"],
     [Math.floor((left % 3_600_000) / 60_000), "min"],
   ];
-  const date = new Date(deadline + "T00:00:00Z").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const date = new Date(deadline + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
       <div className="border-b border-line bg-[color-mix(in_oklab,var(--brand)_5%,var(--surface))] px-6 pb-5 pt-5">

@@ -54,13 +54,23 @@ export default function Pricing() {
                   ))}
                 </ul>
                 <ButtonLink href="/login?mode=signup" variant={featured ? "primary" : "secondary"} size="lg" className="mt-9 w-full">
-                  {featured ? "Start free" : `Choose ${cap(p.name)}`}
+                  {featured ? "Start free" : "Start free, switch later"}
                 </ButtonLink>
+                {!featured && <p className="mt-2 text-center text-xs text-muted">Season pass payments open soon.</p>}
               </section>
             );
           })}
         </div>
         <p className="mt-12 text-sm text-muted">Application fees are paid to schools directly, and agents ask for fee waivers first.</p>
+        <p className="mt-3 text-sm text-muted">
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>{" "}
+          ·{" "}
+          <Link href="/terms" className="hover:text-foreground">
+            Terms
+          </Link>
+        </p>
       </main>
     </div>
   );

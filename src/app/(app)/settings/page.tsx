@@ -4,6 +4,7 @@ import { gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
 import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard } from "./controls";
 import type { GrantMode } from "@/lib/policy";
+import { PLANS, planOf } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -28,7 +29,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const { mail } = await searchParams;
   const [{ data: grants }, { data: prof }, { data: acct }, { data: tokens }] = await Promise.all([
     auth.sb.from("grants").select("capability, mode, undo_seconds"),
-    db.from("profiles").select("fee_envelope_cents, digest_enabled").eq("id", uid).single(),
+    db.from("profiles").select("fee_envelope_cents, digest_enabled, plan").eq("id", uid).single(),
     db.from("mail_accounts").select("email, status, last_error").eq("user_id", uid).maybeSingle(),
     db.from("runner_tokens").select("id, label, created_at, last_used_at").eq("user_id", uid).is("revoked_at", null).order("created_at", { ascending: false }),
   ]);
@@ -51,6 +52,17 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
       <Group title="Digest">
         <DigestToggle enabled={prof?.digest_enabled ?? true} />
+      </Group>
+
+      <Group title="Plan" description="Pro is free. The Season pass is the one paid option.">
+        <div id="plan" className="scroll-mt-24 space-y-3 text-sm">
+          <p>
+            You&apos;re on <span className="font-medium">{planOf(prof?.plan).id === "season" ? "the Season pass" : "Pro, free"}</span>. Every feature is included: all regions, up to {PLANS.pro.maxActiveApplications} applications, essays, submission and funding help.
+          </p>
+          {planOf(prof?.plan).id !== "season" && (
+            <p className="text-muted">The Season pass ({PLANS.season.priceLabel}) pays once for the whole cycle. Payments aren&apos;t open yet, so nothing changes for you until they are.</p>
+          )}
+        </div>
       </Group>
 
       <section className="border-t border-line pt-8">

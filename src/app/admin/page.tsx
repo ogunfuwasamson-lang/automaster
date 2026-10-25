@@ -43,8 +43,9 @@ export default async function Admin() {
     perAgent.set(key, a);
   }
   const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
-  const paying = (users ?? []).filter((u) => u.plan !== "free");
-  const revenue = paying.reduce((s, u) => s + (u.plan === "season" ? 199 / 6 : 49), 0);
+  // pro is free: only season passes pay ($199 per six months, counted monthly)
+  const paying = (users ?? []).filter((u) => u.plan === "season");
+  const revenue = paying.length * (199 / 6);
   const $ = (n: number) => `$${n.toFixed(2)}`;
   const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 

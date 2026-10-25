@@ -89,18 +89,33 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
 
   let msg: Message | null = null;
   try {
-    // stream so long outputs never hit http timeouts; parse ourselves so failures say why
-    msg = await llm()
-      .messages.stream({
-        model,
-        max_tokens: args.maxTokens ?? 8000,
-        system: cachedSystem(args.system),
-        messages: [{ role: "user", content }],
-        // sonnet/opus 5.5 think by default (and it eats max_tokens): turn it off. haiku doesn't take the setting.
-        ...(model.includes("haiku") ? {} : { thinking: { type: "between_tools" as const } }),
-        output_config: { format: zodOutputFormat(args.schema) },
-      })
-      .finalMessage();
+    // stream so long outputs never hit http timeouts; parse ourselves so failures say why.
+    // an answer cut off by the token limit comes back as unparseable json: ask once more with room to finish.
+    let limit = args.maxTokens ?? 8000;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        msg = await llm()
+          .messages.stream({
+            model,
+            max_tokens: limit,
+            system: cachedSystem(args.system),
+            messages: [{ role: "user", content }],
+            // sonnet/opus 5.5 think by default (and it eats max_tokens): turn it off. haiku doesn't take the setting.
+            ...(model.includes("haiku") ? {} : { thinking: { type: "between_tools" as const } }),
+            output_config: { format: zodOutputFormat(args.schema) },
+          })
+          .finalMessage();
+        if (msg.stop_reason === "max_tokens" && attempt === 0) throw new Error("Failed to parse structured output: cut off");
+        break;
+      } catch (e) {
+        if (attempt === 0 && /Failed to parse structured output|max_tokens/i.test(String(e))) {
+          limit = Math.min(16_000, Math.max(limit * 3, 2000));
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!msg) throw new Error("no response from the model");
     const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
     if (msg.stop_reason !== "end_turn") {
       throw new Error(`model stopped early (stop_reason=${msg.stop_reason}, ${msg.usage.output_tokens} output tokens)`);

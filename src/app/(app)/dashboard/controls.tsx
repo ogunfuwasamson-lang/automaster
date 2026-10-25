@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useMounted } from "@/components/use-mounted";
 import { useRouter } from "next/navigation";
 import { CirclePause, CirclePlay, RotateCcw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,10 +44,11 @@ export function StopButton({ paused }: { paused: boolean }) {
 export function CancelEmail({ id, sendAfter }: { id: string; sendAfter: string | null }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  const mins = sendAfter ? Math.max(0, Math.ceil((Date.parse(sendAfter) - Date.now()) / 60_000)) : 0;
+  const mounted = useMounted();
+  const mins = sendAfter && mounted ? Math.max(0, Math.ceil((Date.parse(sendAfter) - Date.now()) / 60_000)) : 0;
   return (
     <span className="flex items-center gap-3">
-      <span className="text-xs text-muted">{mins ? `Sends in ${mins} min` : "Sending now"}</span>
+      <span className="text-xs text-muted">{!mounted ? "Sending soon" : mins ? `Sends in ${mins} min` : "Sending now"}</span>
       <Button
         size="sm"
         variant="secondary"

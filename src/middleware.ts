@@ -2,7 +2,23 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // /api/runner authenticates with the extension key itself; it has no session cookie
-const PUBLIC = ["/login", "/auth", "/api/worker", "/api/health", "/api/runner/tasks", "/api/runner/sheet", "/api/runner/map", "/api/runner/file", "/api/runner/check", "/api/runner/report", "/api/runner/work", "/pricing"];
+const PUBLIC = [
+  "/login",
+  "/auth",
+  "/api/worker",
+  "/api/health",
+  "/api/runner/tasks",
+  "/api/runner/sheet",
+  "/api/runner/map",
+  "/api/runner/file",
+  "/api/runner/check",
+  "/api/runner/report",
+  "/api/runner/work",
+  "/api/runner/engine", // the chrome extension's engine calls (extension key, no cookie)
+  "/pricing",
+  "/privacy",
+  "/terms",
+];
 
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
@@ -25,8 +41,13 @@ export async function middleware(req: NextRequest) {
 
   const path = req.nextUrl.pathname;
   if (!data.user && !PUBLIC.some((p) => path.startsWith(p)) && path !== "/") {
+    // an api call gets a clear 401 rather than a login page it can't use
+    if (path.startsWith("/api/")) return NextResponse.json({ error: "sign in first" }, { status: 401 });
     const to = req.nextUrl.clone();
     to.pathname = "/login";
+    to.search = "";
+    // come back to the page you asked for after signing in
+    if (path !== "/dashboard") to.searchParams.set("next", path + req.nextUrl.search);
     return NextResponse.redirect(to);
   }
   return res;

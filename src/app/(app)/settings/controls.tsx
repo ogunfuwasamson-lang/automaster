@@ -217,7 +217,7 @@ export function RunnerCard({ tokens }: { tokens: { id: string; label: string | n
             {tokens.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
                 <span className="text-muted">
-                  {t.label ?? "Key"}, created {new Date(t.created_at).toLocaleDateString()}. {t.last_used_at ? `Last used ${new Date(t.last_used_at).toLocaleString()}` : "Not used yet"}
+                  {t.label ?? "Key"}, created {new Date(t.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}. {t.last_used_at ? `Last used ${new Date(t.last_used_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : "Not used yet"}
                 </span>
                 <Button
                   size="sm"

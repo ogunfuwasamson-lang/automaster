@@ -11,18 +11,21 @@ import { Wordmark } from "@/components/wordmark";
 import { ThemeButton } from "@/components/theme";
 
 function LoginForm() {
-  const signup = useSearchParams().get("mode") === "signup";
+  const params = useSearchParams();
+  const signup = params.get("mode") === "signup";
+  const next = params.get("next") ?? "";
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used or has expired. Enter your email for a fresh one." : "");
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setState("sending");
     setErr("");
+    const back = next.startsWith("/") && !next.startsWith("//") ? `?next=${encodeURIComponent(next)}` : "";
     const { error } = await browserClient().auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback${back}` },
     });
     if (error) {
       setErr(/rate/i.test(error.message) ? "Too many links requested. Wait a minute, then try again." : error.message);
@@ -69,6 +72,9 @@ function LoginForm() {
           <>New here? <a href="/login?mode=signup" className="font-semibold text-brand hover:underline">Create an account</a></>
         )}
       </p>
+      <p className="text-xs text-muted">
+        By continuing you agree to the <a href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</a> and <a href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</a>.
+      </p>
     </form>
   );
 }
@@ -93,7 +99,7 @@ export default function Login() {
           <ul className="mt-6 space-y-2 px-2 text-sm text-muted">
             {["No password. Every sign-in is a one-time email link.", "Free to use. No card needed.", "Bachelor's, master's and PhD, anywhere in the world."].map((t) => (
               <li key={t} className="flex items-center gap-2.5">
-                <span className="grid size-5 place-items-center rounded-full bg-accent/10 text-accent">
+                <span className="grid size-5 place-items-center text-brand">
                   <Check className="size-3" aria-hidden />
                 </span>
                 {t}

@@ -79,7 +79,7 @@ export function AppList({ rows }: { rows: AppRow[] }) {
                 <span className="hidden sm:block">
                   {r.deadline ? (
                     <>
-                      <span className="block text-sm font-bold tabular">{new Date(r.deadline + "T00:00:00Z").toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })}</span>
+                      <span className="block text-sm font-bold tabular">{new Date(r.deadline + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}</span>
                       <span className={`text-xs tabular ${r.days !== null && r.days >= 0 && r.days <= 7 && r.group !== "signed" ? "font-semibold text-stop" : "text-muted"}`}>
                         {r.days === null ? "" : r.days < 0 ? "Passed" : r.days === 0 ? "Today" : `${r.days} days`}
                       </span>
