@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical } from "lucide-react";
@@ -93,11 +94,7 @@ export function Onboarding(props: {
 
   return (
     <div className="relative min-h-dvh overflow-x-clip">
-      <div className="aurora !h-[620px]" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </div>
+      <CampusInk className="absolute inset-x-0 top-0 h-[560px] w-full opacity-60" />
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark href="/dashboard" />
         <div className="flex items-center gap-1">
@@ -109,7 +106,7 @@ export function Onboarding(props: {
       <main className="relative z-10 mx-auto grid max-w-6xl gap-6 px-4 pb-20 sm:px-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-8">
         {/* the route: every step with what it's for, done ones ticked */}
         <aside className="hidden lg:block">
-          <div className="glass sticky top-6 rounded-[28px] border border-white/80 p-5 shadow-card dark:border-white/[0.07]">
+          <div className="glass sticky top-6 rounded-2xl border border-white/80 p-5 shadow-card dark:border-white/[0.07]">
             <p className="text-[15px] font-bold tracking-[-0.02em]">Set up your season</p>
             <p className="mt-0.5 text-xs text-muted">About four minutes. You can change all of it later.</p>
             <ol className="relative mt-5 space-y-1">
@@ -126,7 +123,7 @@ export function Onboarding(props: {
                       aria-current={now ? "step" : undefined}
                       className={`flex w-full items-start gap-3 rounded-2xl p-2.5 text-left transition-colors ${now ? "bg-accent/[0.08]" : done ? "hover:bg-neutral-100 dark:hover:bg-neutral-800" : ""}`}
                     >
-                      <span className={`grid size-9 shrink-0 place-items-center rounded-xl transition-all ${now ? "bg-hero-gradient text-white shadow-[0_8px_18px_-8px_rgb(79_70_229/0.7)]" : done ? "bg-go/10 text-go" : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800"}`}>
+                      <span className={`grid size-9 shrink-0 place-items-center rounded-xl transition-all ${now ? "bg-hero-gradient text-white" : done ? "bg-go/10 text-go" : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800"}`}>
                         {done ? <Check className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
                       </span>
                       <span className="min-w-0 pt-0.5">
@@ -158,7 +155,7 @@ export function Onboarding(props: {
             animate={{ opacity: 1, x: 0 }}
             exit={reduce ? undefined : { opacity: 0, x: -24 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="glass rounded-[28px] border border-white/80 p-6 shadow-lift sm:p-10 dark:border-white/[0.07]"
+            className="glass rounded-2xl border border-white/80 p-6 shadow-lift sm:p-10 dark:border-white/[0.07]"
           >
             {step === 1 && (
               <div className="space-y-8">
@@ -170,10 +167,10 @@ export function Onboarding(props: {
                     <button
                       key={k}
                       onClick={() => setLevel(k)}
-                      className={`rounded-2xl border p-5 text-left transition-all duration-200 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent shadow-[0_12px_28px_-14px_rgb(79_70_229/0.6)]" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
+                      className={`rounded-2xl border p-5 text-left transition-all duration-200 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
                       aria-pressed={level === k}
                     >
-                      <span className={`mb-5 grid size-11 place-items-center rounded-2xl transition-all ${level === k ? "bg-hero-gradient text-white shadow-[0_10px_22px_-10px_rgb(79_70_229/0.7)]" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
+                      <span className={`mb-5 grid size-11 place-items-center rounded-2xl transition-all ${level === k ? "bg-hero-gradient text-white" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
                         <LI className="size-5" aria-hidden />
                       </span>
                       <span className={`block text-xl font-bold tracking-[-0.03em] ${level === k ? "text-accent" : ""}`}>{label}</span>
@@ -271,7 +268,7 @@ export function Onboarding(props: {
                   }}
                   className="flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-accent/30 bg-accent/[0.03] px-6 py-12 text-center transition-colors hover:border-accent/60 hover:bg-accent/[0.06]"
                 >
-                  {uploading ? <LoaderCircle className="size-7 animate-spin text-muted" aria-hidden /> : <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_28px_-10px_rgb(79_70_229/0.6)]"><FileUp className="size-6" aria-hidden /></span>}
+                  {uploading ? <LoaderCircle className="size-7 animate-spin text-muted" aria-hidden /> : <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white"><FileUp className="size-6" aria-hidden /></span>}
                   <span className="font-bold">{uploading ? `Uploading ${uploading}…` : "Drop files here or choose files"}</span>
                   <span className="text-sm text-muted">Start with your CV</span>
                 </button>

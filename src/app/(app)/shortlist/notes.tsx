@@ -11,7 +11,7 @@ export function StrategyNotes({ notes, regions }: { notes: { region: string; tex
   return (
     <div className="rounded-3xl border border-line bg-surface p-5 shadow-card">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="grid size-9 place-items-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
+        <span className="grid size-9 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
           <Lightbulb className="size-4" aria-hidden />
         </span>
         <h2 className="mr-auto text-[15px] font-bold tracking-[-0.01em]">Recon&apos;s read on your strategy</h2>

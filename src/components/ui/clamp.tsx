@@ -26,7 +26,7 @@ export function Clamp({ children, lines = 4, className = "", more = "Show more",
         {children}
       </div>
       {(over || open) && (
-        <button type="button" onClick={() => setOpen(!open)} className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-accent hover:underline">
+        <button type="button" onClick={() => setOpen(!open)} className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand hover:underline">
           {open ? less : more}
           <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
         </button>
@@ -44,7 +44,7 @@ export function ShowList<T>({ items, first = 3, render, label = "items" }: { ite
       {shown.map(render)}
       {items.length > first && (
         <li className="list-none">
-          <button type="button" onClick={() => setAll(!all)} className="inline-flex items-center gap-1 text-[12.5px] font-bold text-accent hover:underline">
+          <button type="button" onClick={() => setAll(!all)} className="inline-flex items-center gap-1 text-[12.5px] font-bold text-brand hover:underline">
             {all ? "Show fewer" : `Show all ${items.length} ${label}`}
             <ChevronDown className={`size-3.5 transition-transform ${all ? "rotate-180" : ""}`} aria-hidden />
           </button>

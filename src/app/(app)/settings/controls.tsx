@@ -125,7 +125,7 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
             toast.error("Couldn't change it");
           }
         }}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-700"}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-neutral-900 dark:bg-go" : "bg-neutral-300 dark:bg-neutral-700"}`}
       >
         <span className={`absolute left-0 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
       </button>

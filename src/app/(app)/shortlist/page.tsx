@@ -403,7 +403,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
                     {o.intl_eligible === false && <Tag tone="stop">Not for international students</Tag>}
                     {o.eligibility && <span className="min-w-0 truncate text-xs text-muted" title={o.eligibility}>{o.eligibility}</span>}
                     {o.url && (
-                      <a href={o.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-bold text-accent hover:underline">
+                      <a href={o.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-bold text-brand hover:underline">
                         Details <ExternalLink className="size-3.5" aria-hidden />
                       </a>
                     )}

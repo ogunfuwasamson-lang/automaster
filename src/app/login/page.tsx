@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
+import { CampusInk } from "@/components/landing/campus-ink";
 import { useSearchParams } from "next/navigation";
 import { Mail, ArrowLeft, Check } from "lucide-react";
 import { motion } from "motion/react";
@@ -32,7 +33,7 @@ function LoginForm() {
   if (state === "sent") {
     return (
       <div className="space-y-5" role="status">
-        <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 18 }} className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_28px_-8px_rgb(79_70_229/0.6)]">
+        <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 18 }} className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white">
           <Mail className="size-6" aria-hidden />
         </motion.span>
         <h1 className="text-3xl font-bold tracking-[-0.04em]">Check your inbox</h1>
@@ -63,9 +64,9 @@ function LoginForm() {
       </Button>
       <p className="text-sm text-muted">
         {signup ? (
-          <>Already have an account? <a href="/login" className="font-semibold text-accent hover:underline">Sign in</a></>
+          <>Already have an account? <a href="/login" className="font-semibold text-brand hover:underline">Sign in</a></>
         ) : (
-          <>New here? <a href="/login?mode=signup" className="font-semibold text-accent hover:underline">Create an account</a></>
+          <>New here? <a href="/login?mode=signup" className="font-semibold text-brand hover:underline">Create an account</a></>
         )}
       </p>
     </form>
@@ -75,11 +76,7 @@ function LoginForm() {
 export default function Login() {
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden">
-      <div className="aurora !h-[720px]" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </div>
+      <CampusInk className="absolute inset-x-0 top-0 h-[720px] w-full" />
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark />
         <ThemeButton />
@@ -87,7 +84,7 @@ export default function Login() {
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-[420px]">
           <div
-            className="rise glass rounded-[28px] border border-white/80 p-7 shadow-lift sm:p-9 dark:border-white/[0.07]"
+            className="rise glass rounded-2xl border border-white/80 p-7 shadow-lift sm:p-9 dark:border-white/[0.07]"
           >
             <Suspense>
               <LoginForm />

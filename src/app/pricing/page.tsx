@@ -1,4 +1,5 @@
 import { ThemeButton } from "@/components/theme";
+import { CampusInk } from "@/components/landing/campus-ink";
 import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { PLANS } from "@/lib/plans";
@@ -13,11 +14,7 @@ export default function Pricing() {
   const plans = [PLANS.free, PLANS.pro, PLANS.season];
   return (
     <div className="relative min-h-dvh overflow-x-clip">
-      <div className="aurora !h-[560px]" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </div>
+      <CampusInk className="absolute inset-x-0 top-0 h-[560px] w-full" />
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm font-semibold">
@@ -44,9 +41,9 @@ export default function Pricing() {
             return (
               <section
                 key={p.id}
-                className={`relative flex flex-col rounded-[28px] p-7 sm:p-8 ${
+                className={`relative flex flex-col rounded-2xl p-7 sm:p-8 ${
                   featured
-                    ? "bg-hero-gradient text-white shadow-[0_30px_60px_-24px_rgb(79_70_229/0.7)] lg:-my-4 lg:py-11"
+                    ? "bg-hero-gradient text-white lg:-my-4 lg:py-11"
                     : "border border-line bg-surface shadow-card"
                 }`}
               >

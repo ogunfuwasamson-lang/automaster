@@ -104,7 +104,7 @@ export function RunnerPanel(props: {
             </button>
           </dd>
           <dd className="col-span-2 pt-1 text-xs text-muted">
-            <Link href="/logins" className="mr-1 font-semibold text-accent hover:underline">All portal logins.</Link>The agents made this account for you. Change the password on the portal once you&apos;ve submitted, if you like.</dd>
+            <Link href="/logins" className="mr-1 font-semibold text-brand hover:underline">All portal logins.</Link>The agents made this account for you. Change the password on the portal once you&apos;ve submitted, if you like.</dd>
         </dl>
       ) : (
         <button onClick={reveal} className="mt-2 inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
@@ -146,7 +146,7 @@ export function RunnerPanel(props: {
   return (
     <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
       <div className="flex items-start gap-3">
-        <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${stuck ? "bg-signal text-white shadow-[0_8px_18px_-8px_rgb(234_88_12/0.6)]" : "bg-accent/10 text-accent"}`}>
+        <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${stuck ? "bg-signal text-white" : "bg-accent/10 text-accent"}`}>
           {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : paused ? <Pause className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
         </span>
         <div className="min-w-0 flex-1">
@@ -245,7 +245,7 @@ export function RunnerPanel(props: {
           ) : reason === "account" ? (
             <p>
               Quickest: choose Run in my Chrome and the agents create the account there. Or create it yourself on{" "}
-              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
                 the portal
               </a>{" "}
               with the email and password below, exactly as shown. The agents check every 5 minutes, sign in with them and finish the application.
@@ -253,7 +253,7 @@ export function RunnerPanel(props: {
           ) : reason === "payment" || reason === "verification" || reason === "login" ? (
             <p>
               Open{" "}
-              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
                 the portal
               </a>
               {hasLogin ? ", sign in with the login below" : ""} and do that one step. The agents check every 5 minutes and carry on.
@@ -261,7 +261,7 @@ export function RunnerPanel(props: {
           ) : (
             <p>
               Choose Try again first: the agents look at the page fresh. If it stops at the same place, open{" "}
-              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+              <a href={portalUrl ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
                 the portal
               </a>
               {hasLogin ? " with the login below" : ""}, move past that page, then choose Try again.

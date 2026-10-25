@@ -104,7 +104,7 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
         )}
       </fieldset>
 
-      <div className={`glass sticky bottom-[calc(env(safe-area-inset-bottom)+92px)] z-20 flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-lift lg:bottom-4 ${dirty ? "border-accent/40" : "border-line"}`}>
+      <div className={`glass sticky bottom-[calc(env(safe-area-inset-bottom)+76px)] z-20 flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-lift lg:bottom-4 ${dirty ? "border-accent/40" : "border-line"}`}>
         <Button type="submit" disabled={saving || !dirty}>
           {saving ? "Saving…" : dirty ? "Save details" : "Saved"}
         </Button>

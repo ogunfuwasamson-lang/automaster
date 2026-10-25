@@ -43,7 +43,7 @@ export default async function Documents() {
                   const busy = d.status === "uploaded" || d.status === "extracting";
                   return (
                     <li key={d.id} className="flex gap-3 px-4 py-3.5 text-sm sm:px-5">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"><FileText className="size-[18px]" aria-hidden /></span>
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"><FileText className="size-[18px]" aria-hidden /></span>
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-start justify-between gap-3">
                           <span className="min-w-0">

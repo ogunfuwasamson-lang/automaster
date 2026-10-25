@@ -200,7 +200,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
 
   return (
     <div>
-      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[28px] border border-line bg-surface shadow-card lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
+      <div className="grid h-[calc(100dvh-14rem)] min-h-[32rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
         {/* list */}
         <aside className={`flex min-h-0 flex-col border-line lg:border-r ${open ? "hidden lg:flex" : "flex"}`}>
           <div className="space-y-2.5 border-b border-line p-3">
@@ -220,7 +220,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
                 return (
                   <button key={k} onClick={() => setFilter(k)} className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${filter === k ? "bg-accent/10 text-accent" : "text-muted hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800"}`}>
                     {label}
-                    {n ? <span className={`rounded-full px-1.5 text-[10.5px] tabular ${filter === k ? "bg-accent text-white" : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"}`}>{n}</span> : null}
+                    {n ? <span className={`rounded-full px-1.5 text-[10.5px] tabular ${filter === k ? "bg-ink text-on-ink" : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"}`}>{n}</span> : null}
                   </button>
                 );
               })}
@@ -243,7 +243,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
                           onClick={() => select(t.id)}
                           className={`relative flex w-full gap-3 rounded-2xl p-3 text-left transition-colors ${on ? "bg-accent/[0.08] ring-1 ring-accent/20" : "hover:bg-neutral-50 dark:hover:bg-neutral-900"}`}
                         >
-                          {isUnread && <span className="absolute left-1 top-1/2 size-2 -translate-y-1/2 rounded-full bg-accent" aria-label="Unread" />}
+                          {isUnread && <span className="absolute left-1 top-1/2 size-2 -translate-y-1/2 rounded-full bg-brand" aria-label="Unread" />}
                           <SchoolTile name={t.school} size="sm" />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-2">
@@ -257,8 +257,8 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
                             </span>
                             <span className="mt-1.5 flex flex-wrap gap-1">
                               {kind && <span className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-bold ${kind[1]}`}>{kind[0]}</span>}
-                              {t.messages.some(waiting) && <span className="rounded-md bg-pink-50 px-1.5 py-0.5 text-[10.5px] font-bold text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">Draft</span>}
-                              {t.messages.some((m) => m.status === "scheduled") && <span className="rounded-md bg-cyan-50 px-1.5 py-0.5 text-[10.5px] font-bold text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">Sending soon</span>}
+                              {t.messages.some(waiting) && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">Draft</span>}
+                              {t.messages.some((m) => m.status === "scheduled") && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">Sending soon</span>}
                               {t.messages.length > 1 && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-muted dark:bg-neutral-800">{t.messages.length}</span>}
                             </span>
                           </span>
@@ -285,7 +285,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
           ) : (
             <div className="grid flex-1 place-items-center p-10 text-center">
               <div>
-                <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white shadow-[0_16px_32px_-12px_rgb(79_70_229/0.6)]">
+                <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white">
                   <Mail className="size-7" aria-hidden />
                 </span>
                 <p className="mt-4 font-bold">Pick a conversation</p>
@@ -412,7 +412,7 @@ function MessageCard({ m, school, me, defaultOpen, onChange }: { m: InboxMsg; sc
           <span className="flex flex-wrap items-center gap-x-2">
             <span className="text-[13.5px] font-bold">{who}</span>
             {kind && <span className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-bold ${kind[1]}`}>{kind[0]}</span>}
-            {m.status === "scheduled" && <span className="rounded-md bg-cyan-50 px-1.5 py-0.5 text-[10.5px] font-bold text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">Sending soon</span>}
+            {m.status === "scheduled" && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">Sending soon</span>}
             {mine && m.status === "sent" && <CheckCheck className="size-3.5 text-go" aria-label="Sent" />}
           </span>
           <span className="block truncate text-[12px] text-muted">
@@ -478,9 +478,9 @@ function DraftCard({ m, canSend, onChange }: { m: InboxMsg; canSend: boolean; on
   const save = () => post(`/api/messages/${m.id}`, { action: "save", subject, body, to_email: to });
 
   return (
-    <article className="rounded-3xl border-2 border-dashed border-pink-300/70 bg-surface p-4 shadow-card sm:p-5 dark:border-pink-500/30">
+    <article className="rounded-3xl border-2 border-dashed border-line bg-surface p-4 shadow-card sm:p-5 dark:border-neutral-700">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-pink-50 px-2 py-1 text-[11.5px] font-bold text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2 py-1 text-[11.5px] font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
           <PenLine className="size-3.5" aria-hidden /> {m.status === "failed" ? "Didn't send" : "Draft for you to review"}
         </span>
         {kind && <span className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-bold ${kind[1]}`}>{kind[0]}</span>}
@@ -601,7 +601,7 @@ function Composer({ threadId, canSend, replyTo, intent, onChange }: { threadId: 
                 Send
               </Button>
             ) : (
-              <Link href="/settings" className="text-[12px] font-bold text-accent hover:underline">
+              <Link href="/settings" className="text-[12px] font-bold text-brand hover:underline">
                 Connect Gmail to send
               </Link>
             )}

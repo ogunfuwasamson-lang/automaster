@@ -26,20 +26,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="relative min-h-dvh">
-      <div className="aurora" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </div>
-      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-6 sm:pt-4">
-        <div className="glass mx-auto flex max-w-[1320px] items-center gap-4 rounded-[20px] border border-white/70 px-3 py-2 shadow-card dark:border-white/[0.06] sm:pl-5">
+      <header className="glass sticky top-0 z-30 border-b border-line">
+        <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-8 px-4 sm:px-6 lg:px-8">
           <Wordmark href="/dashboard" small />
-          <div className="mx-auto">
-            <TopNav needsYou={needsYou} unread={unread} />
-          </div>
-          <div className="ml-auto flex items-center gap-2 lg:ml-0">
+          <TopNav needsYou={needsYou} unread={unread} />
+          <div className="ml-auto flex items-center gap-2">
             {paused ? (
-              <Link href="/dashboard" className="inline-flex items-center gap-1.5 rounded-full bg-stop/10 px-3 py-1.5 text-xs font-bold text-stop">
+              <Link href="/dashboard" className="inline-flex items-center gap-1.5 rounded-md border border-stop/25 px-2.5 py-1 text-xs font-medium text-stop">
                 <CirclePause className="size-3.5" aria-hidden />
                 Paused
               </Link>
@@ -48,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-12">{children}</main>
+      <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-7 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">{children}</main>
       <TabBar needsYou={needsYou} unread={unread} />
       <Suspense>
         <ChatDock />

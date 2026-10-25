@@ -97,7 +97,7 @@ export function ChatDock() {
       <Dialog.Trigger asChild>
         <button
           hidden={path.startsWith("/messages")}
-          className="bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+92px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-bold text-white shadow-[0_16px_36px_-10px_rgb(79_70_229/0.7)] transition-transform hover:-translate-y-0.5 lg:bottom-8 lg:right-8"
+          className="bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-medium text-white shadow-lift transition-opacity hover:opacity-90 lg:bottom-8 lg:right-8"
           aria-label={questions.length ? `Talk to your interviewer: ${questions.length} questions waiting` : "Talk to your interviewer"}
         >
           <MessagesSquare className="size-5" aria-hidden />
@@ -113,7 +113,7 @@ export function ChatDock() {
             </Dialog.Overlay>
             <Dialog.Content asChild forceMount aria-describedby={undefined}>
               <motion.div
-                className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-lift sm:inset-y-3 sm:right-3 sm:w-[30rem] sm:rounded-[28px] sm:border sm:border-line"
+                className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-lift sm:inset-y-3 sm:right-3 sm:w-[30rem] sm:rounded-2xl sm:border sm:border-line"
                 initial={{ x: "105%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "105%" }}

@@ -1,66 +1,65 @@
 @import "tailwindcss";
-@import "@fontsource-variable/plus-jakarta-sans";
+@import "@fontsource-variable/roboto-flex";
+@import "@fontsource/frank-ruhl-libre/400.css";
+@import "@fontsource/frank-ruhl-libre/500.css";
 
 /* dark mode follows the data-theme attribute the theme switch sets (light, dark, or the device setting) */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* automaster: "aurora". light and airy: soft gradient sky, white rounded cards, one indigo-to-cyan accent.
-   status colours are tints, never loud blocks. dark mode keeps the same structure on a deep night sky. */
+/* automaster: "paper". an off-white page, ink type, serif titles, hairline borders. black is the action
+   colour; one academic oxblood marks the brand and links. status colours are quiet, deep tints. */
 
 :root {
-  --background: #f6f7fb;
+  --background: #fafafa;
   --surface: #ffffff;
-  --foreground: #0f1222;
-  --muted: #6b7086;
-  --line: #e8eaf2;
-  --accent: #4f46e5; /* indigo */
-  --accent-2: #06b6d4; /* cyan */
-  --accent-3: #f472b6; /* pink, only in the aurora */
-  --signal: #ea580c; /* needs you */
-  --go: #059669; /* submitted, admitted, done */
-  --stop: #e11d48; /* urgent, errors */
-  --focus: #6366f1;
-  --grad-a: #4f46e5;
-  --grad-b: #9333ea;
-  --grad-c: #06b6d4;
-  --ink: #0f1222; /* dark slabs: primary buttons, the active nav pill */
+  --foreground: #09090b;
+  --muted: #71717a;
+  --line: #e4e4e7;
+  --accent: #27272a; /* interactive accents stay ink-grey */
+  --accent-2: #27272a;
+  --accent-3: #27272a;
+  --brand: #9b2c4e; /* oxblood: the logo, links and the odd small mark */
+  --signal: #c2410c; /* needs you */
+  --go: #047857; /* submitted, admitted, done */
+  --stop: #b91c1c; /* urgent, errors */
+  --focus: #71717a;
+  --grad-a: #18181b;
+  --grad-b: #18181b;
+  --grad-c: #18181b;
+  --ink: #18181b; /* primary buttons, the active nav item */
   --on-ink: #ffffff;
-  --sky-1: #a5b4fc;
-  --sky-2: #7dd3fc;
-  --sky-3: #f0abfc;
-  --card-shadow: 0 1px 2px rgb(15 18 34 / 0.03), 0 12px 32px -12px rgb(15 18 34 / 0.09);
-  --lift-shadow: 0 2px 4px rgb(15 18 34 / 0.04), 0 22px 44px -16px rgb(15 18 34 / 0.18);
-  /* kept for older markup: the departures tiles now render as ink chips */
-  --board: #0f1222;
+  --card-shadow: 0 1px 2px rgb(9 9 11 / 0.04);
+  --lift-shadow: 0 1px 2px rgb(9 9 11 / 0.05), 0 16px 36px -16px rgb(9 9 11 / 0.16);
+  --board: #18181b;
   --flap: #ffffff;
+  --wash: #3f3f46; /* the ink-wash drawings */
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #0a0c18;
-  --surface: #12152a;
-  --foreground: #eef0fb;
-  --muted: #9499b5;
-  --line: #22263e;
-  --accent: #818cf8;
-  --accent-2: #22d3ee;
-  --accent-3: #f472b6;
+  --background: #0b0b0c;
+  --surface: #141416;
+  --foreground: #f4f4f5;
+  --muted: #a1a1aa;
+  --line: #27272a;
+  --accent: #e4e4e7;
+  --accent-2: #e4e4e7;
+  --accent-3: #e4e4e7;
+  --brand: #f0a3bd;
   --signal: #fb923c;
   --go: #34d399;
-  --stop: #fb7185;
-  --focus: #a5b4fc;
-  --grad-a: #818cf8;
-  --grad-b: #c084fc;
-  --grad-c: #22d3ee;
-  --ink: #eef0fb;
-  --on-ink: #0a0c18;
-  --sky-1: #4338ca;
-  --sky-2: #0e7490;
-  --sky-3: #9d174d;
-  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -20px rgb(0 0 0 / 0.7);
-  --lift-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 24px 48px -18px rgb(0 0 0 / 0.85);
-  --board: #1a1e38;
-  --flap: #eef0fb;
+  --stop: #f87171;
+  --focus: #a1a1aa;
+  --grad-a: #f4f4f5;
+  --grad-b: #f4f4f5;
+  --grad-c: #f4f4f5;
+  --ink: #f4f4f5;
+  --on-ink: #09090b;
+  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.02) inset;
+  --lift-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -20px rgb(0 0 0 / 0.8);
+  --board: #27272a;
+  --flap: #f4f4f5;
+  --wash: #d4d4d8;
 }
 
 @theme inline {
@@ -71,6 +70,7 @@
   --color-line: var(--line);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
+  --color-brand: var(--brand);
   --color-signal: var(--signal);
   --color-go: var(--go);
   --color-stop: var(--stop);
@@ -82,23 +82,27 @@
   --shadow-card: var(--card-shadow);
   --shadow-lift: var(--lift-shadow);
 
-  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto Flex Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Frank Ruhl Libre", "Iowan Old Style", Georgia, serif;
+  --font-display: "Frank Ruhl Libre", "Iowan Old Style", Georgia, serif;
 }
 
-/* cool slate greys with a hint of indigo, so legacy neutral-* classes match the palette */
+/* zinc greys, so legacy neutral-* classes match the palette; quieter corners than before */
 @theme {
-  --color-neutral-50: #f6f7fb;
-  --color-neutral-100: #eef0f6;
-  --color-neutral-200: #e2e5ef;
-  --color-neutral-300: #cdd1df;
-  --color-neutral-400: #a0a5bb;
-  --color-neutral-500: #6b7086;
-  --color-neutral-600: #50556c;
-  --color-neutral-700: #383c52;
-  --color-neutral-800: #22263e;
-  --color-neutral-900: #151829;
-  --color-neutral-950: #0a0c18;
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f4f4f5;
+  --color-neutral-200: #e4e4e7;
+  --color-neutral-300: #d4d4d8;
+  --color-neutral-400: #a1a1aa;
+  --color-neutral-500: #71717a;
+  --color-neutral-600: #52525b;
+  --color-neutral-700: #3f3f46;
+  --color-neutral-800: #27272a;
+  --color-neutral-900: #18181b;
+  --color-neutral-950: #09090b;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 0.875rem;
 }
 
 html {
@@ -112,16 +116,33 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* the display face is the body face, set heavier and tighter */
+/* titles are set in the serif at a book weight, tight but not cramped */
+h1,
+.font-display,
+.font-serif {
+  font-family: var(--font-serif);
+  font-weight: 500 !important;
+  letter-spacing: -0.02em !important;
+}
 .font-display {
-  font-weight: 700;
-  letter-spacing: -0.045em;
+  font-weight: 400 !important;
+}
+h1,
+h2 {
+  text-wrap: balance;
 }
 
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 8px;
+}
+
+/* fields draw their own focus ring */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 ::selection {
@@ -132,60 +153,43 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* the aurora: three blurred colour fields behind the top of a page */
+/* retired: the old colour fields behind a page */
 .aurora {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 460px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-  mask-image: linear-gradient(to bottom, #000 40%, transparent);
-}
-.aurora > i {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(72px);
-  opacity: 0.5;
-  animation: drift 26s ease-in-out infinite alternate;
-}
-.aurora > i:nth-child(1) { width: 520px; height: 380px; left: -6%; top: -170px; background: var(--sky-1); }
-.aurora > i:nth-child(2) { width: 480px; height: 340px; left: 36%; top: -210px; background: var(--sky-2); animation-delay: -9s; }
-.aurora > i:nth-child(3) { width: 440px; height: 320px; right: -5%; top: -130px; background: var(--sky-3); animation-delay: -17s; }
-[data-theme="dark"] .aurora > i { opacity: 0.32; }
-@keyframes drift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to { transform: translate3d(40px, 24px, 0) scale(1.08); }
+  display: none;
 }
 
+/* no gradient type: emphasis comes from the serif */
 .text-gradient {
-  background: linear-gradient(100deg, var(--grad-a) 0%, var(--grad-b) 48%, var(--grad-c) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: inherit;
 }
-/* thin fills: progress, the onboarding track, small accents */
+/* thin fills: progress, the onboarding track */
 .bg-accent-gradient,
 .bg-bar-gradient {
-  background: linear-gradient(90deg, var(--grad-a), var(--grad-b) 55%, var(--grad-c));
+  background: var(--ink);
 }
-/* the hero surface: a soft mesh of indigo, violet, blue and cyan with a fine grain, never a flat two-stop ramp */
+/* solid ink tiles (dates, avatars, the logo): dark in both themes so white text always reads */
 .bg-hero-gradient {
-  background-color: #4f46e5;
-  background-image:
-    radial-gradient(120% 90% at 0% 0%, #6366f1 0%, transparent 55%),
-    radial-gradient(80% 80% at 100% 0%, #a855f7 0%, transparent 60%),
-    radial-gradient(90% 100% at 100% 100%, #22d3ee 0%, transparent 55%),
-    radial-gradient(80% 90% at 0% 100%, #3b82f6 0%, transparent 60%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+  background-color: #18181b;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+[data-theme="dark"] .bg-hero-gradient {
+  background-color: #27272a;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
-/* glass: the floating nav and anything that sits over the aurora */
+/* the top bar */
 .glass {
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  background: color-mix(in oklab, var(--surface) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+/* the small tracked label above landing sections ("/ how it works") */
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* page entrance: staggered by duration, not delay, so nothing is ever held invisible */

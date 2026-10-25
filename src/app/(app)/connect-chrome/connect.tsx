@@ -92,11 +92,11 @@ export function ConnectChrome({ then }: { then: { id: string; school: string } |
       {ext.paired && (
         <p className="text-sm">
           {then ? (
-            <Link href={`/applications/${then.id}`} className="font-semibold text-accent hover:underline">
+            <Link href={`/applications/${then.id}`} className="font-semibold text-brand hover:underline">
               Back to {then.school}
             </Link>
           ) : (
-            <Link href="/applications" className="font-semibold text-accent hover:underline">
+            <Link href="/applications" className="font-semibold text-brand hover:underline">
               Back to your applications
             </Link>
           )}

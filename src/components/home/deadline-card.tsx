@@ -20,9 +20,9 @@ export function DeadlineCard({ id, school, program, deadline, blocker }: { id: s
   ];
   const date = new Date(deadline + "T00:00:00Z").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   return (
-    <div className="bg-hero-gradient relative h-full overflow-hidden rounded-3xl p-6 text-white shadow-[0_24px_48px_-20px_rgb(79_70_229/0.65)]">
+    <div className="bg-hero-gradient relative h-full overflow-hidden rounded-3xl p-6 text-white">
       <span className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full border-[40px] border-white/[0.08]" aria-hidden />
-      <span className="pointer-events-none absolute -bottom-24 right-24 size-48 rounded-full bg-cyan-300/20 blur-2xl" aria-hidden />
+      <span className="pointer-events-none absolute -bottom-24 right-24 size-48 rounded-full bg-white/5 blur-2xl" aria-hidden />
       <p className="relative flex items-center gap-2 text-[13px] font-semibold text-white/80">
         <PlaneTakeoff className="size-4" aria-hidden /> Next deadline
       </p>
@@ -39,7 +39,7 @@ export function DeadlineCard({ id, school, program, deadline, blocker }: { id: s
         {program}. Closes {date}.
       </p>
       <Link href={`/applications/${id}`} className="relative mt-5 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#0f1222] transition-transform hover:-translate-y-0.5">
-        {blocker ? <TriangleAlert className="size-4 shrink-0 text-orange-600" aria-hidden /> : <PartyPopper className="size-4 shrink-0 text-indigo-600" aria-hidden />}
+        {blocker ? <TriangleAlert className="size-4 shrink-0 text-neutral-700" aria-hidden /> : <PartyPopper className="size-4 shrink-0 text-neutral-700" aria-hidden />}
         <span className="line-clamp-1 flex-1">{blocker ?? "Open the application"}</span>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#0f1222] px-3 py-1.5 text-xs text-white">
           {blocker ? "Fix now" : "Open"} <ArrowRight className="size-3.5" aria-hidden />

@@ -256,8 +256,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           <span className="flex flex-wrap gap-1.5 text-[11.5px] font-bold">
             {mailStats.sent > 0 && <span className="rounded-lg bg-accent/10 px-2 py-1 text-accent">{mailStats.sent} sent</span>}
             {mailStats.replies > 0 && <span className="rounded-lg bg-go/10 px-2 py-1 text-go">{mailStats.replies} {mailStats.replies === 1 ? "reply" : "replies"}</span>}
-            {mailStats.drafts > 0 && <span className="rounded-lg bg-pink-50 px-2 py-1 text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">{mailStats.drafts} to review</span>}
-            {mailStats.sending > 0 && <span className="rounded-lg bg-cyan-50 px-2 py-1 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">{mailStats.sending} sending</span>}
+            {mailStats.drafts > 0 && <span className="rounded-lg bg-neutral-100 px-2 py-1 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{mailStats.drafts} to review</span>}
+            {mailStats.sending > 0 && <span className="rounded-lg bg-neutral-100 px-2 py-1 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{mailStats.sending} sending</span>}
           </span>
           <span className="inline-flex items-center gap-1 text-[13px] font-bold text-accent">
             Open in Messages <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />

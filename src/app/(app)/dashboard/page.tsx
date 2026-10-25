@@ -40,13 +40,13 @@ type Art = { kind: string; current_version: number; artifact_versions: { version
 const NOT_ESSAYS = ["strategy", "fee_plan", "funding_plan", "video_or_interview"];
 
 const ACTOR_ICON: Record<string, [typeof Mail, string]> = {
-  inbox: [Mail, "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 dark:text-indigo-300"],
-  writer: [PenLine, "text-pink-600 bg-pink-50 dark:bg-pink-500/15 dark:text-pink-300"],
-  redteam: [ShieldCheck, "text-violet-600 bg-violet-50 dark:bg-violet-500/15 dark:text-violet-300"],
-  runner: [Globe, "text-cyan-700 bg-cyan-50 dark:bg-cyan-500/15 dark:text-cyan-300"],
-  recon: [Search, "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/15 dark:text-emerald-300"],
-  strategist: [Compass, "text-amber-600 bg-amber-50 dark:bg-amber-500/15 dark:text-amber-300"],
-  closer: [Banknote, "text-teal-600 bg-teal-50 dark:bg-teal-500/15 dark:text-teal-300"],
+  inbox: [Mail, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  writer: [PenLine, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  redteam: [ShieldCheck, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  runner: [Globe, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  recon: [Search, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  strategist: [Compass, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  closer: [Banknote, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   you: [UserRound, "text-neutral-600 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
 };
 
@@ -140,10 +140,10 @@ export default async function Dashboard() {
   const nextDays = next ? daysUntil(next.target_deadline) : null;
   const count = (sts: string[]) => list.filter((a) => sts.includes(a.status)).length;
   const stats: [typeof Layers, string, number, string][] = [
-    [Layers, "Programs tracked", list.length, "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 dark:text-indigo-300"],
-    [FilePenLine, "Essays in progress", count(["preparing", "ready_for_review"]), "text-pink-600 bg-pink-50 dark:bg-pink-500/15 dark:text-pink-300"],
-    [FileSignature, "Packets signed", count(["packet_approved"]), "text-cyan-700 bg-cyan-50 dark:bg-cyan-500/15 dark:text-cyan-300"],
-    [Send, "Submitted", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/15 dark:text-emerald-300"],
+    [Layers, "Programs tracked", list.length, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [FilePenLine, "Essays in progress", count(["preparing", "ready_for_review"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [FileSignature, "Packets signed", count(["packet_approved"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [Send, "Submitted", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   ];
 
   return (
@@ -155,7 +155,7 @@ export default async function Dashboard() {
               {paused ? (
                 <span className="rounded-full bg-stop px-2 py-0.5 text-[11px] font-bold text-white">Paused</span>
               ) : (
-                <span className="bg-accent-gradient rounded-full px-2 py-0.5 text-[11px] font-bold text-white">Live</span>
+                <span className="rounded-full bg-go/10 px-2 py-0.5 text-[11px] font-semibold text-go">Live</span>
               )}
               {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"} right now` : "Agents are standing by"}
             </span>
@@ -222,7 +222,7 @@ export default async function Dashboard() {
                 blocker={stuck.find((s) => s.id === next.id)?.runner_note ? sentence(stuck.find((s) => s.id === next.id)!.runner_note).split(". ")[0] : null}
               />
             ) : (
-              <div className="bg-hero-gradient flex h-full flex-col justify-between rounded-3xl p-6 text-white shadow-[0_24px_48px_-20px_rgb(79_70_229/0.65)]">
+              <div className="bg-hero-gradient flex h-full flex-col justify-between rounded-3xl p-6 text-white">
                 <p className="text-[13px] font-semibold text-white/80">Next deadline</p>
                 <div>
                   <p className="mt-6 text-2xl font-bold tracking-[-0.02em]">Build your shortlist to start the clock.</p>
@@ -283,7 +283,7 @@ export default async function Dashboard() {
                   {drafts.map((d) => (
                     <li key={d.id}>
                       <Link href={`/applications/${d.application_id}`} className="group flex items-center gap-3 rounded-2xl border border-line p-3.5 transition-colors hover:border-accent/40 hover:bg-accent/[0.04]">
-                        <span className="grid size-9 place-items-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">
+                        <span className="grid size-9 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                           <PenLine className="size-4" aria-hidden />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -307,7 +307,7 @@ export default async function Dashboard() {
           <Card className="p-5 sm:p-6 lg:col-span-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-[-0.02em]">Your applications</h2>
-              <Link href="/applications" className="text-[13px] font-bold text-accent hover:underline">
+              <Link href="/applications" className="text-[13px] font-bold text-brand hover:underline">
                 See all
               </Link>
             </div>
@@ -322,7 +322,7 @@ export default async function Dashboard() {
             <Card className="p-5 sm:p-6">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-lg font-bold tracking-[-0.02em]">Agent activity</h2>
-                <Link href="/settings" className="text-[13px] font-bold text-accent hover:underline">
+                <Link href="/settings" className="text-[13px] font-bold text-brand hover:underline">
                   Autonomy
                 </Link>
               </div>
@@ -332,7 +332,7 @@ export default async function Dashboard() {
                     const text = describe(e);
                     if (!text) return null;
                     const who = actorLabel(e.actor);
-                    const [Icon, tone] = ACTOR_ICON[who] ?? [Sparkles, "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 dark:text-indigo-300"];
+                    const [Icon, tone] = ACTOR_ICON[who] ?? [Sparkles, "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"];
                     return (
                       <li key={e.id} className="flex gap-3 border-b border-dashed border-line py-3 last:border-0">
                         <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${tone}`}>

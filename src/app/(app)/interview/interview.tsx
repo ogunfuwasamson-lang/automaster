@@ -318,7 +318,7 @@ export function Interview({
           : "";
 
   return (
-    <div className={embedded ? "flex h-full min-h-0 flex-col px-4 pt-4 sm:px-6" : "mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-[28px] border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]"}>
+    <div className={embedded ? "flex h-full min-h-0 flex-col px-4 pt-4 sm:px-6" : "mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-2xl border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]"}>
       <header className={`flex flex-wrap items-end justify-between gap-3 pb-4 ${embedded ? "pr-10" : ""}`}>
         <div>
           {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Your interviewer</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Interview</h1>}
@@ -436,7 +436,7 @@ export function Interview({
       <section className={`flex-1 space-y-4 border-t border-line py-6 ${embedded ? "min-h-0 overflow-y-auto" : ""}`} aria-live="polite">
         {!started && (
           <div className="mx-auto max-w-md py-10 text-center">
-            <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white shadow-[0_16px_32px_-12px_rgb(79_70_229/0.6)]">
+            <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white">
               <MessagesSquare className="size-7" aria-hidden />
             </span>
             <h2 className="mt-5 text-xl font-semibold">A conversation, not a form</h2>
@@ -464,7 +464,7 @@ export function Interview({
               )}
               <p
                 className={`max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed ${
-                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-hero-gradient px-4 py-2.5 text-white shadow-[0_8px_20px_-10px_rgb(79_70_229/0.6)]" : "pt-1"
+                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-hero-gradient px-4 py-2.5 text-white" : "pt-1"
                 }`}
               >
                 {t.content}
@@ -504,7 +504,7 @@ export function Interview({
                 disabled={phase === "thinking"}
                 aria-label={phase === "listening" ? "Stop and send" : "Talk"}
                 className={`relative grid size-12 shrink-0 place-items-center rounded-full transition disabled:opacity-40 ${
-                  phase === "listening" ? "bg-stop text-white" : "bg-hero-gradient text-white shadow-[0_10px_24px_-8px_rgb(79_70_229/0.6)] hover:-translate-y-px"
+                  phase === "listening" ? "bg-stop text-white" : "bg-hero-gradient text-white hover:-translate-y-px"
                 }`}
               >
                 {phase === "listening" && <span className="absolute inset-0 animate-ping rounded-full bg-stop/40" aria-hidden />}

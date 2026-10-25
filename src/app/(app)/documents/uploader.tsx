@@ -47,7 +47,7 @@ export function Uploader({ userId }: { userId: string }) {
       className={`rounded-3xl border-2 border-dashed p-6 transition-colors sm:p-8 ${over ? "border-accent bg-accent/[0.06]" : "border-accent/25 bg-surface shadow-card"}`}
     >
       <div className="flex flex-col items-center gap-4 text-center">
-        <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_28px_-10px_rgb(79_70_229/0.6)]">
+        <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white">
           <UploadCloud className={`size-6 ${busy ? "animate-bounce" : ""}`} aria-hidden />
         </span>
         <div>

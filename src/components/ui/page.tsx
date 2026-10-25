@@ -6,7 +6,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
     <header className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-5">
       <div className="min-w-0">
         {eyebrow ? <div className="mb-2">{eyebrow}</div> : null}
-        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.04em] sm:text-[30px]">{title}</h1>
+        <h1 className="text-[30px] leading-tight sm:text-[36px]">{title}</h1>
         {description ? <p className="mt-0.5 max-w-3xl truncate text-sm text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -19,7 +19,7 @@ export function Section({ title, description, action, children, className = "" }
     <section className={`space-y-4 ${className}`}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold tracking-[-0.02em]">{title}</h2>
+          <h2 className="font-serif text-[22px] leading-snug">{title}</h2>
           {description ? <p className="mt-0.5 text-sm text-muted">{description}</p> : null}
         </div>
         {action}
@@ -52,8 +52,8 @@ export function Panel({ children, className = "", tone = "plain" }: { children: 
 export function Empty({ title, body, action, icon }: { title: string; body?: ReactNode; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="rounded-3xl border border-dashed border-neutral-300 bg-surface/60 px-6 py-12 text-center dark:border-neutral-700">
-      {icon ? <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-accent/10 text-accent">{icon}</div> : null}
-      <p className="font-bold tracking-[-0.01em]">{title}</p>
+      {icon ? <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full border border-line bg-surface text-muted">{icon}</div> : null}
+      <p className="font-serif text-xl">{title}</p>
       {body ? <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">{body}</p> : null}
       {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
     </div>

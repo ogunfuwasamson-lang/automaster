@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CampusInk } from "@/components/landing/campus-ink";
 import { BadgeCheck, Briefcase, CircleDashed, GraduationCap, Languages, MapPin, MessagesSquare, SlidersHorizontal, Target, Wallet } from "lucide-react";
 import { Clamp } from "@/components/ui/clamp";
 import { ButtonLink } from "@/components/ui/button";
@@ -90,12 +91,12 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {/* hero */}
-      <section className="overflow-hidden rounded-[28px] border border-line bg-surface shadow-card">
-        <div className="bg-hero-gradient relative h-16 sm:h-20">
-          <span className="absolute -right-10 -top-16 size-56 rounded-full border-[36px] border-white/10" aria-hidden />
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+        <div className="relative h-16 overflow-hidden border-b border-line bg-background sm:h-20">
+          <CampusInk className="absolute inset-x-0 bottom-0 h-[240px] w-full opacity-80" />
         </div>
         <div className="flex flex-wrap items-end gap-4 px-5 pb-4 sm:px-6">
-          <span className="-mt-9 grid size-[72px] shrink-0 place-items-center rounded-[22px] border-4 border-surface bg-[linear-gradient(135deg,#6366f1,#a855f7_55%,#ec4899)] text-2xl font-bold text-white shadow-lift">{initials || "?"}</span>
+          <span className="-mt-9 grid size-[72px] shrink-0 place-items-center rounded-full border-4 border-surface bg-hero-gradient font-serif text-2xl text-white">{initials || "?"}</span>
           <div className="min-w-0 flex-1 pt-3">
             <h1 className="truncate text-2xl font-bold leading-tight tracking-[-0.04em]">{name}</h1>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
@@ -159,7 +160,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <section className="rounded-3xl border border-line bg-surface p-5 shadow-card">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[15px] font-bold">Still missing</h2>
-                <Link href={`/profile?tab=overview&chat=open`} className="text-[12.5px] font-bold text-accent hover:underline">
+                <Link href={`/profile?tab=overview&chat=open`} className="text-[12.5px] font-bold text-brand hover:underline">
                   Answer these with the interviewer
                 </Link>
               </div>
@@ -175,7 +176,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           )}
 
           <div className="grid gap-5 lg:grid-cols-2">
-            <Card title="Goals" icon={Target} tone="text-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 dark:text-indigo-300">
+            <Card title="Goals" icon={Target} tone="text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300">
               <Item k="Applying for" v={p.goals.study_level ? cap(LEVEL_LABEL[p.goals.study_level]) : null} />
               <Item k="Fields" v={p.goals.fields} />
               {p.goals.research_interests?.length ? <Item k="Research" v={p.goals.research_interests} /> : null}
@@ -186,13 +187,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               <Item k="Why this degree" v={p.goals.why_masters ? <Clamp lines={3}>{p.goals.why_masters}</Clamp> : null} />
             </Card>
             <div className="space-y-5">
-              <Card title="Funding" icon={Wallet} tone="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/15 dark:text-emerald-300">
+              <Card title="Funding" icon={Wallet} tone="text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300">
                 <Item k="Need" v={cap(p.funding.need)} />
                 <Item k="Can cover a year" v={money(p.funding.annual_budget_usd)} />
                 <Item k="Fee budget" v={money(p.funding.application_fee_budget_usd)} />
                 {p.funding.notes ? <Item k="Notes" v={p.funding.notes} /> : null}
               </Card>
-              <Card title="Tests and English" icon={Languages} tone="text-cyan-700 bg-cyan-50 dark:bg-cyan-500/15 dark:text-cyan-300">
+              <Card title="Tests and English" icon={Languages} tone="text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300">
                 {p.tests.map((x) => (
                   <Item key={x.name} k={x.name} v={[cap(x.status.replace(/_/g, " ")), x.score, x.date].filter(Boolean).join(", ")} />
                 ))}
@@ -200,7 +201,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 <Item k="English proof" v={cap(p.english.route)} />
               </Card>
             </div>
-            <Card title="Preferences" icon={SlidersHorizontal} tone="text-violet-600 bg-violet-50 dark:bg-violet-500/15 dark:text-violet-300">
+            <Card title="Preferences" icon={SlidersHorizontal} tone="text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300">
               <Item k="Citizenship" v={p.identity.citizenship} />
               <Item k="Locations" v={p.preferences.locations === null ? null : p.preferences.locations.length ? p.preferences.locations : "No preference"} />
               <Item k="Avoid" v={p.preferences.avoid} />
@@ -231,7 +232,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
           <section className="rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-6">
             <h2 className="mb-4 flex items-center gap-2.5 text-[15px] font-bold">
-              <span className="grid size-8 place-items-center rounded-xl bg-pink-50 text-pink-600 dark:bg-pink-500/15 dark:text-pink-300">
+              <span className="grid size-8 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                 <Briefcase className="size-4" aria-hidden />
               </span>
               Work
@@ -265,7 +266,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </section>
           <section className="rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-6">
             <h2 className="mb-4 flex items-center gap-2.5 text-[15px] font-bold">
-              <span className="grid size-8 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              <span className="grid size-8 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                 <GraduationCap className="size-4" aria-hidden />
               </span>
               Education

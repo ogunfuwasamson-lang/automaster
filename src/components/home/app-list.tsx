@@ -18,8 +18,6 @@ export interface AppRow {
   group: "needs" | "writing" | "signed" | "other";
 }
 
-const HUES = ["#4f46e5", "#ea580c", "#0f766e", "#be123c", "#7c3aed", "#0369a1", "#a21caf", "#15803d"];
-const hue = (s: string) => HUES[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
 const initials = (s: string) =>
   s
     .replace(/\(.*?\)|university( of)?|the |school( of)?|college/gi, "")
@@ -33,7 +31,7 @@ const initials = (s: string) =>
 
 export function SchoolTile({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   return (
-    <span className={`grid shrink-0 place-items-center font-extrabold text-white ${size === "sm" ? "size-9 rounded-xl text-xs" : "size-11 rounded-[14px] text-[13px]"}`} style={{ background: hue(name) }} aria-hidden>
+    <span className={`grid shrink-0 place-items-center border border-line bg-background font-serif text-foreground ${size === "sm" ? "size-9 rounded-lg text-[13px]" : "size-11 rounded-xl text-[15px]"}`} aria-hidden>
       {initials(name)}
     </span>
   );
