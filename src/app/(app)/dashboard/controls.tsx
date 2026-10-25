@@ -14,7 +14,7 @@ async function post(url: string, body: Record<string, unknown>) {
 }
 
 // the ripcord. one tap stops every agent; queued work is cancelled, agent emails go back to drafts.
-export function StopButton({ paused }: { paused: boolean }) {
+export function StopButton({ paused, compact = false }: { paused: boolean; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const go = async () => {
@@ -28,6 +28,13 @@ export function StopButton({ paused }: { paused: boolean }) {
     setBusy(false);
     router.refresh();
   };
+  if (compact)
+    return (
+      <button onClick={go} disabled={busy} className={`inline-flex items-center gap-1 font-medium underline decoration-current/30 underline-offset-4 hover:decoration-current disabled:opacity-50 ${paused ? "text-stop" : "text-muted hover:text-foreground"}`}>
+        {paused ? <CirclePlay className="size-3.5" aria-hidden /> : <CirclePause className="size-3.5" aria-hidden />}
+        {busy ? (paused ? "Resuming…" : "Pausing…") : paused ? "Resume" : "Pause all"}
+      </button>
+    );
   return paused ? (
     <Button onClick={go} disabled={busy} variant="signal">
       <CirclePlay className="size-4" aria-hidden />

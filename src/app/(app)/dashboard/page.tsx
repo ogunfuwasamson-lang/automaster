@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Banknote,
+  ChevronDown,
   Compass,
   FilePenLine,
   FileSignature,
@@ -11,7 +12,6 @@ import {
   Layers,
   Mail,
   PenLine,
-  Plus,
   Search,
   Send,
   ShieldCheck,
@@ -87,7 +87,7 @@ export default async function Dashboard() {
     { data: billing },
     { count: working },
   ] = await Promise.all([
-    sb.from("profiles").select("profile").single(),
+    sb.from("profiles").select("profile, portal_details").single(),
     sb.from("documents").select("id", { count: "exact", head: true }),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }).limit(12),
     sb
@@ -110,7 +110,8 @@ export default async function Dashboard() {
   const p = loadProfile(prof?.profile);
   if (!p.goals.study_level && !docCount && !apps?.length) redirect("/onboarding");
 
-  const first = p.identity.full_name?.split(" ")[0];
+  // the name they asked to be called on forms wins; otherwise the first word of their name
+  const first = ((prof?.portal_details as { preferred_name?: string } | null)?.preferred_name || p.identity.full_name?.split(" ")[0] || "").trim();
   const paused = !!cords?.length;
   const list = apps ?? [];
   const stuck = list.filter((a) => a.status === "packet_approved" && (a.runner_status === "needs_you" || a.runner_status === "failed"));
@@ -150,45 +151,37 @@ export default async function Dashboard() {
 
   return (
     <Stagger className="relative space-y-6">
-      <CampusInk className="pointer-events-none absolute -top-10 left-1/2 h-[380px] w-screen max-w-none -translate-x-1/2 opacity-60" />
+      <CampusInk className="pointer-events-none absolute -top-10 left-1/2 h-[500px] w-screen max-w-none -translate-x-1/2 opacity-60" />
       <Rise>
-        <header className="relative flex flex-wrap items-end justify-between gap-5 pb-2">
-          <div>
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
-              {needsCount ? (
-                <a href="#needs-you" className="inline-flex items-center gap-1.5 font-medium text-signal hover:underline">
-                  <span className="size-1.5 rounded-full bg-current" aria-hidden />
-                  {needsCount} {needsCount === 1 ? "thing needs" : "things need"} you
-                </a>
-              ) : null}
-              <span className={`inline-flex items-center gap-1.5 ${paused ? "text-stop" : "text-muted"}`}>
-                <span className={`size-1.5 rounded-full ${paused ? "bg-stop" : working ? "animate-pulse bg-go" : "bg-neutral-400"}`} aria-hidden />
-                {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"}` : "Agents are standing by"}
-              </span>
-            </p>
-            <h1 className="mt-3 text-[40px] leading-[1.05] sm:text-[52px]">
-              {greeting()}
-              {first ? `, ${first}` : ""}.
-            </h1>
-            <p className="mt-3 text-base text-muted">
-              {next && nextDays !== null
-                ? `${(next.programs as unknown as Prog).schools.name.split(",")[0]} closes ${nextDays === 0 ? "today" : `in ${nextDays} day${nextDays === 1 ? "" : "s"}`}.`
-                : "No deadlines coming up yet."}
-            </p>
+        <header className="relative mx-auto max-w-2xl pb-4 pt-4 text-center sm:pt-8">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[13px]">
+            {needsCount ? (
+              <a href="#needs-you" className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/90 px-3 py-1 font-medium text-signal shadow-[0_1px_2px_rgb(9_9_11/0.04)] transition-colors hover:border-signal/40">
+                <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                {needsCount} {needsCount === 1 ? "thing needs" : "things need"} you
+                <ChevronDown className="size-3.5 opacity-70" aria-hidden />
+              </a>
+            ) : null}
+            <span className={`inline-flex items-center gap-2 rounded-full border bg-surface/90 px-3 py-1 shadow-[0_1px_2px_rgb(9_9_11/0.04)] ${paused ? "border-stop/25 text-stop" : "border-line text-muted"}`}>
+              <span className={`size-1.5 rounded-full ${paused ? "bg-stop" : working ? "animate-pulse bg-go" : "bg-neutral-400"}`} aria-hidden />
+              {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"}` : "Agents are standing by"}
+              <span className="h-3 w-px bg-line" aria-hidden />
+              <StopButton paused={paused} compact />
+            </span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <StopButton paused={paused} />
-            <ButtonLink href="/shortlist">
-              <Plus className="size-4" aria-hidden /> Add a program
-            </ButtonLink>
+          <h1 className="mt-5 text-[42px] leading-[1.05] sm:text-[60px]">
+            {greeting()}
+            {first ? `, ${first}` : ""}.
+          </h1>
+          <p className="mt-3 text-[16px] text-muted">
+            {next && nextDays !== null
+              ? `${(next.programs as unknown as Prog).schools.name.split(",")[0]} closes ${nextDays === 0 ? "today" : `in ${nextDays} day${nextDays === 1 ? "" : "s"}`}.`
+              : "No deadlines coming up yet."}
+          </p>
+          <div className="mt-8 text-left">
+            <AskBox />
           </div>
         </header>
-      </Rise>
-
-      <Rise>
-        <div className="relative max-w-3xl">
-          <AskBox />
-        </div>
       </Rise>
 
       {(paused || !!parked || !!billing?.length) && (
