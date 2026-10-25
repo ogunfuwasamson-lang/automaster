@@ -52,7 +52,7 @@ export async function connectComposio(userId: string, accountId: string) {
   const a = await cx<CxAccount>(`/connected_accounts/${encodeURIComponent(accountId)}`);
   if (a.user_id && a.user_id !== userId) throw new Error("that gmail connection belongs to someone else");
   if (a.status !== "ACTIVE") throw new Error(`gmail connection isn't active (${a.status.toLowerCase()})`);
-  const prof = await proxy(accountId, "https://gmail.googleapis.com/gmail/v1/users/me/profile", "GET");
+  const prof = await proxy(userId, accountId, "https://gmail.googleapis.com/gmail/v1/users/me/profile", "GET");
   const email = (prof.data as { emailAddress?: string } | undefined)?.emailAddress;
   if (prof.status >= 300 || !email) throw new Error("couldn't read your gmail address");
   const { error } = await admin().from("mail_accounts").upsert({
@@ -69,8 +69,9 @@ export async function connectComposio(userId: string, accountId: string) {
   return email;
 }
 
-async function proxy(accountId: string, url: string, method: "GET" | "POST", body?: unknown): Promise<{ status: number; data: unknown }> {
-  const r = await cx<{ status: number; data?: unknown }>("/tools/execute/proxy", { method: "POST", body: { connected_account_id: accountId, endpoint: url, method, ...(body === undefined ? {} : { body }) } });
+// user_id is required alongside the connection: composio checks the connection belongs to that user
+async function proxy(userId: string, accountId: string, url: string, method: "GET" | "POST", body?: unknown): Promise<{ status: number; data: unknown }> {
+  const r = await cx<{ status: number; data?: unknown }>("/tools/execute/proxy", { method: "POST", body: { connected_account_id: accountId, user_id: userId, endpoint: url, method, ...(body === undefined ? {} : { body }) } });
   return { status: r.status, data: r.data };
 }
 
@@ -160,7 +161,7 @@ async function gmail(userId: string): Promise<Gm> {
       call: async (url, method = "GET", body) => {
         let r: { status: number; data: unknown };
         try {
-          r = await proxy(acct.refresh_token_enc, url, method, body);
+          r = await proxy(userId, acct.refresh_token_enc, url, method, body);
         } catch (e) {
           // the connection was removed or expired at composio
           if (/ 4(01|03|04|10|22) /.test(e instanceof Error ? e.message : "")) await revoked(userId);
