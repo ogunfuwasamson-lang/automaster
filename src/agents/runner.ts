@@ -189,6 +189,16 @@ export async function markSubmitted(userId: string, applicationId: string, progr
   const eventId = await logEvent({ userId, actor: "agent:runner", action: "runner.submitted", applicationId, programId, channel: "portal", context: { url, filled, via } });
   await logEvent({ userId, actor: "agent:runner", action: "application.submitted", applicationId, programId, channel: "portal" });
   await recordOutcome({ userId, eventId, applicationId, kind: "proxy", label: "submitted", source: "runner" });
+  await afterSubmitted(userId, applicationId);
+}
+
+// once something goes in: a scholarship is marked applied; a program gets its school's separate scholarship forms checked
+export async function afterSubmitted(userId: string, applicationId: string) {
+  const db = admin();
+  await db.from("user_funding").update({ status: "applied" }).eq("user_id", userId).eq("application_id", applicationId);
+  const { data } = await db.from("applications").select("programs(degree)").eq("id", applicationId).maybeSingle();
+  if ((data?.programs as unknown as { degree?: string } | null)?.degree === "Scholarship") return;
+  await enqueue({ userId, agent: "closer", task: "school_scholarships", payload: { applicationId }, idempotencyKey: `school_scholarships:${applicationId}` }).catch(() => null);
 }
 
 // paused or cancelled by the applicant while agents were working: "paused" keeps progress, "cancelled" drops it
@@ -243,7 +253,10 @@ export const runner: Record<string, Handler> = {
       agent: "runner",
       jobId: job.id,
       system: "you find the official online application portal for a university program: the page where an applicant creates an account or signs in to start the application (often slate, apply.*, gradapply.*, or the school's own system). official university pages only. quote the exact url.",
-      prompt: `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}\nprogram page: ${p.url ?? "unknown"}\nfind the exact url where the online application starts for the next intake (the "apply now" / "start your application" destination).`,
+      prompt:
+        p.degree === "Scholarship"
+          ? `scholarship: ${p.name}, awarded by ${p.schools.name}\nscholarship page: ${p.url ?? "unknown"}\nfind the exact url where the online application for this scholarship starts (its own application portal or form, not a university's program application).`
+          : `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}\nprogram page: ${p.url ?? "unknown"}\nfind the exact url where the online application starts for the next intake (the "apply now" / "start your application" destination).`,
       maxSearches: 3,
       maxFetches: 3,
     });

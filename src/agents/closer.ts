@@ -57,7 +57,7 @@ async function appContext(userId: string, applicationId: string) {
   const db = admin();
   const { data, error } = await db
     .from("applications")
-    .select("id, status, decision, aid_offered, programs(id, name, degree, url, app_fee_usd, fee_waiver, funding_signals, schools(id, name, country))")
+    .select("id, status, decision, aid_offered, target_deadline, programs(id, name, degree, url, app_fee_usd, fee_waiver, funding_signals, schools(id, name, country))")
     .eq("id", applicationId)
     .eq("user_id", userId)
     .single();
@@ -144,7 +144,113 @@ async function saveDrafts(userId: string, applicationId: string, out: z.infer<ty
   return saved;
 }
 
+const RefOut = z.object({ subject: z.string(), body: z.string() });
+
 export const closer: Record<string, Handler> = {
+  // ask the applicant's recommenders for a reference, early, with what it's for and when it's due
+  "closer.reference_requests": async (job) => {
+    const { applicationId, count = 2 } = job.payload as { applicationId: string; count?: number };
+    const db = admin();
+    const { app, program, school } = await appContext(job.user_id, applicationId);
+    const { data: recs } = await db.from("recommenders").select("name, email, title, organization, relationship").eq("user_id", job.user_id).order("created_at");
+    const usable = (recs ?? []).filter((r) => r.email);
+    if (!usable.length) {
+      await logEvent({ userId: job.user_id, actor: "agent:closer", action: "references.missing", applicationId, context: { needed: count } });
+      return { skipped: "no recommenders with an email on file" };
+    }
+    // don't ask the same person twice for the same application
+    const { data: already } = await db.from("messages").select("to_email, threads!inner(application_id)").eq("user_id", job.user_id).eq("purpose", "reference_request").eq("threads.application_id", applicationId);
+    const asked = new Set((already ?? []).map((m) => String(m.to_email).toLowerCase()));
+    const profile = await getProfile(job.user_id);
+    const award = program.degree === "Scholarship";
+    const due = (app as { target_deadline?: string | null }).target_deadline ?? null;
+    let saved = 0;
+    for (const r of usable.filter((x) => !asked.has(String(x.email).toLowerCase())).slice(0, count)) {
+      const { output, runId } = await runStructured({
+        userId: job.user_id,
+        agent: "closer",
+        jobId: job.id,
+        tier: "cheap",
+        promptVersion: "reference-request-v1",
+        system: `draft a short, warm email from the applicant to someone who knows their work, asking for a reference. under 150 words. say what it's for, the deadline, that the system or the applicant will send the link or form, and offer a short summary of what to highlight. no flattery, no pressure, easy to say no. sign with the applicant's name. facts about the applicant only from the fact sheet.`,
+        prompt: `applicant: ${profile.identity.full_name ?? "the applicant"}
+referee: ${r.name}${r.title ? `, ${r.title}` : ""}${r.organization ? ` at ${r.organization}` : ""}${r.relationship ? ` (${r.relationship})` : ""}
+for: ${award ? `the ${program.name} scholarship from ${school.name}` : `${program.name} at ${school.name}`}
+deadline: ${due ?? "not confirmed yet"}
+fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0, 6000)}`,
+        schema: RefOut,
+        maxTokens: 800,
+      });
+      const { data: t, error: terr } = await db.from("threads").insert({ user_id: job.user_id, application_id: applicationId, subject: output.subject, status: "draft" }).select("id").single();
+      if (terr) throw new Error(terr.message);
+      const { data: msg, error } = await db
+        .from("messages")
+        .insert({ user_id: job.user_id, thread_id: t.id, direction: "out", subject: output.subject, body: output.body, to_email: r.email, purpose: "reference_request", status: "draft" })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      // the dial decides: sent after an undo window, or waiting in Messages for one tap
+      await schedule(job.user_id, msg.id as string, "agent").catch(() => null);
+      await logEvent({ userId: job.user_id, actor: "agent:closer", action: "references.requested", applicationId, agentRunId: runId, context: { referee: r.name } });
+      saved++;
+    }
+    return { drafted: saved };
+  },
+
+  // after a program application goes in: find the school's separate scholarship forms and start them
+  "closer.school_scholarships": async (job) => {
+    const { applicationId } = job.payload as { applicationId: string };
+    const db = admin();
+    const { program, school } = await appContext(job.user_id, applicationId);
+    if (program.degree === "Scholarship") return { skipped: "already a scholarship" };
+    const found = await research({
+      userId: job.user_id,
+      agent: "closer",
+      jobId: job.id,
+      system: "you find scholarships, fellowships and awards at one university that need a SEPARATE application from the program application itself (their own form, essay or portal, often with an earlier or later deadline). official university pages only. ignore awards that are automatic with the program application.",
+      prompt: `${program.name} at ${school.name}. list each award that needs its own application: name, amount, deadline, who's eligible (international students?), and the url of its application page.`,
+      maxSearches: 3,
+      maxFetches: 3,
+    });
+    const { output } = await runStructured({
+      userId: job.user_id,
+      agent: "closer",
+      jobId: job.id,
+      tier: "cheap",
+      promptVersion: "school-scholarships-v1",
+      system: "extract awards that need a separate application, only ones the notes name. deadline as YYYY-MM-DD or \"\". url exactly as given or \"\".",
+      prompt: found.text,
+      schema: z.object({ awards: z.array(z.object({ name: z.string(), amount: z.string(), deadline: z.string(), intl_eligible: z.enum(["yes", "no", "unknown"]), url: z.string() })) }),
+      maxTokens: 3000,
+    });
+    const { startScholarship } = await import("@/lib/scholarships");
+    const today = new Date().toISOString().slice(0, 10);
+    let started = 0;
+    for (const a of output.awards.slice(0, 5)) {
+      const deadline = /^\d{4}-\d{2}-\d{2}$/.test(a.deadline) ? a.deadline : null;
+      if (a.intl_eligible === "no" || (deadline && deadline < today)) continue;
+      const { data: have } = await db.from("funding_opportunities").select("id").eq("school_id", school.id).eq("name", a.name).maybeSingle();
+      let oppId = have?.id as string | undefined;
+      const fields = { school_id: school.id, program_id: program.id, name: a.name, kind: "merit_scholarship", amount_note: a.amount || null, deadline, intl_eligible: a.intl_eligible === "unknown" ? null : true, url: a.url || null, verified_at: new Date().toISOString() };
+      if (oppId) await db.from("funding_opportunities").update(fields).eq("id", oppId);
+      else {
+        const { data: ins, error } = await db.from("funding_opportunities").insert(fields).select("id").single();
+        if (error) continue;
+        oppId = ins.id as string;
+      }
+      const { data: uf } = await db
+        .from("user_funding")
+        .upsert({ user_id: job.user_id, opportunity_id: oppId, fit: "strong", why: `Separate scholarship form for ${school.name} applicants` }, { onConflict: "user_id,opportunity_id" })
+        .select("id")
+        .single();
+      if (!uf) continue;
+      const r = await startScholarship(job.user_id, uf.id as string, "agent");
+      if ("applicationId" in r && r.created) started++;
+    }
+    await logEvent({ userId: job.user_id, actor: "agent:closer", action: "scholarships.school_checked", applicationId, context: { found: output.awards.length, started } });
+    return { found: output.awards.length, started };
+  },
+
   "closer.fee_waiver": async (job) => {
     const { applicationId } = job.payload as { applicationId: string };
     const profile = await getProfile(job.user_id);

@@ -1,4 +1,5 @@
 import "server-only";
+import { isScholarship } from "@/lib/scholarship-kind";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
@@ -86,6 +87,7 @@ export const Plan = z.object({
     }),
   ),
   other_requirements: z.array(z.string()), // cv format, references count, portfolio, writing sample...
+  references_needed: z.string(), // digits: how many recommendation letters/referees the application asks for; "" if none or unknown
   prompts_are_current: z.enum(["yes", "last_cycle", "unknown"]),
   brief: z.object({
     narrative: z.string(),
@@ -174,13 +176,14 @@ export const writer: Record<string, Handler> = {
 
     const level = levelOf(profile);
     const fallback = defaultEssay(level);
+    const award = isScholarship(program);
     const found = await research({
       userId: job.user_id,
       agent: "strategist",
       jobId: job.id,
       system: STRATEGIST_SYSTEM,
       prompt: `${levelGuide(level)}
-
+${award ? `\nTHIS IS A SCHOLARSHIP APPLICATION, not a degree program: "${program.name}" from ${school.name}. find the scholarship's own application requirements on its official pages: every essay or statement with prompt and limit, how many references and from whom, documents, eligibility conditions (citizenship, field, level, a university offer or admission required first?), interview or assessment stages, the deadline, and where to apply (portal). position the applicant for what this award rewards (leadership, impact, field, returning home, need...), using only their real facts. why_this_program = why this award fits them.\n` : ""}
 program: ${program.name} (${program.degree}) at ${school.name}${school.country ? `, ${school.country}` : ""}
 official page: ${program.url ?? "(find it)"}
 intake: ${row?.target_term ?? "fall-2027"}. today: ${today()}.
@@ -201,7 +204,7 @@ find the application's written requirements (official prompts and limits), then 
       jobId: job.id,
       tier: "write",
       promptVersion: "plan-v1",
-      system: `turn the research notes into a structured application plan. essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet ("[disputed figure]" = unconfirmed, don't use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}. why_this_program must name real, specific things from the notes; if the notes have none, say "research didn't find program specifics" instead of inventing.`,
+      system: `turn the research notes into a structured application plan.${award ? " this is a scholarship application: list its own essays, and put eligibility conditions (e.g. 'needs a university offer first'), interview stages and the referee rules in other_requirements." : ""} references_needed: how many recommendation letters or referees it asks for, as digits ("" if none or unknown). essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet ("[disputed figure]" = unconfirmed, don't use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}. why_this_program must name real, specific things from the notes; if the notes have none, say "research didn't find program specifics" instead of inventing.`,
       prompt: `research notes:\n${found.text}`,
       schema: Plan,
       maxTokens: 8000,
@@ -249,15 +252,27 @@ find the application's written requirements (official prompts and limits), then 
       }
     }
 
-    // money before submitting: look for an application fee waiver
-    await enqueue({
-      userId: job.user_id,
-      agent: "closer",
-      task: "fee_waiver",
-      payload: { applicationId },
-      idempotencyKey: `fee_waiver:${applicationId}`,
-      parentJobId: job.id,
-    });
+    // money before submitting: look for an application fee waiver (scholarships don't charge one)
+    if (!award)
+      await enqueue({
+        userId: job.user_id,
+        agent: "closer",
+        task: "fee_waiver",
+        payload: { applicationId },
+        idempotencyKey: `fee_waiver:${applicationId}`,
+        parentJobId: job.id,
+      });
+    // referees: ask the applicant's recommenders in good time, with the deadline and what it's for
+    const refs = parseInt(plan.references_needed, 10) || 0;
+    if (refs > 0)
+      await enqueue({
+        userId: job.user_id,
+        agent: "closer",
+        task: "reference_requests",
+        payload: { applicationId, count: Math.min(refs, 4) },
+        idempotencyKey: `refs:${applicationId}`,
+        parentJobId: job.id,
+      });
 
     await logEvent({
       userId: job.user_id,
@@ -304,7 +319,7 @@ find the application's written requirements (official prompts and limits), then 
       promptVersion: "write-v1",
       system: WRITER_SYSTEM,
       cachePrefix: `applicant fact sheet (the only source of facts; "[disputed figure]" means the applicant hasn't confirmed that number, so leave it out):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
-      prompt: `program: ${program.name} (${program.degree}) at ${school.name}
+      prompt: `${isScholarship(program) ? `scholarship application: ${program.name}, awarded by ${school.name}. write for the scholarship's selection panel (what the award rewards), not an admissions office.` : `program: ${program.name} (${program.degree}) at ${school.name}`}
 piece: ${art.title} (${art.kind})
 prompt: ${art.prompt ?? "(none given)"}
 word limit: ${art.word_limit ?? "none"}
@@ -370,7 +385,7 @@ ${
       promptVersion: "review-v1",
       system: REDTEAM_SYSTEM,
       cachePrefix: `applicant fact sheet (the only source of facts; "[disputed figure]" means the applicant hasn't confirmed that number, so leave it out):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
-      prompt: `program: ${program.name} (${program.degree}) at ${school.name}
+      prompt: `${isScholarship(program) ? `scholarship application: ${program.name}, awarded by ${school.name}. write for the scholarship's selection panel (what the award rewards), not an admissions office.` : `program: ${program.name} (${program.degree}) at ${school.name}`}
 piece: ${art.title}
 prompt: ${art.prompt ?? "(none)"}
 word limit: ${art.word_limit ?? "none"}

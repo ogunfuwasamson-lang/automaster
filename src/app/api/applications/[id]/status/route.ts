@@ -1,4 +1,5 @@
 import { NextResponse, after, type NextRequest } from "next/server";
+import { afterSubmitted } from "@/agents/runner";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       await move("submitted");
       await logEvent({ userId: uid, actor: "user", action: "application.submitted", applicationId: id, programId: app.program_id, channel: "portal" });
       await recordOutcome({ userId: uid, applicationId: id, kind: "proxy", label: "submitted", source: "user" });
+      await afterSubmitted(uid, id).catch(() => null);
       return NextResponse.json({ ok: true });
     }
 

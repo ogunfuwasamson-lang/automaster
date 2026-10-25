@@ -133,11 +133,18 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.04em] sm:text-[30px]">{p.schools.name}</h1>
+            {p.degree === "Scholarship" && <p className="label-mono mb-2 !text-brand">Scholarship application</p>}
+            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.04em] sm:text-[30px]">{p.degree === "Scholarship" ? p.name : p.schools.name}</h1>
             <p className="mt-2 text-[15px] text-muted">
-              {p.name}
-              {p.degree && !p.name.toLowerCase().includes(p.degree.toLowerCase()) ? `, ${p.degree}` : ""}
-              {p.schools.country ? ` in ${p.schools.country}` : ""}
+              {p.degree === "Scholarship" ? (
+                <>Awarded by {p.schools.name}</>
+              ) : (
+                <>
+                  {p.name}
+                  {p.degree && !p.name.toLowerCase().includes(p.degree.toLowerCase()) ? `, ${p.degree}` : ""}
+                  {p.schools.country ? ` in ${p.schools.country}` : ""}
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

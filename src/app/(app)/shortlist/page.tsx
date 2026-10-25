@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/supabase/server";
 import { daysUntil, upcomingDeadlines, type DeadlineRow } from "@/lib/fit";
-import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences } from "./controls";
+import { ReconButton, MoveButton, AutoRefresh, ScholarshipButton, Preferences, ApplyScholarship, AutoScholarships } from "./controls";
 import { REGIONS, loadProfile } from "@/lib/profile";
 import { userPlan } from "@/lib/budget";
 import Link from "next/link";
@@ -54,6 +54,8 @@ interface Matched {
   fit: string | null;
   why: string | null;
   status: string;
+  application_id: string | null;
+  applications: { status: string; runner_status: string | null } | null;
   funding_opportunities: { name: string; sponsor: string | null; url: string | null; amount_note: string | null; deadline: string | null; eligibility: string | null; intl_eligible: boolean | null };
 }
 
@@ -284,12 +286,16 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
     auth.sb.from("events").select("context, created_at").eq("action", "recon.discovered").order("created_at", { ascending: false }).limit(6),
     auth.sb
       .from("user_funding")
-      .select("id, fit, why, status, funding_opportunities(name, sponsor, url, amount_note, deadline, eligibility, intl_eligible)")
+      .select("id, fit, why, status, application_id, applications(status, runner_status), funding_opportunities(name, sponsor, url, amount_note, deadline, eligibility, intl_eligible)")
       .limit(60),
     auth.sb.from("profiles").select("profile").single(),
   ]);
+  // the auto-apply setting arrives with migration 0012
+  const autoRow = await auth.sb.from("profiles").select("auto_scholarships").single();
+  const autoOn = !autoRow.error && !!(autoRow.data as { auto_scholarships?: boolean } | null)?.auto_scholarships;
 
-  const allRows = (apps ?? []) as unknown as Row[];
+  // scholarship applications live under the Scholarships tab, not among the programs
+  const allRows = ((apps ?? []) as unknown as Row[]).filter((r) => r.programs.degree !== "Scholarship");
   const presentRegions = [...new Set(allRows.map((r) => r.programs.schools.region).filter(Boolean))] as string[];
   const rows = regionFilter ? allRows.filter((r) => r.programs.schools.region === regionFilter) : allRows;
   const prof = loadProfile(profRow?.profile);
@@ -403,6 +409,10 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
               <Empty title="No programs yet" body="Set what to search for, then build your shortlist. It takes a few minutes per region." action={<ReconButton running={false} hasRows={false} />} />
             ) : view === "scholarships" ? (
               scholarships.length ? (
+                <>
+                <div className="mb-4">
+                  <AutoScholarships on={autoOn} />
+                </div>
                 <ul className="grid gap-4 md:grid-cols-2">
                   {scholarships.map((x) => {
                     const o = x.funding_opportunities;
@@ -438,10 +448,33 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
                           )}
                         </div>
                         {o.eligibility && <p className="mt-2 line-clamp-2 text-[12px] text-muted">{o.eligibility}</p>}
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4">
+                          {x.application_id ? (
+                            <>
+                              <span className="flex items-center gap-1.5 text-[12.5px] text-muted">
+                                <span className={`size-1.5 rounded-full ${x.applications?.status === "submitted" || x.status === "applied" ? "bg-go" : "bg-signal"}`} aria-hidden />
+                                {x.applications?.status === "submitted" || x.status === "applied" ? "Applied" : x.applications?.status === "packet_approved" ? "Signed, submitting" : x.applications?.status === "ready_for_review" ? "Essays ready for you" : "Agents are preparing it"}
+                              </span>
+                              <ButtonLink href={`/applications/${x.application_id}`} size="sm" variant="secondary">
+                                Open
+                              </ButtonLink>
+                            </>
+                          ) : left !== null && left < 0 ? (
+                            <span className="text-[12.5px] text-muted">Deadline passed</span>
+                          ) : o.intl_eligible === false ? (
+                            <span className="text-[12.5px] text-muted">Not open to you</span>
+                          ) : (
+                            <>
+                              <span className="text-[12.5px] text-muted">Agents draft the essays; you sign.</span>
+                              <ApplyScholarship id={x.id} />
+                            </>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
                 </ul>
+                </>
               ) : (
                 <Empty icon={<Award className="size-5" />} title="No scholarships matched yet" body="Choose Find scholarships and the agents look for funding that fits your profile." action={<ScholarshipButton running={false} />} />
               )

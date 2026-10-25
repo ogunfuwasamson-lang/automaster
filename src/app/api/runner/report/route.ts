@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { afterSubmitted } from "@/agents/runner";
 import * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
 import { loadApp, runnerUser } from "@/lib/runner";
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     const eventId = await logEvent({ userId: uid, actor: "agent:runner", action: "runner.submitted", applicationId: b.application, programId: app.program_id, channel: "portal", context: { url: b.url ?? null } });
     await logEvent({ userId: uid, actor: "agent:runner", action: "application.submitted", applicationId: b.application, programId: app.program_id, channel: "portal" });
     await recordOutcome({ userId: uid, eventId, applicationId: b.application, kind: "proxy", label: "submitted", source: "runner" });
+    await afterSubmitted(uid, b.application).catch(() => null);
     return NextResponse.json({ ok: true });
   }
 

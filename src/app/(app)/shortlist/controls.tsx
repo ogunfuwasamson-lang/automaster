@@ -192,3 +192,66 @@ export function Preferences({ regions, degreeTypes, allRegions, level, maxRegion
     </details>
   );
 }
+
+// "apply for this": the agents prepare a scholarship application like any other (you still sign it)
+export function ApplyScholarship({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  return (
+    <Button
+      size="sm"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        const res = await fetch(`/api/scholarships/${id}`, { method: "POST" });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) toast.error(j.error ?? "Couldn't start it");
+        else {
+          toast.success("The agents are preparing this scholarship application");
+          if (j.applicationId) router.push(`/applications/${j.applicationId}`);
+        }
+        setBusy(false);
+        router.refresh();
+      }}
+    >
+      {busy ? "Starting…" : "Apply for this"}
+    </Button>
+  );
+}
+
+// opt in: strong-fit scholarships are started automatically
+export function AutoScholarships({ on }: { on: boolean }) {
+  const [value, setValue] = useState(on);
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-[13.5px] shadow-card">
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">Apply for strong matches on my behalf</span>
+        <span className="block text-[12.5px] text-muted">The agents start them as they&apos;re found. Nothing is submitted until you sign.</span>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        disabled={busy}
+        onClick={async () => {
+          const next = !value;
+          setBusy(true);
+          setValue(next);
+          const res = await fetch("/api/scholarships/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: next }) });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setValue(!next);
+            toast.error(j.error ?? "Couldn't change it");
+          } else if (next) toast.success(j.started ? `Started ${j.started} scholarship application${j.started === 1 ? "" : "s"}` : "On. New strong matches start on their own");
+          setBusy(false);
+          router.refresh();
+        }}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${value ? "bg-neutral-900 dark:bg-go" : "bg-neutral-300 dark:bg-neutral-700"}`}
+      >
+        <span className={`absolute left-0 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+      </button>
+    </label>
+  );
+}

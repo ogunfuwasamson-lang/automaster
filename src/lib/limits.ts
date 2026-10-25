@@ -19,10 +19,12 @@ export async function checkLimit(userId: string, what: "recon_run" | "applicatio
     if ((count ?? 0) >= plan.recon_runs_per_month) return `your ${plan.name} plan includes ${plan.recon_runs_per_month} shortlist run${plan.recon_runs_per_month > 1 ? "s" : ""} a month.${upgrade}`;
   }
   if (what === "application") {
+    // scholarship applications don't use up program slots
     const { count } = await db
       .from("applications")
-      .select("id", { count: "exact", head: true })
+      .select("id, programs!inner(degree)", { count: "exact", head: true })
       .eq("user_id", userId)
+      .neq("programs.degree", "Scholarship")
       .not("status", "in", "(researching,shortlisted,dropped)");
     if ((count ?? 0) >= plan.maxActiveApplications) return `your ${plan.name} plan includes ${plan.maxActiveApplications} application${plan.maxActiveApplications > 1 ? "s" : ""}.${upgrade}`;
   }

@@ -518,7 +518,10 @@ first list every eligibility hook you see in this profile. then search for schol
     agentRunId: runId,
     context: { found: saved, strong: output.scholarships.filter((x) => x.fit === "strong").length, searches: found.searches },
   });
-  return { found: saved };
+  // "apply for strong matches on their own" switched on: start those applications now
+  const { autoStartScholarships } = await import("@/lib/scholarships");
+  const started = await autoStartScholarships(job.user_id).catch(() => 0);
+  return { found: saved, started };
 };
 
 async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[] } | null> {

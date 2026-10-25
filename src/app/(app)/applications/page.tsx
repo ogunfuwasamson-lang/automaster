@@ -81,7 +81,10 @@ export default async function Applications() {
                         <Link href={`/applications/${r.id}`} className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900">
                           <Deadline date={r.target_deadline} urgent={urgent} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-bold tracking-[-0.01em]">{r.programs.schools.name}</span>
+                            <span className="flex items-baseline gap-2">
+                              <span className="truncate font-bold tracking-[-0.01em]">{r.programs.schools.name}</span>
+                              {r.programs.degree === "Scholarship" && <span className="label-mono shrink-0 !text-[10px] !text-brand">Scholarship</span>}
+                            </span>
                             <span className="block truncate text-sm text-muted">{r.programs.name}</span>
                             {writing && (
                               <span className="mt-2 flex items-center gap-2 text-xs text-muted">
