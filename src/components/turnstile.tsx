@@ -3,14 +3,15 @@ import Script from "next/script";
 import { useEffect, useRef } from "react";
 
 // Cloudflare Turnstile: the bot check on sign-up and sign-in. usually invisible (no puzzle for people); Supabase
-// checks the token it produces. only on when NEXT_PUBLIC_TURNSTILE_SITE_KEY is set.
+// checks the token it produces. the token is ignored until CAPTCHA is turned on in Supabase, so this can ship first.
 type TS = { render(el: HTMLElement, o: Record<string, unknown>): string; reset(id?: string): void; remove(id: string): void };
 declare global {
   interface Window {
     turnstile?: TS;
   }
 }
-export const TURNSTILE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+// the site key is public (it ships to every browser); an env var can override it
+export const TURNSTILE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "0x4AAAAAAFtui7QTYxLmFtTR";
 
 export function Turnstile({ onToken, resetKey }: { onToken: (t: string | null) => void; resetKey?: number }) {
   const box = useRef<HTMLDivElement>(null);
