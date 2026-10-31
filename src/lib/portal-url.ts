@@ -17,7 +17,7 @@ export function normalizeUrl(raw: string | null | undefined): string | null {
 
 const PORTAL = /(^|\.)(apply|applygrad|gradapply|apply\w*|slate|applications?|portal|my\w*apply|enligne)\.|\/(apply|applications?|portal|account\/(login|register)|register|login|signin|psp|psc)(\/|\?|#|$|\.)|technolutions|collegenet|liaisoncas|ucas\.com|studylink|uni-assist|campusnet|course-application|applyweb|embark|hobsons|radius|my\.site\.com/i;
 // university systems that are not admissions: never use these as the application portal
-const NOT_ADMISSIONS = /accommodation|housing|rooms\.|residence|library|alumni|careers?\b|jobs?\b|staff|intranet|moodle|blackboard|canvas|timetable|giving|donate|shop|tickets?|events?\b|sport/i;
+const NOT_ADMISSIONS = /accommodation|housing|rooms\.|residence|library|alumni|careers?\b|jobs?\b|staff|intranet|moodle|blackboard|canvas|timetable|giving|donate|shop|tickets?|events?\b|sport|request-?(more-?)?info|\brfi\b|inquir|enquir|brochure|newsletter|subscribe|contact-us/i;
 
 export function looksLikePortal(url: string | null | undefined): boolean {
   if (!url) return false;

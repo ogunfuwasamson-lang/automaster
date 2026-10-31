@@ -42,6 +42,8 @@
   var CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here| e-?id| user ?id| username| applicant account)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login|(get|request) (an? )?(e-?id|account))[?!.]*$/i;
   var SIGNIN = /^(sign in|log ?in|login|continue|next|submit)$/i;
   var CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next|(set|save|create|update|change|choose) (my |your |a )?password|save|activate( (my )?account)?|finish|complete( registration)?|confirm)$/i;
+  var LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
+  var CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
   var VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
   var SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
   var CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
@@ -211,6 +213,16 @@
           if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
           state.submitClicked = true;
         }
+        if ((a.action === "click" || a.action === "double_click") && (/\b(start|create|begin|register|sign ?up|new application)\b/i.test(label) || !label && /submit/i.test(m?.type ?? ""))) {
+          const pageKey = (state.lastFingerprint ?? "").slice(0, 60);
+          const k = `${pageKey}|${label || m?.type}`;
+          if ((state.createClicks ?? []).some((c) => c.startsWith(`${pageKey}|`))) {
+            log(`didn't press "${label || "submit"}" again: it was pressed already`);
+            idle++;
+            continue;
+          }
+          state.createClicks = [...state.createClicks ?? [], k].slice(-30);
+        }
         if (a.action === "click") await page.mouseClick(x, y);
         else if (a.action === "double_click") await (page.doubleClick ?? page.mouseClick)(x, y);
         else if (a.action === "hover") await page.hover?.(x, y);
@@ -234,6 +246,13 @@
             log(`nothing to type for ${a.sheet_key || "?"}`);
             idle++;
             continue;
+          }
+          if (/select/i.test(m?.type ?? "") || under?.tag === "select") {
+            const r = await main.evaluate((p) => window.__am.selectAt(p.x, p.y, p.v), { x, y, v }).catch(() => null);
+            if (r?.chose) {
+              log(`chose "${r.chose.slice(0, 40)}" for ${a.sheet_key} in ${what}`);
+              continue;
+            }
           }
           await page.mouseClick(x, y);
           await page.pressKey?.("Control+A");
@@ -296,13 +315,24 @@
       const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
       const v = await visionLoop(page, deps2, state, `fill in these required questions with the applicant's information, opening dropdowns and choosing the matching option: ${labels.join("; ")}`, labels);
       if (v.outcome) return { filled, empty, outcome: v.outcome };
+      if (v.acted) filled += 1;
       if (v.acted) {
+        now = await snap(page);
+        empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+      }
+    }
+    if (filled > 0 && (now.errors ?? []).length) {
+      const save = now.buttons.find((b) => SECTION_SAVE.test(clean(b.label))) ?? find(now, NEXT);
+      if (save) {
+        await click(page, save.id);
+        await sleep(1200);
         now = await snap(page);
         empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
       }
     }
     return { filled, empty };
   }
+  var SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
   async function runEngine(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
     let filled = 0;
@@ -337,7 +367,26 @@
       }
       if (state.samePageCount >= 3) {
         const req = s.fields.filter((f) => f.required && f.type !== "checkbox").map((f) => cleanLabel(f.label, f.options).slice(0, 80));
-        const stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+        let stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+        if (stillEmpty.length) {
+          const fills = await deps2.map(stillEmpty).catch(() => []);
+          const n = await applyList(page, deps2, stillEmpty, fills, state);
+          if (n) {
+            filled += n;
+            state.samePageCount = 0;
+            await sleep(500);
+            s = await snap(page);
+            stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+            if (!stillEmpty.length) continue;
+          }
+        }
+        const notTaken = stillEmpty.filter((f) => deps2.hasValue?.(f.label));
+        stillEmpty = stillEmpty.filter((f) => !notTaken.includes(f));
+        if (notTaken.length && !stillEmpty.length && state.samePageCount < 6) {
+          const o3 = await stuckStep(page, deps2, s, state, `these fields have the applicant's details but the page didn't keep them (they may be locked until an earlier section is finished, or need a different control): ${notTaken.map((f) => cleanLabel(f.label, f.options).slice(0, 40)).join("; ")}`, { kind: "needs_you", reason: "stuck", note: `the portal won't take ${notTaken.map((f) => cleanLabel(f.label, f.options).slice(0, 30)).slice(0, 3).join(", ")} yet; it may need an earlier section finished first` });
+          if (o3) return { outcome: o3, state, filled };
+          continue;
+        }
         for (const f of stillEmpty) ask(state, f);
         const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
         const err = (s.errors ?? []).join("; ").slice(0, 160);
@@ -346,6 +395,25 @@
         const o2 = await stuckStep(page, deps2, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
         if (o2) return { outcome: o2, state, filled };
         continue;
+      }
+      if (!deps2.goal && deps2.portalUrl && LEAD_PAGE.test(`${s.url} ${s.title}`) && !LEAD_PAGE.test(deps2.portalUrl) && (state.leadBacks ?? 0) < 3) {
+        state.leadBacks = (state.leadBacks ?? 0) + 1;
+        state.navHistory = [...state.navHistory ?? [], `left an enquiry form (${s.title.slice(0, 40)}) for the application portal`].slice(-20);
+        await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
+        state.samePageCount = 0;
+        continue;
+      }
+      if (EMAILED_LINK.test(s.body.slice(0, 6e3)) && deps2.resumeLink && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 6e4) {
+        state.resumeLinkAt = Date.now();
+        const link = await deps2.resumeLink().catch(() => null);
+        if (link) {
+          await deps2.progress("opening the link the school emailed to continue the application");
+          state.navHistory = [...state.navHistory ?? [], "followed the school's emailed link"].slice(-20);
+          await page.goto(link, { timeout: 45e3 }).catch(() => null);
+          state.samePageCount = 0;
+          state.createClicks = [];
+          continue;
+        }
       }
       if (deps2.isDone?.(s) && (state.submitClicked || state.reachedSubmit)) return { outcome: { kind: "submitted", note: "done: the page confirmed it" }, state, filled };
       const kind = classify(s);
@@ -432,8 +500,13 @@
         const rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
         filled += await applyFills(page, deps2, rest, state);
         await acceptTerms(page, s);
-        const go = find(s, CREATE_SUBMIT);
-        if (!go) return { outcome: { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the create button" }, state, filled };
+        const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
+        if (!go) {
+          const o2 = await stuckStep(page, deps2, s, state, "the sign-up form is filled in; find and press the button that creates the account (it may be at the bottom, below the terms, or be an image or link)", { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the button that creates the account" });
+          if (o2) return { outcome: o2, state, filled };
+          state.accountAt ??= Date.now();
+          continue;
+        }
         state.accountAt = Date.now();
         await click(page, go.id);
         continue;
@@ -528,6 +601,7 @@
     const labels = [...new Set(keys.map((k) => DETAIL[k] ?? (k.startsWith("rec") ? "recommenders" : k.startsWith("edu") ? "education history" : k.startsWith("work") ? "work history" : k.replace(/_/g, " "))))];
     return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
   }
+  var EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
   var NAV_BUDGET = 30;
   var DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
   async function navStep(page, deps2, s, state, why, fallback) {
@@ -726,7 +800,16 @@
     return r?.result;
   }
   function pageClick(sel) {
-    const el = document.querySelector(sel);
+    const deep = (q) => {
+      const rs = [document];
+      for (let i = 0; i < rs.length && rs.length < 400; i++) {
+        const hit = rs[i].querySelector(q);
+        if (hit) return hit;
+        for (const e of rs[i].querySelectorAll("*")) if (e.shadowRoot) rs.push(e.shadowRoot);
+      }
+      return null;
+    };
+    const el = deep(sel);
     if (!el) throw new Error("element gone: " + sel);
     el.scrollIntoView({ block: "center", inline: "center" });
     const r = el.getBoundingClientRect();
@@ -739,7 +822,16 @@
     return true;
   }
   function pageFill(a) {
-    const el = document.querySelector(a.sel);
+    const deep = (q) => {
+      const rs = [document];
+      for (let i = 0; i < rs.length && rs.length < 400; i++) {
+        const hit = rs[i].querySelector(q);
+        if (hit) return hit;
+        for (const e of rs[i].querySelectorAll("*")) if (e.shadowRoot) rs.push(e.shadowRoot);
+      }
+      return null;
+    };
+    const el = deep(a.sel);
     if (!el) throw new Error("field gone: " + a.sel);
     el.focus();
     const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -752,7 +844,16 @@
     return true;
   }
   function pageEnter(sel) {
-    const el = sel ? document.querySelector(sel) : document.activeElement;
+    const deep = (q) => {
+      const rs = [document];
+      for (let i = 0; i < rs.length && rs.length < 400; i++) {
+        const hit = rs[i].querySelector(q);
+        if (hit) return hit;
+        for (const e of rs[i].querySelectorAll("*")) if (e.shadowRoot) rs.push(e.shadowRoot);
+      }
+      return null;
+    };
+    const el = sel ? deep(sel) : document.activeElement;
     if (!el) return false;
     el.focus();
     const o = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true };
@@ -767,7 +868,16 @@
     return true;
   }
   function pageFiles(a) {
-    const el = document.querySelector(a.sel);
+    const deep = (q) => {
+      const rs = [document];
+      for (let i = 0; i < rs.length && rs.length < 400; i++) {
+        const hit = rs[i].querySelector(q);
+        if (hit) return hit;
+        for (const e of rs[i].querySelectorAll("*")) if (e.shadowRoot) rs.push(e.shadowRoot);
+      }
+      return null;
+    };
+    const el = deep(a.sel);
     if (!el) throw new Error("upload box gone");
     const bin = atob(a.b64);
     const bytes = new Uint8Array(bin.length);

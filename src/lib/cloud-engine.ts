@@ -43,7 +43,8 @@ export interface EngineState {
   triedCreate?: boolean;
   // buttons that start or create something (an application, an account), pressed once: never pressed twice
   createClicks?: string[];
-  resumeLinkAt?: number; // when the emailed continue-link was last followed
+  resumeLinkAt?: number;
+  leadBacks?: number; // times this run came back from an enquiry form // when the emailed continue-link was last followed
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
 }
@@ -106,6 +107,8 @@ export interface EngineDeps {
   sheetValue?(key: string): string | null;
   // password resets: the reset link the portal emailed after `since`, and a new password saved to the vault
   resetLink?(since: number): Promise<string | null>;
+  // where the application itself starts (to come back to after a wrong turn)
+  portalUrl?: string | null;
   // the link a portal emailed to continue an application it has started ("we've sent you a link to complete the form")
   resumeLink?(): Promise<string | null>;
   // the value behind a profile field, to tell "the profile doesn't have it" from "the portal wouldn't take it"
@@ -180,6 +183,8 @@ const START = /^(start|begin|continue|resume) (my |an |your |a new |new )?applic
 const CREATE = /^((create|register|sign up)( for| an| a| new| my| your)*( account| profile| login| here| e-?id| user ?id| username| applicant account)?|new (user|applicant)s?|first.?time (user|applicant)s?.*|create (a )?login|(get|request) (an? )?(e-?id|account))[?!.]*$/i;
 const SIGNIN = /^(sign in|log ?in|login|continue|next|submit)$/i;
 const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|submit|next|(set|save|create|update|change|choose) (my |your |a )?password|save|activate( (my )?account)?|finish|complete( registration)?|confirm)$/i;
+const LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
+const CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
 const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
 const SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
 const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
@@ -332,7 +337,7 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
 
 const VISION_BUDGET = 60; // screenshot steps per run
 const VISION_KEYS = new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
-type AM = { __am: { marks(draw: boolean): Mark[]; clearMarks(): void; sig(): string; at(x: number, y: number): { label: string } | null } };
+type AM = { __am: { marks(draw: boolean): Mark[]; clearMarks(): void; sig(): string; at(x: number, y: number): { label: string; tag?: string } | null; selectAt(x: number, y: number, v: string): { chose?: string; options?: string[] } | null } };
 
 // the eyes and hands: look at the page as a person would (with numbered marks on everything clickable) and take up
 // to `max` small steps toward `goal`. what's typed comes from the fill sheet only; clicks are checked against what's
@@ -420,6 +425,14 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
           idle++;
           continue;
         }
+        // a native dropdown: pick the matching option directly (its list never appears in a screenshot)
+        if (/select/i.test(m?.type ?? "") || under?.tag === "select") {
+          const r = (await main.evaluate((p: { x: number; y: number; v: string }) => (window as unknown as AM).__am.selectAt(p.x, p.y, p.v), { x, y, v: v! }).catch(() => null)) as { chose?: string; options?: string[] } | null;
+          if (r?.chose) {
+            log(`chose "${r.chose.slice(0, 40)}" for ${a.sheet_key} in ${what}`);
+            continue;
+          }
+        }
         await page.mouseClick(x, y);
         await page.pressKey?.("Control+A");
         await page.typeText?.(typed);
@@ -486,13 +499,27 @@ async function fillHard(page: Page, deps: EngineDeps, state: EngineState): Promi
     const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
     const v = await visionLoop(page, deps, state, `fill in these required questions with the applicant's information, opening dropdowns and choosing the matching option: ${labels.join("; ")}`, labels);
     if (v.outcome) return { filled, empty, outcome: v.outcome };
+    if (v.acted) filled += 1;
     if (v.acted) {
+      now = await snap(page);
+      empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    }
+  }
+  // the portal's error messages only refresh when the section is saved again: press its save/continue button once
+  // after fixing what it complained about, so a stale "X is required" doesn't look like a field that won't fill
+  if (filled > 0 && (now.errors ?? []).length) {
+    const save = now.buttons.find((b) => SECTION_SAVE.test(clean(b.label))) ?? find(now, NEXT);
+    if (save) {
+      await click(page, save.id);
+      await sleep(1200);
       now = await snap(page);
       empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
     }
   }
   return { filled, empty };
 }
+
+const SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
@@ -565,6 +592,15 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       // the usual moves aren't working on this page: let the navigator look at it
       const o = await stuckStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
       if (o) return { outcome: o, state, filled };
+      continue;
+    }
+
+    // an enquiry, brochure or newsletter form collects leads, it isn't the application: go back to the portal
+    if (!deps.goal && deps.portalUrl && LEAD_PAGE.test(`${s.url} ${s.title}`) && !LEAD_PAGE.test(deps.portalUrl) && (state.leadBacks ?? 0) < 3) {
+      state.leadBacks = (state.leadBacks ?? 0) + 1;
+      state.navHistory = [...(state.navHistory ?? []), `left an enquiry form (${s.title.slice(0, 40)}) for the application portal`].slice(-20);
+      await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => null);
+      state.samePageCount = 0;
       continue;
     }
 
@@ -683,8 +719,15 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
       filled += await applyFills(page, deps, rest, state);
       await acceptTerms(page, s);
-      const go = find(s, CREATE_SUBMIT);
-      if (!go) return { outcome: { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the create button" }, state, filled };
+      // the button is called many things ("Create eID", "Register now", "Submit registration", "Sign up >")
+      const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
+      if (!go) {
+        // no recognisable button: look at the page (and the screenshot) before handing it over
+        const o = await stuckStep(page, deps, s, state, "the sign-up form is filled in; find and press the button that creates the account (it may be at the bottom, below the terms, or be an image or link)", { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the button that creates the account" });
+        if (o) return { outcome: o, state, filled };
+        state.accountAt ??= Date.now();
+        continue;
+      }
       state.accountAt = Date.now();
       await click(page, go.id);
       continue;

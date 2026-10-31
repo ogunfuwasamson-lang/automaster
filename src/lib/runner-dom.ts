@@ -5,6 +5,17 @@ export const DOM_HELPER = String.raw`
 (() => {
   if (window.__am) return;
   const textOf = (el) => (el ? (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim() : "");
+  // portals built from web components (salesforce experience sites, many modern forms) keep their fields inside
+  // shadow roots, where document.querySelectorAll can't see. these look through every open shadow root too.
+  const roots = () => {
+    const out = [document];
+    for (let i = 0; i < out.length && out.length < 400; i++) for (const el of out[i].querySelectorAll("*")) if (el.shadowRoot) out.push(el.shadowRoot);
+    return out;
+  };
+  const all = (sel) => { const out = []; for (const r of roots()) out.push(...r.querySelectorAll(sel)); return out; };
+  const one = (sel) => { for (const r of roots()) { const e = r.querySelector(sel); if (e) return e; } return null; };
+  const rootOf = (el) => (el && el.getRootNode ? el.getRootNode() : document);
+  const deepText = () => { const rs = roots(); return [document.body ? document.body.innerText : "", ...rs.slice(1).map((r) => (r.textContent || ""))].join(" ").replace(/\s+/g, " "); };
   const visible = (el) => {
     if (!el || el.disabled || el.readOnly || el.type === "hidden") return false;
     const s = getComputedStyle(el);
@@ -14,14 +25,16 @@ export const DOM_HELPER = String.raw`
   };
   let seq = 0;
   const idOf = (el) => el.getAttribute("data-am-id") || (el.setAttribute("data-am-id", "f" + (++seq) + "_" + Math.random().toString(36).slice(2, 6)), el.getAttribute("data-am-id"));
+  // validation messages sit next to fields ("Answer is required"): they're never the question
+  const stripErr = (t) => (t || "").replace(/\b[\w ]{0,40}\b(is|are) (required|mandatory|missing|invalid)\b\.?/gi, " ").replace(/\bthis (field|question) is required\b\.?|\bplease (enter|select|choose|complete|provide)\b[^.]{0,40}\.?|\brequired field\b\.?|\binvalid (entry|value|format)\b\.?/gi, " ").replace(/\s+/g, " ").trim();
   const labelFor = (el) => {
     const parts = [];
-    if (el.id) { const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) parts.push(textOf(l)); }
+    if (el.id) { const l = rootOf(el).querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) parts.push(textOf(l)); }
     const wrap = el.closest("label"); if (wrap) parts.push(textOf(wrap));
     const by = el.getAttribute("aria-labelledby");
-    if (by) parts.push(by.split(/\s+/).map((i) => textOf(document.getElementById(i))).join(" "));
+    if (by) parts.push(by.split(/\s+/).map((i) => textOf(rootOf(el).getElementById ? rootOf(el).getElementById(i) : document.getElementById(i))).join(" "));
     for (const a of ["aria-label", "placeholder", "title"]) if (el.getAttribute(a)) parts.push(el.getAttribute(a));
-    let own = parts.join(" ").replace(/\s+/g, " ").trim();
+    let own = stripErr(parts.join(" ").replace(/\s+/g, " ").trim());
     // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question.
     // not for radio/checkbox options ("Yes", "No"): those are answers, their question comes from groupLabel.
     // (only for labels that say nothing alone: "Email", "City" or "Phone" are complete questions)
@@ -31,7 +44,7 @@ export const DOM_HELPER = String.raw`
       const mine = textOf(el);
       let a = el.parentElement;
       for (let i = 0; i < 4 && a && !ctx; i++, a = a.parentElement) {
-        const t = (mine ? textOf(a).split(mine).join(" ") : textOf(a)).replace(/\s+/g, " ").trim();
+        const t = stripErr((mine ? textOf(a).split(mine).join(" ") : textOf(a)).replace(/\s+/g, " ").trim());
         if (t && t.length <= 120) ctx = t;
         else if (t.length > 120) break;
       }
@@ -39,7 +52,7 @@ export const DOM_HELPER = String.raw`
       if (!ctx) {
         const row = el.closest(".form_question, .form-group, .field, .question, fieldset, tr, li") || (el.parentElement && el.parentElement.closest("div, p, span"));
         const q = row && row.querySelector(".form_label, legend, label:not([for]), th, .label, h3, h4");
-        ctx = q ? textOf(q) : "";
+        ctx = q ? stripErr(textOf(q)) : "";
       }
       if (ctx && !own.toLowerCase().includes(ctx.toLowerCase())) own = (ctx + " " + own).trim();
     }
@@ -48,7 +61,7 @@ export const DOM_HELPER = String.raw`
   // a radio group's question: the nearest ancestor text once the option labels are taken out
   // (stirling puts several questions in one block; the first ancestor with its own short text is the question)
   const groupLabel = (radio) => {
-    const group = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(radio.name) + '"]')];
+    const group = [...rootOf(radio).querySelectorAll('input[type="radio"][name="' + CSS.escape(radio.name) + '"]')];
     const opts = group.map((g) => labelFor(g) || g.value).filter(Boolean);
     const fs = radio.closest("fieldset");
     let p = radio.parentElement;
@@ -56,7 +69,7 @@ export const DOM_HELPER = String.raw`
       let t = textOf(p);
       const full = t;
       for (const o of opts) if (o) t = t.split(o).join(" ");
-      t = t.replace(/\s+/g, " ").trim();
+      t = stripErr(t.replace(/\s+/g, " ").trim());
       // "Part-time or Full-time *" minus its options leaves "or *": keep the whole line instead
       if (t && t.replace(/[^a-z]/gi, "").length < 5 && full.length <= 160) t = full;
       if (t && t.length <= 160) return t;
@@ -71,14 +84,14 @@ export const DOM_HELPER = String.raw`
 
   function fields(includeFilled) {
     const out = []; const seen = new Set();
-    for (const el of document.querySelectorAll("input, textarea, select")) {
+    for (const el of all("input, textarea, select")) {
       const type = typeOf(el);
       if (["hidden", "submit", "button", "reset", "image", "search"].includes(type) || !visible(el)) continue;
       // cookie banners and site search aren't part of the application: never touch them
       if (el.closest('#onetrust-consent-sdk, #onetrust-banner-sdk, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent" i], [class*="consent" i], form[role="search"], [role="search"]')) continue;
       if (type === "radio") {
         if (!el.name || seen.has(el.name)) continue; seen.add(el.name);
-        const group = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')];
+        const group = [...rootOf(el).querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')];
         if (!includeFilled && group.some((g) => g.checked)) continue;
         const gl = groupLabel(el);
         // "Will you be resident in the UK...? *": an asterisk anywhere in the question marks it required
@@ -99,8 +112,8 @@ export const DOM_HELPER = String.raw`
   // ("Create account" as a <div onclick> or a tab). a generic clickable that wraps a real button is skipped.
   const CLICKABLE = 'button, input[type="submit"], input[type="button"], a, [role="button"], [role="tab"], [role="link"], [role="menuitem"], summary';
   function buttons() {
-    const real = [...document.querySelectorAll(CLICKABLE)];
-    const generic = [...document.querySelectorAll('[onclick], [tabindex="0"]')].filter((e) => !e.matches(CLICKABLE) && !e.querySelector(CLICKABLE) && textOf(e).length <= 60 && !e.closest(CLICKABLE));
+    const real = [...all(CLICKABLE)];
+    const generic = [...all('[onclick], [tabindex="0"]')].filter((e) => !e.matches(CLICKABLE) && !e.querySelector(CLICKABLE) && textOf(e).length <= 60 && !e.closest(CLICKABLE));
     return [...real, ...generic].filter(visible)
       .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || "").trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
       .filter((b) => b.label);
@@ -109,7 +122,7 @@ export const DOM_HELPER = String.raw`
   function pickOption(value) {
     const norm = (t) => t.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
     const want = norm(value);
-    const opts = [...document.querySelectorAll('[role="option"], [role="listbox"] li, .select2-results__option, .ui-menu-item, [class*="option" i][id*="option" i], datalist option')].filter(visible);
+    const opts = [...all('[role="option"], [role="listbox"] li, .select2-results__option, .ui-menu-item, [class*="option" i][id*="option" i], datalist option')].filter(visible);
     if (!opts.length) return null;
     const scored = opts.map((o) => ({ o, t: norm(textOf(o)) })).filter((x) => x.t && !/^(no (results|matches|options)|loading|searching)/.test(x.t));
     const hit = scored.find((x) => x.t === want) || scored.find((x) => x.t.startsWith(want)) || scored.find((x) => x.t.includes(want)) || (scored.length === 1 ? scored[0] : null);
@@ -126,6 +139,24 @@ export const DOM_HELPER = String.raw`
     const c = el.closest(CLICKABLE) || el;
     return { tag: c.tagName.toLowerCase(), label: ((c.tagName === "INPUT" ? c.value : textOf(c)) || c.getAttribute("aria-label") || "").slice(0, 80), href: c.tagName === "A" ? c.href : null };
   }
+  // a native dropdown at a point on screen (its open list never shows in a screenshot): choose the option that
+  // matches the value, the way a person reading the list would ("English" -> "English / Anglais")
+  function selectAt(x, y, value) {
+    let el = document.elementFromPoint(x, y);
+    while (el && el.shadowRoot) { const inner = el.shadowRoot.elementFromPoint(x, y); if (!inner || inner === el) break; el = inner; }
+    const sel = el && (el.tagName === "SELECT" ? el : el.closest("label, div, td, li") && el.closest("label, div, td, li").querySelector("select"));
+    if (!sel || sel.tagName !== "SELECT") return null;
+    const norm = (t) => (t || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const v = norm(value);
+    const opts = [...sel.options].filter((o) => norm(o.text) && !/^(select|choose|please|--)/.test(norm(o.text)));
+    const hit = opts.find((o) => norm(o.text) === v || norm(o.value) === v) || opts.find((o) => norm(o.text).startsWith(v) || v.startsWith(norm(o.text))) || opts.find((o) => norm(o.text).split(" ").includes(v));
+    if (!hit) return { options: opts.slice(0, 40).map((o) => o.text.trim()) };
+    sel.value = hit.value;
+    sel.dispatchEvent(new Event("input", { bubbles: true }));
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    sel.dispatchEvent(new Event("blur", { bubbles: true }));
+    return { chose: hit.text.trim() };
+  }
   function setValue(el, v) {
     const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, v);
@@ -134,31 +165,31 @@ export const DOM_HELPER = String.raw`
     el.dispatchEvent(new Event("blur", { bubbles: true }));
   }
   function apply(f) {
-    const el = document.querySelector('[data-am-id="' + f.id + '"]');
+    const el = one('[data-am-id="' + f.id + '"]');
     if (!el) return false;
     if (f.action === "fill") { if (el.maxLength > 0 && f.value.length > el.maxLength) return false; setValue(el, f.value); return true; }
     if (f.action === "choose") {
       if (el.tagName === "SELECT") { const o = [...el.options].find((x) => x.text.trim() === f.option); if (!o) return false; el.value = o.value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return true; }
-      const hit = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')].find((g) => (labelFor(g) || g.value) === f.option);
+      const hit = [...rootOf(el).querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')].find((g) => (labelFor(g) || g.value) === f.option);
       if (!hit) return false; hit.click(); return true;
     }
     if (f.action === "check") { if (!el.checked) el.click(); return el.checked; }
     return false;
   }
   function snapshot() {
-    const body = textOf(document.body).slice(0, 20000);
+    const body = (roots().length > 1 ? deepText() : textOf(document.body)).slice(0, 20000);
     return {
       url: location.href,
       title: document.title,
       body: body.slice(0, 4000),
-      captcha: !!document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"], iframe[src*="challenges.cloudflare"], .g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]'),
-      payment: !!document.querySelector('input[autocomplete^="cc-"], iframe[src*="stripe"], iframe[src*="braintree"], iframe[src*="paypal"], iframe[src*="flywire"], iframe[src*="cybersource"], iframe[src*="authorize.net"]') || /\b(card number|cardholder|cvv|cvc)\b/i.test(body),
+      captcha: !!one('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"], iframe[src*="challenges.cloudflare"], .g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]'),
+      payment: !!one('input[autocomplete^="cc-"], iframe[src*="stripe"], iframe[src*="braintree"], iframe[src*="paypal"], iframe[src*="flywire"], iframe[src*="cybersource"], iframe[src*="authorize.net"]') || /\b(card number|cardholder|cvv|cvc)\b/i.test(body),
       confirmation: /(application (has been |was )?(successfully )?submitted|thank you for (submitting|applying|your application)|submission (is )?complete|your application is complete|confirmation (number|code))/i.test(body),
-      fingerprint: [...document.querySelectorAll("h1, h2, h3, legend, label")].slice(0, 40).map(textOf).join("|").slice(0, 2000),
+      fingerprint: [...all("h1, h2, h3, legend, label")].slice(0, 40).map(textOf).join("|").slice(0, 2000),
       fields: fields(false),
       allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required })),
       buttons: buttons(),
-      errors: [...document.querySelectorAll('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message')]
+      errors: [...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message')]
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
     };
   }
@@ -170,7 +201,7 @@ export const DOM_HELPER = String.raw`
     const vw = innerWidth, vh = innerHeight;
     const seen = new Set();
     const out = [];
-    for (const el of document.querySelectorAll(MARKABLE + ', [onclick], [tabindex="0"]')) {
+    for (const el of all(MARKABLE + ', [onclick], [tabindex="0"]')) {
       if (out.length >= 90) break;
       const r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
@@ -215,8 +246,8 @@ export const DOM_HELPER = String.raw`
   // a cheap fingerprint of what the screen shows, to tell whether a step changed anything
   function sig() {
     const a = document.activeElement;
-    return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + document.querySelectorAll("input,select,textarea").length + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
+    return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + all("input,select,textarea").length + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
   }
-  window.__am = { snapshot, apply, fields, pickOption, at, marks, clearMarks, sig };
+  window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig };
 })();
 `;

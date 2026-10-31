@@ -79,7 +79,8 @@ actions (point at elements with mark; use x, y only for something without a mark
 - done: the goal is reached, or nothing more can be done on this screen.
 - handoff: a bot check, a payment, or a question about the applicant the fill sheet can't answer. note says what the applicant must do.
 how to work:
-- custom dropdowns: click to open, then click the option (scroll the list or type a few letters if it's long). check the value in the marks list afterwards.
+- a plain dropdown (mark type select): use type with the sheet_key; the matching option is chosen for you. clicking it won't work (its list doesn't show in screenshots).
+- custom dropdowns (comboboxes, styled lists): click to open, then click the option (scroll the list or type a few letters if it's long). check the value in the marks list afterwards.
 - dates: use the date picker or type in the format the box shows. radio and checkbox labels can be clicked instead of the tiny circle.
 - match the applicant's sheet values, allowing for wording ("Fall / Automne 2027" is fall-2027; "Nigerian" is Nigeria). never invent facts.
 - read the recent steps: if a step "changed nothing", don't repeat it: try a different element, the keyboard, scrolling, or closing whatever is in the way.
@@ -244,6 +245,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     files: () => c.sheet.files.map((f) => f.key),
     resetLink: c.readMail ? (since) => findResetLink(c.userId, c.host(), since) : undefined,
     resumeLink: c.readMail ? () => findResumeLink(c.userId, c.host()) : undefined,
+    portalUrl: c.goal ? null : normalizeUrl(c.sheet.portal_url),
     rotatePassword: async () => {
       const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "");
       await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.password_reset", applicationId: c.applicationId, channel: "portal", context: { host: c.host() } });
@@ -296,6 +298,34 @@ export async function findResumeLink(userId: string, host: string): Promise<stri
     if (hit) return hit;
   }
   return null;
+}
+
+// the program's official page on the school's own site, for a program whose link was never saved
+const PageOut = z.object({ url: z.string() });
+async function findProgramPage(userId: string, jobId: string | undefined, p: { name: string; degree: string | null; schools: { name: string } }): Promise<string | null> {
+  const found = await research({
+    userId,
+    agent: "runner",
+    jobId,
+    system: "you find the official web page of one university program (the course page on the university's own website, or for an online program the official partner page). quote the exact url.",
+    prompt: `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}. find its official course page, the one with entry requirements and an "apply" button.`,
+    maxSearches: 2,
+    maxFetches: 2,
+  });
+  const { output } = await runStructured({
+    userId,
+    agent: "runner",
+    jobId,
+    tier: "cheap",
+    promptVersion: "program-page-v1",
+    system: "extract the official program page url from the research. it must be on the university's own site (or the official partner site for an online program), not a rankings, listings or forum site. \"\" if none.",
+    prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 30).join(" ")}`,
+    schema: PageOut,
+    maxTokens: 400,
+  });
+  const u = normalizeUrl(output.url);
+  if (!u || /mastersportal|findamasters|topuniversities|timeshighereducation|shiksha|yocket|collegedunia|careers360|studyportals|wikipedia|reddit|gmatclub|linkedin|facebook/i.test(u)) return null;
+  return found.text.includes(u.replace(/^https:\/\//, "").slice(0, 30)) || found.sources.some((x) => x.startsWith(new URL(u).origin)) ? u : null;
 }
 
 export async function findVerification(userId: string, host: string, since: number) {
@@ -500,6 +530,19 @@ export const runner: Record<string, Handler> = {
       if ((job.payload as { thenRun?: boolean }).thenRun) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId, portalChecked: true } });
       return { url: known, via: "school memory" };
     }
+    // a saved "portal" on a university system that isn't admissions (accommodation, library...) is a wrong turn
+    if (app.portal_url && !looksLikePortal(app.portal_url) && /accommodation|housing|rooms\.|residence|library|alumni|request-?info|enquir|inquir/i.test(app.portal_url)) {
+      await admin().from("applications").update({ portal_url: null }).eq("id", applicationId);
+      app.portal_url = null;
+    }
+    // no course page on file: find it first (the "Apply now" button usually lives there), and keep it for everyone
+    if (!p.url) {
+      const page = await findProgramPage(job.user_id, job.id ?? undefined, p).catch(() => null);
+      if (page) {
+        await admin().from("programs").update({ url: page }).eq("id", app.program_id);
+        p.url = page;
+      }
+    }
     // first, the way a person does it: open the program page and follow its apply links. free and usually enough.
     const walk = await crawlForApply([app.portal_url, p.url].filter((u): u is string => !!u), 10).catch(() => null);
     if (walk?.portal) {
@@ -633,6 +676,7 @@ export const runner: Record<string, Handler> = {
     const memory: MapMemory = { hints: await fieldHints(schoolId, portalHost).catch(() => new Map()), picks: { ...(state.picks ?? {}) } };
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
+    state.leadBacks = 0;
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     // loaded only here, so the many routes that share this file don't carry the browser library

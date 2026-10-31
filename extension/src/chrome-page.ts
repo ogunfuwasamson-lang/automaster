@@ -22,7 +22,9 @@ async function run<R>(tabId: number, frameId: number, func: (arg: never) => R, a
 
 // --- in-page actions (self-contained) ---
 function pageClick(sel: string) {
-  const el = document.querySelector(sel) as HTMLElement | null;
+  // fields inside web components (shadow roots) too
+  const deep = (q: string): Element | null => { const rs: (Document | ShadowRoot)[] = [document]; for (let i = 0; i < rs.length && rs.length < 400; i++) { const hit = rs[i].querySelector(q); if (hit) return hit; for (const e of rs[i].querySelectorAll("*")) if ((e as HTMLElement).shadowRoot) rs.push((e as HTMLElement).shadowRoot!); } return null; };
+  const el = deep(sel) as HTMLElement | null;
   if (!el) throw new Error("element gone: " + sel);
   el.scrollIntoView({ block: "center", inline: "center" });
   const r = el.getBoundingClientRect();
@@ -36,7 +38,8 @@ function pageClick(sel: string) {
 }
 
 function pageFill(a: { sel: string; value: string }) {
-  const el = document.querySelector(a.sel) as HTMLInputElement | HTMLTextAreaElement | null;
+  const deep = (q: string): Element | null => { const rs: (Document | ShadowRoot)[] = [document]; for (let i = 0; i < rs.length && rs.length < 400; i++) { const hit = rs[i].querySelector(q); if (hit) return hit; for (const e of rs[i].querySelectorAll("*")) if ((e as HTMLElement).shadowRoot) rs.push((e as HTMLElement).shadowRoot!); } return null; };
+  const el = deep(a.sel) as HTMLInputElement | HTMLTextAreaElement | null;
   if (!el) throw new Error("field gone: " + a.sel);
   el.focus();
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -50,7 +53,8 @@ function pageFill(a: { sel: string; value: string }) {
 }
 
 function pageEnter(sel: string | null) {
-  const el = (sel ? document.querySelector(sel) : document.activeElement) as HTMLInputElement | null;
+  const deep = (q: string): Element | null => { const rs: (Document | ShadowRoot)[] = [document]; for (let i = 0; i < rs.length && rs.length < 400; i++) { const hit = rs[i].querySelector(q); if (hit) return hit; for (const e of rs[i].querySelectorAll("*")) if ((e as HTMLElement).shadowRoot) rs.push((e as HTMLElement).shadowRoot!); } return null; };
+  const el = (sel ? deep(sel) : document.activeElement) as HTMLInputElement | null;
   if (!el) return false;
   el.focus();
   const o = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true };
@@ -67,7 +71,8 @@ function pageEnter(sel: string | null) {
 }
 
 function pageFiles(a: { sel: string; b64: string; name: string; mime: string }) {
-  const el = document.querySelector(a.sel) as HTMLInputElement | null;
+  const deep = (q: string): Element | null => { const rs: (Document | ShadowRoot)[] = [document]; for (let i = 0; i < rs.length && rs.length < 400; i++) { const hit = rs[i].querySelector(q); if (hit) return hit; for (const e of rs[i].querySelectorAll("*")) if ((e as HTMLElement).shadowRoot) rs.push((e as HTMLElement).shadowRoot!); } return null; };
+  const el = deep(a.sel) as HTMLInputElement | null;
   if (!el) throw new Error("upload box gone");
   const bin = atob(a.b64);
   const bytes = new Uint8Array(bin.length);
