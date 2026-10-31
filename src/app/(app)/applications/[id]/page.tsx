@@ -216,7 +216,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
         essaysApproved={essayData.filter((e) => e.kind !== "video_or_interview" && e.approved).length}
       />
 
-      {pay && <PayToSubmit applicationId={id} kind={pay.kind} label={pay.label} school={p.degree === "Scholarship" ? p.name : p.schools.name} highlight={!!sp.pay} />}
+      {pay && <PayToSubmit applicationId={id} kind={pay.kind} label={pay.label} school={p.degree === "Scholarship" ? p.name : p.schools.name} highlight={!!sp.pay} note={pay.note.replace(/^ready to submit: /, "")} />}
 
       {["packet_approved", "submitted"].includes(app.status) && (
         <RunnerPanel

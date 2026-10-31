@@ -107,23 +107,41 @@ export interface EngineDeps {
   // for jobs other than a whole application (a webinar registration, a waiver form): what the job is, and how
   // to tell it's finished. the button that completes it counts as "submit" (still checked with canSubmit).
   goal?: string;
+  // the document keys that can be uploaded (for the screenshot steps)
+  files?(): string[];
   isDone?(s: Snapshot): boolean;
   finalButton?: RegExp;
 }
 
+export interface Mark {
+  n: number;
+  type: string; // button, a, text, email, select, checkbox, option, combobox...
+  label: string;
+  value: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export interface SeeInput {
   image: Uint8Array;
   goal: string;
   url: string;
   history: string[];
   empty: string[]; // required questions still blank
+  marks: Mark[]; // numbered on the screenshot
+  files: string[]; // document keys that can be uploaded
 }
 export interface SeeAction {
-  action: "click" | "type" | "key" | "scroll" | "done" | "handoff";
+  action: "click" | "double_click" | "type" | "clear" | "key" | "scroll" | "hover" | "upload" | "back" | "wait" | "done" | "handoff";
+  mark: number; // the numbered element to act on (0 when using x/y)
   x: number;
   y: number;
-  sheet_key: string;
-  key: string;
+  sheet_key: string; // for type: the fill-sheet key whose value is typed
+  text: string; // for type: a shorter part of that value (to search a long list), else ""
+  key: string; // for key: Enter, Tab, Escape, ArrowDown, ArrowUp, Space, Backspace, PageDown, PageUp, Home, End
+  file: string; // for upload: a document key
+  direction: string; // for scroll: up or down
   note: string;
 }
 
@@ -305,69 +323,116 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
   return best && best.score >= 3 ? best.b : undefined;
 }
 
-const VISION_BUDGET = 24; // screenshot steps per run
-const VISION_KEYS = new Set(["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"]);
+const VISION_BUDGET = 40; // screenshot steps per run
+const VISION_KEYS = new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
+type AM = { __am: { marks(draw: boolean): Mark[]; clearMarks(): void; sig(): string; at(x: number, y: number): { label: string } | null } };
 
-// the eyes: look at the page as a person would and take up to `max` small steps toward `goal`. values typed
-// come from the fill sheet only; clicks land only after checking what's under the pointer.
-async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal: string, empty: string[], max = 6): Promise<{ acted: boolean; outcome?: Outcome }> {
+// the eyes and hands: look at the page as a person would (with numbered marks on everything clickable) and take up
+// to `max` small steps toward `goal`. what's typed comes from the fill sheet only; clicks are checked against what's
+// under the pointer; after each step the engine notes whether the screen changed, so the next look can adapt.
+async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal: string, empty: string[], max = 10): Promise<{ acted: boolean; outcome?: Outcome }> {
   if (!deps.see || !page.screenshot || !page.mouseClick) return { acted: false };
   let acted = false;
-  const log = (t: string) => (state.visionHistory = [...(state.visionHistory ?? []), t].slice(-12));
-  for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET; i++) {
+  let idle = 0; // steps in a row that changed nothing
+  const log = (t: string) => (state.visionHistory = [...(state.visionHistory ?? []), t].slice(-14));
+  const main = page.mainFrame();
+  const sig = () => main.evaluate(() => (window as unknown as AM).__am.sig(), undefined).catch(() => "");
+  for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET && idle < 3; i++) {
     if (deps.shouldStop?.()) break;
     state.visionCalls = (state.visionCalls ?? 0) + 1;
+    await main.helper().catch(() => {});
+    const marks = await main.evaluate(() => (window as unknown as AM).__am.marks(true), undefined).catch(() => [] as Mark[]);
     const image = await page.screenshot().catch(() => null);
+    await main.evaluate(() => (window as unknown as AM).__am.clearMarks(), undefined).catch(() => {});
     if (!image) break;
-    const a = await deps.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-8), empty }).catch(() => null);
+    const a = await deps.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps.files?.() ?? [] }).catch(() => null);
     if (!a || a.action === "done") break;
     if (a.action === "handoff") {
       log(`handoff: ${a.note}`);
       const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
       return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
     }
-    if (a.action === "click" || a.action === "type") {
-      await page.mainFrame().helper().catch(() => {});
-      const under = await page
-        .mainFrame()
-        .evaluate((p: { x: number; y: number }) => (window as unknown as { __am: { at(x: number, y: number): { label: string } | null } }).__am.at(p.x, p.y), { x: a.x, y: a.y })
-        .catch(() => null);
-      const label = clean(under?.label ?? "");
-      if (a.action === "click") {
-        if (DANGEROUS.test(label)) {
-          log(`refused "${label}"`);
-          return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
-        }
-        if (FINAL.test(label) || /^submit\b/i.test(label)) {
-          state.reachedSubmit = true;
-          const d = await deps.canSubmit();
-          if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
-          state.submitClicked = true;
-        }
-        await page.mouseClick(a.x, a.y);
-        log(`click "${label || `${Math.round(a.x)},${Math.round(a.y)}`}"${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
-      } else {
-        const v = deps.sheetValue?.(a.sheet_key) ?? null;
-        if (!v || NEVER_FILL.test(label)) {
-          log(`nothing to type for ${a.sheet_key || "?"}`);
+    const m = a.mark ? marks.find((x) => x.n === a.mark) : undefined;
+    const x = m ? m.x : a.x;
+    const y = m ? m.y : a.y;
+    const what = m ? `${m.type} "${m.label.slice(0, 40)}"` : `${Math.round(x)},${Math.round(y)}`;
+    const before = await sig();
+    if (["click", "double_click", "type", "clear", "upload", "hover"].includes(a.action)) {
+      if (!m && !(x > 0 && y > 0)) {
+        log(`no target for ${a.action}`);
+        idle++;
+        continue;
+      }
+      const under = await main.evaluate((p: { x: number; y: number }) => (window as unknown as AM).__am.at(p.x, p.y), { x, y }).catch(() => null);
+      const label = clean(under?.label || m?.label || "");
+      if ((a.action === "click" || a.action === "double_click") && DANGEROUS.test(label)) {
+        log(`refused "${label}"`);
+        return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
+      }
+      if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label) || (deps.finalButton?.test(label) ?? false))) {
+        state.reachedSubmit = true;
+        const d = await deps.canSubmit();
+        if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+        state.submitClicked = true;
+      }
+      if (a.action === "click") await page.mouseClick(x, y);
+      else if (a.action === "double_click") await (page.doubleClick ?? page.mouseClick)(x, y);
+      else if (a.action === "hover") await page.hover?.(x, y);
+      else if (a.action === "clear") {
+        await page.mouseClick(x, y);
+        await page.pressKey?.("Control+A");
+        await page.pressKey?.("Backspace");
+      } else if (a.action === "upload") {
+        if (!a.file || !(deps.files?.() ?? []).includes(a.file) || !page.uploadAt) {
+          log(`can't upload ${a.file || "?"}`);
+          idle++;
           continue;
         }
-        await page.mouseClick(a.x, a.y);
+        const ok = await page.uploadAt(x, y, await deps.file(a.file)).catch(() => false);
+        log(ok ? `uploaded ${a.file} at ${what}` : `upload of ${a.file} didn't take`);
+      } else {
+        // type: the value of a fill-sheet key, or a shorter piece of it to search a long list. nothing else.
+        const v = deps.sheetValue?.(a.sheet_key) ?? null;
+        const piece = a.text.trim();
+        const typed = v && piece && v.toLowerCase().includes(piece.toLowerCase()) ? piece : v;
+        if (!typed || NEVER_FILL.test(label) || m?.type === "password") {
+          log(`nothing to type for ${a.sheet_key || "?"}`);
+          idle++;
+          continue;
+        }
+        await page.mouseClick(x, y);
         await page.pressKey?.("Control+A");
-        await page.typeText?.(v);
-        log(`typed ${a.sheet_key} into "${label.slice(0, 40)}"`);
+        await page.typeText?.(typed);
+        log(`typed ${a.sheet_key}${typed !== v ? ` ("${typed}")` : ""} into ${what}`);
       }
+      if (a.action === "click" || a.action === "double_click" || a.action === "hover") log(`${a.action.replace("_", " ")} ${what}${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
     } else if (a.action === "key") {
-      if (!VISION_KEYS.has(a.key)) continue;
-      await page.pressKey?.(a.key as "Enter");
+      if (!VISION_KEYS.has(a.key)) {
+        log(`key ${a.key} not allowed`);
+        idle++;
+        continue;
+      }
+      await page.pressKey?.(a.key === "Space" ? " " : a.key);
       log(`pressed ${a.key}`);
     } else if (a.action === "scroll") {
-      await page.scrollBy?.(600);
-      log("scrolled");
+      const dy = /up/i.test(a.direction) ? -650 : 650;
+      await page.scrollBy?.(dy, m?.x, m?.y);
+      log(`scrolled ${dy < 0 ? "up" : "down"}${m ? ` in ${what}` : ""}`);
+    } else if (a.action === "back") {
+      await page.goBack?.();
+      log("went back");
+    } else if (a.action === "wait") {
+      await sleep(2500);
+      log("waited");
     }
     acted = true;
     await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
     await sleep(900);
+    const after = await sig();
+    if (after && after === before && a.action !== "wait") {
+      idle++;
+      state.visionHistory = [...(state.visionHistory ?? []).slice(0, -1), `${(state.visionHistory ?? []).at(-1) ?? a.action} → nothing changed`].slice(-14);
+    } else idle = 0;
   }
   return { acted };
 }
@@ -743,7 +808,8 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
 
 // the navigator first (cheap, reads the page); if it gives up, look at the screen before handing over
 async function stuckStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineState, why: string, fallback: Outcome): Promise<Outcome | null> {
-  const before = s.fingerprint + s.url;
+  const look = (x: Snapshot) => `${x.fingerprint}|${x.url}|${x.fields.length}|${x.buttons.map((b) => b.label).join("/")}`;
+  const before = look(s);
   const o = await navStep(page, deps, s, state, why, fallback);
   if (!o) return null;
   // a real stop (payment, a button the agents never press, submit not allowed, waiting for mail) stands
@@ -751,8 +817,8 @@ async function stuckStep(page: Page, deps: EngineDeps, s: Snapshot, state: Engin
   const v = await visionLoop(page, deps, state, why, []);
   if (v.outcome) return v.outcome;
   if (!v.acted) return o;
-  const after = await snap(page);
-  return after.fingerprint + after.url !== before || after.fields.length !== s.fields.length ? null : o;
+  // the screen changed (a new button appeared, a list closed, a page loaded): carry on from there
+  return look(await snap(page)) !== before ? null : o;
 }
 
 // one step of a password reset. "continue" = acted, loop again; an outcome = stop; null = not a reset page

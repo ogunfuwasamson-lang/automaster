@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (!applicationId) return NextResponse.json({ error: "which application?" }, { status: 400 });
     const need = await paymentNeeded(auth.user.id, applicationId);
     if (!need) return NextResponse.json({ error: "nothing to pay for this one" }, { status: 400 });
-    if (need.kind === "pro") return NextResponse.json({ error: "this one needs the monthly plan" }, { status: 400 });
+    if (need.kind !== "submission") return NextResponse.json({ error: need.kind === "pro" ? "this one needs the monthly plan" : "this one goes in on the 1st" }, { status: 400 });
   }
   const back = applicationId ? `${appUrl()}/applications/${applicationId}` : `${appUrl()}/settings`;
   try {

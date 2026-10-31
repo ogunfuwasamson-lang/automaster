@@ -206,6 +206,89 @@ d("follow-up forms", () => {
   }, 60_000);
 });
 
+d("screenshot steps", () => {
+  let browser: Browser;
+  beforeAll(async () => {
+    browser = await chromium!.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
+  it("works a custom dropdown the page structure can't explain, by numbered marks", async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await portal(page, {
+      "/term": () => `<h1>Your intake</h1>
+        <div role="combobox" id="cb" style="border:1px solid #999;padding:8px;width:240px">Choose term</div>
+        <div id="list" role="listbox" style="display:none"><div role="option" data-v="W28">Winter / Hiver 2028</div><div role="option" data-v="F27">Fall / Automne 2027</div></div>
+        <div id="next" style="display:none"><a href="#" id="go">Continue</a></div>
+        <script>
+          cb.onclick = () => { list.style.display = "block"; };
+          for (const o of list.children) o.onclick = () => { cb.textContent = o.textContent; list.style.display = "none"; next.style.display = "block"; go.href = "/done?t=" + o.dataset.v; };
+        </script>`,
+      "/done": () => `<h1>Saved</h1>`,
+    });
+    await page.goto("https://portal.test/term");
+    const seen: number[] = [];
+    const r = await runEngine(
+      fromPlaywright(page),
+      deps({
+        see: async (v) => {
+          seen.push(v.marks.length);
+          const opt = v.marks.find((m) => /fall/i.test(m.label) && m.type === "option");
+          if (opt) return { action: "click", mark: opt.n, x: 0, y: 0, sheet_key: "", text: "", key: "", file: "", direction: "", note: "pick fall 2027" };
+          const cont = v.marks.find((m) => /continue/i.test(m.label));
+          if (cont) return { action: "done", mark: 0, x: 0, y: 0, sheet_key: "", text: "", key: "", file: "", direction: "", note: "" };
+          const box = v.marks.find((m) => m.type === "combobox");
+          return { action: "click", mark: box?.n ?? 0, x: 0, y: 0, sheet_key: "", text: "", key: "", file: "", direction: "", note: "open the list" };
+        },
+      }),
+      { steps: 0 },
+      20_000,
+    );
+    expect(seen.length).toBeGreaterThan(1);
+    expect(page.url()).toContain("/done?t=F27");
+    void r;
+    await page.close();
+  }, 60_000);
+});
+
+d("screenshot uploads", () => {
+  let browser: Browser;
+  beforeAll(async () => {
+    browser = await chromium!.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
+  it("uploads a document through a styled button that opens the file picker", async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await portal(page, {
+      "/docs": () => `<h1>Documents</h1><input type="file" id="f" style="display:none"><button type="button" id="b" onclick="f.click()">Upload your CV</button><p id="out"></p>
+        <script>f.onchange = () => { out.textContent = "Uploaded: " + f.files[0].name; }</script>`,
+    });
+    await page.goto("https://portal.test/docs");
+    let done = false;
+    await runEngine(
+      fromPlaywright(page),
+      deps({
+        files: () => ["cv"],
+        file: async () => ({ name: "Ada-CV.pdf", mime: "application/pdf", buffer: new Uint8Array([37, 80, 68, 70]) }),
+        see: async (v) => {
+          if (done || (await page.textContent("#out"))) return { action: "done", mark: 0, x: 0, y: 0, sheet_key: "", text: "", key: "", file: "", direction: "", note: "" };
+          done = true;
+          const b = v.marks.find((m) => /upload/i.test(m.label));
+          return { action: "upload", mark: b?.n ?? 0, x: 0, y: 0, sheet_key: "", text: "", key: "", file: "cv", direction: "", note: "" };
+        },
+      }),
+      { steps: 0 },
+      30_000,
+    );
+    await page.waitForFunction(() => !!document.querySelector("#out")?.textContent, undefined, { timeout: 5000 }).catch(() => null);
+    expect(await page.textContent("#out")).toBe("Uploaded: Ada-CV.pdf");
+    await page.close();
+  }, 60_000);
+});
+
 describe("dropdown answers from related keys", () => {
   it("answers 'Application type' with the term when its options are terms", () => {
     const f: PageField = { id: "t", label: "Application type", type: "select", options: ["Select", "Fall / Automne 2027", "Winter / Hiver 2028"] };

@@ -13,8 +13,15 @@ async function go(body: Record<string, unknown>) {
 }
 
 // one application ready and waiting on payment (or on the monthly plan)
-export function PayToSubmit({ applicationId, kind, label, school, highlight }: { applicationId: string; kind: "submission" | "pro"; label: string; school: string; highlight?: boolean }) {
+export function PayToSubmit({ applicationId, kind, label, school, highlight, note }: { applicationId: string; kind: "submission" | "pro" | "limit"; label: string; school: string; highlight?: boolean; note?: string }) {
   const [busy, setBusy] = useState(false);
+  if (kind === "limit")
+    return (
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+        <p className="font-serif text-[20px] leading-snug">Ready: this one goes in on the 1st</p>
+        <p className="mt-1 text-[14px] text-muted">{note ?? `Pro covers 10 submissions a month and this month's are used. The agents submit ${school} as soon as the new month starts.`}</p>
+      </section>
+    );
   return (
     <section className={`flex flex-wrap items-center gap-4 rounded-2xl border bg-surface p-5 shadow-card ${highlight ? "border-brand ring-4 ring-brand/10" : "border-brand/30"}`}>
       <div className="min-w-0 flex-1">
@@ -72,11 +79,11 @@ export function PlanCard(p: { model: "per_submission" | "subscription"; label: s
     <div className="space-y-3 text-sm">
       {p.pro ? (
         <p>
-          You&apos;re on <span className="font-medium">Pro</span>: unlimited submissions. {p.cancelled ? `It ends on ${until}.` : `Renews on ${until}.`}
+          You&apos;re on <span className="font-medium">Pro</span>: up to 10 submissions a month. {p.cancelled ? `It ends on ${until}.` : `Renews on ${until}.`}
         </p>
       ) : (
         <p>
-          Free: <span className="font-medium tabular">{Math.min(p.used, p.free)} of {p.free}</span> free applications used. Pro is {p.label} for unlimited submissions.
+          Free: <span className="font-medium tabular">{Math.min(p.used, p.free)} of {p.free}</span> free applications used. Pro is {p.label} for up to 10 submissions a month.
         </p>
       )}
       <div className="flex flex-wrap gap-2">

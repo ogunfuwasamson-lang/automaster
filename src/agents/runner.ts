@@ -58,23 +58,38 @@ how to find your way:
 - prefer the main application flow over news, events, fees or other programs.
 rules: never press pay/checkout/delete/withdraw/sign out. explain your choice in note (short).`;
 
-const SEE_SYSTEM = `you operate a web browser for an applicant, looking at a screenshot of a university application portal (1280x900 css pixels; x to the right, y down from the top-left).
-the applicant has signed their packet and authorised the agents to complete the application. take ONE small step toward the goal.
-actions:
-- click: click at (x, y). use it to open a dropdown, choose an option in an open list, tick a box or radio, press a button or link, focus a box. aim at the centre of the element.
-- type: click the text box at (x, y) and type the value of sheet_key (a key from the fill sheet; the value is typed for you). for search-as-you-type boxes, type, then on the next step click the matching suggestion.
-- key: press one of Enter, Tab, Escape, ArrowDown, ArrowUp.
-- scroll: scroll down to see more of the page.
-- done: the goal is reached, or there's nothing more you can do on this screen.
+const SEE_SYSTEM = `you operate a web browser for an applicant, looking at a screenshot of a university application portal (1280x900 css pixels). every clickable or typeable element in view has a red box with a number; the list of marks gives each number's type, label and current value.
+the applicant has signed their packet and authorised the agents to complete the application. take ONE small step toward the goal, the way a careful person would.
+actions (point at elements with mark; use x, y only for something without a mark):
+- click: open a dropdown, pick an option in an open list, tick a box or radio, press a button or link, open a tab or accordion, focus a box, dismiss a cookie banner or popup.
+- double_click: select a word, or open something that needs it.
+- type: click the box and type the value of sheet_key (a fill-sheet key; the value is typed for you, replacing what's there). to search a long list, put a short part of that value in text (e.g. "Niger" for Nigeria), then click the right suggestion next step.
+- clear: empty a box that has a wrong value.
+- key: Enter, Tab, Shift+Tab, Escape, ArrowDown, ArrowUp, ArrowLeft, ArrowRight, Space, Backspace, Delete, PageDown, PageUp, Home, End. arrow keys move through an open list; Enter picks; Escape closes a stuck popup.
+- scroll: direction up or down (with mark, scrolls inside that element, e.g. a long dropdown list).
+- hover: reveal a menu that opens on hover.
+- upload: put a document (file = one of the document keys) into the file box or "upload" button at mark.
+- back: go back a page after a wrong turn.
+- wait: the page is loading or a spinner is showing.
+- done: the goal is reached, or nothing more can be done on this screen.
 - handoff: a bot check, a payment, or a question about the applicant the fill sheet can't answer. note says what the applicant must do.
-rules: choose dropdown options that match the applicant's sheet values (bilingual labels like "Fall / Automne 2027" count). never invent facts. never click pay, delete, withdraw or sign out. look at the recent steps: don't repeat a step that didn't change anything; try another way (a different spot, scrolling, the keyboard).`;
+how to work:
+- custom dropdowns: click to open, then click the option (scroll the list or type a few letters if it's long). check the value in the marks list afterwards.
+- dates: use the date picker or type in the format the box shows. radio and checkbox labels can be clicked instead of the tiny circle.
+- match the applicant's sheet values, allowing for wording ("Fall / Automne 2027" is fall-2027; "Nigerian" is Nigeria). never invent facts.
+- read the recent steps: if a step "changed nothing", don't repeat it: try a different element, the keyboard, scrolling, or closing whatever is in the way.
+- never click pay, delete, withdraw or sign out.`;
 
 const SeeOut = z.object({
-  action: z.enum(["click", "type", "key", "scroll", "done", "handoff"]),
+  action: z.enum(["click", "double_click", "type", "clear", "key", "scroll", "hover", "upload", "back", "wait", "done", "handoff"]),
+  mark: z.number(),
   x: z.number(),
   y: z.number(),
   sheet_key: z.string(),
+  text: z.string(),
   key: z.string(),
+  file: z.string(),
+  direction: z.string(),
   note: z.string(),
 });
 
@@ -204,13 +219,17 @@ export function serverDeps(c: DepsCtx): EngineDeps {
         cachePrefix: `applying to: ${c.sheet.program} at ${c.sheet.school}\nfill sheet keys (type only these):\n${keyMenu(c.sheet)}`,
         prompt: [
           { type: "image", source: { type: "base64", media_type: "image/jpeg", data: Buffer.from(v.image).toString("base64") } },
-          { type: "text", text: `${c.goal ? `the job: ${c.goal}\n` : ""}goal: ${v.goal}\npage: ${v.url}\n${v.empty.length ? `required questions still blank: ${v.empty.join("; ")}\n` : ""}recent steps: ${v.history.join(" → ") || "none"}` },
+          {
+            type: "text",
+            text: `${c.goal ? `the job: ${c.goal}\n` : ""}goal: ${v.goal}\npage: ${v.url}\n${v.empty.length ? `required questions still blank: ${v.empty.join("; ")}\n` : ""}documents you can upload: ${v.files.join(", ") || "none"}\nrecent steps: ${v.history.join(" → ") || "none"}\n\nmarks:\n${v.marks.map((m) => `[${m.n}] ${m.type} "${m.label}"${m.value ? ` = "${m.value}"` : ""}`).join("\n") || "(none)"}`,
+          },
         ],
         schema: SeeOut,
-        maxTokens: 400,
+        maxTokens: 500,
       });
       return output;
     },
+    files: () => c.sheet.files.map((f) => f.key),
     resetLink: c.readMail ? (since) => findResetLink(c.userId, c.host(), since) : undefined,
     rotatePassword: async () => {
       const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "");
@@ -617,6 +636,8 @@ export const runner: Record<string, Handler> = {
         if (need) {
           await db.from("applications").update({ runner_state: { ...saved, reason: "unpaid", samePageCount: 0, rechecks: 0 }, runner_session_id: null, runner_status: "needs_you", runner_note: need.note.replace(/^ready to submit: /, "Ready to submit: "), runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
           await askToPay(job.user_id, applicationId, need, sheet.school);
+          // over pro's monthly allowance: carry on by itself when the month turns
+          if (need.kind === "limit" && need.resumeAt) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId }, runAt: new Date(need.resumeAt), idempotencyKey: `limit:${applicationId}:${need.resumeAt.slice(0, 7)}` });
           return { outcome: "waiting_for_payment" };
         }
       }

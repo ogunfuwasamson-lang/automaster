@@ -2,7 +2,7 @@
 // and the monthly allowance of agent work (the ai budget, the hard cost ceiling).
 //   free: preparing applications. in africa each submission is paid for (and adds to the allowance); elsewhere
 //         the first 3 applications are free.
-//   pro:  $20 a month (outside africa): unlimited submissions and a bigger allowance. counts only while paid up.
+//   pro:  $20 a month (outside africa): up to 10 submissions a month and a bigger allowance. counts only while paid up.
 
 export type PlanId = "free" | "pro";
 

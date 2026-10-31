@@ -159,65 +159,113 @@
     }
     return best && best.score >= 3 ? best.b : void 0;
   }
-  var VISION_BUDGET = 24;
-  var VISION_KEYS = /* @__PURE__ */ new Set(["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"]);
-  async function visionLoop(page, deps2, state, goal, empty, max = 6) {
+  var VISION_BUDGET = 40;
+  var VISION_KEYS = /* @__PURE__ */ new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
+  async function visionLoop(page, deps2, state, goal, empty, max = 10) {
     if (!deps2.see || !page.screenshot || !page.mouseClick) return { acted: false };
     let acted = false;
-    const log = (t) => state.visionHistory = [...state.visionHistory ?? [], t].slice(-12);
-    for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET; i++) {
+    let idle = 0;
+    const log = (t) => state.visionHistory = [...state.visionHistory ?? [], t].slice(-14);
+    const main = page.mainFrame();
+    const sig = () => main.evaluate(() => window.__am.sig(), void 0).catch(() => "");
+    for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET && idle < 3; i++) {
       if (deps2.shouldStop?.()) break;
       state.visionCalls = (state.visionCalls ?? 0) + 1;
+      await main.helper().catch(() => {
+      });
+      const marks = await main.evaluate(() => window.__am.marks(true), void 0).catch(() => []);
       const image = await page.screenshot().catch(() => null);
+      await main.evaluate(() => window.__am.clearMarks(), void 0).catch(() => {
+      });
       if (!image) break;
-      const a = await deps2.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-8), empty }).catch(() => null);
+      const a = await deps2.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps2.files?.() ?? [] }).catch(() => null);
       if (!a || a.action === "done") break;
       if (a.action === "handoff") {
         log(`handoff: ${a.note}`);
         const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
         return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
       }
-      if (a.action === "click" || a.action === "type") {
-        await page.mainFrame().helper().catch(() => {
-        });
-        const under = await page.mainFrame().evaluate((p) => window.__am.at(p.x, p.y), { x: a.x, y: a.y }).catch(() => null);
-        const label = clean(under?.label ?? "");
-        if (a.action === "click") {
-          if (DANGEROUS.test(label)) {
-            log(`refused "${label}"`);
-            return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
-          }
-          if (FINAL.test(label) || /^submit\b/i.test(label)) {
-            state.reachedSubmit = true;
-            const d = await deps2.canSubmit();
-            if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
-            state.submitClicked = true;
-          }
-          await page.mouseClick(a.x, a.y);
-          log(`click "${label || `${Math.round(a.x)},${Math.round(a.y)}`}"${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
-        } else {
-          const v = deps2.sheetValue?.(a.sheet_key) ?? null;
-          if (!v || NEVER_FILL.test(label)) {
-            log(`nothing to type for ${a.sheet_key || "?"}`);
+      const m = a.mark ? marks.find((x2) => x2.n === a.mark) : void 0;
+      const x = m ? m.x : a.x;
+      const y = m ? m.y : a.y;
+      const what = m ? `${m.type} "${m.label.slice(0, 40)}"` : `${Math.round(x)},${Math.round(y)}`;
+      const before = await sig();
+      if (["click", "double_click", "type", "clear", "upload", "hover"].includes(a.action)) {
+        if (!m && !(x > 0 && y > 0)) {
+          log(`no target for ${a.action}`);
+          idle++;
+          continue;
+        }
+        const under = await main.evaluate((p) => window.__am.at(p.x, p.y), { x, y }).catch(() => null);
+        const label = clean(under?.label || m?.label || "");
+        if ((a.action === "click" || a.action === "double_click") && DANGEROUS.test(label)) {
+          log(`refused "${label}"`);
+          return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
+        }
+        if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label) || (deps2.finalButton?.test(label) ?? false))) {
+          state.reachedSubmit = true;
+          const d = await deps2.canSubmit();
+          if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+          state.submitClicked = true;
+        }
+        if (a.action === "click") await page.mouseClick(x, y);
+        else if (a.action === "double_click") await (page.doubleClick ?? page.mouseClick)(x, y);
+        else if (a.action === "hover") await page.hover?.(x, y);
+        else if (a.action === "clear") {
+          await page.mouseClick(x, y);
+          await page.pressKey?.("Control+A");
+          await page.pressKey?.("Backspace");
+        } else if (a.action === "upload") {
+          if (!a.file || !(deps2.files?.() ?? []).includes(a.file) || !page.uploadAt) {
+            log(`can't upload ${a.file || "?"}`);
+            idle++;
             continue;
           }
-          await page.mouseClick(a.x, a.y);
+          const ok = await page.uploadAt(x, y, await deps2.file(a.file)).catch(() => false);
+          log(ok ? `uploaded ${a.file} at ${what}` : `upload of ${a.file} didn't take`);
+        } else {
+          const v = deps2.sheetValue?.(a.sheet_key) ?? null;
+          const piece = a.text.trim();
+          const typed = v && piece && v.toLowerCase().includes(piece.toLowerCase()) ? piece : v;
+          if (!typed || NEVER_FILL.test(label) || m?.type === "password") {
+            log(`nothing to type for ${a.sheet_key || "?"}`);
+            idle++;
+            continue;
+          }
+          await page.mouseClick(x, y);
           await page.pressKey?.("Control+A");
-          await page.typeText?.(v);
-          log(`typed ${a.sheet_key} into "${label.slice(0, 40)}"`);
+          await page.typeText?.(typed);
+          log(`typed ${a.sheet_key}${typed !== v ? ` ("${typed}")` : ""} into ${what}`);
         }
+        if (a.action === "click" || a.action === "double_click" || a.action === "hover") log(`${a.action.replace("_", " ")} ${what}${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
       } else if (a.action === "key") {
-        if (!VISION_KEYS.has(a.key)) continue;
-        await page.pressKey?.(a.key);
+        if (!VISION_KEYS.has(a.key)) {
+          log(`key ${a.key} not allowed`);
+          idle++;
+          continue;
+        }
+        await page.pressKey?.(a.key === "Space" ? " " : a.key);
         log(`pressed ${a.key}`);
       } else if (a.action === "scroll") {
-        await page.scrollBy?.(600);
-        log("scrolled");
+        const dy = /up/i.test(a.direction) ? -650 : 650;
+        await page.scrollBy?.(dy, m?.x, m?.y);
+        log(`scrolled ${dy < 0 ? "up" : "down"}${m ? ` in ${what}` : ""}`);
+      } else if (a.action === "back") {
+        await page.goBack?.();
+        log("went back");
+      } else if (a.action === "wait") {
+        await sleep(2500);
+        log("waited");
       }
       acted = true;
       await page.waitForLoadState("domcontentloaded", { timeout: 8e3 }).catch(() => {
       });
       await sleep(900);
+      const after = await sig();
+      if (after && after === before && a.action !== "wait") {
+        idle++;
+        state.visionHistory = [...(state.visionHistory ?? []).slice(0, -1), `${(state.visionHistory ?? []).at(-1) ?? a.action} \u2192 nothing changed`].slice(-14);
+      } else idle = 0;
     }
     return { acted };
   }
@@ -552,15 +600,15 @@
     return null;
   }
   async function stuckStep(page, deps2, s, state, why, fallback) {
-    const before = s.fingerprint + s.url;
+    const look = (x) => `${x.fingerprint}|${x.url}|${x.fields.length}|${x.buttons.map((b) => b.label).join("/")}`;
+    const before = look(s);
     const o = await navStep(page, deps2, s, state, why, fallback);
     if (!o) return null;
     if (o.kind !== "needs_you" || o.reason !== "stuck" && o.reason !== "login") return o;
     const v = await visionLoop(page, deps2, state, why, []);
     if (v.outcome) return v.outcome;
     if (!v.acted) return o;
-    const after = await snap(page);
-    return after.fingerprint + after.url !== before || after.fields.length !== s.fields.length ? null : o;
+    return look(await snap(page)) !== before ? null : o;
   }
   async function resetStep(page, deps2, s, state) {
     const r = state.reset;

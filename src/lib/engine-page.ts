@@ -34,8 +34,13 @@ export interface EnginePage {
   screenshot?(): Promise<Uint8Array>; // jpeg of the viewport, in css pixels
   mouseClick?(x: number, y: number): Promise<void>;
   typeText?(text: string): Promise<void>;
-  pressKey?(key: "Enter" | "Tab" | "Escape" | "ArrowDown" | "ArrowUp" | "Backspace" | "Control+A"): Promise<void>;
-  scrollBy?(dy: number): Promise<void>;
+  pressKey?(key: string): Promise<void>;
+  scrollBy?(dy: number, x?: number, y?: number): Promise<void>;
+  doubleClick?(x: number, y: number): Promise<void>;
+  hover?(x: number, y: number): Promise<void>;
+  goBack?(): Promise<void>;
+  // click something that opens a file picker (or a file box) and give it this file
+  uploadAt?(x: number, y: number, file: EngineFile): Promise<boolean>;
 }
 
 const wrapped = new WeakMap<Frame, EngineFrame>();
@@ -76,6 +81,38 @@ export function fromPlaywright(page: Page): EnginePage {
     },
     typeText: (text) => page.keyboard.type(text, { delay: 25 }),
     pressKey: (key) => page.keyboard.press(key),
-    scrollBy: (dy) => page.mouse.wheel(0, dy),
+    scrollBy: async (dy, x, y) => {
+      if (x !== undefined && y !== undefined) await page.mouse.move(x, y);
+      await page.mouse.wheel(0, dy);
+    },
+    doubleClick: async (x, y) => {
+      await page.mouse.dblclick(x, y);
+    },
+    hover: async (x, y) => {
+      await page.mouse.move(x, y);
+    },
+    goBack: async () => {
+      await page.goBack({ waitUntil: "domcontentloaded", timeout: 20_000 }).catch(() => null);
+    },
+    uploadAt: async (x, y, file) => {
+      const payload = { name: file.name, mimeType: file.mime, buffer: Buffer.from(file.buffer) };
+      // a file box under the pointer takes the file directly; anything else should open the picker when clicked
+      const handle = await page.evaluateHandle(([px, py]) => {
+        const el = document.elementFromPoint(px, py);
+        const box = el?.closest("label")?.querySelector('input[type="file"]') ?? (el instanceof HTMLInputElement && el.type === "file" ? el : null) ?? el?.closest("div,section,form")?.querySelector('input[type="file"]');
+        return box ?? null;
+      }, [x, y] as const);
+      const input = handle.asElement();
+      if (input) {
+        await (input as import("playwright-core").ElementHandle<HTMLInputElement>).setInputFiles(payload).catch(() => null);
+        return true;
+      }
+      const chooser = page.waitForEvent("filechooser", { timeout: 6000 }).catch(() => null);
+      await page.mouse.click(x, y);
+      const fc = await chooser;
+      if (!fc) return false;
+      await fc.setFiles(payload);
+      return true;
+    },
   };
 }

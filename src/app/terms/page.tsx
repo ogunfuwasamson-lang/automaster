@@ -28,7 +28,7 @@ export default function Terms() {
       </section>
       <section>
         <h2>Fees and plans</h2>
-        <p>Preparing applications is free. In Africa each submission is paid for just before the agents submit it (the local equivalent of ₦2,500). Elsewhere the first 3 applications are free and Pro is $20 a month, renewed monthly until you cancel; it runs to the end of the month you paid for. Payments are processed by Bachs; card details never reach Ivyward. You pay application fees directly to schools; the agents never enter card details.</p>
+        <p>Preparing applications is free. In Africa each submission is paid for just before the agents submit it (the local equivalent of ₦2,500). Elsewhere the first 3 applications are free and Pro is $20 a month for up to 10 submissions a month, renewed monthly until you cancel; it runs to the end of the month you paid for. Payments are processed by Bachs; card details never reach Ivyward. You pay application fees directly to schools; the agents never enter card details.</p>
       </section>
       <section>
         <h2>Acceptable use</h2>

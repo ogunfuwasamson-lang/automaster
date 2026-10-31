@@ -27,7 +27,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 ## Pages
 
 - [Home](${SITE.url}/): what Ivyward does, how a season runs, and how it compares with applying alone or with a consultant
-- [Pricing](${SITE.url}/pricing): free to prepare; pay per submission in Africa, or 3 free then $20 a month elsewhere
+- [Pricing](${SITE.url}/pricing): free to prepare; pay per submission in Africa, or 3 free then $20 a month (10 submissions) elsewhere
 - [Privacy](${SITE.url}/privacy): what Ivyward keeps, how Gmail is connected, and your controls
 - [Terms](${SITE.url}/terms)
 - [Sign up](${SITE.url}/login?mode=signup)

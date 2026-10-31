@@ -156,5 +156,60 @@
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
     };
   }
-  window.__am = { snapshot, apply, fields, pickOption, at };
+  // numbered marks on everything clickable or typeable in view, drawn over the page for a screenshot ("set of
+  // marks"), so the model can point at element 12 instead of guessing pixels
+  const MARKABLE = CLICKABLE + ', input:not([type="hidden"]), select, textarea, [role="option"], [role="combobox"], [role="checkbox"], [role="radio"], [role="switch"], [role="listbox"] li, [contenteditable="true"], label[for]';
+  function marks(draw) {
+    clearMarks();
+    const vw = innerWidth, vh = innerHeight;
+    const seen = new Set();
+    const out = [];
+    for (const el of document.querySelectorAll(MARKABLE + ', [onclick], [tabindex="0"]')) {
+      if (out.length >= 90) break;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
+      const s = getComputedStyle(el);
+      if (s.visibility === "hidden" || s.display === "none" || Number(s.opacity) === 0) continue;
+      // skip an element covered by something else at its centre (a modal, a cookie bar), unless it's the cover itself
+      const cx = Math.min(Math.max(r.left + r.width / 2, 1), vw - 1), cy = Math.min(Math.max(r.top + r.height / 2, 1), vh - 1);
+      const top = document.elementFromPoint(cx, cy);
+      if (top && top !== el && !el.contains(top) && !top.contains(el) && el.type !== "file" && el.type !== "checkbox" && el.type !== "radio") continue;
+      const key = Math.round(r.left) + ":" + Math.round(r.top) + ":" + Math.round(r.width);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const n = out.length + 1;
+      el.setAttribute("data-am-mark", String(n));
+      const tag = el.tagName.toLowerCase();
+      const type = tag === "input" ? (el.type || "text") : tag === "select" ? "select" : tag === "textarea" ? "textarea" : (el.getAttribute("role") || tag);
+      const label = (tag === "input" || tag === "select" || tag === "textarea") ? labelFor(el) || el.name || "" : ((tag === "input" ? el.value : textOf(el)) || el.getAttribute("aria-label") || el.getAttribute("title") || "");
+      const value = tag === "select" ? (el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : "") : tag === "input" || tag === "textarea" ? (el.type === "password" ? (el.value ? "••••" : "") : el.type === "checkbox" || el.type === "radio" ? (el.checked ? "checked" : "") : String(el.value || "").slice(0, 40)) : "";
+      out.push({ n, type, label: label.replace(/\s+/g, " ").trim().slice(0, 70), value, x: Math.round(cx), y: Math.round(cy), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+    if (draw) {
+      const layer = document.createElement("div");
+      layer.id = "__am_marks";
+      layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
+      for (const m of out) {
+        const b = document.createElement("div");
+        b.style.cssText = "position:fixed;border:2px solid #e11d48;border-radius:3px;left:" + (m.x - m.w / 2) + "px;top:" + (m.y - m.h / 2) + "px;width:" + m.w + "px;height:" + m.h + "px";
+        const t = document.createElement("span");
+        t.textContent = String(m.n);
+        t.style.cssText = "position:absolute;left:-2px;top:-14px;background:#e11d48;color:#fff;font:600 10px/12px Arial,sans-serif;padding:0 3px;border-radius:2px";
+        b.appendChild(t);
+        layer.appendChild(b);
+      }
+      document.documentElement.appendChild(layer);
+    }
+    return out;
+  }
+  function clearMarks() {
+    const l = document.getElementById("__am_marks");
+    if (l) l.remove();
+  }
+  // a cheap fingerprint of what the screen shows, to tell whether a step changed anything
+  function sig() {
+    const a = document.activeElement;
+    return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + document.querySelectorAll("input,select,textarea").length + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
+  }
+  window.__am = { snapshot, apply, fields, pickOption, at, marks, clearMarks, sig };
 })();

@@ -22,12 +22,12 @@ export const FACTS = [
   "Application fees are paid by the applicant directly to the school. The agents ask for fee waivers first. Card details never reach Ivyward.",
   "When a portal blocks cloud browsers, the application finishes in the applicant's own Chrome through the Ivyward runner extension. Bot checks are always left to the applicant.",
   "After an admission, the agents look for merit reconsideration, assistantships and scholarships, and draft the emails.",
-  "Preparing applications is free. In Africa, each submission costs the local equivalent of ₦2,500, paid just before the agents submit, with no limit on how many. Everywhere else, the first 3 applications are free and Pro is $20 a month for unlimited submissions.",
+  "Preparing applications is free. In Africa, each submission costs the local equivalent of ₦2,500, paid just before the agents submit, with no limit on how many. Everywhere else, the first 3 applications are free and Pro is $20 a month for up to 10 submissions a month.",
   "Applicants can pause every agent at once. Portal passwords are encrypted, and applicant data is not used to train AI models.",
 ] as const;
 
 export const PLAN_OFFERS = [
   { name: "Free", price: "0", description: "Shortlist, essays and portal preparation for every application; 3 submissions free outside Africa." },
-  { name: "Pro", price: "20", description: "Unlimited submissions, every month (outside Africa). Cancel any time." },
+  { name: "Pro", price: "20", description: "Up to 10 submissions a month (outside Africa). Cancel any time." },
   { name: "Pay per submission (Africa)", price: "1.90", description: "The local equivalent of ₦2,500 per submitted application, scholarship or funding form." },
 ] as const;

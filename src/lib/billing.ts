@@ -4,7 +4,7 @@ import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
 import { bachs, type CheckoutSession } from "@/lib/bachs";
-import { FREE_APPLICATIONS, PRO_MONTHLY, SUBMISSION_PRICE, pricingFor, type Pricing } from "@/lib/geo-pricing";
+import { FREE_APPLICATIONS, PRO_MONTHLY, PRO_MONTHLY_SUBMISSIONS, SUBMISSION_PRICE, pricingFor, type Pricing } from "@/lib/geo-pricing";
 import { planOf } from "@/lib/plans";
 
 // who pays what, and recording it when they do. the agents check paymentNeeded() before pressing submit.
@@ -33,13 +33,23 @@ export async function billingState(userId: string): Promise<BillingState> {
   };
 }
 
-export type PaymentNeed = { kind: "submission" | "pro"; label: string; note: string } | null;
+export type PaymentNeed = { kind: "submission" | "pro" | "limit"; label: string; note: string; resumeAt?: string } | null;
 
 // may this application be submitted without paying first?
 export async function paymentNeeded(userId: string, applicationId: string): Promise<PaymentNeed> {
   const b = await billingState(userId);
-  if (b.exempt || b.pro) return null;
+  if (b.exempt) return null;
   const db = admin();
+  if (b.pro) {
+    // pro covers PRO_MONTHLY_SUBMISSIONS submissions a calendar month; the next one waits for the 1st
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const { count, error } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("id", applicationId).gte("submitted_at", start.toISOString());
+    if (error || (count ?? 0) < PRO_MONTHLY_SUBMISSIONS) return null;
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 6));
+    const day = next.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+    return { kind: "limit", label: b.pricing.label, resumeAt: next.toISOString(), note: `ready to submit: Pro covers ${PRO_MONTHLY_SUBMISSIONS} submissions a month and you've used them. The agents submit this one on ${day}` };
+  }
   const { data: app, error } = await db.from("applications").select("id, paid_at").eq("id", applicationId).eq("user_id", userId).maybeSingle();
   if (error) return null; // before the billing migration: nothing is charged
   if (!app || app.paid_at) return null;
@@ -58,7 +68,7 @@ async function proProduct(): Promise<string> {
   if (data?.value) return data.value;
   const p = await bachs<{ id: string }>("/v1/products", {
     method: "POST",
-    body: { name: "Ivyward Pro", description: "Unlimited university applications submitted by Ivyward's agents. Cancel any time.", price: { currency: "USD", amount: PRO_MONTHLY.amount }, billing_cycle: { interval: "month", frequency: 1 }, metadata: { plan: "pro" } },
+    body: { name: "Ivyward Pro", description: "Up to 10 university applications a month, submitted by Ivyward's agents. Cancel any time.", price: { currency: "USD", amount: PRO_MONTHLY.amount }, billing_cycle: { interval: "month", frequency: 1 }, metadata: { plan: "pro" } },
     idempotencyKey: "ivyward-pro-product-v1",
   });
   await db.from("billing_settings").upsert({ key: "bachs_pro_product", value: p.id });
@@ -201,6 +211,10 @@ async function resumeAfterPayment(userId: string, applicationId: string) {
 
 // tell the applicant once that an application is ready and waiting on payment
 export async function askToPay(userId: string, applicationId: string, need: NonNullable<PaymentNeed>, school: string) {
+  if (need.kind === "limit") {
+    await notify({ userId, key: `pay:${applicationId}`, kind: "info", title: `${school} is ready: it goes in on the 1st`, body: `Pro covers ${PRO_MONTHLY_SUBMISSIONS} submissions a month and this month's are used. The agents submit ${school} as soon as the new month starts. Check the deadline: if it's sooner, tell Ivyward AI.`, href: `/applications/${applicationId}`, actionLabel: "See it" });
+    return;
+  }
   await notify({
     userId,
     key: `pay:${applicationId}`,

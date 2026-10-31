@@ -1,7 +1,7 @@
 // what an applicant pays, by where they are. pure, so the pricing page, the app and the server agree.
 //   africa: preparing is free; each submission (application, scholarship or funding form) costs the equivalent of
 //           ₦2,500, paid just before the agents submit. no limit on how many.
-//   everywhere else: 3 applications free, then $20 a month for unlimited submissions.
+//   everywhere else: 3 applications free, then $20 a month for up to 10 submissions a month.
 // local prices follow ₦2,500 at roughly ₦1,333 to the dollar (October 2026): about $1.90. check them when rates move.
 
 export const AFRICA = new Set([
@@ -31,6 +31,7 @@ const CURRENCY: Record<string, string> = { NG: "NGN", GH: "GHS", KE: "KES", UG: 
 
 export const PRO_MONTHLY = { amount: "20.00", currency: "USD", label: "$20 a month" } as const;
 export const FREE_APPLICATIONS = 3;
+export const PRO_MONTHLY_SUBMISSIONS = 10; // submissions a calendar month on Pro
 
 export type Pricing =
   | { model: "per_submission"; country: string; currency: string; amount: string; label: string }

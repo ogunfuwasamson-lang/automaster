@@ -10,7 +10,7 @@ import { pricingFor } from "@/lib/geo-pricing";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Preparing your university applications with Ivyward is free. In Africa you pay the local equivalent of ₦2,500 per submission; elsewhere your first 3 applications are free, then $20 a month for unlimited submissions.",
+  description: "Preparing your university applications with Ivyward is free. In Africa you pay the local equivalent of ₦2,500 per submission; elsewhere your first 3 applications are free, then $20 a month for up to 10 submissions a month.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -82,11 +82,11 @@ export default async function Pricing() {
           <>
             <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Your first {p.free} applications are free.</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              The agents research programs, write and fact-check your essays, submit to the portals and chase funding. You review and sign everything. Need more than {p.free}? Pro covers every submission.
+              The agents research programs, write and fact-check your essays, submit to the portals and chase funding. You review and sign everything. Need more than {p.free}? Pro covers up to 10 submissions every month.
             </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
               <Card title="Free" price="$0" per="" note={`Everything, for your first ${p.free} applications.`} items={[...EVERYTHING, `${p.free} applications submitted for you`]} cta="Start free" />
-              <Card featured title="Pro" price="$20" per="a month" note="Unlimited submissions. Cancel any time." items={["Everything in Free", "Unlimited applications and scholarship applications", "More agent work every month", "Cancel any time; it runs to the end of the month you paid for"]} cta="Start free, upgrade later" />
+              <Card featured title="Pro" price="$20" per="a month" note="Up to 10 submissions a month. Cancel any time." items={["Everything in Free", "10 submissions a month: applications or scholarships", "More agent work every month", "Cancel any time; it runs to the end of the month you paid for"]} cta="Start free, upgrade later" />
             </div>
           </>
         )}
