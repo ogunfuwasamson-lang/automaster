@@ -1,4 +1,6 @@
 import "server-only";
+import { keyForLabel } from "@/lib/fillsheet";
+import { cleanLabel } from "@/lib/labels";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
@@ -213,6 +215,10 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     fillFromKey: (f, key) => resolve(f, key, c.sheet),
     decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined),
     sheetValue: (key) => c.sheet.fields[key] ?? null,
+    hasValue: (label) => {
+      const k = keyForLabel(cleanLabel(label));
+      return !!k && !!c.sheet.fields[k];
+    },
     see: async (v) => {
       const { output } = await runStructured({
         userId: c.userId,
@@ -237,6 +243,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     },
     files: () => c.sheet.files.map((f) => f.key),
     resetLink: c.readMail ? (since) => findResetLink(c.userId, c.host(), since) : undefined,
+    resumeLink: c.readMail ? () => findResumeLink(c.userId, c.host()) : undefined,
     rotatePassword: async () => {
       const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "");
       await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.password_reset", applicationId: c.applicationId, channel: "portal", context: { host: c.host() } });
@@ -263,6 +270,25 @@ export async function findResetLink(userId: string, host: string, since: number)
       try {
         const u = new URL(l);
         return hostRoot(u.hostname) === root && /(reset|password|passwd|recover|forgot|token|change|pwd)/i.test(u.pathname + u.search);
+      } catch {
+        return false;
+      }
+    });
+    if (hit) return hit;
+  }
+  return null;
+}
+
+// "we've emailed you a link to complete your application": the newest such link from the school, to its own portal
+export async function findResumeLink(userId: string, host: string): Promise<string | null> {
+  const root = hostRoot(host);
+  const mails = await recentMail(userId, `newer_than:14d from:${root}`, 10);
+  for (const m of mails.sort((a, b) => b.at - a.at)) {
+    const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
+    const hit = links.find((l) => {
+      try {
+        const u = new URL(l);
+        return hostRoot(u.hostname) === root && /(application|apply|applicant|resume|continue|complete|form|portal|token|key|ref)/i.test(u.pathname + u.search) && !/(unsubscribe|privacy|policy|terms|facebook|twitter|instagram|linkedin|youtube)/i.test(l);
       } catch {
         return false;
       }

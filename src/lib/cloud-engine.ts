@@ -43,6 +43,7 @@ export interface EngineState {
   triedCreate?: boolean;
   // buttons that start or create something (an application, an account), pressed once: never pressed twice
   createClicks?: string[];
+  resumeLinkAt?: number; // when the emailed continue-link was last followed
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
 }
@@ -105,6 +106,10 @@ export interface EngineDeps {
   sheetValue?(key: string): string | null;
   // password resets: the reset link the portal emailed after `since`, and a new password saved to the vault
   resetLink?(since: number): Promise<string | null>;
+  // the link a portal emailed to continue an application it has started ("we've sent you a link to complete the form")
+  resumeLink?(): Promise<string | null>;
+  // the value behind a profile field, to tell "the profile doesn't have it" from "the portal wouldn't take it"
+  hasValue?(label: string): boolean;
   rotatePassword?(): Promise<Login>;
   // for jobs other than a whole application (a webinar registration, a waiver form): what the job is, and how
   // to tell it's finished. the button that completes it counts as "submit" (still checked with canSubmit).
@@ -542,6 +547,14 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
           if (!stillEmpty.length) continue;
         }
       }
+      // a field the profile has a value for isn't a question for the applicant: the portal just didn't take it
+      const notTaken = stillEmpty.filter((f) => deps.hasValue?.(f.label));
+      stillEmpty = stillEmpty.filter((f) => !notTaken.includes(f));
+      if (notTaken.length && !stillEmpty.length && state.samePageCount < 6) {
+        const o = await stuckStep(page, deps, s, state, `these fields have the applicant's details but the page didn't keep them (they may be locked until an earlier section is finished, or need a different control): ${notTaken.map((f) => cleanLabel(f.label, f.options).slice(0, 40)).join("; ")}`, { kind: "needs_you", reason: "stuck", note: `the portal won't take ${notTaken.map((f) => cleanLabel(f.label, f.options).slice(0, 30)).slice(0, 3).join(", ")} yet; it may need an earlier section finished first` });
+        if (o) return { outcome: o, state, filled };
+        continue;
+      }
       for (const f of stillEmpty) ask(state, f);
       const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
@@ -551,6 +564,20 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const o = await stuckStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
       if (o) return { outcome: o, state, filled };
       continue;
+    }
+
+    // the portal has started the application and emailed a link to carry on with it: that link is the way back in
+    if (EMAILED_LINK.test(s.body.slice(0, 6000)) && deps.resumeLink && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 60_000) {
+      state.resumeLinkAt = Date.now();
+      const link = await deps.resumeLink().catch(() => null);
+      if (link) {
+        await deps.progress("opening the link the school emailed to continue the application");
+        state.navHistory = [...(state.navHistory ?? []), "followed the school's emailed link"].slice(-20);
+        await page.goto(link, { timeout: 45_000 }).catch(() => null);
+        state.samePageCount = 0;
+        state.createClicks = [];
+        continue;
+      }
     }
 
     if (deps.isDone?.(s) && (state.submitClicked || state.reachedSubmit)) return { outcome: { kind: "submitted", note: "done: the page confirmed it" }, state, filled };
@@ -754,6 +781,7 @@ export function missingNote(keys: string[]): string {
   return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
 }
 
+const EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
 const NAV_BUDGET = 30; // model-driven steps per run
 const DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
 
