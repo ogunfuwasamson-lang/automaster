@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui/page";
 import { ConnectChrome } from "./connect";
+import { CHROME_STORE_URL, storeLive } from "@/lib/chrome-store";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Connect Chrome" };
@@ -18,7 +19,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Connect Chrome" description="For portals that won't let a cloud browser in" />
-      <ConnectChrome then={school && then ? { id: then, school } : null} />
+      <ConnectChrome then={school && then ? { id: then, school } : null} store={(await storeLive()) ? CHROME_STORE_URL : null} />
     </div>
   );
 }

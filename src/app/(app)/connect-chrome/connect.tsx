@@ -8,7 +8,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { askExtension, useExtension } from "@/components/runner/use-extension";
 
 // one-time setup: install the runner extension, then connect it to this account with one click
-export function ConnectChrome({ then }: { then: { id: string; school: string } | null }) {
+export function ConnectChrome({ then, store = null }: { then: { id: string; school: string } | null; store?: string | null }) {
   const { ext, checked, refresh } = useExtension(2500);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -60,6 +60,17 @@ export function ConnectChrome({ then }: { then: { id: string; school: string } |
           1,
           ext.installed,
           "Add the Ivyward runner to Chrome",
+          store ? (
+            <>
+              <p className="text-muted">One click from the Chrome Web Store. Works in Chrome, Edge and Brave on a computer.</p>
+              <div className="flex flex-wrap gap-2">
+                <ButtonLink href={store} external size="sm" variant={ext.installed ? "secondary" : "primary"}>
+                  <Download className="size-3.5" aria-hidden /> Add to Chrome
+                </ButtonLink>
+              </div>
+              {!ext.installed && checked ? <p className="text-xs text-muted">Added it already? Reload this page so it can see the extension.</p> : null}
+            </>
+          ) : (
           <>
             <p className="text-muted">Download it, unzip it, open <code className="rounded bg-neutral-100 px-1 text-xs dark:bg-neutral-800">chrome://extensions</code>, switch on Developer mode (top right), choose Load unpacked and pick the unzipped folder. Works in Chrome, Edge and Brave on a computer.</p>
             <div className="flex flex-wrap gap-2">
@@ -71,7 +82,8 @@ export function ConnectChrome({ then }: { then: { id: string; school: string } |
               </Button>
             </div>
             {!ext.installed && checked ? <p className="text-xs text-muted">Installed it already? Reload this page so it can see the extension.</p> : null}
-          </>,
+          </>
+          ),
         )}
         {step(
           2,
