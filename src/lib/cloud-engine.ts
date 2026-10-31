@@ -41,6 +41,8 @@ export interface EngineState {
   visionHistory?: string[];
   visited?: string[]; // "apply" links already followed, so a landing page can't send us round in circles
   triedCreate?: boolean;
+  // buttons that start or create something (an application, an account), pressed once: never pressed twice
+  createClicks?: string[];
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
 }
@@ -375,6 +377,17 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
         if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
         state.submitClicked = true;
       }
+      // a button that starts or creates something (or an unlabelled submit) is pressed once per page: pressing
+      // "Start application" twice creates two applications
+      if ((a.action === "click" || a.action === "double_click") && (/\b(start|create|begin|register|sign ?up|new application)\b/i.test(label) || (!label && /submit/i.test(m?.type ?? "")))) {
+        const k = `${(state.lastFingerprint ?? "").slice(0, 120)}|${label || m?.type}`;
+        if ((state.createClicks ?? []).includes(k)) {
+          log(`didn't press "${label || "submit"}" again: it was pressed already`);
+          idle++;
+          continue;
+        }
+        state.createClicks = [...(state.createClicks ?? []), k].slice(-30);
+      }
       if (a.action === "click") await page.mouseClick(x, y);
       else if (a.action === "double_click") await (page.doubleClick ?? page.mouseClick)(x, y);
       else if (a.action === "hover") await page.hover?.(x, y);
@@ -515,7 +528,20 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     if (state.samePageCount >= 3) {
       const req = s.fields.filter((f) => f.required && f.type !== "checkbox").map((f) => cleanLabel(f.label, f.options).slice(0, 80));
       // required boxes still empty after three tries: the profile doesn't answer them, so ask the applicant
-      const stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+      let stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+      // the hard look may have opened a new section: fill what the profile answers there before asking anything
+      if (stillEmpty.length) {
+        const fills = await deps.map(stillEmpty).catch(() => [] as Fill[]);
+        const n = await applyList(page, deps, stillEmpty, fills, state);
+        if (n) {
+          filled += n;
+          state.samePageCount = 0;
+          await sleep(500);
+          s = await snap(page);
+          stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+          if (!stillEmpty.length) continue;
+        }
+      }
       for (const f of stillEmpty) ask(state, f);
       const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
