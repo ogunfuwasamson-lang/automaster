@@ -222,7 +222,7 @@ export function RunnerPanel(props: {
           {reason === "question" && questions.length > 0 ? (
             <>
               <p>
-                The form asks {questions.length === 1 ? "something" : `${questions.length} things`} your profile doesn&apos;t answer yet. Your interviewer asks you; each answer is saved to your profile, and the agents carry on by themselves.
+                The form asks {questions.length === 1 ? "something" : `${questions.length} things`} your profile doesn&apos;t answer yet. Ivyward AI asks you; each answer is saved to your profile, and the agents carry on by themselves.
               </p>
               <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">
                 {questions.slice(0, 6).map((q) => (
@@ -232,7 +232,7 @@ export function RunnerPanel(props: {
                 ))}
               </ul>
               <ButtonLink href="?chat=open" size="sm" className="mt-3">
-                Answer in the Interviewer
+                Answer with Ivyward AI
               </ButtonLink>
             </>
           ) : fixInProfile ? (

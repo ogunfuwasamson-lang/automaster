@@ -16,7 +16,7 @@ export default function Privacy() {
         <h2>What we keep</h2>
         <ul>
           <li>Your account: your email address and sign-in records.</li>
-          <li>Your profile: what you tell the interviewer, what we read from documents you upload (CV, transcripts, certificates), and answers you give to portal questions.</li>
+          <li>Your profile: what you tell Ivyward AI, what we read from documents you upload (CV, transcripts, certificates), and answers you give to portal questions.</li>
           <li>Your applications: shortlisted programs, essays and drafts, the packets you approve and sign, and a log of everything the agents do for you.</li>
           <li>Portal logins the agents create for you, encrypted at rest. You can see them under Portal logins.</li>
           <li>Emails between you and schools, when you connect Gmail.</li>

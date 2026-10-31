@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { interviewTurn } from "@/agents/interviewer";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const Body = z.object({
   sessionId: z.uuid().nullable().optional(),

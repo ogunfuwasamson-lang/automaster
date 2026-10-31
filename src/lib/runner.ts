@@ -75,6 +75,38 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
   });
 }
 
+// the applicant's details for a form that isn't the application itself (a webinar registration, a waiver request):
+// same fill sheet, no essays, nothing certified
+export async function looseSheet(userId: string, opts: { id: string; school: string; applicationId: string | null; url: string | null }): Promise<FillSheet> {
+  const db = admin();
+  const app = opts.applicationId ? await loadApp(userId, opts.applicationId) : null;
+  const p = app?.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string; country: string | null } } | undefined;
+  const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }, { data: mail }] = await Promise.all([
+    getProfile(userId),
+    db.from("profiles").select("email, portal_details, target_term").eq("id", userId).single(),
+    db.from("recommenders").select("name, email, title, organization, relationship, phone").eq("user_id", userId).order("created_at"),
+    db.from("documents").select("id, kind, filename").eq("user_id", userId).eq("status", "extracted").order("created_at"),
+    db.auth.admin.getUserById(userId),
+    db.from("mail_accounts").select("email, status").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (!profile.goals.target_term && prof?.target_term) profile.goals.target_term = prof.target_term;
+  return buildSheet({
+    applicationId: opts.id,
+    school: p?.schools.name ?? opts.school,
+    program: p?.name ?? (profile.goals.fields ?? []).join(", "),
+    degree: p?.degree ?? null,
+    portalUrl: opts.url,
+    attested: false,
+    schoolCountry: p?.schools.country ?? null,
+    accountEmail: (mail?.status === "active" ? mail.email : null) ?? prof?.email ?? user?.user?.email ?? null,
+    profile,
+    details: (prof?.portal_details ?? {}) as PortalDetails,
+    recommenders: (recs ?? []) as RecommenderRow[],
+    essays: [],
+    documents: docs ?? [],
+  });
+}
+
 const ModelMap = z.object({ picks: z.array(z.object({ id: z.string(), key: z.string() })) });
 
 const MAP_SYSTEM = `you map fields on a university application portal to keys in the applicant's fill sheet.

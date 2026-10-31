@@ -6,7 +6,7 @@ import { enqueue } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
-import { decideFields, loadApp, loadSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
+import { decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
 import { createLogin, getLogin, markLogin, rotatePassword, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
@@ -21,6 +21,8 @@ import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
 import { crawlForApply } from "@/lib/apply-crawl";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
+import { say } from "@/lib/followups";
+const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
 // the cloud runner: finds the portal, creates the applicant's account, fills, uploads and submits
 // the signed packet from our servers. nothing to install for the applicant.
@@ -75,11 +77,11 @@ const SeeOut = z.object({
   note: z.string(),
 });
 
-function navPrompt(n: NavInput, sheet: FillSheet) {
+function navPrompt(n: NavInput, sheet: FillSheet, goal?: string) {
   const s = n.snapshot;
   const fields = s.fields.slice(0, 60).map((f) => `${f.id} | ${f.type}${f.required ? " required" : ""} | ${f.label.slice(0, 90)}${f.options?.length ? ` | options: ${f.options.slice(0, 10).join(" / ").slice(0, 160)}` : ""}`);
   const buttons = s.buttons.slice(0, 80).map((b) => `${b.id} | ${b.label.slice(0, 60)}${b.href ? ` | ${b.href.slice(0, 100)}` : ""}`);
-  return `program: ${sheet.program} at ${sheet.school}
+  return `${goal ? `task: ${goal}\n` : ""}program: ${sheet.program} at ${sheet.school}
 why you're being asked: ${n.why}
 signed in: ${n.signedIn ? "yes" : "not yet"}; login on file: ${n.haveLogin ? "yes" : "no"}
 recent steps: ${n.history.join(" → ") || "none"}
@@ -144,6 +146,7 @@ export interface DepsCtx {
   sheet: FillSheet;
   readMail: boolean;
   host: () => string;
+  goal?: string; // a follow-up job rather than the application itself
 }
 export function serverDeps(c: DepsCtx): EngineDeps {
   let lastNote = "";
@@ -180,7 +183,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
         tier: "cheap",
         system: NAV_SYSTEM,
         cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(c.sheet)}`,
-        prompt: navPrompt(n, c.sheet),
+        prompt: navPrompt(n, c.sheet, c.goal),
         schema: NavOut,
         maxTokens: 400,
       });
@@ -200,7 +203,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
         cachePrefix: `applying to: ${c.sheet.program} at ${c.sheet.school}\nfill sheet keys (type only these):\n${keyMenu(c.sheet)}`,
         prompt: [
           { type: "image", source: { type: "base64", media_type: "image/jpeg", data: Buffer.from(v.image).toString("base64") } },
-          { type: "text", text: `goal: ${v.goal}\npage: ${v.url}\n${v.empty.length ? `required questions still blank: ${v.empty.join("; ")}\n` : ""}recent steps: ${v.history.join(" → ") || "none"}` },
+          { type: "text", text: `${c.goal ? `the job: ${c.goal}\n` : ""}goal: ${v.goal}\npage: ${v.url}\n${v.empty.length ? `required questions still blank: ${v.empty.join("; ")}\n` : ""}recent steps: ${v.history.join(" → ") || "none"}` },
         ],
         schema: SeeOut,
         maxTokens: 400,
@@ -325,7 +328,90 @@ async function liveActive(applicationId: string): Promise<boolean> {
   return !error && !!data?.length;
 }
 
+const FOLLOWUP_GOAL: Record<string, string> = {
+  register_event: "register the applicant for this event (webinar, info session, open day) with their details, then confirm the registration. this is not the university application itself",
+  claim_fee_waiver: "complete and send this application fee waiver request or claim form with the applicant's details. this is not the university application itself",
+  fill_form: "complete and send this short form for the applicant with their details. this is not the university application itself",
+  book_interview: "book the earliest available interview slot that is at least two days from today, then confirm it",
+  other: "complete what this page asks with the applicant's details and confirm it",
+};
+const FOLLOWUP_DONE = /(you('re| are) (now )?(registered|signed up|booked|all set)|registration (is )?(complete|confirmed|successful)|thank(s| you) for (registering|signing up|your (registration|request|submission|interest))|(request|form|submission) (has been |was )?(received|submitted|sent)|we('ve| have) received|successfully (registered|submitted|booked)|booking (is )?confirmed|see you (there|soon)|confirmation (email|number))/i;
+
 export const runner: Record<string, Handler> = {
+  // a follow-up from a school's email: open its link and complete the form (register, claim the waiver, book a slot)
+  "runner.followup": async (job) => {
+    const { followupId } = job.payload as { followupId: string };
+    const db = admin();
+    const { data: f } = await db.from("followups").select("*").eq("id", followupId).eq("user_id", job.user_id).maybeSingle();
+    if (!f || !f.url || !["queued", "working"].includes(f.status)) return { skipped: "nothing to do" };
+    const st = (f.state ?? {}) as RunnerState & { runs?: number };
+    if ((st.runs ?? 0) >= 4) {
+      await db.from("followups").update({ status: "needs_you", result_note: "the agents couldn't finish this form after several tries", updated_at: new Date().toISOString() }).eq("id", followupId);
+      return { gave_up: true };
+    }
+    await db.from("followups").update({ status: "working", updated_at: new Date().toISOString() }).eq("id", followupId);
+    const sheet = await looseSheet(job.user_id, { id: followupId, school: f.school ?? "the school", applicationId: f.application_id, url: f.url });
+    const schoolRoot = (() => {
+      try {
+        return rootOf(new URL(normalizeUrl(f.url) ?? "").hostname);
+      } catch {
+        return "";
+      }
+    })();
+    const storage = st.storage_enc ? (JSON.parse(decrypt(st.storage_enc)) as StorageState) : null;
+    const { openBrowser } = await import("@/lib/browser");
+    const ob = await openBrowser({ storage });
+    const school = f.school ?? "The school";
+    try {
+      const page = ob.page;
+      await page.goto(normalizeUrl(st.last_url) ?? f.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      const host = () => new URL(page.url()).hostname;
+      const readMail = await canReadMail(job.user_id).catch(() => false);
+      const base = serverDeps({ userId: job.user_id, applicationId: f.application_id ?? followupId, jobId: job.id, sheet, readMail, host, goal: FOLLOWUP_GOAL[f.kind] ?? FOLLOWUP_GOAL.other });
+      const deps: EngineDeps = {
+        ...base,
+        shouldStop: () => false,
+        canSubmit: async () => ({ allowed: true, reason: "a form the agents complete for you from a school's email" }),
+        isDone: (s) => FOLLOWUP_DONE.test(s.body.slice(0, 4000)),
+        finalButton: /^(register|rsvp|sign me up|reserve|book( (it|now|this slot))?|confirm|submit|request|claim|send|complete|save)\b/i,
+        // accounts only on the school's own systems (a portal sign-in to claim a waiver), never on a third-party
+        // event platform
+        createLogin: async (email) => {
+          if (rootOf(host()) !== schoolRoot) throw new Error(`won't create an account on ${host()}`);
+          return base.createLogin(email);
+        },
+        progress: async () => {},
+      };
+      const { outcome, state: next } = await runEngine(fromPlaywright(page), deps, { ...st, steps: 0, navCalls: 0 }, 150_000);
+      const saved = { ...next, runs: (st.runs ?? 0) + 1, last_url: page.url(), storage_enc: encrypt(JSON.stringify(await ob.storage())) };
+      if (outcome.kind === "submitted") {
+        await db.from("followups").update({ status: "done", result_note: f.kind === "register_event" ? "registered" : f.kind === "book_interview" ? "booked" : "sent", state: saved, updated_at: new Date().toISOString() }).eq("id", followupId);
+        const what = f.kind === "register_event" ? `You're registered for ${f.title}` : f.kind === "claim_fee_waiver" ? `Your fee waiver request for ${school} is sent` : f.kind === "book_interview" ? `Your ${school} interview slot is booked` : `Done: ${f.title}`;
+        await notify({ userId: job.user_id, key: `followup-done:${followupId}`, kind: "followup", title: what, body: f.unlocks === "fee_waiver" ? "This is what unlocks the application fee waiver. Watch for the confirmation email from the school." : f.why ?? undefined, href: f.application_id ? `/applications/${f.application_id}` : "/messages", actionLabel: "See it" });
+        await say(job.user_id, `${what}.${f.event_start ? " It's in your calendar and I'll remind you before it starts." : ""}`);
+        await logEvent({ userId: job.user_id, actor: "agent:runner", action: "followup.done", applicationId: f.application_id, context: { kind: f.kind, title: f.title } });
+        return { done: true };
+      }
+      if (outcome.kind === "wait" || outcome.kind === "continue") {
+        await db.from("followups").update({ status: "queued", state: saved, updated_at: new Date().toISOString() }).eq("id", followupId);
+        await enqueue({ userId: job.user_id, agent: "runner", task: "followup", payload: { followupId }, runAt: new Date(Date.now() + (outcome.kind === "wait" ? outcome.seconds * 1000 : 0)) });
+        return { outcome: outcome.kind };
+      }
+      const note = outcome.kind === "needs_you" ? outcome.note : outcome.note || "the form didn't go through";
+      await db.from("followups").update({ status: "needs_you", result_note: note.slice(0, 300), state: saved, updated_at: new Date().toISOString() }).eq("id", followupId);
+      await notify({ userId: job.user_id, key: `followup-help:${followupId}`, kind: "followup", urgent: true, title: `${school}: ${f.title} needs you`, body: `${sentenceCase(note)}. Open the link to finish it: it takes a minute.`, href: f.url, actionLabel: "Open the form" });
+      await say(job.user_id, `I couldn't finish "${f.title}" for ${school}: ${note}. The link is in your notifications; it should only take a minute.`);
+      return { outcome: "needs_you" };
+    } catch (e) {
+      await db.from("followups").update({ status: "needs_you", result_note: "the form needs a step only you can do (a sign-in on another site, or something the agents can't read)", updated_at: new Date().toISOString() }).eq("id", followupId);
+      await notify({ userId: job.user_id, key: `followup-help:${followupId}`, kind: "followup", urgent: true, title: `${school}: ${f.title} needs you`, body: "The agents couldn't complete this one. Open the link to finish it.", href: f.url, actionLabel: "Open the form" });
+      return { error: String(e).slice(0, 200) };
+    } finally {
+      await ob.close(false);
+    }
+  },
+
+
   // find where the online application for this program starts
   "runner.find_portal": async (job) => {
     const { applicationId } = job.payload as { applicationId: string };

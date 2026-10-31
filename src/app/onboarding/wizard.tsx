@@ -20,9 +20,9 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-const STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Your interview"];
+const STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Meet Ivyward AI"];
 const STEP_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Ten minutes, by voice or text"];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Your admissions assistant"];
 
 async function save(body: Record<string, unknown>) {
   const res = await fetch("/api/profile/preferences", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -361,14 +361,14 @@ export function Onboarding(props: {
             {step === 5 && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: a short interview</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: meet Ivyward AI</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Ten minutes, by voice or typing. The interviewer asks about your goals, your best work and anything your documents
+                    Ten minutes, by voice or typing. Ivyward AI asks about your goals, your best work and anything your documents
                     didn&apos;t cover. Your essays are written from these answers. When you finish, your agents start building your shortlist straight away.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/dashboard?chat=open&setup=1" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
+                  <ButtonLink href="/dashboard?chat=open&setup=1" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Talk to Ivyward AI</ButtonLink>
                   <Button
                     size="lg"
                     variant="secondary"

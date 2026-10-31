@@ -2,13 +2,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUp, ListPlus, MessagesSquare, Mic, Plus, UserRoundPen } from "lucide-react";
+import { ArrowUp, ListPlus, MessagesSquare, Mic, Plus, UserRoundPen, CircleHelp } from "lucide-react";
 
 // tell the agents something in your own words: it opens the interviewer with your message already sent
 const CHIPS: [typeof ListPlus, string, string][] = [
   [ListPlus, "Find more programs", "I'd like more programs on my shortlist. Here's what I'm looking for: "],
   [UserRoundPen, "Update my profile", "Something about me has changed: "],
   [MessagesSquare, "Practise an interview", "Can we practise an admissions interview?"],
+  [CircleHelp, "What's next for me?", "What should I focus on this week?"],
 ];
 
 export function AskBox() {
@@ -35,7 +36,7 @@ export function AskBox() {
             }
           }}
           rows={2}
-          placeholder="Tell your agents something, or ask about a school…"
+          placeholder="Ask Ivyward AI anything about admissions, or tell it what to do…"
           aria-label="Message your agents"
           className="w-full resize-none bg-transparent px-1 text-[16px] leading-relaxed outline-none placeholder:text-neutral-400"
         />
@@ -43,7 +44,7 @@ export function AskBox() {
           <Link href="/shortlist" title="Add a program" aria-label="Add a program" className="grid size-8 place-items-center rounded-lg border border-line text-muted transition-colors hover:text-foreground">
             <Plus className="size-4" aria-hidden />
           </Link>
-          <span className="label-mono ml-1.5 hidden sm:inline">Goes to your interviewer</span>
+          <span className="label-mono ml-1.5 hidden sm:inline">Goes to Ivyward AI</span>
           <span className="ml-auto flex items-center gap-1.5">
             <button type="button" onClick={() => go("")} className="grid size-8 place-items-center rounded-lg text-muted transition-colors hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800" aria-label="Talk by voice">
               <Mic className="size-4" aria-hidden />

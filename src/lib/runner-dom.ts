@@ -24,7 +24,8 @@ export const DOM_HELPER = String.raw`
     let own = parts.join(" ").replace(/\s+/g, " ").trim();
     // a bare "Month"/"Day"/"Year" or very short label means little alone: prefix the row's question.
     // not for radio/checkbox options ("Yes", "No"): those are answers, their question comes from groupLabel.
-    if ((!own || own.replace(/[^a-z]/gi, "").length <= 5 || /^(day|month|year|dd|mm|yyyy|select|choose)\b/i.test(own)) && el.type !== "radio" && el.type !== "checkbox") {
+    // (only for labels that say nothing alone: "Email", "City" or "Phone" are complete questions)
+    if ((!own || own.replace(/[^a-z]/gi, "").length <= 2 || /^(day|month|year|dd|mm|yy|yyyy|select|choose|please select|-+)\b/i.test(own.trim())) && el.type !== "radio" && el.type !== "checkbox") {
       let ctx = "";
       // 1. nearest ancestor with a little text of its own (minus this field's own option text)
       const mine = textOf(el);

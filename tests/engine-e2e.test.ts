@@ -63,7 +63,7 @@ type Routes = Record<string, (q: URLSearchParams) => string>;
 async function portal(page: Page, routes: Routes) {
   await page.route("https://portal.test/**", (route) => {
     const u = new URL(route.request().url());
-    const h = routes[u.pathname];
+    const h = routes[u.pathname] as ((q: URLSearchParams) => string) | undefined;
     return route.fulfill({ status: h ? 200 : 404, contentType: "text/html", body: `<!doctype html><html><head><title>Portal</title></head><body>${h ? h(u.searchParams) : "not found"}</body></html>` });
   });
 }
@@ -178,6 +178,29 @@ d("portal engine end to end", () => {
     st.submitClicked = true;
     const r = await runEngine(fromPlaywright(page), deps({ decide: async (fields) => fields.map((f) => ({ id: f.id, action: "choose", option: "Internet search", source: "decide:none" }) as Fill) }), st, 30_000);
     expect(got).toBe("Internet search");
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+});
+
+d("follow-up forms", () => {
+  let browser: Browser;
+  beforeAll(async () => {
+    browser = await chromium!.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
+  it("registers for a webinar and recognises the confirmation", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/webinar": () => `<h1>Graduate admissions webinar</h1><p>Nov 5, 12pm ET</p><form action="/thanks"><label for="a">First name *</label><input id="a" name="a" required><label for="b">Last name *</label><input id="b" name="b" required><label for="c">Email *</label><input id="c" name="c" type="email" required><button>Register</button></form>`,
+      "/thanks": (q) => ((got = `${q.get("a")} ${q.get("b")} ${q.get("c")}`), `<h1>You're registered!</h1><p>A confirmation email is on its way.</p>`),
+    });
+    await page.goto("https://portal.test/webinar");
+    const r = await runEngine(fromPlaywright(page), deps({ goal: "register for this event", finalButton: /^(register|rsvp|submit)\b/i, isDone: (s) => /you're registered/i.test(s.body) }), { steps: 0 }, 30_000);
+    expect(got).toBe("Ada Okafor ada@example.com");
     expect(r.outcome.kind).toBe("submitted");
     await page.close();
   }, 60_000);

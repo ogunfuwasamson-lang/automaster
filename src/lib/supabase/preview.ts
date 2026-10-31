@@ -138,6 +138,10 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     { id: "j4", status: "running", agent: "recon", task: "discover_region", payload: {}, last_error: null, created_at: ago(8) },
     ...Array.from({ length: 6 }, (_, i) => ({ id: `jr${i}`, status: i < 4 ? "done" : "queued", agent: "recon", task: "research_program", payload: {}, last_error: null, created_at: ago(5) })),
   ],
+  followups: [
+    { id: "fu1", title: "Graduate admissions webinar", school: "Brandeis University", kind: "register_event", status: "done", event_start: new Date(Date.now() + 5 * 86_400_000).toISOString(), deadline: null, url: "https://example.com", why: "Attending unlocks the application fee waiver.", result_note: "registered", application_id: "a2" },
+    { id: "fu2", title: "Claim your fee waiver", school: "University of Rochester", kind: "claim_fee_waiver", status: "working", event_start: null, deadline: "2026-11-15", url: "https://example.com", why: "Waives the $75 application fee.", result_note: null, application_id: null },
+  ],
   notifications: [
     { id: "n1", kind: "setup", title: "Fill in your form details", body: "Every portal asks for these: phone (with country code), date of birth, address line 1, city, country.", href: "/profile?tab=details&setup=1", action_label: "Fill in details", urgent: true, created_at: ago(3), read_at: null, resolved_at: null },
     { id: "n2", kind: "setup", title: "Add your transcript", body: "Almost every application asks for it, and agents read your grades and courses from it.", href: "/documents", action_label: "Upload transcript", urgent: false, created_at: ago(3), read_at: null, resolved_at: null },
@@ -234,6 +238,9 @@ class Query implements PromiseLike<{ data: unknown; count: number | null; error:
   }
   like(col: string, v: string) {
     return this.ilike(col, v);
+  }
+  or() {
+    return this;
   }
   gte() {
     return this;

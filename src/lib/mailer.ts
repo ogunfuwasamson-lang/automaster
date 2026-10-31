@@ -9,7 +9,7 @@ const REPLY_TO = () => process.env.EMAIL_REPLY_TO || undefined;
 
 export const systemMailReady = () => !!process.env.RESEND_API_KEY;
 
-export async function sendSystem(m: { to: string; subject: string; text: string; html?: string; unsubscribeUrl?: string; tag?: string }): Promise<{ id: string }> {
+export async function sendSystem(m: { to: string; subject: string; text: string; html?: string; unsubscribeUrl?: string; tag?: string; attachments?: { filename: string; content: string; content_type?: string }[] }): Promise<{ id: string }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY isn't set");
   const res = await fetch("https://api.resend.com/emails", {
@@ -21,6 +21,7 @@ export async function sendSystem(m: { to: string; subject: string; text: string;
       subject: m.subject,
       text: m.text,
       ...(m.html ? { html: m.html } : {}),
+      ...(m.attachments?.length ? { attachments: m.attachments } : {}),
       ...(REPLY_TO() ? { reply_to: REPLY_TO() } : {}),
       ...(m.unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${m.unsubscribeUrl}>` } } : {}),
       ...(m.tag ? { tags: [{ name: "kind", value: m.tag }] } : {}),

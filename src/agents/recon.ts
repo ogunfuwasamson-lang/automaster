@@ -416,7 +416,13 @@ most applicants only search by nationality and miss most of the money. you searc
 - competition winners and prize alumni networks
 - research, publication or innovation records
 - region and nationality awards (home country, home region, developing-country schemes)
-- identity- and circumstance-based awards (gender, first-generation, career changer, refugee, disability) ONLY when the profile states it
+- sport (athletic scholarships, varsity or national-level play), arts, music, drama, design and writing awards
+- hobbies and interests pursued seriously (chess, debating, robotics, coding, entrepreneurship clubs, faith or community service)
+- academic excellence: top grades or class rank, first-class honours, olympiads and academic competitions, test scores, publications
+- skills and languages (stem, data, languages spoken, leadership programmes completed)
+- career milestones: promotions, scale of responsibility, a business or product built, notable employers, years of experience
+- family and life background the applicant has shared: first in family at university, single-parent household, orphan, carer, low income, rural origin, refugee or displaced, military family
+- identity- and circumstance-based awards (gender, career changer, disability, faith, minority group) ONLY when the profile states it
 - legit loan-replacement or income-share options, clearly labelled as such
 
 rules:

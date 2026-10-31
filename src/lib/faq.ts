@@ -16,7 +16,7 @@ export const FAQ: [string, string][] = [
   ],
   [
     "Does it write my essays for me?",
-    "It writes first drafts from facts in your profile and your interview, then checks every claim against your documents. You edit them into your own words and approve each one. Nothing is sent without your signature.",
+    "It writes first drafts from facts in your profile and your conversations with Ivyward AI, then checks every claim against your documents. You edit them into your own words and approve each one. Nothing is sent without your signature.",
   ],
   [
     "Is it allowed to use AI on university applications?",
@@ -32,7 +32,7 @@ export const FAQ: [string, string][] = [
   ],
   [
     "What happens when a portal asks something my profile doesn't cover?",
-    "Your interviewer asks you. The answer is saved to your profile, so no other school has to ask again, and the agents carry on by themselves.",
+    "Ivyward AI asks you. The answer is saved to your profile, so no other school has to ask again, and the agents carry on by themselves.",
   ],
   [
     "Can it apply for scholarships too?",

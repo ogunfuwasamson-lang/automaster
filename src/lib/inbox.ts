@@ -8,6 +8,7 @@ import { runStructured } from "@/lib/llm";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { baseSubject, mailText, parseFrom } from "@/lib/mail-text";
+import { findFollowups } from "@/lib/followups";
 
 // the inbox watcher: reads new emails from the applicant's schools, works out what each one means,
 // and puts anything that needs the applicant in their queue. read-only on gmail: nothing is changed there.
@@ -140,9 +141,13 @@ export async function checkInbox(userId: string, jobId?: string) {
 
     const base = { user_id: userId, thread_id: threadId, direction: "in", subject, purpose: c.kind, status: "sent", sent_at: new Date(m.at || Date.now()).toISOString(), gmail_message_id: id, to_email: acct?.email ?? null };
     const full = { ...base, body: mailText(m) || c.summary, summary: c.summary, from_email: sender.email, from_name: sender.name, action_needed: c.action_needed || null, due_date: /^\d{4}-\d{2}-\d{2}$/.test(c.due_date) ? c.due_date : null };
-    const { error: insErr } = await db.from("messages").insert(full);
+    const { data: ins, error: insErr } = await db.from("messages").insert(full).select("id").single();
     // before the inbox migration runs, the extra columns don't exist: keep the summary as the body
     if (insErr) await db.from("messages").insert({ ...base, body: c.summary });
+    // anything in it the agents can act on (register, claim a waiver, fill a form) or put in the calendar
+    if (!["account_or_verification", "submission_receipt", "decision_reject"].includes(c.kind)) {
+      await findFollowups(userId, m, { applicationId: match.applicationId, school: match.school ?? fromDomain, messageId: (ins?.id as string) ?? null }, jobId).catch(() => 0);
+    }
     await logEvent({ userId, actor: "agent:inbox", action: `inbox.${c.kind}`, applicationId: match.applicationId, channel: "email", context: { subject: m.subject, summary: c.summary, from: fromDomain } });
     added++;
 

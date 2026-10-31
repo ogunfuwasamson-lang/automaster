@@ -267,7 +267,7 @@ official page: ${program.url ?? "(find it)"}
 what recon already found about the fee and waivers: fee ${program.app_fee_usd ?? "unknown"} USD; ${program.fee_waiver ?? "no waiver info"}
 applicant citizenship: ${profile.identity.citizenship ?? "unknown"}; level: ${LEVEL_LABEL[levelOf(profile)]}
 
-find: whether application fee waivers exist and who qualifies (e.g. by country, income, event attendance, early application, alumni, partner programs), how to request one, and the official admissions contact email.`,
+find: whether application fee waivers exist and who qualifies, by EVERY route, not just nationality: country or region, income or financial hardship, attending a webinar, info session, fair or campus visit, applying early, alumni or partner-organisation links, employer sponsorship, military service, academic merit (grades, test scores, honours), first-generation status, athletes and artists, service programmes (peace corps, teach for, americorps, ngos), mcnair/fulbright/other scholar networks, competitions, and case-by-case requests. say how to request one (a form, a code, an email) and the official admissions contact email.`,
       maxSearches: 2,
       maxFetches: 2,
     });
@@ -284,7 +284,7 @@ today: ${today()}
 research on fees and contacts:
 ${found.text}
 
-draft at most one fee-waiver request (purpose fee_waiver) if the research shows a waiver route the applicant plausibly fits, or a polite general request if waivers are granted case by case. if the school says it does not waive fees, draft nothing and say so in notes. levers: the waiver routes found.`,
+draft at most one fee-waiver request (purpose fee_waiver) if the research shows a waiver route the applicant plausibly fits, or a polite general request if waivers are granted case by case. if the school says it does not waive fees, draft nothing and say so in notes. levers: the waiver routes found, matched against everything in the profile that could qualify them (achievements, career milestones, grades, sport, arts, service, family background they've shared, financial situation they've stated, events they attended), not only their nationality. only claim what the profile states.`,
       schema: Outreach,
       maxTokens: 3000,
     });

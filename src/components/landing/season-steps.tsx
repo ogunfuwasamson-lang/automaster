@@ -7,7 +7,7 @@ import { Mark } from "@/components/wordmark";
 // right that changes with the stage you pick. every school in the mock-ups is invented.
 
 const STEPS = [
-  { t: "Tell us about you", d: "Upload your CV and transcripts, then talk to the interviewer for ten minutes. It fills your profile and asks only what's missing." },
+  { t: "Tell us about you", d: "Upload your CV and transcripts, then talk to Ivyward AI for ten minutes. It fills your profile and asks only what's missing." },
   { t: "Get your shortlist", d: "Agents search the regions you pick, from the top-ranked schools down, and keep the programs you can realistically get into." },
   { t: "Approve your essays", d: "Drafts are written from facts in your profile and checked for any claim you couldn't back up. You edit, then sign." },
   { t: "Agents submit", d: "They find each portal, create your account, fill every page and upload your documents. You step in only for bot checks and fees." },

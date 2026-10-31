@@ -326,7 +326,7 @@ export function Interview({
     <div className={embedded ? "flex h-full min-h-0 flex-col px-4 pt-4 sm:px-6" : "mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-2xl border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]"}>
       <header className={`flex flex-wrap items-end justify-between gap-3 pb-4 ${embedded ? "pr-10" : ""}`}>
         <div>
-          {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Your interviewer</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Interview</h1>}
+          {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Ivyward AI</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Ivyward AI</h1>}
           <div className={`flex items-center gap-3 text-sm text-muted ${embedded ? "mt-1.5" : "mt-3"}`}>
             <span className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
               <span className="block h-full rounded-full bg-bar-gradient transition-[width] duration-700" style={{ width: `${pct}%` }} />

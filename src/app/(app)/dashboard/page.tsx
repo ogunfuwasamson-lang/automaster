@@ -34,6 +34,7 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
 import { ShortlistProgress, type ShortlistRun } from "@/components/home/shortlist-progress";
+import { LocalTime } from "@/components/ui/local-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -129,6 +130,9 @@ export default async function Dashboard() {
   const shortlistRun = await loadShortlistRun(sb);
   const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
   const setupTodo = setupQ.error ? [] : (setupQ.data ?? []);
+  // follow-ups from school emails: events coming up, and forms the agents are doing or need help with
+  const upQ = await sb.from("followups").select("id, title, school, kind, status, event_start, deadline, url, why, result_note, application_id").or(`event_start.gte.${new Date().toISOString()},status.in.(queued,working,needs_you)`).order("event_start", { ascending: true, nullsFirst: false }).limit(6);
+  const upcoming = upQ.error ? [] : (upQ.data ?? []);
   const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
   const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
   const p = loadProfile(prof?.profile);
@@ -367,6 +371,31 @@ export default async function Dashboard() {
           </Card>
 
           <div className="space-y-4 lg:col-span-4">
+            {upcoming.length > 0 && (
+              <Card className="p-5 sm:p-6">
+                <h2 className="mb-1 text-lg font-bold tracking-[-0.02em]">Coming up</h2>
+                <p className="mb-2 text-[12.5px] text-muted">From your schools&apos; emails. Ivyward AI handles these and reminds you.</p>
+                <ul>
+                  {upcoming.map((f) => {
+                    const state = f.status === "working" || f.status === "queued" ? "Agents on it" : f.status === "needs_you" ? "Needs you" : f.result_note ? sentence(f.result_note) : "Done";
+                    return (
+                      <li key={f.id} className="border-b border-dashed border-line py-3 last:border-0">
+                        <a href={f.status === "needs_you" && f.url ? f.url : f.application_id ? `/applications/${f.application_id}` : "/messages"} target={f.status === "needs_you" && f.url ? "_blank" : undefined} rel="noreferrer" className="group block">
+                          <span className="flex items-baseline justify-between gap-3">
+                            <span className="min-w-0 text-[13.5px] font-medium leading-snug group-hover:underline">{f.school ? `${f.school}: ` : ""}{f.title}</span>
+                            <span className={`shrink-0 text-[11.5px] font-medium ${f.status === "needs_you" ? "text-signal" : f.status === "done" ? "text-go" : "text-muted"}`}>{state}</span>
+                          </span>
+                          <span className="mt-0.5 block text-[12px] text-muted">
+                            {f.event_start ? <LocalTime iso={f.event_start} /> : f.deadline ? `Due ${f.deadline}` : ""}
+                            {f.why ? `${f.event_start || f.deadline ? ". " : ""}${f.why}` : ""}
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            )}
             <Card className="p-5 sm:p-6">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-lg font-bold tracking-[-0.02em]">Agent activity</h2>

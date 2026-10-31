@@ -66,7 +66,7 @@ function ask(state: EngineState, f: PageField, key?: string) {
 function questionNote(state: EngineState): string {
   const qs = state.questions ?? [];
   if (!qs.length) return missingNote(state.missing ?? []);
-  return `the portal asks ${qs.length === 1 ? "something" : `${qs.length} things`} your profile doesn't answer yet: ${qs.slice(0, 3).map((q) => q.label.slice(0, 60)).join("; ")}. Your interviewer will ask you, and the agents carry on once you answer`;
+  return `the portal asks ${qs.length === 1 ? "something" : `${qs.length} things`} your profile doesn't answer yet: ${qs.slice(0, 3).map((q) => q.label.slice(0, 60)).join("; ")}. Ivyward AI will ask you, and the agents carry on once you answer`;
 }
 
 export interface Login {
@@ -104,6 +104,11 @@ export interface EngineDeps {
   // password resets: the reset link the portal emailed after `since`, and a new password saved to the vault
   resetLink?(since: number): Promise<string | null>;
   rotatePassword?(): Promise<Login>;
+  // for jobs other than a whole application (a webinar registration, a waiver form): what the job is, and how
+  // to tell it's finished. the button that completes it counts as "submit" (still checked with canSubmit).
+  goal?: string;
+  isDone?(s: Snapshot): boolean;
+  finalButton?: RegExp;
 }
 
 export interface SeeInput {
@@ -454,6 +459,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       continue;
     }
 
+    if (deps.isDone?.(s) && (state.submitClicked || state.reachedSubmit)) return { outcome: { kind: "submitted", note: "done: the page confirmed it" }, state, filled };
+
     const kind = classify(s);
 
     if (kind === "confirmation") {
@@ -610,7 +617,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       now = await snap(page);
     }
 
-    const submit = find(now, FINAL);
+    const submit = find(now, FINAL) ?? (deps.finalButton ? find(now, deps.finalButton) : undefined);
     if (submit) {
       state.reachedSubmit = true;
       const d = await deps.canSubmit();
