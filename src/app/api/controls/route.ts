@@ -7,6 +7,7 @@ import { USER_SETTABLE } from "@/lib/dial";
 import { queueRunner } from "@/agents/runner";
 import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
+import { requeueAfterPause, sweepOrphans } from "@/lib/requeue";
 import { after } from "next/server";
 
 // the applicant's own controls: stop button, autonomy dial, fee envelope, digest
@@ -42,9 +43,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (b.action === "resume") {
-    let q = db.from("ripcords").update({ active: false, released_at: new Date().toISOString() }).eq("user_id", uid).eq("active", true);
+    let q = db.from("ripcords").update({ active: false, released_at: new Date().toISOString() }).eq("user_id", uid).eq("active", true).select("created_at, scope_kind");
     if (b.ripcord_id) q = q.eq("id", b.ripcord_id);
-    await q;
+    const { data: released } = await q;
+    // put back what the pause cancelled: other agents' jobs, and portal runs left marked ready with no job
+    const since = (released ?? []).filter((r) => r.scope_kind === "all").map((r) => r.created_at as string).sort()[0];
+    if (since) await requeueAfterPause(uid, new Date(Date.parse(since) - 2 * 86_400_000).toISOString()).catch(() => 0);
+    await sweepOrphans().catch(() => 0);
     await logEvent({ userId: uid, actor: "user", action: "controls.resumed", context: { ripcord: b.ripcord_id ?? "all" } });
     return NextResponse.json({ ok: true });
   }

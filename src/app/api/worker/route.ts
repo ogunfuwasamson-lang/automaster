@@ -6,7 +6,7 @@ import { scheduleDigests } from "@/lib/digest";
 import { scheduleInbox } from "@/lib/inbox";
 import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
-import { sweepResumable } from "@/lib/requeue";
+import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/gmail";
 
@@ -34,6 +34,7 @@ async function handle(req: NextRequest) {
   // once a day: african prices follow the exchange rate (refreshes when 25+ days old)
   if (tick && new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 5) await refreshPrices().catch(() => null);
   if (tick) await sweepResumable().catch(() => 0);
+  if (tick) await sweepOrphans().catch(() => 0);
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);
   // portal work runs in its own function (it ships chromium). poke it when some is due: up to 3 in parallel.
   const { count } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("agent", "runner").eq("status", "queued").lte("run_at", new Date().toISOString());

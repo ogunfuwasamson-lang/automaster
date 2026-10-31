@@ -64,3 +64,61 @@ export async function sweepResumable(): Promise<number> {
   }
   return n;
 }
+
+// the other safety net: an application marked ready for the cloud runner with no runner job behind it. this
+// happens when the job was cancelled while the agents were paused ("Pause all") and nothing queued it again.
+// skipped while that applicant's agents are still paused.
+export async function sweepOrphans(): Promise<number> {
+  const db = admin();
+  const before = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data: apps } = await db
+    .from("applications")
+    .select("id, user_id")
+    .eq("status", "packet_approved")
+    .eq("runner_status", "ready")
+    .eq("runner_mode", "cloud")
+    .lt("runner_updated_at", before)
+    .limit(200);
+  if (!apps?.length) return 0;
+  const users = [...new Set(apps.map((a) => a.user_id as string))];
+  const [{ data: cords }, { data: open }] = await Promise.all([
+    db.from("ripcords").select("user_id, scope_kind, scope_value").in("user_id", users).eq("active", true),
+    db.from("jobs").select("payload").eq("agent", "runner").in("status", ["queued", "running"]).in("user_id", users).limit(2000),
+  ]);
+  const paused = new Set((cords ?? []).filter((c) => c.scope_kind === "all" || (c.scope_kind === "agent" && c.scope_value === "runner")).map((c) => c.user_id as string));
+  const busy = new Set((open ?? []).map((j) => (j.payload as { applicationId?: string })?.applicationId).filter(Boolean));
+  let n = 0;
+  for (const a of apps) {
+    if (paused.has(a.user_id) || busy.has(a.id)) continue;
+    await enqueue({ userId: a.user_id, agent: "runner", task: "run", payload: { applicationId: a.id } });
+    await logEvent({ userId: a.user_id, actor: "system", action: "runner.requeued", applicationId: a.id, context: { why: "ready with no job" } });
+    n++;
+  }
+  return n;
+}
+
+// "Resume" after "Pause all": put back the agent work the pause cancelled (portal runs are covered by sweepOrphans).
+// `since`: a little before the pause, since the jobs it cancelled were queued earlier
+export async function requeueAfterPause(userId: string, since: string): Promise<number> {
+  const db = admin();
+  const { data: jobs } = await db
+    .from("jobs")
+    .select("agent, task, payload, last_error")
+    .eq("user_id", userId)
+    .eq("status", "cancelled")
+    .neq("agent", "runner")
+    .neq("task", "digest")
+    .gte("created_at", since)
+    .or("last_error.is.null,last_error.eq.paused by you")
+    .limit(200);
+  const seen = new Set<string>();
+  let n = 0;
+  for (const j of jobs ?? []) {
+    const k = `${j.agent}.${j.task}:${JSON.stringify(j.payload)}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    await enqueue({ userId, agent: j.agent, task: j.task, payload: (j.payload as Record<string, unknown>) ?? {} });
+    n++;
+  }
+  return n;
+}
