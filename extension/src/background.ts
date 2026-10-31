@@ -121,6 +121,10 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
     navigate: async (input) => (await eng(taskId, "navigate", { host: await host(), input: { ...input, snapshot: { ...input.snapshot, body: input.snapshot.body.slice(0, 4000) } } })).action,
     fillFromKey: async (field, key) => (await eng(taskId, "fill_key", { field: { id: field.id, label: field.label.slice(0, 400), type: field.type, name: field.name, options: field.options?.slice(0, 300), required: field.required }, key })).fill,
     loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : undefined,
+    decide: async (fields, page) =>
+      (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 4000) } })).fills ?? [],
+    resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : undefined,
+    rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
     progress: async (note) => {
       if (note === lastNote) return;
       lastNote = note;

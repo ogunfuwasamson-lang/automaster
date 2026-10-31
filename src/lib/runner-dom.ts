@@ -84,16 +84,44 @@ export const DOM_HELPER = String.raw`
       }
       if (!includeFilled && !isEmpty(el)) continue;
       const label = labelFor(el);
-      out.push({ id: idOf(el), label, type, name: el.name || undefined, autocomplete: el.autocomplete || undefined,
+      const role = (el.getAttribute("role") || "").toLowerCase();
+      const combo = type === "text" && (role === "combobox" || /^(list|both)$/i.test(el.getAttribute("aria-autocomplete") || "") || !!el.getAttribute("list") || !!el.closest('[class*="select2" i], [class*="react-select" i], [class*="combobox" i], [class*="autocomplete" i], [class*="typeahead" i]'));
+      out.push({ id: idOf(el), label, type, combo: combo || undefined, name: el.name || undefined, autocomplete: el.autocomplete || undefined,
         options: type === "select" ? [...el.options].map((o) => o.text.trim()) : undefined,
         required: el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(label) });
     }
     return out.slice(0, 150);
   }
+  // anything a person would click: real buttons and links, tabs, and the clickable divs some portals use
+  // ("Create account" as a <div onclick> or a tab). a generic clickable that wraps a real button is skipped.
+  const CLICKABLE = 'button, input[type="submit"], input[type="button"], a, [role="button"], [role="tab"], [role="link"], [role="menuitem"], summary';
   function buttons() {
-    return [...document.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"]')].filter(visible)
-      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || "").trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
+    const real = [...document.querySelectorAll(CLICKABLE)];
+    const generic = [...document.querySelectorAll('[onclick], [tabindex="0"]')].filter((e) => !e.matches(CLICKABLE) && !e.querySelector(CLICKABLE) && textOf(e).length <= 60 && !e.closest(CLICKABLE));
+    return [...real, ...generic].filter(visible)
+      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || "").trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
       .filter((b) => b.label);
+  }
+  // after typing into a search-as-you-type box, the list of matches: click the one that fits the value
+  function pickOption(value) {
+    const norm = (t) => t.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const want = norm(value);
+    const opts = [...document.querySelectorAll('[role="option"], [role="listbox"] li, .select2-results__option, .ui-menu-item, [class*="option" i][id*="option" i], datalist option')].filter(visible);
+    if (!opts.length) return null;
+    const scored = opts.map((o) => ({ o, t: norm(textOf(o)) })).filter((x) => x.t && !/^(no (results|matches|options)|loading|searching)/.test(x.t));
+    const hit = scored.find((x) => x.t === want) || scored.find((x) => x.t.startsWith(want)) || scored.find((x) => x.t.includes(want)) || (scored.length === 1 ? scored[0] : null);
+    if (!hit) return null;
+    hit.o.scrollIntoView({ block: "nearest" });
+    hit.o.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    hit.o.click();
+    return textOf(hit.o).slice(0, 120);
+  }
+  // what sits at a point on screen, for checking a click chosen from a screenshot before making it
+  function at(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const c = el.closest(CLICKABLE) || el;
+    return { tag: c.tagName.toLowerCase(), label: ((c.tagName === "INPUT" ? c.value : textOf(c)) || c.getAttribute("aria-label") || "").slice(0, 80), href: c.tagName === "A" ? c.href : null };
   }
   function setValue(el, v) {
     const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -131,6 +159,6 @@ export const DOM_HELPER = String.raw`
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
     };
   }
-  window.__am = { snapshot, apply, fields };
+  window.__am = { snapshot, apply, fields, pickOption, at };
 })();
 `;

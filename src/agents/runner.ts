@@ -6,8 +6,8 @@ import { enqueue } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
-import { loadApp, loadSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
-import { createLogin, getLogin, markLogin, saveIssuedLogin } from "@/lib/vault";
+import { decideFields, loadApp, loadSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
+import { createLogin, getLogin, markLogin, rotatePassword, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
@@ -18,7 +18,9 @@ import { recordQuestions } from "@/lib/portal-questions";
 import { resolve, keyMenu } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
+import { crawlForApply } from "@/lib/apply-crawl";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
+import { notify } from "@/lib/notify";
 
 // the cloud runner: finds the portal, creates the applicant's account, fills, uploads and submits
 // the signed packet from our servers. nothing to install for the applicant.
@@ -36,17 +38,42 @@ const NavOut = z.object({
   note: z.string(),
 });
 
-const NAV_SYSTEM = `you drive a university application portal in a browser for an applicant who has reviewed and signed their application packet.
-goal: get the application for the named program filled in and submitted. pick exactly ONE next action.
+const NAV_SYSTEM = `you drive a university application portal in a browser for an applicant who has reviewed and signed their application packet, and authorised the agents to create their portal account and complete the application.
+goal: get the application for the named program filled in and submitted. work like a capable person at a keyboard: read the page, then take ONE next step.
 actions:
-- click: press the button/link with target_id (use ids from the buttons list). use this to sign in, create an account, start or continue an application, open the next section, save, or submit.
-- fill: put the applicant's answer into the empty field target_id, taken from sheet_key (a key from the fill sheet). never invent values; if no key answers it, don't fill it.
-- goto: open url (must be a link on this page or on the same site).
+- click: press the button/link with target_id (ids from the buttons list). use it to open the application, create an account, sign in, start or continue an application, choose the right program, open the next section, save, or submit.
+- fill: put the applicant's answer into the empty field target_id, from sheet_key (a key in the fill sheet). never invent values.
+- goto: open url (a link on this page or the same site).
 - wait_email: the portal sent an email (code, link, or login) and nothing else can be done until it arrives.
-- handoff: the applicant must do this step themselves (bot check, payment, a question only they can answer, anything you are unsure about). note says exactly what to do, in one plain sentence.
+- handoff: ONLY for a bot check (captcha), a payment, or a personal fact the sheet truly doesn't have. note says exactly what the applicant must do, in one plain sentence.
 - done: the application is already submitted.
-rules: never press pay/checkout/delete/withdraw/sign out. prefer the main application flow over navigation menus, news, events or other programs.
-if the page lists several programs or applications, choose the one matching the program. explain your choice in note (short).`;
+how to find your way:
+- school and program pages: the application is always linked somewhere. look for apply online, apply now, start your application, online application, how to apply, application portal, apply via (ucas, slate, the school's system), admissions, or a menu. follow it.
+- sign-in pages: if no login is on file, look for create account, register, sign up, new user, new applicant, first-time applicant, or a tab for registering. it is usually there.
+- program names on portals rarely match exactly ("MSc Finance" vs "Finance (MSc) - Full time"): pick the closest match for the same subject and level. that is never a reason to hand off.
+- lists of applications or programs: choose the one matching the program. dashboards: open the application in progress, or start a new one.
+- prefer the main application flow over news, events, fees or other programs.
+rules: never press pay/checkout/delete/withdraw/sign out. explain your choice in note (short).`;
+
+const SEE_SYSTEM = `you operate a web browser for an applicant, looking at a screenshot of a university application portal (1280x900 css pixels; x to the right, y down from the top-left).
+the applicant has signed their packet and authorised the agents to complete the application. take ONE small step toward the goal.
+actions:
+- click: click at (x, y). use it to open a dropdown, choose an option in an open list, tick a box or radio, press a button or link, focus a box. aim at the centre of the element.
+- type: click the text box at (x, y) and type the value of sheet_key (a key from the fill sheet; the value is typed for you). for search-as-you-type boxes, type, then on the next step click the matching suggestion.
+- key: press one of Enter, Tab, Escape, ArrowDown, ArrowUp.
+- scroll: scroll down to see more of the page.
+- done: the goal is reached, or there's nothing more you can do on this screen.
+- handoff: a bot check, a payment, or a question about the applicant the fill sheet can't answer. note says what the applicant must do.
+rules: choose dropdown options that match the applicant's sheet values (bilingual labels like "Fall / Automne 2027" count). never invent facts. never click pay, delete, withdraw or sign out. look at the recent steps: don't repeat a step that didn't change anything; try another way (a different spot, scrolling, the keyboard).`;
+
+const SeeOut = z.object({
+  action: z.enum(["click", "type", "key", "scroll", "done", "handoff"]),
+  x: z.number(),
+  y: z.number(),
+  sheet_key: z.string(),
+  key: z.string(),
+  note: z.string(),
+});
 
 function navPrompt(n: NavInput, sheet: FillSheet) {
   const s = n.snapshot;
@@ -160,6 +187,32 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       return output;
     },
     fillFromKey: (f, key) => resolve(f, key, c.sheet),
+    decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined),
+    sheetValue: (key) => c.sheet.fields[key] ?? null,
+    see: async (v) => {
+      const { output } = await runStructured({
+        userId: c.userId,
+        agent: "runner",
+        jobId: c.jobId ?? undefined,
+        promptVersion: "see-v1",
+        tier: "chat",
+        system: SEE_SYSTEM,
+        cachePrefix: `applying to: ${c.sheet.program} at ${c.sheet.school}\nfill sheet keys (type only these):\n${keyMenu(c.sheet)}`,
+        prompt: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: Buffer.from(v.image).toString("base64") } },
+          { type: "text", text: `goal: ${v.goal}\npage: ${v.url}\n${v.empty.length ? `required questions still blank: ${v.empty.join("; ")}\n` : ""}recent steps: ${v.history.join(" → ") || "none"}` },
+        ],
+        schema: SeeOut,
+        maxTokens: 400,
+      });
+      return output;
+    },
+    resetLink: c.readMail ? (since) => findResetLink(c.userId, c.host(), since) : undefined,
+    rotatePassword: async () => {
+      const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "");
+      await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.password_reset", applicationId: c.applicationId, channel: "portal", context: { host: c.host() } });
+      return l;
+    },
     loginFromMail: c.readMail ? (since) => issuedLogin(c.userId, c.applicationId, c.jobId, c.host(), since) : undefined,
     verification: (since) => findVerification(c.userId, c.host(), since),
     progress: async (note) => {
@@ -169,6 +222,25 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       await setRunner(c.applicationId, { runner_note: note });
     },
   };
+}
+
+// the password reset email a portal sent after `since`: the first link on the school's site that looks like a reset
+export async function findResetLink(userId: string, host: string, since: number): Promise<string | null> {
+  const root = hostRoot(host);
+  const mails = await recentMail(userId, `newer_than:1d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
+  for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
+    const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
+    const hit = links.find((l) => {
+      try {
+        const u = new URL(l);
+        return hostRoot(u.hostname) === root && /(reset|password|passwd|recover|forgot|token|change|pwd)/i.test(u.pathname + u.search);
+      } catch {
+        return false;
+      }
+    });
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export async function findVerification(userId: string, host: string, since: number) {
@@ -215,16 +287,23 @@ export async function extensionOnline(userId: string): Promise<boolean> {
   return (count ?? 0) > 0;
 }
 
+// the applicant has connected Chrome at some point (the extension can pick work up whenever Chrome is open)
+export async function extensionPaired(userId: string): Promise<boolean> {
+  const { count } = await admin().from("runner_tokens").select("id", { count: "exact", head: true }).eq("user_id", userId).is("revoked_at", null);
+  return (count ?? 0) > 0;
+}
+
 // portals that refuse a cloud browser (bot walls, blocked sign-ups) usually accept the applicant's own chrome:
 // move the job there. the extension picks it up within a minute.
 export const BLOCKED_REASONS = new Set(["captcha", "account", "blocked"]);
 export async function handOffToChrome(userId: string, applicationId: string, state: RunnerState, why: string) {
+  const online = await extensionOnline(userId);
   await admin()
     .from("applications")
     .update({
       runner_mode: "extension",
       runner_status: "ready",
-      runner_note: "moved to your Chrome: this portal blocks cloud browsers. It carries on there within a minute",
+      runner_note: online ? "moved to your Chrome: this portal blocks cloud browsers. It carries on there within a minute" : "moved to your Chrome: this portal blocks cloud browsers. It carries on as soon as Chrome is open on your computer",
       runner_state: { ...state, reason: null, rechecks: 0, samePageCount: 0, storage_enc: undefined },
       runner_session_id: null,
       runner_live_url: null,
@@ -232,6 +311,11 @@ export async function handOffToChrome(userId: string, applicationId: string, sta
     })
     .eq("id", applicationId);
   await logEvent({ userId, actor: "agent:runner", action: "runner.moved_to_chrome", applicationId, channel: "portal", context: { why } });
+  if (!online) {
+    const { data } = await admin().from("applications").select("programs(schools(name))").eq("id", applicationId).maybeSingle();
+    const school = (data?.programs as unknown as { schools: { name: string } } | null)?.schools.name ?? "a school";
+    await notify({ userId, key: `chrome:${applicationId}`, kind: "info", title: `Open Chrome to finish ${school}`, body: `${school}'s portal blocks cloud browsers, so the agents will finish it in your Chrome. Open Chrome on the computer where you connected Ivyward and they carry on by themselves.`, href: `/applications/${applicationId}`, actionLabel: "See the application" }).catch(() => {});
+  }
 }
 
 // a live browser session is open for this application: the cloud runner leaves it alone
@@ -248,6 +332,14 @@ export const runner: Record<string, Handler> = {
     const app = await loadApp(job.user_id, applicationId);
     if (!app) return { skipped: "gone" };
     const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string } };
+    // first, the way a person does it: open the program page and follow its apply links. free and usually enough.
+    const walk = await crawlForApply([app.portal_url, p.url].filter((u): u is string => !!u), 10).catch(() => null);
+    if (walk?.portal) {
+      await admin().from("applications").update({ portal_url: walk.portal }).eq("id", applicationId);
+      await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.portal_found", applicationId, context: { url: walk.portal, notes: `followed "${walk.best?.text ?? "apply"}" from the program page`, pages: walk.visited } });
+      if ((job.payload as { thenRun?: boolean }).thenRun) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId, portalChecked: true } });
+      return { url: walk.portal, via: "crawl" };
+    }
     const found = await research({
       userId: job.user_id,
       agent: "runner",
@@ -288,6 +380,21 @@ export const runner: Record<string, Handler> = {
       url = links.find((u) => site(u) && ours(u)) ?? null;
     }
     let note = output.notes;
+    // the search turned up school pages but no application site: walk those pages for the apply link
+    if (!url) {
+      const more = await crawlForApply(found.sources.filter((u) => /apply|admission|how-to|study|course|program/i.test(u)).slice(0, 4), 8).catch(() => null);
+      if (more?.portal) {
+        url = more.portal;
+        note = `followed "${more.best?.text ?? "apply"}" from the school's pages`;
+      } else {
+        // an "apply online" page that isn't obviously a portal is still a better start than the brochure
+        const lead = [walk?.best, more?.best].filter((b): b is NonNullable<typeof b> => !!b && b.score >= 10).sort((a, b) => b.score - a.score)[0];
+        if (lead) {
+          url = lead.url;
+          note = `starting from "${lead.text}"`;
+        }
+      }
+    }
     if (!url && p.url) {
       // no portal found: start from the program page and follow its "apply" link
       url = normalizeUrl(p.url);
@@ -410,13 +517,17 @@ export const runner: Record<string, Handler> = {
         return { outcome: outcome.kind, note: outcome.note, filled };
       }
 
-      if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason) && (await extensionOnline(job.user_id))) {
+      if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason) && (await extensionPaired(job.user_id))) {
         // the portal won't take a cloud browser: the applicant's own chrome takes over from here
         await handOffToChrome(job.user_id, applicationId, saved, outcome.note);
         return { outcome: "moved_to_chrome", reason: outcome.reason, filled };
       }
 
       if (outcome.kind === "needs_you" && outcome.reason === "question") await recordQuestions(job.user_id, applicationId, next.questions).catch(() => 0);
+      // a portal that blocks cloud browsers and no Chrome connected yet: say how to fix it once
+      if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason)) {
+        await notify({ userId: job.user_id, key: "connect-chrome", kind: "setup", urgent: true, title: "Connect Chrome so the agents can finish blocked portals", body: `${sheet.school}'s portal blocks cloud browsers. With Ivyward connected to your Chrome, the agents finish portals like this one there, on their own.`, href: "/connect-chrome", actionLabel: "Connect Chrome" }).catch(() => {});
+      }
 
       if (outcome.kind === "needs_you") {
         // bot checks and payments: the applicant finishes that step (live view, or their own browser with the

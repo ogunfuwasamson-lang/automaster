@@ -29,6 +29,13 @@ export interface EnginePage {
   goto(url: string, opts?: { timeout?: number }): Promise<unknown>;
   waitForLoadState(state: "domcontentloaded" | "networkidle", opts?: { timeout?: number }): Promise<void>;
   pressEnter(): Promise<void>;
+  // eyes and hands, for pages the DOM can't explain (custom dropdowns, canvas widgets, odd layouts). optional:
+  // the cloud browser has them; where they're missing the engine simply doesn't look at the screen.
+  screenshot?(): Promise<Uint8Array>; // jpeg of the viewport, in css pixels
+  mouseClick?(x: number, y: number): Promise<void>;
+  typeText?(text: string): Promise<void>;
+  pressKey?(key: "Enter" | "Tab" | "Escape" | "ArrowDown" | "ArrowUp" | "Backspace" | "Control+A"): Promise<void>;
+  scrollBy?(dy: number): Promise<void>;
 }
 
 const wrapped = new WeakMap<Frame, EngineFrame>();
@@ -63,5 +70,12 @@ export function fromPlaywright(page: Page): EnginePage {
       await page.waitForLoadState(state, o);
     },
     pressEnter: () => page.keyboard.press("Enter"),
+    screenshot: async () => new Uint8Array(await page.screenshot({ type: "jpeg", quality: 60, scale: "css", timeout: 10_000 })),
+    mouseClick: async (x, y) => {
+      await page.mouse.click(x, y);
+    },
+    typeText: (text) => page.keyboard.type(text, { delay: 25 }),
+    pressKey: (key) => page.keyboard.press(key),
+    scrollBy: (dy) => page.mouse.wheel(0, dy),
   };
 }

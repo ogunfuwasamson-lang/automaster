@@ -5,7 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 import { sha256 } from "@/lib/crypto";
 import { getProfile } from "@/lib/profile-store";
 import { buildSheet, type FillSheet, type PortalDetails, type RecommenderRow, type SheetEssay } from "@/lib/fillsheet";
-import { mapByRules, resolve, keyMenu, type Fill, type PageField } from "@/lib/runner-map";
+import { mapByRules, resolve, keyMenu, bestOption, type Fill, type PageField } from "@/lib/runner-map";
 import { runStructured } from "@/lib/llm";
 import { guard } from "@/lib/guard";
 import { textPdf } from "@/lib/pdf";
@@ -81,7 +81,8 @@ const MAP_SYSTEM = `you map fields on a university application portal to keys in
 for each field, pick the ONE sheet key whose value answers it, or "" when nothing in the sheet answers it.
 rules:
 - only keys from the menu. never make up a key or a value.
-- yes/no questions, preferences, demographics not in the sheet, and anything you're unsure about: "".
+- dropdowns: pick the key whose value matches one of the options, even when the label words it differently ("application type" or "intake" whose options are terms -> entry_term; "admit type" -> application_type; "program of interest" -> program).
+- yes/no questions about the applicant's history, demographics not in the sheet, and anything with no supporting key: "".
 - edu1/work1 = most recent; use edu2/work2... when the field is clearly about an earlier entry (e.g. "previous institution").
 - essays: pick essay:<id> when a text box or upload clearly asks for that essay.`;
 
@@ -111,6 +112,74 @@ export async function mapFields(userId: string, sheet: FillSheet, fields: PageFi
     fills.push(r ?? { id: f.id, action: "skip", reason: "not in your profile" });
   }
   return fills;
+}
+
+const Decide = z.object({
+  picks: z.array(
+    z.object({
+      id: z.string(),
+      choice: z.enum(["option", "key", "ask"]),
+      option: z.string(), // exactly one of the field's options, when choice = option
+      key: z.string(), // a fill-sheet key, when choice = key (or the key that supports the option)
+      why: z.string(),
+    }),
+  ),
+});
+
+const DECIDE_SYSTEM = `you complete required questions on a university application form for an applicant who has signed their application packet. the rules engine couldn't answer these; you get one careful look before the applicant is bothered.
+you have the applicant's whole fill sheet (key: value), the program, and the page.
+for each field choose:
+- "option": for a dropdown or radio, pick the ONE option (copied exactly from its list) that the sheet supports, and name the supporting key. examples: "Application type" with options "Fall / Automne 2027 / Winter 2028" and entry_term "fall-2027" -> the Fall 2027 option, key entry_term. "Program of study" -> the option naming the program. "Degree level" -> from level/degree. "Country" -> from country or citizenship.
+  administrative questions with no fact about the applicant at stake may use key "none": how did you hear about us (pick a neutral web/internet/online option if present, else "other"), preferred contact method (email), campus or delivery mode when only one fits the program, preferred language of correspondence (english, unless the sheet says otherwise).
+- "key": for a text box, the ONE sheet key whose value answers it exactly.
+- "ask": anything that is a fact about the applicant the sheet doesn't state (criminal record, disciplinary history, disability, health, visa or immigration history, finances, race or ethnicity, religion, family details, prior applications), any legal declaration, or anything you can't support. never guess facts.
+never write a value of your own. explain each pick in a few words.`;
+
+// a second look at required fields the rules left empty. the model chooses from the field's own options or picks
+// a sheet key; values still come only from the sheet (or, for neutral admin questions, from the page's own list).
+export async function decideFields(userId: string, sheet: FillSheet, fields: PageField[], page: { url: string; title: string; body: string }, jobId?: string): Promise<Fill[]> {
+  if (!fields.length) return [];
+  const values = Object.entries(sheet.fields)
+    .map(([k, v]) => `${k}: ${v.length > 160 ? `${v.slice(0, 160)}…` : v}`)
+    .join("\n");
+  let picks: z.infer<typeof Decide>["picks"] = [];
+  try {
+    const { output } = await runStructured({
+      userId,
+      agent: "runner",
+      jobId,
+      promptVersion: "decide-v1",
+      tier: "chat",
+      system: DECIDE_SYSTEM,
+      cachePrefix: `applying to: ${sheet.program} at ${sheet.school}\n\nfill sheet:\n${values}`,
+      prompt: `page: ${page.title} (${page.url})\npage text: ${page.body.slice(0, 1500)}\n\nrequired fields still empty:\n${fields
+        .map((f) => `${f.id} | ${f.type} | ${f.label.slice(0, 160)}${f.options?.length ? ` | options: ${f.options.filter((o) => o.trim()).slice(0, 60).join(" / ").slice(0, 1500)}` : ""}`)
+        .join("\n")}`,
+      schema: Decide,
+      maxTokens: 2000,
+    });
+    picks = output.picks;
+  } catch {
+    return [];
+  }
+  const out: Fill[] = [];
+  for (const f of fields) {
+    const p = picks.find((x) => x.id === f.id);
+    if (!p || p.choice === "ask") continue;
+    if (p.choice === "option" && (f.type === "select" || f.type === "radio" || f.combo)) {
+      // the option must really be one of the field's own (allowing for small spelling differences)
+      const opt = (f.options ?? []).find((o) => o.trim() === p.option.trim()) ?? bestOption(p.option, f.options ?? []);
+      const backed = p.key === "none" || !!sheet.fields[p.key];
+      if (opt && backed) out.push(f.combo && !f.options?.length ? { id: f.id, action: "fill", value: p.option, source: `decide:${p.key}` } : { id: f.id, action: "choose", option: opt, source: `decide:${p.key}` });
+      else if (f.combo && backed && p.key !== "none") out.push({ id: f.id, action: "fill", value: sheet.fields[p.key], source: `decide:${p.key}` });
+      continue;
+    }
+    if (p.choice === "key" && p.key) {
+      const r = resolve(f, p.key, sheet);
+      if (r) out.push({ ...r, source: `decide:${p.key}` } as Fill);
+    }
+  }
+  return out;
 }
 
 // may the runner press submit on this application right now?

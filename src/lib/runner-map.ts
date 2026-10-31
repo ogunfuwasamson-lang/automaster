@@ -10,6 +10,7 @@ export interface PageField {
   name?: string;
   options?: string[]; // select / radio choices, as shown
   required?: boolean;
+  combo?: boolean; // a search-as-you-type box: type the value, then pick it from the list that appears
 }
 
 export type Fill =
@@ -31,11 +32,29 @@ const ALIASES: Record<string, string[]> = {
   no: ["false", "n"],
 };
 
-// pick the option that best matches a sheet value ("Nigeria" -> "Nigeria (NG)", "fall 2027" -> "Fall 2027")
+// words that mean the same thing on forms, often bilingual ("Fall / Automne 2027"): mapped to one spelling
+const SYNONYM: Record<string, string> = {
+  autumn: "fall", automne: "fall", otono: "fall", herbst: "fall", sept: "fall", september: "fall",
+  printemps: "spring", primavera: "spring", fruhling: "spring", january: "spring", jan: "spring",
+  hiver: "winter", invierno: "winter",
+  ete: "summer", verano: "summer", sommer: "summer",
+  masters: "master", msc: "master", ma: "master", mba: "master", meng: "master", graduate: "graduate", postgraduate: "graduate", pg: "graduate",
+  bachelors: "bachelor", undergraduate: "undergraduate", ug: "undergraduate",
+  fulltime: "full", parttime: "part",
+};
+const STOP = new Set(["the", "a", "an", "of", "and", "or", "for", "in", "to", "term", "intake", "session", "semester", "entry", "start", "year", "time"]);
+const fold = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+const tokens = (s: string) =>
+  norm(fold(s).replace(/full[\s-]?time/gi, "fulltime").replace(/part[\s-]?time/gi, "parttime"))
+    .split(" ")
+    .filter((w) => w && !STOP.has(w))
+    .map((w) => SYNONYM[w] ?? w);
+
+// pick the option that best matches a sheet value ("Nigeria" -> "Nigeria (NG)", "fall 2027" -> "Fall / Automne 2027")
 export function bestOption(value: string, options: string[]): string | null {
-  const v = norm(value);
+  const v = norm(fold(value));
   if (!v || !options.length) return null;
-  const opts = options.map((o) => ({ o, n: norm(o) })).filter((x) => x.n && !/^(select|choose|please|--)/.test(x.n));
+  const opts = options.map((o) => ({ o, n: norm(fold(o)) })).filter((x) => x.n && !/^(select|choose|please|--)/.test(x.n));
   const exact = opts.find((x) => x.n === v);
   if (exact) return exact.o;
   const alias = Object.entries(ALIASES).find(([k, al]) => k === v || al.includes(v));
@@ -55,6 +74,19 @@ export function bestOption(value: string, options: string[]): string | null {
     const m = name && opts.find((x) => x.n === name || x.n === name.slice(0, 3) || x.n === String(Number(v)) || x.n === v.padStart(2, "0"));
     if (m) return m.o;
   }
+  // every word of the value appears in the option (after synonyms), on either side of a bilingual "/":
+  // "Fall 2027" -> "Fall / Automne 2027", "Full-time" -> "Full time study". the closest fit wins, only if it's clear.
+  const want = [...new Set(tokens(value))];
+  if (!want.length) return null;
+  const scored = opts
+    .map((x) => {
+      const have = new Set(tokens(x.o));
+      const all = want.every((w) => have.has(w));
+      return { o: x.o, all, extra: have.size - want.filter((w) => have.has(w)).length };
+    })
+    .filter((x) => x.all)
+    .sort((a, b) => a.extra - b.extra);
+  if (scored.length === 1 || (scored.length > 1 && scored[0].extra < scored[1].extra)) return scored[0].o;
   return null;
 }
 
@@ -166,6 +198,17 @@ export function datePart(options: string[]): "day" | "month" | "year" | null {
   return null;
 }
 
+const RELATED: Record<string, string[]> = {
+  application_type: ["entry_term", "entry_start", "level", "degree", "study_mode"],
+  entry_term: ["entry_start", "entry_season"],
+  entry_start: ["entry_term", "entry_season"],
+  entry_season: ["entry_term", "entry_start"],
+  level: ["application_type", "degree"],
+  degree: ["level", "application_type", "program"],
+  program: ["degree", "field_of_interest"],
+  study_mode: ["application_type"],
+};
+
 export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | null {
   if (key === "date_of_birth" && f.type === "select") {
     const part = datePart(f.options ?? []);
@@ -187,7 +230,14 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
   if (!value) return null;
   if (f.type === "select" || f.type === "radio") {
     const opt = bestOption(value, f.options ?? []);
-    return opt ? { id: f.id, action: "choose", option: opt, source: key } : null;
+    if (opt) return { id: f.id, action: "choose", option: opt, source: key };
+    // the label pointed at one key but the options speak about another: "Application type" whose options are
+    // terms ("Fall / Automne 2027"), an "intake" list of degree levels. try the keys these questions get confused with.
+    for (const k of RELATED[key] ?? []) {
+      const alt = sheet.fields[k] ? bestOption(sheet.fields[k], f.options ?? []) : null;
+      if (alt) return { id: f.id, action: "choose", option: alt, source: k };
+    }
+    return null;
   }
   // yes/no boxes are the applicant's call: only ticked when they answered yes to this question
   if (f.type === "checkbox") return key.startsWith("answer:") && /^(yes|y|true|i agree|agree|i do|correct)\b/i.test(value) ? { id: f.id, action: "check", source: key } : null;

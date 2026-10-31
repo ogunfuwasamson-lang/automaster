@@ -36,6 +36,13 @@ export interface EngineState {
   verifyWaitSince?: number;
   lastFingerprint?: string;
   samePageCount?: number;
+  decided?: string[]; // field labels the decide pass has already looked at (so it isn't asked twice)
+  visionCalls?: number; // screenshot steps this run
+  visionHistory?: string[];
+  visited?: string[]; // "apply" links already followed, so a landing page can't send us round in circles
+  triedCreate?: boolean;
+  // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
+  reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
 }
 
 export interface PortalQuestion {
@@ -87,6 +94,32 @@ export interface EngineDeps {
   progress(note: string): Promise<void>;
   // the applicant took the wheel (live browser): stop after the current step
   shouldStop?(): boolean;
+  // second opinion on required fields the rules left empty: the model reads the whole fill sheet and the page and
+  // picks an option from the field's own list, or a sheet key. it can't type a value of its own.
+  decide?(fields: PageField[], page: { url: string; title: string; body: string }): Promise<Fill[]>;
+  // look at a screenshot and pick one mouse or keyboard step (custom dropdowns, widgets the DOM can't explain)
+  see?(input: SeeInput): Promise<SeeAction | null>;
+  // the value behind a fill-sheet key, for typing what the screenshot step chose
+  sheetValue?(key: string): string | null;
+  // password resets: the reset link the portal emailed after `since`, and a new password saved to the vault
+  resetLink?(since: number): Promise<string | null>;
+  rotatePassword?(): Promise<Login>;
+}
+
+export interface SeeInput {
+  image: Uint8Array;
+  goal: string;
+  url: string;
+  history: string[];
+  empty: string[]; // required questions still blank
+}
+export interface SeeAction {
+  action: "click" | "type" | "key" | "scroll" | "done" | "handoff";
+  x: number;
+  y: number;
+  sheet_key: string;
+  key: string;
+  note: string;
 }
 
 export interface NavInput {
@@ -123,6 +156,13 @@ const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| hav
 const CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
 const REGISTER_PAGE = /(regist|create.?(an.?)?account|sign.?up|new.?user)/i;
 const LOGIN_LINK = /^(log ?in|login|sign ?in)( here| now)?$|^returning (users?|applicants?)/i;
+const FORGOT = /(forgot|forgotten|reset|lost|recover|change)\b.{0,25}(password|login|details|credentials|pin)|(password|login) (reset|recovery|help)|trouble (signing|logging) in|can'?t (sign|log) ?in/i;
+const RESET_BTN = /^(send|reset|submit|continue|next|request|email me|recover|go|ok|confirm)\b/i;
+const NO_ACCOUNT = /(no (account|user|record)s? (was |were )?(found|exists?|matches|associated)|(not|isn'?t) (found|registered|recogni[sz]ed)|does(n'?t| not) (exist|match)|unknown (user|email|account))/i;
+// links that start an application, strongest first. "how to apply" pages are worth opening when nothing better is there.
+const APPLY_STRONG = /^(apply( now| online| today| here| directly)?( for (this|the) (program(me)?|course|degree))?|start (my |an |your |a new |new |the )?application|begin (my |an |your )?application|online application( form| portal| system)?|application (portal|form|system)|apply (via|through|using) .{2,30}|submit (an|your) application|apply to (this|the) (program(me)?|course)|(go to|access) (the )?(online )?application( portal)?)\b/i;
+const APPLY_WEAK = /\b(how to apply|apply|applying|application process|admissions? process|ready to apply)\b/i;
+const NOT_APPLY = /\b(news|events?|blog|podcast|webinars?|open days?|visit|tour|chat|faq|request (info|information|a prospectus)|brochure|prospectus|fees?|funding|accommodation|housing|jobs?|careers?|vacanc|staff|alumni|donate|giving|search|menu|cookies?|privacy)\b/i;
 
 // sign-in buttons come in many wordings: "Graduate Applicant Login", "Applicant Log In", "Returning users",
 // "Existing applicants", "Already have an account?", "Access your application", "Log on". anything that says
@@ -239,6 +279,128 @@ const here = (u: string) => u.replace(/#.*$/, "").replace(/\/$/, "");
 const goesSomewhere = (s: Snapshot, b: { href?: string }) => !b.href || /^javascript:/i.test(b.href) ? true : here(b.href) !== here(s.url);
 const find = (s: Snapshot, re: RegExp, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link) && goesSomewhere(s, b));
 
+// "Create account" is often a tab or a link back to the same page (href="#", a javascript toggle): those count
+// here, unlike in the general finder, which skips links that go nowhere
+const findCreate = (s: Snapshot) => s.buttons.find((b) => CREATE.test(clean(b.label)));
+const findForgot = (s: Snapshot) => s.buttons.find((b) => clean(b.label).length <= 60 && FORGOT.test(clean(b.label)));
+
+// the best link toward starting an application on a school or program page, or nothing worth following
+export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["buttons"][number] | undefined {
+  let best: { b: Snapshot["buttons"][number]; score: number } | undefined;
+  for (const b of s.buttons) {
+    const l = clean(b.label);
+    if (!l || l.length > 70 || !goesSomewhere(s, b)) continue;
+    if (b.href && visited.includes(here(b.href))) continue;
+    let score = APPLY_STRONG.test(l) ? 10 : START.test(l) ? 9 : APPLY_WEAK.test(l) ? 3 : 0;
+    if (!score) continue;
+    if (NOT_APPLY.test(l)) score -= 8;
+    if (b.href && /(^|[./])(apply|applygrad|gradapply|admissions?|application|portal|slate|ucas|enligne|register)[./-]/i.test(b.href.replace(/^https?:\/\//, ""))) score += 3;
+    if (!best || score > best.score) best = { b, score };
+  }
+  return best && best.score >= 3 ? best.b : undefined;
+}
+
+const VISION_BUDGET = 24; // screenshot steps per run
+const VISION_KEYS = new Set(["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"]);
+
+// the eyes: look at the page as a person would and take up to `max` small steps toward `goal`. values typed
+// come from the fill sheet only; clicks land only after checking what's under the pointer.
+async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal: string, empty: string[], max = 6): Promise<{ acted: boolean; outcome?: Outcome }> {
+  if (!deps.see || !page.screenshot || !page.mouseClick) return { acted: false };
+  let acted = false;
+  const log = (t: string) => (state.visionHistory = [...(state.visionHistory ?? []), t].slice(-12));
+  for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET; i++) {
+    if (deps.shouldStop?.()) break;
+    state.visionCalls = (state.visionCalls ?? 0) + 1;
+    const image = await page.screenshot().catch(() => null);
+    if (!image) break;
+    const a = await deps.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-8), empty }).catch(() => null);
+    if (!a || a.action === "done") break;
+    if (a.action === "handoff") {
+      log(`handoff: ${a.note}`);
+      const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+      return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
+    }
+    if (a.action === "click" || a.action === "type") {
+      await page.mainFrame().helper().catch(() => {});
+      const under = await page
+        .mainFrame()
+        .evaluate((p: { x: number; y: number }) => (window as unknown as { __am: { at(x: number, y: number): { label: string } | null } }).__am.at(p.x, p.y), { x: a.x, y: a.y })
+        .catch(() => null);
+      const label = clean(under?.label ?? "");
+      if (a.action === "click") {
+        if (DANGEROUS.test(label)) {
+          log(`refused "${label}"`);
+          return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
+        }
+        if (FINAL.test(label) || /^submit\b/i.test(label)) {
+          state.reachedSubmit = true;
+          const d = await deps.canSubmit();
+          if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+          state.submitClicked = true;
+        }
+        await page.mouseClick(a.x, a.y);
+        log(`click "${label || `${Math.round(a.x)},${Math.round(a.y)}`}"${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
+      } else {
+        const v = deps.sheetValue?.(a.sheet_key) ?? null;
+        if (!v || NEVER_FILL.test(label)) {
+          log(`nothing to type for ${a.sheet_key || "?"}`);
+          continue;
+        }
+        await page.mouseClick(a.x, a.y);
+        await page.pressKey?.("Control+A");
+        await page.typeText?.(v);
+        log(`typed ${a.sheet_key} into "${label.slice(0, 40)}"`);
+      }
+    } else if (a.action === "key") {
+      if (!VISION_KEYS.has(a.key)) continue;
+      await page.pressKey?.(a.key as "Enter");
+      log(`pressed ${a.key}`);
+    } else if (a.action === "scroll") {
+      await page.scrollBy?.(600);
+      log("scrolled");
+    }
+    acted = true;
+    await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
+    await sleep(900);
+  }
+  return { acted };
+}
+
+// required fields the rules couldn't answer: one considered look by the model before asking the applicant
+async function decidePass(page: Page, deps: EngineDeps, s: Snapshot, fields: PageField[], state: EngineState): Promise<number> {
+  if (!deps.decide) return 0;
+  const key = (f: PageField) => cleanLabel(f.label, f.options).toLowerCase().slice(0, 80);
+  const seen = new Set(state.decided ?? []);
+  const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
+  if (!todo.length) return 0;
+  state.decided = [...seen, ...todo.map(key)].slice(-120);
+  const fills = await deps.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2000) }).catch(() => [] as Fill[]);
+  return applyList(page, deps, todo, fills, state);
+}
+
+// everything a form page gets before the applicant is asked: rules, a model's second look, then the screen
+async function fillHard(page: Page, deps: EngineDeps, state: EngineState): Promise<{ filled: number; empty: PageField[]; outcome?: Outcome }> {
+  let filled = 0;
+  let now = await snap(page);
+  let empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+  if (empty.length) {
+    filled += await decidePass(page, deps, now, empty, state);
+    now = await snap(page);
+    empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+  }
+  if (empty.length && deps.see && page.screenshot) {
+    const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
+    const v = await visionLoop(page, deps, state, `fill in these required questions with the applicant's information, opening dropdowns and choosing the matching option: ${labels.join("; ")}`, labels);
+    if (v.outcome) return { filled, empty, outcome: v.outcome };
+    if (v.acted) {
+      now = await snap(page);
+      empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    }
+  }
+  return { filled, empty };
+}
+
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
   let filled = 0;
@@ -270,6 +432,13 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !/(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error)/i.test(s.body)) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
+    if (state.samePageCount >= 3 && s.fields.some((f) => f.required)) {
+      // the same page won't move: take a harder look at what's still blank before asking anyone
+      const h = await fillHard(page, deps, state);
+      filled += h.filled;
+      if (h.outcome) return { outcome: h.outcome, state, filled };
+      s = await snap(page);
+    }
     if (state.samePageCount >= 3) {
       const req = s.fields.map((f) => f.label.slice(0, 50));
       // required boxes still empty after three tries: the profile doesn't answer them, so ask the applicant
@@ -280,7 +449,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const stop: Outcome = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
       if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
       // the usual moves aren't working on this page: let the navigator look at it
-      const o = await navStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
+      const o = await stuckStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
       if (o) return { outcome: o, state, filled };
       continue;
     }
@@ -297,19 +466,31 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       return { outcome: { kind: "needs_you", reason: "payment", note: "payment page: open the live view and pay the fee; the runner confirms the submission after" }, state, filled };
     }
 
+    // a password reset in progress takes the page first
+    if (state.reset) {
+      const r = await resetStep(page, deps, s, state);
+      if (r === "continue") continue;
+      if (r) return { outcome: r, state, filled };
+    }
+
     if (kind === "login") {
       let login = await deps.existingLogin();
       // never create a second account: first look for a login this portal already emailed
       if (!login && deps.loginFromMail) login = await deps.loginFromMail(Date.now() - 60 * 86_400_000);
       if (!login) {
-        const create = find(s, CREATE);
-        if (create) {
+        const create = find(s, CREATE) ?? findCreate(s);
+        if (create && !state.triedCreate) {
           await deps.progress("creating your portal account");
           state.accountAt = Date.now();
+          state.triedCreate = true;
           await click(page, create.id);
           continue;
         }
-        return { outcome: { kind: "needs_you", reason: "login", note: "this portal only has a sign-in page, with no way to create an account here. Create your account where the school says, then add it under Portal logins; the agents sign in with it and carry on" }, state, filled };
+        // the way in isn't a recognisable button: ask the navigator, then look at the screen
+        const fallback: Outcome = { kind: "needs_you", reason: "login", note: "couldn't find where to create an account on this portal. Create it where the school says and add it under Portal logins; the agents sign in with it and carry on" };
+        const o = await stuckStep(page, deps, s, state, "this is a sign-in page and there's no login on file yet: find how to create a new account (register, sign up, new applicant, create account, first-time user)", fallback);
+        if (o) return { outcome: o, state, filled };
+        continue;
       }
       const pw = s.allFields.find((f) => f.type === "password")!;
       const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
@@ -334,8 +515,27 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
             continue;
           }
         }
+        // never signed in with it: the account may not exist yet. create it (same password) if the page offers that
+        if (!state.signedIn && !state.triedCreate) {
+          const create = find(after, CREATE) ?? findCreate(after);
+          if (create) {
+            state.triedCreate = true;
+            state.accountAt = Date.now();
+            await deps.progress("creating your portal account");
+            await click(page, create.id);
+            continue;
+          }
+        }
+        // reset the password through the portal's own "forgot password", read the email, set a new one, save it
+        const forgot = findForgot(after);
+        if (forgot && deps.canReadMail && deps.resetLink && deps.rotatePassword && (state.reset?.tries ?? 0) < 2) {
+          state.reset = { stage: "requested", at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
+          await deps.progress("the portal rejected the saved password, so the agents are resetting it");
+          await click(page, forgot.id);
+          continue;
+        }
         if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
-        return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. Check it under Portal logins (or reset it on the portal and save the new one there); the agents sign in again by themselves" }, state, filled };
+        return { outcome: { kind: "needs_you", reason: "login", note: deps.canReadMail ? "the portal rejected the saved password and has no reset link the agents could use. Reset it on the portal, save the new one under Portal logins, and the agents sign in again by themselves" : "the portal rejected the saved password. Connect Gmail so the agents can reset it themselves, or reset it on the portal and save the new one under Portal logins" }, state, filled };
       }
       // only count it as signed in once the sign-in form has actually gone away
       if (classify(after) !== "login") state.signedIn = true;
@@ -398,11 +598,16 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       const fresh = (await snap(page)).fields.filter((f) => !tried.has(f.id) || (f.options?.length ?? 0) > (s.fields.find((x) => x.id === f.id)?.options?.length ?? 0));
       if (fresh.length) filled += await applyFills(page, deps, fresh, state);
     }
-    const now = await snap(page);
-    const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
-    if (empty.length) {
-      for (const f of now.fields.filter((x) => x.required)) ask(state, f);
-      return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+    let now = await snap(page);
+    if (now.fields.some((f) => f.required)) {
+      const h = await fillHard(page, deps, state);
+      filled += h.filled;
+      if (h.outcome) return { outcome: h.outcome, state, filled };
+      if (h.empty.length) {
+        for (const f of h.empty) ask(state, f);
+        return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+      }
+      now = await snap(page);
     }
 
     const submit = find(now, FINAL);
@@ -417,13 +622,22 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     }
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
-    const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : undefined) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : undefined);
+    const apply = !s.fields.length ? bestApply(now, state.visited) : undefined;
+    const next =
+      find(now, NEXT) ??
+      (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : undefined) ??
+      (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : undefined) ??
+      find(now, START) ??
+      find(now, CREATE) ??
+      (s.fields.length ? find(now, CREATE_SUBMIT) : undefined) ??
+      apply;
     if (next) {
+      if (next.href && next === apply) state.visited = [...(state.visited ?? []), here(next.href)].slice(-30);
       await click(page, next.id);
       continue;
     }
     if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
-    const o = await navStep(page, deps, now, state, "none of the usual buttons (next, continue, start, sign in, create account) are on this page", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
+    const o = await stuckStep(page, deps, now, state, "none of the usual buttons (next, continue, apply, start, sign in, create account) are on this page. if this is a school or program page, find the link that leads to the online application (it may be called apply online, how to apply, start application, or sit in a menu)", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
     if (o) return { outcome: o, state, filled };
   }
   return { outcome: { kind: "continue", note: "continuing" }, state, filled };
@@ -520,10 +734,82 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   return null;
 }
 
+// the navigator first (cheap, reads the page); if it gives up, look at the screen before handing over
+async function stuckStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineState, why: string, fallback: Outcome): Promise<Outcome | null> {
+  const before = s.fingerprint + s.url;
+  const o = await navStep(page, deps, s, state, why, fallback);
+  if (!o) return null;
+  // a real stop (payment, a button the agents never press, submit not allowed, waiting for mail) stands
+  if (o.kind !== "needs_you" || (o.reason !== "stuck" && o.reason !== "login")) return o;
+  const v = await visionLoop(page, deps, state, why, []);
+  if (v.outcome) return v.outcome;
+  if (!v.acted) return o;
+  const after = await snap(page);
+  return after.fingerprint + after.url !== before || after.fields.length !== s.fields.length ? null : o;
+}
+
+// one step of a password reset. "continue" = acted, loop again; an outcome = stop; null = not a reset page
+async function resetStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineState): Promise<Outcome | "continue" | null> {
+  const r = state.reset!;
+  const login = await deps.existingLogin();
+  const pw = s.allFields.filter((f) => f.type === "password");
+  if (r.stage === "requested") {
+    const box = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && f.type !== "hidden" && /(e-?mail|user|login|account|id)/i.test(`${f.label} ${f.name ?? ""} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
+    if (!box || pw.length || !login) {
+      // the forgot link didn't lead to a reset form: give up on resetting
+      state.reset = undefined;
+      return null;
+    }
+    const isId = /user\s*(id|name)|login\s*(id|name)|identifiant/i.test(`${box.label} ${box.name ?? ""}`) && !/e-?mail/i.test(box.label);
+    await fillText(page, box.id, isId && login.login_email.includes("@") ? login.login_email.split("@")[0] : login.login_email);
+    const go = s.buttons.find((b) => RESET_BTN.test(clean(b.label)) && !FORGOT.test(clean(b.label)));
+    if (go) await click(page, go.id);
+    else await frameOf(page).press(`[data-am-id="${box.id}"]`, "Enter").catch(() => {});
+    state.reset = { ...r, stage: "sent", at: Date.now() - 30_000 };
+    await deps.progress("asked the portal for a password reset email");
+    return "continue";
+  }
+  if (r.stage === "sent") {
+    if (NO_ACCOUNT.test(s.body.slice(0, 3000))) {
+      state.reset = undefined;
+      return { kind: "needs_you", reason: "account", note: "the portal says there's no account for your email yet. Create it on the portal (or let the agents try again from Ivyward), then save the login under Portal logins" };
+    }
+    const link = await deps.resetLink!(r.at).catch(() => null);
+    if (!link) {
+      if (Date.now() - r.at > 20 * 60_000) {
+        state.reset = undefined;
+        return { kind: "needs_you", reason: "login", note: "the portal's password reset email hasn't arrived after 20 minutes. Reset it on the portal and save the new password under Portal logins" };
+      }
+      return { kind: "wait", note: "waiting for the portal's password reset email", seconds: 60 };
+    }
+    state.reset = { ...r, stage: "link" };
+    await deps.progress("opening the password reset link from your email");
+    await page.goto(link, { timeout: 45_000 });
+    return "continue";
+  }
+  // on the page the reset link opened: set a new password, save it to the vault first, then submit
+  if (!pw.length) return null;
+  const fresh = await deps.rotatePassword!();
+  for (const p of pw) await fillText(page, p.id, fresh.password);
+  const email = s.allFields.find((f) => f.type === "email" || (f.type === "text" && /e-?mail/i.test(f.label)));
+  if (email) await fillText(page, email.id, fresh.login_email).catch(() => {});
+  const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => RESET_BTN.test(clean(b.label)));
+  if (go) await click(page, go.id);
+  else await page.pressEnter();
+  state.reset = undefined;
+  state.signedIn = false;
+  await deps.progress("set a new portal password and saved it under Portal logins");
+  return "continue";
+}
+
 async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], state?: EngineState): Promise<number> {
   const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
   if (!safe.length) return 0;
-  const fills = await deps.map(safe);
+  return applyList(page, deps, safe, await deps.map(safe), state);
+}
+
+// put a list of decisions on the page. search-as-you-type boxes get typed into, then the match is picked.
+async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills: Fill[], state?: EngineState): Promise<number> {
   let n = 0;
   for (const f of fills) {
     try {
@@ -539,6 +825,15 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
         const file = await deps.file(f.file);
         await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
         n++;
+        continue;
+      }
+      const field = safe.find((x) => x.id === f.id);
+      if (field?.combo && f.action === "fill") {
+        const sel = `[data-am-id="${f.id}"]`;
+        await frameOf(page).fill(sel, f.value, { timeout: 8_000 });
+        await sleep(900);
+        const picked = await frameOf(page).evaluate((v: string) => (window as unknown as { __am: { pickOption(v: string): string | null } }).__am.pickOption(v), f.value).catch(() => null);
+        if (picked) n++;
         continue;
       }
       const ok = await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);

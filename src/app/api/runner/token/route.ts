@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { newToken, sha256 } from "@/lib/crypto";
 import { logEvent } from "@/lib/events";
+import { resolve } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
   const { error } = await db.from("runner_tokens").insert({ user_id: auth.user.id, token_hash: sha256(token), label: (body.label ?? "chrome").slice(0, 40) });
   if (error) return NextResponse.json({ error: "couldn't create a key" }, { status: 500 });
   await logEvent({ userId: auth.user.id, actor: "user", action: "runner.connected" });
+  await resolve(auth.user.id, "connect-chrome").catch(() => {});
   return NextResponse.json({ token });
 }
 

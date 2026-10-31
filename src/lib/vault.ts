@@ -66,3 +66,14 @@ export async function saveIssuedLogin(userId: string, applicationId: string, hos
   if (error) throw new Error(`vault: ${error.message}`);
   return { id: data.id as string, login_email: username, password, status: "created" };
 }
+
+// a new password for a login, after the portal rejected the old one and the agents reset it. saved before it's used,
+// so a run that dies mid-reset never loses the password the portal now has.
+export async function rotatePassword(userId: string, host: string, applicationId: string, email: string): Promise<PortalLogin> {
+  const cur = await getLogin(userId, host, applicationId);
+  const password = generatePassword();
+  if (!cur) return createLogin(userId, applicationId, host, email);
+  const { error } = await admin().from("portal_accounts").update({ password_enc: encrypt(password), status: "created" }).eq("id", cur.id).eq("user_id", userId);
+  if (error) throw new Error(`vault: ${error.message}`);
+  return { ...cur, password, status: "created" };
+}

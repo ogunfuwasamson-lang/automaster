@@ -45,6 +45,12 @@
   var CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
   var REGISTER_PAGE = /(regist|create.?(an.?)?account|sign.?up|new.?user)/i;
   var LOGIN_LINK = /^(log ?in|login|sign ?in)( here| now)?$|^returning (users?|applicants?)/i;
+  var FORGOT = /(forgot|forgotten|reset|lost|recover|change)\b.{0,25}(password|login|details|credentials|pin)|(password|login) (reset|recovery|help)|trouble (signing|logging) in|can'?t (sign|log) ?in/i;
+  var RESET_BTN = /^(send|reset|submit|continue|next|request|email me|recover|go|ok|confirm)\b/i;
+  var NO_ACCOUNT = /(no (account|user|record)s? (was |were )?(found|exists?|matches|associated)|(not|isn'?t) (found|registered|recogni[sz]ed)|does(n'?t| not) (exist|match)|unknown (user|email|account))/i;
+  var APPLY_STRONG = /^(apply( now| online| today| here| directly)?( for (this|the) (program(me)?|course|degree))?|start (my |an |your |a new |new |the )?application|begin (my |an |your )?application|online application( form| portal| system)?|application (portal|form|system)|apply (via|through|using) .{2,30}|submit (an|your) application|apply to (this|the) (program(me)?|course)|(go to|access) (the )?(online )?application( portal)?)\b/i;
+  var APPLY_WEAK = /\b(how to apply|apply|applying|application process|admissions? process|ready to apply)\b/i;
+  var NOT_APPLY = /\b(news|events?|blog|podcast|webinars?|open days?|visit|tour|chat|faq|request (info|information|a prospectus)|brochure|prospectus|fees?|funding|accommodation|housing|jobs?|careers?|vacanc|staff|alumni|donate|giving|search|menu|cookies?|privacy)\b/i;
   var SIGN_WORDS = /\b(log ?-?in|login|log ?on|logon|sign ?-?in)\b|^(returning|existing) (users?|applicants?|accounts?)\b|already (have|registered|created)( an)? account|access (my|your) (application|account|portal)/i;
   var NOT_MINE = /\b(sign ?-?up|register|create|new (user|applicant)|log ?out|sign ?out|faculty|staff|employees?|recommend(er|ers|ation)|referees?|reviewers?|admin(istrator)?|current students?|alumni|partners?|agents?|counsell?ors?|google|facebook|linkedin|apple|microsoft|github|forgot|reset|help|trouble)\b/i;
   function isSignIn(label) {
@@ -137,6 +143,114 @@
   var here = (u) => u.replace(/#.*$/, "").replace(/\/$/, "");
   var goesSomewhere = (s, b) => !b.href || /^javascript:/i.test(b.href) ? true : here(b.href) !== here(s.url);
   var find = (s, re, linksOnly = false) => s.buttons.find((b) => re.test(clean(b.label)) && (!linksOnly || b.link) && goesSomewhere(s, b));
+  var findCreate = (s) => s.buttons.find((b) => CREATE.test(clean(b.label)));
+  var findForgot = (s) => s.buttons.find((b) => clean(b.label).length <= 60 && FORGOT.test(clean(b.label)));
+  function bestApply(s, visited = []) {
+    let best;
+    for (const b of s.buttons) {
+      const l = clean(b.label);
+      if (!l || l.length > 70 || !goesSomewhere(s, b)) continue;
+      if (b.href && visited.includes(here(b.href))) continue;
+      let score = APPLY_STRONG.test(l) ? 10 : START.test(l) ? 9 : APPLY_WEAK.test(l) ? 3 : 0;
+      if (!score) continue;
+      if (NOT_APPLY.test(l)) score -= 8;
+      if (b.href && /(^|[./])(apply|applygrad|gradapply|admissions?|application|portal|slate|ucas|enligne|register)[./-]/i.test(b.href.replace(/^https?:\/\//, ""))) score += 3;
+      if (!best || score > best.score) best = { b, score };
+    }
+    return best && best.score >= 3 ? best.b : void 0;
+  }
+  var VISION_BUDGET = 24;
+  var VISION_KEYS = /* @__PURE__ */ new Set(["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"]);
+  async function visionLoop(page, deps2, state, goal, empty, max = 6) {
+    if (!deps2.see || !page.screenshot || !page.mouseClick) return { acted: false };
+    let acted = false;
+    const log = (t) => state.visionHistory = [...state.visionHistory ?? [], t].slice(-12);
+    for (let i = 0; i < max && (state.visionCalls ?? 0) < VISION_BUDGET; i++) {
+      if (deps2.shouldStop?.()) break;
+      state.visionCalls = (state.visionCalls ?? 0) + 1;
+      const image = await page.screenshot().catch(() => null);
+      if (!image) break;
+      const a = await deps2.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-8), empty }).catch(() => null);
+      if (!a || a.action === "done") break;
+      if (a.action === "handoff") {
+        log(`handoff: ${a.note}`);
+        const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+        return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
+      }
+      if (a.action === "click" || a.action === "type") {
+        await page.mainFrame().helper().catch(() => {
+        });
+        const under = await page.mainFrame().evaluate((p) => window.__am.at(p.x, p.y), { x: a.x, y: a.y }).catch(() => null);
+        const label = clean(under?.label ?? "");
+        if (a.action === "click") {
+          if (DANGEROUS.test(label)) {
+            log(`refused "${label}"`);
+            return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
+          }
+          if (FINAL.test(label) || /^submit\b/i.test(label)) {
+            state.reachedSubmit = true;
+            const d = await deps2.canSubmit();
+            if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+            state.submitClicked = true;
+          }
+          await page.mouseClick(a.x, a.y);
+          log(`click "${label || `${Math.round(a.x)},${Math.round(a.y)}`}"${a.note ? ` (${a.note.slice(0, 50)})` : ""}`);
+        } else {
+          const v = deps2.sheetValue?.(a.sheet_key) ?? null;
+          if (!v || NEVER_FILL.test(label)) {
+            log(`nothing to type for ${a.sheet_key || "?"}`);
+            continue;
+          }
+          await page.mouseClick(a.x, a.y);
+          await page.pressKey?.("Control+A");
+          await page.typeText?.(v);
+          log(`typed ${a.sheet_key} into "${label.slice(0, 40)}"`);
+        }
+      } else if (a.action === "key") {
+        if (!VISION_KEYS.has(a.key)) continue;
+        await page.pressKey?.(a.key);
+        log(`pressed ${a.key}`);
+      } else if (a.action === "scroll") {
+        await page.scrollBy?.(600);
+        log("scrolled");
+      }
+      acted = true;
+      await page.waitForLoadState("domcontentloaded", { timeout: 8e3 }).catch(() => {
+      });
+      await sleep(900);
+    }
+    return { acted };
+  }
+  async function decidePass(page, deps2, s, fields, state) {
+    if (!deps2.decide) return 0;
+    const key = (f) => cleanLabel(f.label, f.options).toLowerCase().slice(0, 80);
+    const seen = new Set(state.decided ?? []);
+    const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
+    if (!todo.length) return 0;
+    state.decided = [...seen, ...todo.map(key)].slice(-120);
+    const fills = await deps2.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2e3) }).catch(() => []);
+    return applyList(page, deps2, todo, fills, state);
+  }
+  async function fillHard(page, deps2, state) {
+    let filled = 0;
+    let now = await snap(page);
+    let empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    if (empty.length) {
+      filled += await decidePass(page, deps2, now, empty, state);
+      now = await snap(page);
+      empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    }
+    if (empty.length && deps2.see && page.screenshot) {
+      const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
+      const v = await visionLoop(page, deps2, state, `fill in these required questions with the applicant's information, opening dropdowns and choosing the matching option: ${labels.join("; ")}`, labels);
+      if (v.outcome) return { filled, empty, outcome: v.outcome };
+      if (v.acted) {
+        now = await snap(page);
+        empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+      }
+    }
+    return { filled, empty };
+  }
   async function runEngine(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
     let filled = 0;
@@ -163,6 +277,12 @@
       if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !/(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error)/i.test(s.body)) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
+      if (state.samePageCount >= 3 && s.fields.some((f) => f.required)) {
+        const h = await fillHard(page, deps2, state);
+        filled += h.filled;
+        if (h.outcome) return { outcome: h.outcome, state, filled };
+        s = await snap(page);
+      }
       if (state.samePageCount >= 3) {
         const req = s.fields.map((f) => f.label.slice(0, 50));
         const stillEmpty = s.fields.filter((x) => x.required && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
@@ -171,7 +291,7 @@
         const err = (s.errors ?? []).join("; ").slice(0, 160);
         const stop = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
         if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
-        const o2 = await navStep(page, deps2, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
+        const o2 = await stuckStep(page, deps2, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
         if (o2) return { outcome: o2, state, filled };
         continue;
       }
@@ -184,18 +304,27 @@
         state.reachedSubmit = true;
         return { outcome: { kind: "needs_you", reason: "payment", note: "payment page: open the live view and pay the fee; the runner confirms the submission after" }, state, filled };
       }
+      if (state.reset) {
+        const r = await resetStep(page, deps2, s, state);
+        if (r === "continue") continue;
+        if (r) return { outcome: r, state, filled };
+      }
       if (kind === "login") {
         let login = await deps2.existingLogin();
         if (!login && deps2.loginFromMail) login = await deps2.loginFromMail(Date.now() - 60 * 864e5);
         if (!login) {
-          const create = find(s, CREATE);
-          if (create) {
+          const create = find(s, CREATE) ?? findCreate(s);
+          if (create && !state.triedCreate) {
             await deps2.progress("creating your portal account");
             state.accountAt = Date.now();
+            state.triedCreate = true;
             await click(page, create.id);
             continue;
           }
-          return { outcome: { kind: "needs_you", reason: "login", note: "this portal only has a sign-in page, with no way to create an account here. Create your account where the school says, then add it under Portal logins; the agents sign in with it and carry on" }, state, filled };
+          const fallback = { kind: "needs_you", reason: "login", note: "couldn't find where to create an account on this portal. Create it where the school says and add it under Portal logins; the agents sign in with it and carry on" };
+          const o2 = await stuckStep(page, deps2, s, state, "this is a sign-in page and there's no login on file yet: find how to create a new account (register, sign up, new applicant, create account, first-time user)", fallback);
+          if (o2) return { outcome: o2, state, filled };
+          continue;
         }
         const pw = s.allFields.find((f) => f.type === "password");
         const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
@@ -217,8 +346,25 @@
               continue;
             }
           }
+          if (!state.signedIn && !state.triedCreate) {
+            const create = find(after, CREATE) ?? findCreate(after);
+            if (create) {
+              state.triedCreate = true;
+              state.accountAt = Date.now();
+              await deps2.progress("creating your portal account");
+              await click(page, create.id);
+              continue;
+            }
+          }
+          const forgot = findForgot(after);
+          if (forgot && deps2.canReadMail && deps2.resetLink && deps2.rotatePassword && (state.reset?.tries ?? 0) < 2) {
+            state.reset = { stage: "requested", at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
+            await deps2.progress("the portal rejected the saved password, so the agents are resetting it");
+            await click(page, forgot.id);
+            continue;
+          }
           if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
-          return { outcome: { kind: "needs_you", reason: "login", note: "the portal rejected the saved password. Check it under Portal logins (or reset it on the portal and save the new one there); the agents sign in again by themselves" }, state, filled };
+          return { outcome: { kind: "needs_you", reason: "login", note: deps2.canReadMail ? "the portal rejected the saved password and has no reset link the agents could use. Reset it on the portal, save the new one under Portal logins, and the agents sign in again by themselves" : "the portal rejected the saved password. Connect Gmail so the agents can reset it themselves, or reset it on the portal and save the new one under Portal logins" }, state, filled };
         }
         if (classify(after) !== "login") state.signedIn = true;
         continue;
@@ -275,11 +421,16 @@
         const fresh = (await snap(page)).fields.filter((f) => !tried.has(f.id) || (f.options?.length ?? 0) > (s.fields.find((x) => x.id === f.id)?.options?.length ?? 0));
         if (fresh.length) filled += await applyFills(page, deps2, fresh, state);
       }
-      const now = await snap(page);
-      const empty = now.fields.filter((f) => f.required).map((f) => f.label.slice(0, 50));
-      if (empty.length) {
-        for (const f of now.fields.filter((x) => x.required)) ask(state, f);
-        return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+      let now = await snap(page);
+      if (now.fields.some((f) => f.required)) {
+        const h = await fillHard(page, deps2, state);
+        filled += h.filled;
+        if (h.outcome) return { outcome: h.outcome, state, filled };
+        if (h.empty.length) {
+          for (const f of h.empty) ask(state, f);
+          return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+        }
+        now = await snap(page);
       }
       const submit = find(now, FINAL);
       if (submit) {
@@ -292,13 +443,15 @@
         continue;
       }
       const haveLogin = !s.fields.length && !!await deps2.existingLogin();
-      const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0);
+      const apply = !s.fields.length ? bestApply(now, state.visited) : void 0;
+      const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? apply;
       if (next) {
+        if (next.href && next === apply) state.visited = [...state.visited ?? [], here(next.href)].slice(-30);
         await click(page, next.id);
         continue;
       }
       if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
-      const o = await navStep(page, deps2, now, state, "none of the usual buttons (next, continue, start, sign in, create account) are on this page", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
+      const o = await stuckStep(page, deps2, now, state, "none of the usual buttons (next, continue, apply, start, sign in, create account) are on this page. if this is a school or program page, find the link that leads to the online application (it may be called apply online, how to apply, start application, or sit in a menu)", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
       if (o) return { outcome: o, state, filled };
     }
     return { outcome: { kind: "continue", note: "continuing" }, state, filled };
@@ -397,18 +550,83 @@
     await click(page, b.id);
     return null;
   }
+  async function stuckStep(page, deps2, s, state, why, fallback) {
+    const before = s.fingerprint + s.url;
+    const o = await navStep(page, deps2, s, state, why, fallback);
+    if (!o) return null;
+    if (o.kind !== "needs_you" || o.reason !== "stuck" && o.reason !== "login") return o;
+    const v = await visionLoop(page, deps2, state, why, []);
+    if (v.outcome) return v.outcome;
+    if (!v.acted) return o;
+    const after = await snap(page);
+    return after.fingerprint + after.url !== before || after.fields.length !== s.fields.length ? null : o;
+  }
+  async function resetStep(page, deps2, s, state) {
+    const r = state.reset;
+    const login = await deps2.existingLogin();
+    const pw = s.allFields.filter((f) => f.type === "password");
+    if (r.stage === "requested") {
+      const box = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && f.type !== "hidden" && /(e-?mail|user|login|account|id)/i.test(`${f.label} ${f.name ?? ""} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
+      if (!box || pw.length || !login) {
+        state.reset = void 0;
+        return null;
+      }
+      const isId = /user\s*(id|name)|login\s*(id|name)|identifiant/i.test(`${box.label} ${box.name ?? ""}`) && !/e-?mail/i.test(box.label);
+      await fillText(page, box.id, isId && login.login_email.includes("@") ? login.login_email.split("@")[0] : login.login_email);
+      const go2 = s.buttons.find((b) => RESET_BTN.test(clean(b.label)) && !FORGOT.test(clean(b.label)));
+      if (go2) await click(page, go2.id);
+      else await frameOf(page).press(`[data-am-id="${box.id}"]`, "Enter").catch(() => {
+      });
+      state.reset = { ...r, stage: "sent", at: Date.now() - 3e4 };
+      await deps2.progress("asked the portal for a password reset email");
+      return "continue";
+    }
+    if (r.stage === "sent") {
+      if (NO_ACCOUNT.test(s.body.slice(0, 3e3))) {
+        state.reset = void 0;
+        return { kind: "needs_you", reason: "account", note: "the portal says there's no account for your email yet. Create it on the portal (or let the agents try again from Ivyward), then save the login under Portal logins" };
+      }
+      const link = await deps2.resetLink(r.at).catch(() => null);
+      if (!link) {
+        if (Date.now() - r.at > 20 * 6e4) {
+          state.reset = void 0;
+          return { kind: "needs_you", reason: "login", note: "the portal's password reset email hasn't arrived after 20 minutes. Reset it on the portal and save the new password under Portal logins" };
+        }
+        return { kind: "wait", note: "waiting for the portal's password reset email", seconds: 60 };
+      }
+      state.reset = { ...r, stage: "link" };
+      await deps2.progress("opening the password reset link from your email");
+      await page.goto(link, { timeout: 45e3 });
+      return "continue";
+    }
+    if (!pw.length) return null;
+    const fresh = await deps2.rotatePassword();
+    for (const p of pw) await fillText(page, p.id, fresh.password);
+    const email = s.allFields.find((f) => f.type === "email" || f.type === "text" && /e-?mail/i.test(f.label));
+    if (email) await fillText(page, email.id, fresh.login_email).catch(() => {
+    });
+    const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => RESET_BTN.test(clean(b.label)));
+    if (go) await click(page, go.id);
+    else await page.pressEnter();
+    state.reset = void 0;
+    state.signedIn = false;
+    await deps2.progress("set a new portal password and saved it under Portal logins");
+    return "continue";
+  }
   async function applyFills(page, deps2, fields, state) {
     const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
     if (!safe.length) return 0;
-    const fills = await deps2.map(safe);
+    return applyList(page, deps2, safe, await deps2.map(safe), state);
+  }
+  async function applyList(page, deps2, safe, fills, state) {
     let n = 0;
     for (const f of fills) {
       try {
         if (f.action === "skip") {
-          const field = safe.find((x) => x.id === f.id);
-          if (state && f.reason.startsWith("missing:") && field?.required) {
+          const field2 = safe.find((x) => x.id === f.id);
+          if (state && f.reason.startsWith("missing:") && field2?.required) {
             state.missing = [.../* @__PURE__ */ new Set([...state.missing ?? [], f.reason.slice(8)])];
-            ask(state, field, f.reason.slice(8));
+            ask(state, field2, f.reason.slice(8));
           }
           continue;
         }
@@ -416,6 +634,15 @@
           const file = await deps2.file(f.file);
           await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
           n++;
+          continue;
+        }
+        const field = safe.find((x) => x.id === f.id);
+        if (field?.combo && f.action === "fill") {
+          const sel = `[data-am-id="${f.id}"]`;
+          await frameOf(page).fill(sel, f.value, { timeout: 8e3 });
+          await sleep(900);
+          const picked = await frameOf(page).evaluate((v) => window.__am.pickOption(v), f.value).catch(() => null);
+          if (picked) n++;
           continue;
         }
         const ok = await frameOf(page).evaluate((x) => window.__am.apply(x), f);
@@ -650,6 +877,9 @@
       navigate: async (input) => (await eng(taskId, "navigate", { host: await host(), input: { ...input, snapshot: { ...input.snapshot, body: input.snapshot.body.slice(0, 4e3) } } })).action,
       fillFromKey: async (field, key) => (await eng(taskId, "fill_key", { field: { id: field.id, label: field.label.slice(0, 400), type: field.type, name: field.name, options: field.options?.slice(0, 300), required: field.required }, key })).fill,
       loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : void 0,
+      decide: async (fields, page) => (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2e3), title: page.title.slice(0, 300), body: page.body.slice(0, 4e3) } })).fills ?? [],
+      resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : void 0,
+      rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
       progress: async (note) => {
         if (note === lastNote) return;
         lastNote = note;
