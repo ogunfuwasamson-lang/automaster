@@ -20,8 +20,8 @@ export interface Plan {
 const EVERYTHING = { maxRegions: 9, programsPerRun: 20, recon_runs_per_month: 6, maxActiveApplications: 40, maxDocuments: 60 };
 
 export const PLANS: Record<PlanId, Plan> = {
-  free: { id: "free", name: "free", aiBudgetUsd: 7.5, ...EVERYTHING },
-  pro: { id: "pro", name: "pro", aiBudgetUsd: 15, ...EVERYTHING },
+  free: { id: "free", name: "free", aiBudgetUsd: 10, ...EVERYTHING },
+  pro: { id: "pro", name: "pro", aiBudgetUsd: 12, ...EVERYTHING },
 };
 
 // each paid submission in africa adds this much agent work to the month
