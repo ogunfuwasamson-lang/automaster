@@ -39,6 +39,9 @@ export default function Privacy() {
         <p>
           When the agents submit an application, they enter your answers on the school&apos;s own portal. When you open the live browser, screenshots of the portal are stored briefly to show them to you and deleted when the session ends. What you type there goes to the portal and isn&apos;t kept. The Chrome extension, if you install it, acts only on application portals and on Ivyward itself.
         </p>
+        <p>
+          The agents also learn how each school works and use it for everyone applying there: the link an application starts from, whether its portal lets accounts be created automatically, which form label takes which kind of answer, which school office addresses reply and how quickly, which fee-waiver routes worked, and the official essay prompts. These are facts about the school, stored without your name or email. Your answers, essays, emails, documents and passwords are never shared with other applicants.
+        </p>
       </section>
       <section>
         <h2>What we never take</h2>

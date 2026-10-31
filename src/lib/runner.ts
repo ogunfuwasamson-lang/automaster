@@ -1,4 +1,5 @@
 import "server-only";
+import { labelKey } from "@/lib/school-memory";
 import * as z from "zod/v4";
 import type { NextRequest } from "next/server";
 import { admin } from "@/lib/supabase/admin";
@@ -119,8 +120,21 @@ rules:
 - edu1/work1 = most recent; use edu2/work2... when the field is clearly about an earlier entry (e.g. "previous institution").
 - essays: pick essay:<id> when a text box or upload clearly asks for that essay.`;
 
-export async function mapFields(userId: string, sheet: FillSheet, fields: PageField[]): Promise<Fill[]> {
-  const { fills, unresolved } = mapByRules(fields, sheet);
+// learned per portal (school-memory): labels and the sheet key that filled them in submitted applications.
+// picks collects the model's choices on this run, so a submission can confirm them for the next applicant.
+export type MapMemory = { hints?: Map<string, string>; picks?: Record<string, string> };
+const shareable = (key: string) => !!key && !key.startsWith("essay:");
+
+export async function mapFields(userId: string, sheet: FillSheet, fields: PageField[], mem?: MapMemory): Promise<Fill[]> {
+  const { fills, unresolved: rest } = mapByRules(fields, sheet);
+  // what earlier applicants' submissions on this portal show, before asking the model
+  const unresolved: PageField[] = [];
+  for (const f of rest) {
+    const known = mem?.hints?.get(labelKey(f.label));
+    const r = known ? resolve(f, known, sheet) : null;
+    if (r) fills.push(r);
+    else unresolved.push(f);
+  }
   if (!unresolved.length) return fills;
   let picks: { id: string; key: string }[] = [];
   try {
@@ -143,6 +157,7 @@ export async function mapFields(userId: string, sheet: FillSheet, fields: PageFi
     const key = picks.find((p) => p.id === f.id)?.key ?? "";
     const r = key ? resolve(f, key, sheet) : null;
     fills.push(r ?? { id: f.id, action: "skip", reason: "not in your profile" });
+    if (r && mem?.picks && shareable(key) && labelKey(f.label)) mem.picks[labelKey(f.label)] = key;
   }
   return fills;
 }

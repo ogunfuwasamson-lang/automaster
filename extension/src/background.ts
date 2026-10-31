@@ -106,7 +106,7 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       return stop;
     },
     map: async (fields) =>
-      (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
+      (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, host: await host().catch(() => undefined), fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
     file: async (key) => {
       if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
       const f = sheets.get(taskId)!.files.find((x) => x.key === key);

@@ -1,4 +1,5 @@
 import "server-only";
+import { knownPrompts, learnPrompts } from "@/lib/school-memory";
 import { isScholarship } from "@/lib/scholarship-kind";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
@@ -177,6 +178,8 @@ export const writer: Record<string, Handler> = {
     const level = levelOf(profile);
     const fallback = defaultEssay(level);
     const award = isScholarship(program);
+    // prompts earlier Ivyward applicants to this program found: a head start, still checked against the official page
+    const knownP = await knownPrompts(school.id, program.id).catch(() => []);
     const found = await research({
       userId: job.user_id,
       agent: "strategist",
@@ -193,6 +196,7 @@ recon's suggested angle: ${app.angle ?? "none"}
 applicant fact sheet:
 ${JSON.stringify(await safeFactSheet(job.user_id, profile))}
 
+${knownP.length ? `\nprompts earlier applicants to this program found this cycle (confirm they're still the official ones, and look for any that are missing):\n${knownP.map((k) => `- ${k.title}${k.word_limit ? ` (${k.word_limit} words)` : ""}: ${k.prompt}`).join("\n")}\n` : ""}
 find the application's written requirements (official prompts and limits), then research the program closely enough to position this applicant specifically.`,
       maxSearches: 6,
       maxFetches: 5,
@@ -227,6 +231,9 @@ find the application's written requirements (official prompts and limits), then 
     await db.from("artifact_versions").insert({ artifact_id: briefId, user_id: job.user_id, version: briefVersion, content: briefText, author: "agent:strategist" });
     await db.from("artifacts").update({ current_version: briefVersion }).eq("id", briefId);
     await db.from("applications").update({ angle: plan.brief.angle }).eq("id", applicationId);
+
+    // the official prompts, for the next applicant to this program (only when the research says they're this cycle's)
+    if (plan.prompts_are_current === "yes") await learnPrompts(job.user_id, school.id, program.id, plan.essays.map((e) => ({ title: e.title, prompt: e.prompt, word_limit: parseInt(e.word_limit, 10) || null, kind: e.kind }))).catch(() => {});
 
     // one artifact per written requirement; reuse by title so re-planning doesn't duplicate
     const { data: have } = await db.from("artifacts").select("id, title").eq("application_id", applicationId).neq("kind", "strategy");

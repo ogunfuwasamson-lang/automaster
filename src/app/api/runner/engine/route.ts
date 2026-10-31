@@ -9,6 +9,7 @@ import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
 import { recordQuestions } from "@/lib/portal-questions";
 import { askToPay, paymentNeeded } from "@/lib/billing";
+import { learn } from "@/lib/school-memory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
   }
   if (b.op === "save") {
     const prev = (row?.runner_state ?? {}) as RunnerState;
-    await db.from("applications").update({ runner_state: { ...prev, ...b.state, last_url: b.url ?? prev.last_url } }).eq("id", b.application);
+    await db.from("applications").update({ runner_state: { ...prev, ...b.state, picks: { ...(prev.picks ?? {}), ...((b.state as RunnerState).picks ?? {}) }, last_url: b.url ?? prev.last_url } }).eq("id", b.application);
     return NextResponse.json({ ok: true });
   }
 
@@ -133,7 +134,8 @@ export async function POST(req: NextRequest) {
   // finish: one run of the engine in chrome ended
   const o = b.outcome;
   const prev = (row?.runner_state ?? {}) as RunnerState;
-  const state: RunnerState = { ...prev, ...(b.state as RunnerState), last_url: b.url ?? prev.last_url };
+  const state: RunnerState = { ...prev, ...(b.state as RunnerState), picks: { ...(prev.picks ?? {}), ...((b.state as RunnerState).picks ?? {}) }, last_url: b.url ?? prev.last_url };
+  if (b.host && state.accountAt && state.signedIn && !prev.signedIn) await learn(uid, (app.programs as unknown as { school_id: string }).school_id, "portal", `${b.host.replace(/^www\./, "")}:signup_ok`, {}).catch(() => {});
   if (b.host) {
     const login = await getLogin(uid, b.host, b.application).catch(() => null);
     if (login && login.status !== "verified" && (o.kind === "submitted" || state.signedIn)) await markLogin(login.id, "verified");

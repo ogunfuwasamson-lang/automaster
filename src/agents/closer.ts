@@ -9,6 +9,7 @@ import { LEVEL_LABEL, levelOf } from "@/lib/profile";
 import { logEvent } from "@/lib/events";
 import { safeFactSheet } from "./writer";
 import { schedule } from "@/lib/outbox";
+import { schoolBrief } from "@/lib/school-memory";
 
 // the closer: money. fee waivers before applying; aid after admission.
 // it drafts, then hands each email to the outbox: with gmail connected and the dial on "auto with undo"
@@ -208,7 +209,10 @@ fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0,
       agent: "closer",
       jobId: job.id,
       system: "you find scholarships, fellowships and awards at one university that need a SEPARATE application from the program application itself (their own form, essay or portal, often with an earlier or later deadline). official university pages only. ignore awards that are automatic with the program application.",
-      prompt: `${program.name} at ${school.name}. list each award that needs its own application: name, amount, deadline, who's eligible (international students?), and the url of its application page.`,
+      prompt: `${program.name} at ${school.name}. list each award that needs its own application: name, amount, deadline, who's eligible (international students?), and the url of its application page.${await (async () => {
+        const { data: known } = await db.from("funding_opportunities").select("name, deadline, url").eq("school_id", school.id).limit(15);
+        return known?.length ? `\nalready known from earlier Ivyward research (check they're still open and look for any others): ${known.map((k) => `${k.name}${k.deadline ? ` (deadline ${k.deadline})` : ""}${k.url ? ` ${k.url}` : ""}`).join("; ")}` : "";
+      })()}`,
       maxSearches: 3,
       maxFetches: 3,
     });
@@ -265,6 +269,7 @@ fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0,
       prompt: `program: ${program.name} (${program.degree}) at ${school.name}${school.country ? `, ${school.country}` : ""}
 official page: ${program.url ?? "(find it)"}
 what recon already found about the fee and waivers: fee ${program.app_fee_usd ?? "unknown"} USD; ${program.fee_waiver ?? "no waiver info"}
+${await schoolBrief(school.id).catch(() => "")}
 applicant citizenship: ${profile.identity.citizenship ?? "unknown"}; level: ${LEVEL_LABEL[levelOf(profile)]}
 
 find: whether application fee waivers exist and who qualifies, by EVERY route, not just nationality: country or region, income or financial hardship, attending a webinar, info session, fair or campus visit, applying early, alumni or partner-organisation links, employer sponsorship, military service, academic merit (grades, test scores, honours), first-generation status, athletes and artists, service programmes (peace corps, teach for, americorps, ngos), mcnair/fulbright/other scholar networks, competitions, and case-by-case requests. say how to request one (a form, a code, an email) and the official admissions contact email.`,
@@ -283,6 +288,8 @@ find: whether application fee waivers exist and who qualifies, by EVERY route, n
 today: ${today()}
 research on fees and contacts:
 ${found.text}
+${await schoolBrief(school.id).catch(() => "")}
+when earlier applicants' experience shows a contact that answers or a waiver route that worked, prefer it; never use an address marked as bounced.
 
 draft at most one fee-waiver request (purpose fee_waiver) if the research shows a waiver route the applicant plausibly fits, or a polite general request if waivers are granted case by case. if the school says it does not waive fees, draft nothing and say so in notes. levers: the waiver routes found, matched against everything in the profile that could qualify them (achievements, career milestones, grades, sport, arts, service, family background they've shared, financial situation they've stated, events they attended), not only their nationality. only claim what the profile states.`,
       schema: Outreach,
@@ -323,6 +330,7 @@ find every legitimate route to more money for an admitted international student:
       system: DRAFT_SYSTEM,
       cachePrefix: `applicant fact sheet ("[disputed figure]" = unconfirmed, never use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,
       prompt: `admitted to: ${program.name} at ${school.name}
+${await schoolBrief(school.id).catch(() => "")}
 aid offered here: ${aid.amount_usd ? `$${aid.amount_usd}` : "none stated"}${aid.note ? ` (${aid.note})` : ""}
 real competing offers the applicant holds (the ONLY ones you may mention): ${offers.length ? offers.join("; ") : "none"}
 applicant's funding need: ${profile.funding.need ?? "unknown"}${profile.funding.notes ? ` (${profile.funding.notes})` : ""}

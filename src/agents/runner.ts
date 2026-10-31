@@ -6,7 +6,8 @@ import { enqueue } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
-import { decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, submitDecision } from "@/lib/runner";
+import { decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, submitDecision, type MapMemory } from "@/lib/runner";
+import { bareLink, fieldHints, host as hostOf, knownApplyUrl, learn, learnWaiver, portalNeedsChrome } from "@/lib/school-memory";
 import { createLogin, getLogin, markLogin, rotatePassword, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
@@ -147,7 +148,7 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string 
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
-export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean };
+export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean; picks?: Record<string, string> };
 
 export async function setRunner(applicationId: string, patch: Record<string, unknown>) {
   await admin().from("applications").update({ ...patch, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
@@ -163,6 +164,7 @@ export interface DepsCtx {
   readMail: boolean;
   host: () => string;
   goal?: string; // a follow-up job rather than the application itself
+  memory?: MapMemory; // field labels learned on this portal, and the model's picks this run
 }
 export function serverDeps(c: DepsCtx): EngineDeps {
   let lastNote = "";
@@ -179,7 +181,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       if (Date.now() - checkedAt > 6000) void check().catch(() => {});
       return stopped;
     },
-    map: (fields) => mapFields(c.userId, c.sheet, fields),
+    map: (fields) => mapFields(c.userId, c.sheet, fields, c.memory),
     file: (key) => sheetFile(c.userId, c.sheet, key),
     canSubmit: () => submitDecision(c.userId, c.applicationId),
     existingLogin: () => getLogin(c.userId, c.host(), c.applicationId),
@@ -284,7 +286,23 @@ export async function markSubmitted(userId: string, applicationId: string, progr
   const eventId = await logEvent({ userId, actor: "agent:runner", action: "runner.submitted", applicationId, programId, channel: "portal", context: { url, filled, via } });
   await logEvent({ userId, actor: "agent:runner", action: "application.submitted", applicationId, programId, channel: "portal" });
   await recordOutcome({ userId, eventId, applicationId, kind: "proxy", label: "submitted", source: "runner" });
+  await learnFromSubmission(userId, applicationId, programId).catch(() => {});
   await afterSubmitted(userId, applicationId);
+}
+
+// a submission is the strongest evidence there is: the apply link worked, account creation worked, and the field
+// mappings the model picked got through every page. shared with the next applicant to this school.
+async function learnFromSubmission(userId: string, applicationId: string, programId: string | null) {
+  const { data } = await admin().from("applications").select("portal_url, runner_state, programs(school_id)").eq("id", applicationId).maybeSingle();
+  const schoolId = (data?.programs as unknown as { school_id: string } | null)?.school_id;
+  if (!data || !schoolId) return;
+  const st = (data.runner_state ?? {}) as RunnerState;
+  const portal = normalizeUrl(data.portal_url);
+  if (portal && programId) await learn(userId, schoolId, "apply_url", programId, { url: portal });
+  const h = hostOf(portal ?? st.last_url ?? "");
+  if (!h) return;
+  if (st.accountAt) await learn(userId, schoolId, "portal", `${h}:signup_ok`, {});
+  for (const [label, key] of Object.entries(st.picks ?? {}).slice(0, 150)) await learn(userId, schoolId, "field", `${h}|${label}`, { sheet_key: key });
 }
 
 // once something goes in: a scholarship is marked applied; a program gets its school's separate scholarship forms checked
@@ -410,6 +428,12 @@ export const runner: Record<string, Handler> = {
         await notify({ userId: job.user_id, key: `followup-done:${followupId}`, kind: "followup", title: what, body: f.unlocks === "fee_waiver" ? "This is what unlocks the application fee waiver. Watch for the confirmation email from the school." : f.why ?? undefined, href: f.application_id ? `/applications/${f.application_id}` : "/messages", actionLabel: "See it" });
         await say(job.user_id, `${what}.${f.event_start ? " It's in your calendar and I'll remind you before it starts." : ""}`);
         await logEvent({ userId: job.user_id, actor: "agent:runner", action: "followup.done", applicationId: f.application_id, context: { kind: f.kind, title: f.title } });
+        // a route to the fee waiver that worked: shared with the next applicant to this school
+        if ((f.kind === "claim_fee_waiver" || f.unlocks === "fee_waiver") && f.application_id && f.url) {
+          const { data: a } = await db.from("applications").select("programs(school_id)").eq("id", f.application_id).maybeSingle();
+          const link = bareLink(f.url);
+          if (link) await learnWaiver(job.user_id, (a?.programs as unknown as { school_id: string } | null)?.school_id, `link:${link}`, f.kind === "claim_fee_waiver" ? `the fee-waiver form linked in the school's emails (${link})` : `${f.title.slice(0, 120)} (${link})`, false, f.why ?? undefined).catch(() => {});
+        }
         return { done: true };
       }
       if (outcome.kind === "wait" || outcome.kind === "continue") {
@@ -437,7 +461,15 @@ export const runner: Record<string, Handler> = {
     const { applicationId } = job.payload as { applicationId: string };
     const app = await loadApp(job.user_id, applicationId);
     if (!app) return { skipped: "gone" };
-    const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string } };
+    const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; school_id: string; schools: { name: string } };
+    // another applicant already got through this program's application from this link
+    const known = await knownApplyUrl(p.school_id, app.program_id).catch(() => null);
+    if (known && known !== normalizeUrl(app.portal_url)) {
+      await admin().from("applications").update({ portal_url: known }).eq("id", applicationId);
+      await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.portal_found", applicationId, context: { url: known, notes: "the link other Ivyward applicants submitted through" } });
+      if ((job.payload as { thenRun?: boolean }).thenRun) await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId, portalChecked: true } });
+      return { url: known, via: "school memory" };
+    }
     // first, the way a person does it: open the program page and follow its apply links. free and usually enough.
     const walk = await crawlForApply([app.portal_url, p.url].filter((u): u is string => !!u), 10).catch(() => null);
     if (walk?.portal) {
@@ -556,6 +588,18 @@ export const runner: Record<string, Handler> = {
     state.steps = 0;
     state.navCalls = 0;
     const storage = state.storage_enc ? (JSON.parse(decrypt(state.storage_enc)) as StorageState) : null;
+    const schoolId = (app.programs as unknown as { school_id: string }).school_id;
+    const portalHost = hostOf(normalizeUrl(state.last_url) ?? portal);
+
+    // other applicants found this portal blocks automated sign-ups or cloud browsers: go straight to their chrome
+    if (!state.signedIn && !state.totalSteps) {
+      const why = await portalNeedsChrome(schoolId, portalHost).catch(() => null);
+      if (why && (await extensionPaired(job.user_id))) {
+        await handOffToChrome(job.user_id, applicationId, state, why);
+        return { outcome: "moved_to_chrome", why: "school memory" };
+      }
+    }
+    const memory: MapMemory = { hints: await fieldHints(schoolId, portalHost).catch(() => new Map()), picks: { ...(state.picks ?? {}) } };
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
@@ -571,10 +615,15 @@ export const runner: Record<string, Handler> = {
       const readMail = await canReadMail(job.user_id).catch(() => false);
       const { outcome, state: next, filled } = await runEngine(
         fromPlaywright(page),
-        serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host }),
+        serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host, memory }),
         state,
         RUN_BUDGET_MS,
       );
+      (next as RunnerState).picks = memory.picks;
+      // what this run showed about the portal itself (not about the applicant)
+      if (outcome.kind === "needs_you" && outcome.reason === "account") await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:signup_blocked`, {}).catch(() => {});
+      if (outcome.kind === "needs_you" && (outcome.reason === "captcha" || outcome.reason === "blocked")) await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:cloud_blocked`, {}).catch(() => {});
+      if (next.signedIn && next.accountAt && !state.signedIn) await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:signup_ok`, {}).catch(() => {});
 
       const halted = await userHalted(applicationId);
       if (halted) {

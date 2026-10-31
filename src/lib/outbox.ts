@@ -6,6 +6,7 @@ import { MailAuthError, gmailConfigured, mailAccount, sendAs } from "@/lib/gmail
 import { isEmail } from "@/lib/mime";
 import { requestPaymentNeeded, type PaymentNeed } from "@/lib/billing";
 import { notify } from "@/lib/notify";
+import { learnSent } from "@/lib/school-memory";
 
 // the outbox. a message goes draft -> scheduled (undo window) -> sent.
 // user-approved sends get a short undo window; agent-initiated ones go through the dial (email.new_contact).
@@ -131,6 +132,7 @@ async function sendOne(userId: string, messageId: string, attempt: number) {
       { user_id: userId, school_id: m.schoolId, email: m.to_email!.toLowerCase(), contact_class: m.purpose === "supervisor_intro" ? "faculty" : m.purpose === "fee_waiver" ? "admissions" : "aid_office", first_contacted_at: new Date().toISOString() },
       { onConflict: "user_id,email", ignoreDuplicates: true },
     );
+    await learnSent(userId, m.schoolId, m.to_email!, m.purpose as string).catch(() => {});
     const eventId = await logEvent({ userId, actor: m.approved_by_user_at ? "user" : "agent:closer", action: "email.sent", applicationId: m.applicationId, channel: "email", context: { messageId, to: m.to_email, purpose: m.purpose, via: "gmail" } });
     await recordOutcome({ userId, eventId, applicationId: m.applicationId ?? undefined, kind: "proxy", label: "sent", source: "system" });
     return { id: messageId, ok: true };

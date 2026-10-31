@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
-import { loadSheet, mapFields, runnerUser } from "@/lib/runner";
+import { loadApp, loadSheet, mapFields, runnerUser, type MapMemory } from "@/lib/runner";
+import { admin } from "@/lib/supabase/admin";
+import { fieldHints } from "@/lib/school-memory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const Body = z.object({
   application: z.string().uuid(),
+  host: z.string().max(253).optional(),
   fields: z
     .array(
       z.object({
@@ -29,6 +32,17 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
   const sheet = await loadSheet(uid, parsed.data.application);
   if (!sheet) return NextResponse.json({ error: "no approved packet for that application" }, { status: 404 });
-  const fills = await mapFields(uid, sheet, parsed.data.fields);
+  // labels other applicants' submissions on this portal confirmed; the model's picks are kept for the same
+  const app = await loadApp(uid, parsed.data.application);
+  const schoolId = (app?.programs as unknown as { school_id: string } | null)?.school_id;
+  const host = (parsed.data.host ?? "").replace(/^www\./, "");
+  const mem: MapMemory = { hints: host ? await fieldHints(schoolId, host).catch(() => new Map()) : new Map(), picks: {} };
+  const fills = await mapFields(uid, sheet, parsed.data.fields, mem);
+  if (Object.keys(mem.picks ?? {}).length) {
+    const db = admin();
+    const { data } = await db.from("applications").select("runner_state").eq("id", parsed.data.application).maybeSingle();
+    const st = (data?.runner_state ?? {}) as { picks?: Record<string, string> };
+    await db.from("applications").update({ runner_state: { ...st, picks: { ...(st.picks ?? {}), ...mem.picks } } }).eq("id", parsed.data.application);
+  }
   return NextResponse.json({ fills });
 }

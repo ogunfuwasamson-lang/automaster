@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { schedule, cancel } from "@/lib/outbox";
+import { learnWaiver } from "@/lib/school-memory";
 
 // outreach drafts: the applicant edits, then sends through their connected gmail (with a short undo),
 // or sends from their own email client and tells us it went out.
@@ -53,7 +54,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await recordOutcome({ userId: uid, eventId, applicationId: applicationId ?? undefined, kind: "proxy", label: "sent", source: "user" });
     return NextResponse.json({ ok: true });
   }
-  // log_reply: outcome data for the learning loop
+  // log_reply: outcome data for the learning loop, and for the next applicant to this school
+  if (m.purpose === "fee_waiver" && (b.outcome === "waived" || b.outcome === "declined")) {
+    const { data: full } = await db.from("messages").select("to_email, threads(applications(programs(school_id)))").eq("id", id).maybeSingle();
+    const schoolId = (full?.threads as unknown as { applications: { programs: { school_id: string } } | null } | null)?.applications?.programs?.school_id;
+    if (full?.to_email) await learnWaiver(uid, schoolId, `email:${full.to_email.toLowerCase()}`, `emailing ${full.to_email.toLowerCase()} to ask`, b.outcome === "waived").catch(() => {});
+  }
   await db.from("threads").update({ status: b.outcome === "no_reply" ? "stale" : "closed" }).eq("id", m.thread_id);
   await recordOutcome({ userId: uid, applicationId: applicationId ?? undefined, kind: b.outcome === "waived" || b.outcome === "aid_increased" ? "final" : "proxy", label: `${m.purpose}:${b.outcome}`, source: "user" });
   await logEvent({ userId: uid, actor: "user", action: "email.outcome", applicationId, context: { purpose: m.purpose, outcome: b.outcome } });

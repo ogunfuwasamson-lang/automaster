@@ -1,4 +1,5 @@
 import "server-only";
+import { learnBounce, learnReply, sharedPurpose } from "@/lib/school-memory";
 import * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
 import { canReadMail, getMail, mailAccount, recentMail } from "@/lib/gmail";
@@ -151,6 +152,9 @@ export async function checkInbox(userId: string, jobId?: string) {
     await logEvent({ userId, actor: "agent:inbox", action: `inbox.${c.kind}`, applicationId: match.applicationId, channel: "email", context: { subject: m.subject, summary: c.summary, from: fromDomain } });
     added++;
 
+    // shared school memory: which office addresses answer, and how fast; which bounce
+    await learnFromMail(userId, sender.email, mailText(m), m.at).catch(() => {});
+
     // replies to emails the agents sent count as outcomes for the learning loop
     if (match.applicationId && ["fee_waiver_reply", "aid_offer"].includes(c.kind)) {
       await recordOutcome({ userId, applicationId: match.applicationId, kind: "proxy", label: `reply:${c.kind}`, source: "inbox" });
@@ -198,4 +202,25 @@ export async function scheduleInbox(now = new Date()) {
     n++;
   }
   return n;
+}
+
+// a reply from a school office the agents emailed, or a bounce of one of those emails
+async function learnFromMail(userId: string, from: string, text: string, at: number) {
+  const db = admin();
+  const addr = (from ?? "").toLowerCase();
+  if (/mailer-daemon|postmaster|mail delivery/i.test(addr)) {
+    const { data: sent } = await db.from("messages").select("to_email, purpose").eq("user_id", userId).eq("direction", "out").eq("status", "sent").gte("sent_at", new Date(Date.now() - 3 * 86_400_000).toISOString()).limit(50);
+    for (const s of sent ?? []) {
+      const to = (s.to_email ?? "").toLowerCase();
+      if (!to || !sharedPurpose(s.purpose) || !text.toLowerCase().includes(to)) continue;
+      const { data: c } = await db.from("contacts").select("school_id").eq("user_id", userId).eq("email", to).maybeSingle();
+      await learnBounce(userId, c?.school_id, to);
+    }
+    return;
+  }
+  const { data: last } = await db.from("messages").select("sent_at, purpose").eq("user_id", userId).eq("direction", "out").eq("status", "sent").ilike("to_email", addr).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  if (!last || !sharedPurpose(last.purpose)) return;
+  const { data: c } = await db.from("contacts").select("school_id").eq("user_id", userId).eq("email", addr).maybeSingle();
+  const hours = last.sent_at && at ? Math.max(0, (at - Date.parse(last.sent_at)) / 3_600_000) : null;
+  await learnReply(userId, c?.school_id, addr, hours);
 }
