@@ -10,10 +10,11 @@ export async function GET() {
     auth.sb.from("interview_turns").select("session_id").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     auth.sb.from("profiles").select("profile").single(),
   ]);
-  let turns: { role: "agent" | "user"; content: string }[] = [];
+  let turns: { role: "agent" | "user"; content: string; ask?: unknown }[] = [];
   if (last?.session_id) {
-    const { data } = await auth.sb.from("interview_turns").select("role, content").eq("session_id", last.session_id).order("created_at");
-    turns = (data ?? []) as typeof turns;
+    const rich = await auth.sb.from("interview_turns").select("role, content, meta").eq("session_id", last.session_id).order("created_at");
+    const res = rich.error ? await auth.sb.from("interview_turns").select("role, content").eq("session_id", last.session_id).order("created_at") : rich;
+    turns = ((res.data ?? []) as { role: "agent" | "user"; content: string; meta?: { ask?: unknown } | null }[]).map((t) => ({ role: t.role, content: t.content, ...(t.meta?.ask ? { ask: t.meta.ask } : {}) }));
   }
   return NextResponse.json({ sessionId: last?.session_id ?? null, turns, completeness: completeness(loadProfile(prof?.profile)) });
 }

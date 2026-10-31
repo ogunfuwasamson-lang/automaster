@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import * as Popover from "@radix-ui/react-popover";
 import { ArrowUp, MessagesSquare, Mic, RotateCcw, Settings2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AskControls } from "@/components/questions/ask-controls";
+import type { Ask } from "@/lib/ask";
 import { Field, Select } from "@/components/ui/field";
 
-type Turn = { role: "agent" | "user"; content: string };
+type Turn = { role: "agent" | "user"; content: string; ask?: Ask | null };
 type Phase = "idle" | "listening" | "thinking" | "speaking";
 
 // minimal typing for the web speech api (not in the ts dom lib everywhere)
@@ -274,7 +276,7 @@ export function Interview({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? res.statusText);
       setSessionId(data.sessionId);
-      setTurns((t) => [...t, { role: "agent", content: data.reply }]);
+      setTurns((t) => [...t, { role: "agent", content: data.reply, ask: data.ask ?? null }]);
       setPct(data.completeness);
       if (data.wrapUp) setDone({ next: data.next ?? null });
       onTurn?.();
@@ -289,6 +291,28 @@ export function Interview({
   }
 
   sendRef.current = send;
+
+  // a tap on an offered answer. a portal question is saved straight to the profile (no AI needed) and the next one
+  // comes back at once; Ivyward AI's own choices go through the conversation as if typed.
+  async function tap(ask: Ask, answer: string | null) {
+    window.speechSynthesis?.cancel();
+    finish(false);
+    if (!ask.id) return void send(answer ?? "None of these", false);
+    setErr("");
+    setTurns((t) => [...t.map((x, i) => (i === t.length - 1 ? { ...x, ask: null } : x)), { role: "user", content: answer ?? "Doesn't apply to me" }]);
+    setPhase("thinking");
+    try {
+      const res = await fetch("/api/questions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: ask.id, answer, sessionId: sessionRef.current }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? res.statusText);
+      setTurns((t) => [...t, { role: "agent", content: data.reply, ask: data.next ?? null }]);
+      onTurn?.();
+      say(data.reply, () => setPhase("idle"));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setPhase("idle");
+    }
+  }
 
   // opened because a school's form is waiting on answers: the interviewer asks straight away
   const kicked = useRef(false);
@@ -467,13 +491,20 @@ export function Interview({
                   am
                 </span>
               )}
-              <p
-                className={`max-w-[85%] whitespace-pre-wrap text-[15px] leading-relaxed ${
-                  t.role === "user" ? "rounded-[20px] rounded-br-md bg-hero-gradient px-4 py-2.5 text-white" : "pt-1"
-                }`}
-              >
-                {t.content}
-              </p>
+              <div className={t.role === "user" ? "contents" : "min-w-0 max-w-[85%] flex-1"}>
+                <p
+                  className={`whitespace-pre-wrap text-[15px] leading-relaxed ${
+                    t.role === "user" ? "max-w-[85%] rounded-[20px] rounded-br-md bg-hero-gradient px-4 py-2.5 text-white" : "pt-1"
+                  }`}
+                >
+                  {t.content}
+                </p>
+                {t.role === "agent" && t.ask && i === turns.length - 1 && phase !== "thinking" && (
+                  <div className="mt-3">
+                    <AskControls ask={t.ask} onAnswer={(v) => void tap(t.ask!, v)} />
+                  </div>
+                )}
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>

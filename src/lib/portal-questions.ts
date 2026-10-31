@@ -1,9 +1,12 @@
 import "server-only";
 import { admin } from "@/lib/supabase/admin";
-import { updateProfile } from "@/lib/profile-store";
+import { getProfile, updateProfile } from "@/lib/profile-store";
+import { answerFor } from "@/lib/runner-map";
+import type { FillSheet } from "@/lib/fillsheet";
 import { confirmFact } from "@/lib/profile";
 import { PORTAL_DETAIL_FIELDS } from "@/lib/portal-fields";
 import { logEvent } from "@/lib/events";
+import { notify, resolve } from "@/lib/notify";
 import type { PortalQuestion } from "@/lib/cloud-engine";
 
 // questions a portal asked that the profile can't answer. the interviewer pops up and asks them; answers are
@@ -22,24 +25,71 @@ const detailKey = (k?: string) => (!k ? null : k.startsWith("dob_") ? "date_of_b
 
 export type OpenQuestion = { id: string; question: string; options: string[]; field_type: string | null; sheet_key: string | null; school: string | null; application_id: string | null };
 
-// called when an agent stops on a form: one open question per distinct question, whichever school asked first
+const nrm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// the option on this form that says the same as an earlier answer ("English" -> "English (Anglais)")
+export function matchOption(value: string, options: string[]): string | null {
+  const v = nrm(value);
+  if (!v) return null;
+  const opts = options.filter((o) => o && !/^(select|choose|please|--)/i.test(o.trim()));
+  return opts.find((o) => nrm(o) === v) ?? opts.find((o) => nrm(o).length >= 3 && v.length >= 3 && (nrm(o).startsWith(v) || v.startsWith(nrm(o)) || nrm(o).split(" ").includes(v))) ?? null;
+}
+
+// called when an agent stops on a form: one open question per distinct question, whichever school asked first.
+// before asking, the applicant's earlier answers are tried: the same question asked by another school (or reworded)
+// is answered from the profile in the form's own wording, and a question they said doesn't apply isn't asked again.
 export async function recordQuestions(userId: string, applicationId: string, questions: PortalQuestion[] | undefined) {
   if (!questions?.length) return 0;
   const db = admin();
-  const { data: open, error } = await db.from("portal_questions").select("qkey").eq("user_id", userId).eq("status", "open");
+  const { data: past, error } = await db.from("portal_questions").select("qkey, question, status, answer").eq("user_id", userId).limit(2000);
   if (error) return 0; // table not there yet
-  const have = new Set((open ?? []).map((x) => x.qkey));
-  const rows = [];
+  const have = new Set((past ?? []).filter((x) => x.status === "open").map((x) => x.qkey));
+  const triedBefore = new Set((past ?? []).filter((x) => x.status === "answered").map((x) => x.qkey));
+  const notApplicable = (past ?? []).filter((x) => x.status === "dismissed").map((x) => ({ key: `na:${x.qkey}`, question: x.question as string }));
+  const profile = await getProfile(userId);
+  const facts = profile.confirmed_facts;
+  const asSheet = (answers: { key: string; question: string }[]) => ({ answers }) as unknown as FillSheet;
+  const factSheet = asSheet(facts.map((f, i) => ({ key: `answer:${i}`, question: f.topic })));
+
+  const rows: Record<string, unknown>[] = [];
+  const reused: { question: string; value: string }[] = [];
   for (const q of questions) {
     const qkey = qkeyOf(q.label);
     if (!qkey || have.has(qkey)) continue;
     have.add(qkey);
-    rows.push({ user_id: userId, application_id: applicationId, qkey, question: q.label, field_type: q.type, options: q.options ?? [], sheet_key: q.key ?? null });
+    const base = { user_id: userId, application_id: applicationId, qkey, question: q.label, field_type: q.type, options: q.options ?? [], sheet_key: q.key ?? null };
+    // already filled from this exact answer and the form still asked: the applicant has to look at it
+    if (!triedBefore.has(qkey)) {
+      const k = answerFor(q.label, factSheet, q.options ?? []);
+      const prior = k ? facts[Number(k.split(":")[1])]?.value : null;
+      const value = prior ? (q.options?.length ? matchOption(prior, q.options) : prior) : null;
+      if (value) {
+        rows.push({ ...base, status: "answered", answer: value, answered_at: new Date().toISOString() });
+        reused.push({ question: q.label, value });
+        continue;
+      }
+      if (answerFor(q.label, asSheet(notApplicable), q.options ?? [])) {
+        rows.push({ ...base, status: "dismissed", answered_at: new Date().toISOString() });
+        continue;
+      }
+    }
+    rows.push(base);
   }
   if (!rows.length) return 0;
   await db.from("portal_questions").insert(rows);
-  await logEvent({ userId, actor: "agent:runner", action: "runner.questions", applicationId, context: { count: rows.length } });
-  return rows.length;
+  // earlier answers, saved under this form's wording so the next run fills them exactly (this restarts the run)
+  if (reused.length) {
+    await updateProfile(userId, (p) => reused.reduce((acc, r) => confirmFact(acc, r.question, r.value), p));
+    await logEvent({ userId, actor: "agent:runner", action: "runner.answers_reused", applicationId, context: { count: reused.length } });
+  }
+  const asked = rows.filter((r) => !r.status).length;
+  if (!asked) return 0;
+  await logEvent({ userId, actor: "agent:runner", action: "runner.questions", applicationId, context: { count: asked } });
+  // one notice for all of them, pointing at the card where they can be answered with a tap
+  const { count } = await db.from("portal_questions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "open");
+  const n = count ?? asked;
+  await notify({ userId, key: "portal-questions", kind: "setup", urgent: true, title: `Your schools are asking ${n} question${n === 1 ? "" : "s"}`, body: "An application form is paused until they're answered. Most take one tap.", href: "/dashboard#questions", actionLabel: "Answer them" }).catch(() => {});
+  return asked;
 }
 
 export async function openQuestions(userId: string): Promise<OpenQuestion[]> {
@@ -70,7 +120,10 @@ export async function answerQuestion(userId: string, id: string, answer: string 
   if (!q || q.status !== "open") return false;
   const value = (answer ?? "").trim().slice(0, 2000);
   await db.from("portal_questions").update({ status: value ? "answered" : "dismissed", answer: value || null, answered_at: new Date().toISOString() }).eq("id", id);
-  if (!value) return true;
+  if (!value) {
+    await clearNoticeIfDone(userId);
+    return true;
+  }
   const dk = detailKey(q.sheet_key ?? undefined);
   if (dk) {
     const { data: prof } = await db.from("profiles").select("portal_details").eq("id", userId).single();
@@ -79,5 +132,11 @@ export async function answerQuestion(userId: string, id: string, answer: string 
   // also resumes any submission that stopped for a question
   await updateProfile(userId, (p) => confirmFact(p, q.question, value));
   await logEvent({ userId, actor: "user", action: "profile.portal_answer", context: { question: q.question.slice(0, 120), detail: dk } });
+  await clearNoticeIfDone(userId);
   return true;
+}
+
+async function clearNoticeIfDone(userId: string) {
+  const { count } = await admin().from("portal_questions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "open");
+  if (!count) await resolve(userId, "portal-questions").catch(() => {});
 }

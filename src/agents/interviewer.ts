@@ -9,6 +9,7 @@ import { answerQuestion, openQuestions } from "@/lib/portal-questions";
 import { kickoff } from "@/lib/kickoff";
 import { research } from "@/lib/research";
 import { runActions, seasonOverview } from "@/lib/assistant";
+import { toAsk, type Ask } from "@/lib/ask";
 
 export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link"] as const;
 
@@ -18,6 +19,11 @@ export const TurnOut = z.object({
   mode: z.enum(["gaps", "stories", "answer", "wrap_up"]),
   // answers to the portal questions listed in the prompt, by id. skip = they said it doesn't apply / won't answer
   portal_answers: z.array(z.object({ id: z.string(), answer: z.string(), skip: z.boolean() })),
+  // the question this reply asks, so it can be answered with a tap: a portal question's id (its own options are
+  // used, exactly as the form words them), or "" with up to 8 short choices of your own for a question with clear
+  // options. "" and [] when the reply asks nothing or the answer is open-ended.
+  asks_portal_question: z.string(),
+  choices: z.array(z.string()),
   // a web lookup to do before answering (current facts: deadlines, fees, requirements, rankings). "" when not needed
   lookup: z.string(),
   // things to set in motion for them, by handing work to the other agents
@@ -37,7 +43,7 @@ export const TurnOut = z.object({
 const SYSTEM = `you are Ivyward AI, the applicant's admissions assistant on Ivyward, a platform where agents run their whole university application season (bachelor's, master's, MBA or PhD; any field, any country). you talk with them by voice or text, any time.
 
 what you do, in order of priority:
-0. portal questions come first when there are any: a school's application form is stopped until they're answered. ask them one at a time, say which school is asking, and if the question has options, offer the closest few. record each answer in portal_answers with the question's exact id, in the wording a form expects: an option's exact text when there are options, dates as YYYY-MM-DD, yes/no as "Yes"/"No". skip true if it doesn't apply or they won't answer. don't also put these in the patch. when the last one is answered, tell them the agents are carrying on.
+0. portal questions come first when there are any: a school's application form is stopped until they're answered. ask them one at a time, say which school is asking, and set asks_portal_question to its id: the app shows its options as buttons, so don't list the options in the reply. record each answer in portal_answers with the question's exact id, in the wording a form expects: an option's exact text when there are options, dates as YYYY-MM-DD, yes/no as "Yes"/"No". skip true if it doesn't apply or they won't answer. don't also put these in the patch. when the last one is answered, tell them the agents are carrying on.
 1. answer what they ask. admissions, schools, programs, requirements, deadlines, tests, visas, funding, scholarships, fee waivers, essays, interviews, careers after a degree, how ivyward works, where their applications stand. use their applications, messages and notices below; that is what the other agents know. for current facts you aren't sure of (a deadline, a fee, a requirement, a ranking) set lookup to a precise web search query instead of guessing; you'll get the results and answer then. mode "answer".
 2. act for them when they ask, or when it's plainly the next step. actions hand work to the other agents:
    - find_programs: search for more programs (the shortlist agent).
@@ -57,6 +63,7 @@ how you sound:
 - don't parrot their answer back. never say "noted" or "great question".
 
 hard rules:
+- when your own question has a few clear answers (an intake, a degree level, yes or no, which of their programs), put them in choices (2 to 8, short) so they can tap one; leave choices empty for open questions.
 - never ask the same thing twice. if the transcript shows you asked it and they answered anything, it's closed. unclear answers ("depends", "any") go in notes, and the gap key in skipped_gaps.
 - when they name recommenders, set recommenders.count_lined_up and put names and roles in recommenders.notes.
 - never ask what the profile or documents already answer. if something conflicts, confirm it once.
@@ -165,9 +172,17 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     updated = await applyPatch(userId, patch, { actor: "agent:interviewer", label: "interview", agentRunId: runId });
   }
 
+  // what the reply asks, with the control that fits it
+  const stillOpen = questions.filter((q) => !(output.portal_answers ?? []).some((a) => a.id === q.id));
+  const portalQ = stillOpen.find((q) => q.id === output.asks_portal_question);
+  const own = (output.choices ?? []).map((c) => c.trim()).filter(Boolean).slice(0, 8);
+  const ask: Ask | null = portalQ ? toAsk(portalQ) : own.length >= 2 ? { id: null, school: null, question: "", kind: "choice", options: own } : null;
+
   const failed = done.filter((d) => !d.ok);
   const reply = failed.length ? `${output.reply} (${failed.map((d) => d.note).join("; ")})` : output.reply;
-  await db.from("interview_turns").insert({ user_id: userId, session_id: sessionId, role: "agent", content: reply });
+  const turn = { user_id: userId, session_id: sessionId, role: "agent", content: reply };
+  const { error: turnErr } = await db.from("interview_turns").insert({ ...turn, meta: ask ? { ask } : null });
+  if (turnErr) await db.from("interview_turns").insert(turn); // before the meta column exists
   await logEvent({
     userId,
     actor: "agent:interviewer",
@@ -192,5 +207,6 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     completeness: completeness(updated),
     gapsLeft: profileGaps(updated).length,
     questionsLeft: questions.length - answered,
+    ask,
   };
 }

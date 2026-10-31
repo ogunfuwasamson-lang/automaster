@@ -34,6 +34,9 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
 import { ShortlistProgress, type ShortlistRun } from "@/components/home/shortlist-progress";
+import { QuestionsCard } from "@/components/questions/questions-card";
+import { openQuestions } from "@/lib/portal-questions";
+import { toAsk } from "@/lib/ask";
 import { LocalTime } from "@/components/ui/local-time";
 import { ReportButton, WeeklyReportDialog, type WeeklyReport } from "@/components/home/weekly-report";
 import { Suspense } from "react";
@@ -181,6 +184,8 @@ export default async function Dashboard() {
     [Send, "Submitted", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   ];
 
+  const asks = (await openQuestions(auth.user.id).catch(() => [])).map(toAsk);
+
   return (
     <Stagger className="relative space-y-6">
       {report && (
@@ -221,6 +226,12 @@ export default async function Dashboard() {
           </div>
         </header>
       </Rise>
+
+      {asks.length > 0 && (
+        <Rise>
+          <QuestionsCard questions={asks} />
+        </Rise>
+      )}
 
       {shortlistRun && (
         <Rise>

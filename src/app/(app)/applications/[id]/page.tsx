@@ -1,3 +1,5 @@
+import { QuestionsCard } from "@/components/questions/questions-card";
+import { toAsk } from "@/lib/ask";
 import Link from "next/link";
 import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, LoaderCircle, Mail } from "lucide-react";
 import { StatusPill, daysUntil } from "@/components/ui/status";
@@ -69,7 +71,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
     auth.sb.from("threads").select("id, subject, messages(id, direction, subject, status, created_at, sent_at)").eq("application_id", id).order("created_at"),
     admin().from("portal_accounts").select("id", { count: "exact", head: true }).eq("user_id", auth.user.id).eq("application_id", id),
     // portal questions this application is waiting on (missing table before its migration: none)
-    admin().from("portal_questions").select("question").eq("user_id", auth.user.id).eq("application_id", id).eq("status", "open").order("created_at"),
+    admin().from("portal_questions").select("id, question, options, field_type").eq("user_id", auth.user.id).eq("application_id", id).eq("status", "open").order("created_at"),
   ]);
   if (!app) notFound();
   const sheet = app.status === "packet_approved" ? await loadSheet(auth.user.id, id).catch(() => null) : null;
@@ -235,6 +237,13 @@ export default async function ApplicationPage({ params, searchParams }: { params
           paused={app.runner_status === "idle" && !!((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused}
           school={p.schools.name}
           questions={(asked ?? []).map((q) => q.question as string)}
+        />
+      )}
+
+      {(asked ?? []).length > 0 && (
+        <QuestionsCard
+          title={`${p.schools.name} is asking`}
+          questions={(asked ?? []).map((q) => toAsk({ id: q.id as string, question: q.question as string, options: (q.options as string[]) ?? [], field_type: q.field_type as string | null, school: p.schools.name, application_id: id }))}
         />
       )}
 
