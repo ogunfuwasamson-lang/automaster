@@ -52,7 +52,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 text-sm sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 text-sm sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <div>
           <Wordmark small />
           <p className="mt-3 max-w-xs leading-relaxed text-muted">{SITE.short}</p>
@@ -78,8 +78,8 @@ export function SiteFooter() {
             Roadmap
           </a>
         </nav>
-        <nav aria-label="Library" className="space-y-2.5">
-          <p className="font-medium">Library</p>
+        <nav aria-label="Guides" className="space-y-2.5">
+          <p className="font-medium">Guides</p>
           <Link href="/guides" className="block text-muted hover:text-foreground">
             All guides
           </Link>
@@ -92,20 +92,23 @@ export function SiteFooter() {
           <Link href="/guides/fully-funded-phd-how-funding-works" className="block text-muted hover:text-foreground">
             Funded PhDs
           </Link>
-          <Link href="/scholarships" className="block text-muted hover:text-foreground">
-            Scholarships
-          </Link>
-          <Link href="/universities" className="block text-muted hover:text-foreground">
-            How to apply, by university
-          </Link>
-          <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
-            Scholarship finder
-          </Link>
           <Link href="/guides/application-deadlines-2027-intake" className="block text-muted hover:text-foreground">
             2027 deadlines
           </Link>
           <Link href="/glossary" className="block text-muted hover:text-foreground">
             Glossary
+          </Link>
+        </nav>
+        <nav aria-label="Find and apply" className="space-y-2.5">
+          <p className="font-medium">Find and apply</p>
+          <Link href="/scholarships" className="block text-muted hover:text-foreground">
+            Scholarships
+          </Link>
+          <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
+            Scholarship finder
+          </Link>
+          <Link href="/universities" className="block text-muted hover:text-foreground">
+            How to apply, by university
           </Link>
           <Link href="/alerts" className="block text-muted hover:text-foreground">
             Deadline alerts
