@@ -385,8 +385,10 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
       // a button that starts or creates something (or an unlabelled submit) is pressed once per page: pressing
       // "Start application" twice creates two applications
       if ((a.action === "click" || a.action === "double_click") && (/\b(start|create|begin|register|sign ?up|new application)\b/i.test(label) || (!label && /submit/i.test(m?.type ?? "")))) {
-        const k = `${(state.lastFingerprint ?? "").slice(0, 120)}|${label || m?.type}`;
-        if ((state.createClicks ?? []).includes(k)) {
+        // the same page (by its title and first heading), whatever the button is called this time
+        const pageKey = (state.lastFingerprint ?? "").slice(0, 60);
+        const k = `${pageKey}|${label || m?.type}`;
+        if ((state.createClicks ?? []).some((c) => c.startsWith(`${pageKey}|`))) {
           log(`didn't press "${label || "submit"}" again: it was pressed already`);
           idle++;
           continue;
