@@ -38,7 +38,7 @@ export const shortlist: Guide = {
 
 ## Think in countries, not just schools
 
-Rules for international students changed sharply in 2025 and 2026: a US visa suspension for nationals of 19 countries including Nigeria, a shorter UK Graduate route from 2027, Canada's caps (with master's and PhD students exempt from 2026). Spreading your list across two or three countries protects you from a single policy change.
+Rules for international students changed sharply in 2025 and 2026: a US student-visa suspension for nationals of 39 countries including Nigeria, a shorter UK Graduate route from 2027, Canada's caps (with master's and PhD students exempt from 2026). Spreading your list across two or three countries protects you from a single policy change.
 
 ## How Ivyward helps
 

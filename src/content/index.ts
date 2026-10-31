@@ -1,6 +1,7 @@
 import type { Guide, GuideCategory, Scholarship } from "./types";
 import { GUIDES } from "./guides";
 import { SCHOLARSHIPS } from "./scholarships";
+import { university } from "./universities";
 
 export { GUIDES, SCHOLARSHIPS };
 
@@ -19,7 +20,10 @@ export const scholarship = (slug: string) => SCHOLARSHIPS.find((s) => s.slug ===
 export function relatedCards(refs: string[] = [], self?: string) {
   const out: { href: string; title: string; kind: string }[] = [];
   for (const r of refs) {
-    if (r.startsWith("scholarships/")) {
+    if (r.startsWith("universities/")) {
+      const u = university(r.slice(13));
+      if (u) out.push({ href: `/universities/${u.slug}`, title: `How to apply to ${u.short}`, kind: u.country });
+    } else if (r.startsWith("scholarships/")) {
       const s = scholarship(r.slice(13));
       if (s) out.push({ href: `/scholarships/${s.slug}`, title: s.name, kind: `Scholarship, ${s.country}` });
     } else {

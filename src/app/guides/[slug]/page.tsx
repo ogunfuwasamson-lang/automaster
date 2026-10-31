@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GUIDES, guide, relatedCards } from "@/content";
+import { UNIVERSITIES } from "@/content/universities";
+
+// country guides also point at the university pages in that country
+const COUNTRY_OF: Record<string, string> = {
+  "apply-to-us-universities-as-an-international-student": "United States",
+  "apply-for-masters-in-the-uk": "United Kingdom",
+  "apply-for-masters-in-canada": "Canada",
+  "study-in-germany-tuition-free": "Germany",
+};
 import { renderMarkdown, readMinutes } from "@/lib/markdown";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, Sources, longDate } from "@/components/library/library";
@@ -17,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: g.seoTitle ?? g.title,
     description: g.description,
     keywords: g.keywords,
-    alternates: { canonical: `/guides/${g.slug}` },
+    alternates: { canonical: `/guides/${g.slug}`, types: { "text/markdown": `/md/guides/${g.slug}` } },
     openGraph: { type: "article", title: g.title, description: g.description, url: `/guides/${g.slug}`, modifiedTime: g.updated },
     twitter: { card: "summary_large_image", title: g.title, description: g.description },
   };
@@ -52,7 +61,12 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             />
             <Faq items={g.faq} />
             <Sources items={g.sources} />
-            <Related items={relatedCards(g.related, g.slug)} />
+            <Related
+              items={[
+                ...relatedCards(g.related, g.slug),
+                ...UNIVERSITIES.filter((u) => u.country === COUNTRY_OF[g.slug]).map((u) => ({ href: `/universities/${u.slug}`, title: `How to apply to ${u.short}`, kind: u.country })),
+              ]}
+            />
           </article>
           {toc.length > 2 && (
             <aside className="hidden lg:block">

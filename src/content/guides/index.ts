@@ -20,6 +20,8 @@ import { aiAllowed } from "./ai-allowed";
 import { bestAiTools } from "./best-ai-tools";
 import { vsConsultant } from "./vs-consultant";
 import { vsChatgpt } from "./vs-chatgpt";
+import { ghana, kenya, india, pakistan } from "./origin";
+import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, academicCv, scams, mba, cheapest } from "./more";
 
 // order within a category is the order on /guides
 export const GUIDES: Guide[] = [
@@ -27,18 +29,31 @@ export const GUIDES: Guide[] = [
   fundedMasters,
   fundedPhd,
   africanScholarships,
+  ghana,
+  kenya,
+  india,
+  pakistan,
+  scholarshipEssay,
+  scams,
   assistantships,
   moreAid,
   applyGradSchool,
+  deadlines2027,
   shortlist,
   sop,
   recommendations,
   emailProfessor,
   testWaivers,
+  academicCv,
+  mba,
   usa,
   uk,
   canada,
   germany,
+  ireland,
+  netherlands,
+  australia,
+  cheapest,
   proofOfFunds,
   bestAiTools,
   aiAllowed,

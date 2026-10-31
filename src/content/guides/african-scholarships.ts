@@ -14,7 +14,7 @@ export const africanScholarships: Guide = {
   body: `
 ## What changed in 2026
 
-A US presidential proclamation that took effect on **1 January 2026** partially suspended new visas, including F, M and J student and exchange visas, for nationals of 19 countries, Nigeria among them. In February 2026 the US Mission in Nigeria said students who already held valid F-1 or J-1 visas were not affected. If you are a Nigerian national, treat new US study as uncertain until the policy changes, and check the embassy's current guidance.
+A US presidential proclamation that took effect on **1 January 2026** partially suspended new visas, including F, M and J student and exchange visas, for nationals of 20 partially restricted countries, Nigeria among them (19 more countries face full restrictions). In February 2026 the US Mission in Nigeria said students who already held valid F-1 or J-1 visas were not affected. If you are a Nigerian national, treat new US study as uncertain until the policy changes, and check the embassy's current guidance.
 
 Other destinations changed too:
 

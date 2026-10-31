@@ -22,6 +22,13 @@ export default function Scholarships() {
           <p className="mt-5 text-[18px] leading-relaxed text-muted">
             The large, well-established awards for international students: who funds them, who can apply, what they cover and when they usually close. Each profile links to the official page, because dates move every cycle.
           </p>
+          <p className="mt-5 text-[15px]">
+            Not sure which you qualify for?{" "}
+            <Link href="/tools/scholarship-finder" className="font-medium text-brand underline decoration-current/30 underline-offset-4">
+              Try the scholarship finder
+            </Link>
+            .
+          </p>
           <nav aria-label="Countries" className="mt-6 flex flex-wrap gap-2">
             {countries.map((c) => (
               <a key={c} href={`#${c.toLowerCase().replace(/\s+/g, "-")}`} className="rounded-full border border-line px-3 py-1.5 text-[13.5px] hover:border-foreground/40">

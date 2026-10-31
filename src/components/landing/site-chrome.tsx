@@ -23,6 +23,9 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
           <Link href="/scholarships" className="px-3 py-2 hover:text-foreground">
             Scholarships
           </Link>
+          <Link href="/universities" className="hidden px-3 py-2 hover:text-foreground lg:inline">
+            Universities
+          </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <ThemeButton />
@@ -91,6 +94,18 @@ export function SiteFooter() {
           </Link>
           <Link href="/scholarships" className="block text-muted hover:text-foreground">
             Scholarships
+          </Link>
+          <Link href="/universities" className="block text-muted hover:text-foreground">
+            How to apply, by university
+          </Link>
+          <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
+            Scholarship finder
+          </Link>
+          <Link href="/guides/application-deadlines-2027-intake" className="block text-muted hover:text-foreground">
+            2027 deadlines
+          </Link>
+          <Link href="/glossary" className="block text-muted hover:text-foreground">
+            Glossary
           </Link>
           <Link href="/about" className="block text-muted hover:text-foreground">
             About Ivyward

@@ -50,7 +50,7 @@ All of these change details every cycle. Each profile links to the official page
 
 Master's degrees in the US are usually self-funded or partly funded. Departments put their money into PhD students, who teach and do research. There are exceptions: some master's students win teaching or research assistantships that waive tuition and pay a stipend, and some programs (often in public universities' engineering, education and agriculture departments) fund a share of master's students. If full funding matters most, consider a funded PhD, which often includes a master's along the way, or a government scholarship in another country.
 
-There's also a 2026 complication: under a presidential proclamation that took effect on 1 January 2026, nationals of 19 countries, including Nigeria, face a partial suspension of new US student and exchange visas. Students who already hold valid F-1 or J-1 visas are not affected. If you're from an affected country, check the US embassy's current guidance before building a US-heavy plan.
+There's also a 2026 complication: under a presidential proclamation that took effect on 1 January 2026, nationals of 39 countries, including Nigeria, face a full or partial suspension of new US student and exchange visas. Students who already hold valid F-1 or J-1 visas are not affected. If you're from an affected country, check the US embassy's current guidance before building a US-heavy plan.
 
 ## A realistic plan to win one
 

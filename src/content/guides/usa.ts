@@ -5,16 +5,16 @@ export const usa: Guide = {
   title: "Applying to US graduate schools as an international student in 2026–27",
   seoTitle: "Applying to US grad schools as an international student (2026–27 rules)",
   description:
-    "How US graduate admissions work, deadlines, tests, costs, funding, the F-1 visa and its fees, and the January 2026 visa restrictions that affect 19 countries.",
+    "How US graduate admissions work, deadlines, tests, costs, funding, the F-1 visa and its fees, and the January 2026 visa restrictions that affect 39 countries.",
   category: "Countries",
   updated: "2026-10-31",
   keywords: ["study in USA for international students", "apply to US universities", "F-1 visa 2026", "US student visa fees 2026", "visa integrity fee", "US travel ban students Nigeria", "masters in USA"],
   answer:
-    "You apply to each US program through its own online portal, usually between September and February for an autumn start, with transcripts, a statement of purpose, three recommendations and sometimes GRE or GMAT and English scores. Once admitted, the school issues an I-20 and you apply for an F-1 visa (MRV fee $185, SEVIS fee $350, and at some posts a $250 visa integrity fee). Since 1 January 2026, new student visas have been partially suspended for nationals of 19 countries, including Nigeria. Check the current list before you apply.",
+    "You apply to each US program through its own online portal, usually between September and February for an autumn start, with transcripts, a statement of purpose, three recommendations and sometimes GRE or GMAT and English scores. Once admitted, the school issues an I-20 and you apply for an F-1 visa (MRV fee $185, SEVIS fee $350, and at some posts a $250 visa integrity fee). Since 1 January 2026, new student visas have been suspended for nationals of 39 countries, including Nigeria. Check the current list before you apply.",
   body: `
 ## The 2026 visa restrictions
 
-A presidential proclamation that took effect on **1 January 2026** restricts entry for nationals of a list of countries. For the 19 countries under partial restrictions, including **Nigeria**, new F, M and J student and exchange visas are suspended, with limited exceptions. The US Mission in Nigeria said in February 2026 that Nigerians who already hold valid F-1 or J-1 visas can continue their programs. If your country is on the list, look at the UK, Canada, Europe or Asia in parallel, and watch for changes.
+A presidential proclamation that took effect on **1 January 2026** restricts entry for nationals of a list of countries. For the 20 countries under partial restrictions, including **Nigeria**, Tanzania, Zambia, Malawi, Senegal and Côte d'Ivoire, new F, M and J student and exchange visas are suspended, with limited exceptions. The US Mission in Nigeria said in February 2026 that Nigerians who already hold valid F-1 or J-1 visas can continue their programs. If your country is on the list, look at the UK, Canada, Europe or Asia in parallel, and watch for changes.
 
 ## How admissions work
 

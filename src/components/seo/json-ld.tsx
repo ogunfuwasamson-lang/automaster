@@ -64,7 +64,7 @@ export function ArticleJsonLd({ path, title, description, updated, faq, about }:
       inLanguage: "en",
       author: { "@type": "Organization", name: "Ivyward Editorial Team", url: `${SITE.url}/about` },
       publisher: { "@id": `${SITE.url}/#org` },
-      image: `${SITE.url}/opengraph-image`,
+      image: `${url}/opengraph-image`,
       ...(about?.length ? { about: about.map((name) => ({ "@type": "Thing", name })) } : {}),
     },
   ];

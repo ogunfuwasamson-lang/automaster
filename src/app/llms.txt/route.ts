@@ -1,6 +1,7 @@
 import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
 import { FAQ } from "@/lib/faq";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
+import { UNIVERSITIES } from "@/content/universities";
 
 // /llms.txt: a plain summary of Ivyward for AI assistants and answer engines (the llmstxt.org format), built from
 // the same facts as the site so it never drifts.
@@ -32,7 +33,11 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [About](${SITE.url}/about): who Ivyward is for, what the agents do and don't do, and how it compares with consultants and chatbots
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students
+- [Universities](${SITE.url}/universities): how to apply to Harvard, MIT, Stanford, Oxford, Cambridge, Toronto, McGill, TUM, ETH and more
+- [Scholarship finder](${SITE.url}/tools/scholarship-finder): screen the major fully funded scholarships by citizenship, level, work experience and age
+- [Glossary](${SITE.url}/glossary): admissions and funding terms defined
 - [Full library as plain text](${SITE.url}/llms-full.txt)
+- Every guide, scholarship and university page is also available as markdown at ${SITE.url}/md/<section>/<slug>
 - [Privacy](${SITE.url}/privacy): what Ivyward keeps, how Gmail is connected, and your controls
 - [Terms](${SITE.url}/terms)
 - [Sign up](${SITE.url}/login?mode=signup)
@@ -44,6 +49,10 @@ ${GUIDES.map((g) => `- [${g.title}](${SITE.url}/guides/${g.slug}): ${g.descripti
 ## Scholarship profiles
 
 ${SCHOLARSHIPS.map((s) => `- [${s.name}](${SITE.url}/scholarships/${s.slug}): ${s.levels.join(", ")} in ${s.country}. ${s.forWhom}.`).join("\n")}
+
+## How to apply to universities
+
+${UNIVERSITIES.map((u) => `- [How to apply to ${u.name}](${SITE.url}/universities/${u.slug}): ${u.country}`).join("\n")}
 `;
   return new Response(body, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
 }

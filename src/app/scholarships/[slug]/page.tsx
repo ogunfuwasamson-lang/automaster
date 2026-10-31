@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: metaTitle(s),
     description,
     keywords: [s.name, `${s.name} eligibility`, `${s.name} deadline`, `${s.country} scholarship`, `${s.funding.toLowerCase()} scholarship ${s.country}`, ...s.levels.map((l) => `${l} scholarship ${s.country}`)],
-    alternates: { canonical: `/scholarships/${s.slug}` },
+    alternates: { canonical: `/scholarships/${s.slug}`, types: { "text/markdown": `/md/scholarships/${s.slug}` } },
     openGraph: { type: "article", title: metaTitle(s), description, url: `/scholarships/${s.slug}` },
   };
 }
