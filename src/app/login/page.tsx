@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { ThemeButton } from "@/components/theme";
+import { Turnstile, TURNSTILE_KEY } from "@/components/turnstile";
 
 function LoginForm() {
   const params = useSearchParams();
@@ -16,6 +17,8 @@ function LoginForm() {
   const next = params.get("next") ?? "";
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used or has expired. Enter your email for a fresh one." : "");
 
   async function send(e: React.FormEvent) {
@@ -23,10 +26,16 @@ function LoginForm() {
     setState("sending");
     setErr("");
     const back = next.startsWith("/") && !next.startsWith("//") ? `?next=${encodeURIComponent(next)}` : "";
+    if (TURNSTILE_KEY && !captcha) {
+      setErr("Checking you're not a bot. Try again in a second.");
+      setState("idle");
+      return;
+    }
     const { error } = await browserClient().auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback${back}` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback${back}`, ...(captcha ? { captchaToken: captcha } : {}) },
     });
+    setAttempt((n) => n + 1);
     if (error) {
       setErr(/rate/i.test(error.message) ? "Too many links requested. Wait a minute, then try again." : error.message);
       setState("idle");
@@ -62,6 +71,7 @@ function LoginForm() {
       <Field label="Email" error={err || null}>
         <Input type="email" required autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
       </Field>
+      <Turnstile onToken={setCaptcha} resetKey={attempt} />
       <Button type="submit" size="lg" variant="accent" className="w-full" disabled={state === "sending"}>
         {state === "sending" ? "Sending link…" : signup ? "Create account" : "Send sign-in link"}
       </Button>
