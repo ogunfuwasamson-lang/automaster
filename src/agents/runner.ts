@@ -124,7 +124,7 @@ const CredOut = z.object({ username: z.string(), password: z.string() });
 // a login the portal emailed to the applicant, read from their inbox and kept in the vault
 async function issuedLogin(userId: string, applicationId: string, jobId: string | null, host: string, since: number) {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => []);
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => []);
   for (const m of mails.filter((x) => x.at >= since).sort((a, b) => b.at - a.at)) {
     let c = extractCredentials(m);
     if (!c.username || !c.password) {
@@ -265,7 +265,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
 // the password reset email a portal sent after `since`: the first link on the school's site that looks like a reset
 export async function findResetLink(userId: string, host: string, since: number): Promise<string | null> {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `newer_than:1d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:1d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
   for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
     const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
     const hit = links.find((l) => {
@@ -284,7 +284,7 @@ export async function findResetLink(userId: string, host: string, since: number)
 // "we've emailed you a link to complete your application": the newest such link from the school, to its own portal
 export async function findResumeLink(userId: string, host: string): Promise<string | null> {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `newer_than:14d from:${root}`, 10);
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:14d from:${root}`, 10);
   for (const m of mails.sort((a, b) => b.at - a.at)) {
     const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
     const hit = links.find((l) => {
@@ -330,7 +330,7 @@ async function findProgramPage(userId: string, jobId: string | undefined, p: { n
 
 export async function findVerification(userId: string, host: string, since: number) {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);
   for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
     const v = extractVerification(m, host);
     if (v.code || v.link) return v;

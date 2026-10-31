@@ -191,6 +191,8 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
       continue;
     }
     let key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
+    // a date-of-birth dropdown known only by its field name ("createdobday" under a "My details" heading)
+    if (!key && f.type === "select" && /dob|birth/i.test(`${f.name ?? ""}`) && datePart(f.options ?? [])) key = "date_of_birth";
     // a number box next to its own dialling-code box takes the number without the code
     if (key === "phone" && f.type !== "select" && hasCodeBox) key = sheet.fields.phone_number ? "phone_number" : key;
     const r = key ? resolve(f, key, sheet) : null;

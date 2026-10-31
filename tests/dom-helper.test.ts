@@ -32,7 +32,8 @@ describe("reading portal pages", () => {
     const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
     await page.setContent(PAGE);
     await page.evaluate(DOM_HELPER);
-    const s = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { fields: { label: string; id: string }[]; buttons: { label: string }[] } } }).__am.snapshot());
+    type Snap = { fields: { label: string; id: string }[]; buttons: { label: string }[] };
+    const s: Snap = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { fields: { label: string; id: string }[]; buttons: { label: string }[] } } }).__am.snapshot());
     expect(s.fields.map((f) => f.label)).toContain("Mobile number");
     expect(s.buttons.map((b) => b.label)).toContain("Start a new Application");
     const visa = s.fields.find((f) => /visa/i.test(f.label));
@@ -51,5 +52,24 @@ describe("reading portal pages", () => {
     expect(looksLikePortal("https://simon.rochester.edu/request-information")).toBe(false);
     expect(looksLikePortal("https://rooms.le.ac.uk/student_portal/Account/Login")).toBe(false);
     expect(looksLikePortal("https://apply.simon.rochester.edu/apply/")).toBe(true);
+  });
+});
+
+import { mapByRules } from "@/lib/runner-map";
+describe("date of birth known only by field name", () => {
+  it("fills day, month and year dropdowns labelled 'My details'", () => {
+    const days = ["Day", ...Array.from({ length: 31 }, (_, i) => String(i + 1))];
+    const months = ["Month", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const years = ["Year", "2001", "2000", "1999", "1994", "1990"];
+    const sheet = { fields: { dob_day: "17", dob_month: "05", dob_year: "1994", date_of_birth: "1994-05-17" }, essays: [], files: [], answers: [] } as never;
+    const { fills } = mapByRules(
+      [
+        { id: "d", label: "My details", name: "createdobday", type: "select", options: days },
+        { id: "m", label: "My details", name: "createdobmonth", type: "select", options: months },
+        { id: "y", label: "My details", name: "createdobyear", type: "select", options: years },
+      ] as never,
+      sheet,
+    );
+    expect(fills).toEqual(expect.arrayContaining([expect.objectContaining({ id: "d", option: "17" }), expect.objectContaining({ id: "m", option: "May" }), expect.objectContaining({ id: "y", option: "1994" })]));
   });
 });

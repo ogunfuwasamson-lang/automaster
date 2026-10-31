@@ -98,7 +98,7 @@ export async function checkInbox(userId: string, jobId?: string) {
   if (!domains.size) return { skipped: "no schools yet" };
   const acct = await mailAccount(userId);
   const roots = [...domains.keys()].slice(0, 40);
-  const mails = await recentMail(userId, `newer_than:3d from:(${roots.join(" OR ")})`, 25, async (ids) => {
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:3d from:(${roots.join(" OR ")})`, 25, async (ids) => {
     const { data } = await db.from("messages").select("gmail_message_id").eq("user_id", userId).in("gmail_message_id", ids);
     return new Set((data ?? []).map((r) => r.gmail_message_id as string));
   });
