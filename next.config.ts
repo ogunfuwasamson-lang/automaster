@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const BROWSER = ["./node_modules/@sparticuz/chromium/**", "./node_modules/playwright-core/**"];
 
 const nextConfig: NextConfig = {
+  // the UserJot project id is public; accept it under the names it tends to be saved as in vercel
+  env: { NEXT_PUBLIC_USERJOT_PROJECT_ID: process.env.NEXT_PUBLIC_USERJOT_PROJECT_ID || process.env.USERJOT_PROJECT_ID || process.env.PROJECT_ID || "" },
   // the cloud runner launches chromium in /api/runner/work and the live browser in /api/live: keep these out of the bundle and ship the binary
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   // route keys match as substrings ("/api/live" also matches "/api/live/[id]"), so the 70 MB chromium binary is
