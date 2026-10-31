@@ -11,7 +11,6 @@ import {
   ChevronDown,
   Clock,
   ExternalLink,
-  Inbox as InboxIcon,
   LoaderCircle,
   Mail,
   PenLine,
@@ -55,6 +54,20 @@ export interface InboxThread {
   school: string;
   contactEmail: string | null;
   messages: InboxMsg[];
+}
+
+export interface SchoolDetail {
+  program: string;
+  status: string;
+  runner: string | null;
+  runnerNote: string | null;
+  deadline: string | null;
+  fee: number | null;
+  waiver: string | null;
+  portalUrl: string | null;
+  hasLogin: boolean;
+  followups: { title: string; kind: string; status: string; at: string | null }[];
+  timeline: { at: string; text: string }[];
 }
 
 const KIND: Record<string, [string, string]> = {
@@ -115,7 +128,7 @@ const FILTERS = [
 ] as const;
 type Filter = (typeof FILTERS)[number][0];
 
-export function MessagesApp({ threads: initial, initialId, canSend, email }: { threads: InboxThread[]; initialId: string | null; canSend: boolean; email: string | null }) {
+export function MessagesApp({ threads: initial, initialId, canSend, email, details = {} }: { threads: InboxThread[]; initialId: string | null; canSend: boolean; email: string | null; details?: Record<string, SchoolDetail> }) {
   const router = useRouter();
   const [threads, setThreads] = useState(initial);
   useEffect(() => {
@@ -206,7 +219,7 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
 
   return (
     <div>
-      <div className="grid h-[calc(100dvh-12.5rem)] min-h-[34rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-12.5rem)] lg:min-h-[40rem] lg:grid-cols-[23rem_minmax(0,1fr)]">
+      <div className="grid h-[calc(100dvh-12.5rem)] min-h-[34rem] grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-12.5rem)] lg:min-h-[40rem] lg:grid-cols-[23rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)_17.5rem]">
         {/* list */}
         <aside className={`flex min-h-0 flex-col border-line lg:border-r ${open ? "hidden lg:flex" : "flex"}`}>
           <div className="space-y-2.5 border-b border-line p-3">
@@ -300,7 +313,117 @@ export function MessagesApp({ threads: initial, initialId, canSend, email }: { t
             </div>
           )}
         </section>
+
+        {/* the school, beside the conversation (wide screens) */}
+        <aside className="hidden min-h-0 overflow-y-auto border-l border-line xl:block">
+          {open ? <SchoolPanel t={open} d={open.applicationId ? details[open.applicationId] : undefined} /> : <p className="p-6 text-[13px] text-muted">The school&apos;s details show here.</p>}
+        </aside>
       </div>
+    </div>
+  );
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  shortlisted: "On your shortlist",
+  preparing: "Essays being written",
+  ready_for_review: "Essays ready for you",
+  packet_approved: "Signed, submitting",
+  submitted: "Submitted",
+  under_review: "Under review",
+  interview: "Interview",
+  waitlisted: "Waitlisted",
+  admitted: "Admitted",
+  rejected: "Not admitted",
+  accepted: "Accepted",
+};
+
+function SchoolPanel({ t, d }: { t: InboxThread; d?: SchoolDetail }) {
+  const days = d?.deadline ? Math.round((Date.parse(`${d.deadline}T00:00:00Z`) - Date.now()) / DAY) : null;
+  const ask = `/dashboard?chat=open&say=${encodeURIComponent(`About ${t.school}: what should I do next?`)}`;
+  return (
+    <div className="space-y-6 p-5">
+      <div className="flex flex-col items-center text-center">
+        <SchoolTile name={t.school} />
+        <p className="mt-3 font-serif text-[18px] leading-snug">{t.school}</p>
+        {d && <p className="mt-0.5 text-[12.5px] text-muted">{d.program}</p>}
+        <div className="mt-3 flex gap-2">
+          <Link href={ask} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[12.5px] font-medium hover:border-neutral-300 dark:hover:border-neutral-700">
+            <Sparkles className="size-3.5 text-brand" aria-hidden /> Ask Ivyward AI
+          </Link>
+          {t.applicationId && (
+            <Link href={`/applications/${t.applicationId}`} className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[12.5px] font-medium hover:border-neutral-300 dark:hover:border-neutral-700">
+              Application
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {d ? (
+        <dl className="space-y-3 text-[13px]">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Status</dt>
+            <dd className="text-right font-medium">{d.status === "packet_approved" && d.runner === "needs_you" ? "Needs you on the portal" : STATUS_LABEL[d.status] ?? d.status.replace(/_/g, " ")}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Deadline</dt>
+            <dd className={`text-right font-medium ${days !== null && days >= 0 && days <= 7 ? "text-stop" : ""}`}>
+              {d.deadline ? new Date(`${d.deadline}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" }) : "Not found"}
+              {days !== null && days >= 0 ? <span className="font-normal text-muted"> ({days}d)</span> : null}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Fee</dt>
+            <dd className="text-right font-medium">{d.fee ? `$${d.fee}` : d.fee === 0 ? "None" : "Unknown"}</dd>
+          </div>
+          {d.waiver && (
+            <div>
+              <dt className="text-muted">Fee waiver</dt>
+              <dd className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed">{d.waiver}</dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Portal login</dt>
+            <dd className="text-right font-medium">{d.hasLogin ? <Link href="/logins" className="text-brand hover:underline">Saved</Link> : "Not yet"}</dd>
+          </div>
+          {d.runner === "needs_you" && d.runnerNote && <p className="rounded-lg bg-signal/10 px-3 py-2 text-[12.5px] leading-snug text-signal">{d.runnerNote}</p>}
+        </dl>
+      ) : (
+        <p className="text-[13px] text-muted">This school isn&apos;t linked to one of your applications.</p>
+      )}
+
+      {d && d.followups.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-[12px] font-semibold text-muted">From their emails</h3>
+          <ul className="space-y-2">
+            {d.followups.map((f, i) => (
+              <li key={i} className="rounded-lg border border-line px-3 py-2 text-[12.5px]">
+                <span className="block font-medium leading-snug">{f.title}</span>
+                <span className={`text-[11.5px] ${f.status === "needs_you" ? "text-signal" : f.status === "done" ? "text-go" : "text-muted"}`}>
+                  {f.status === "done" ? "Done" : f.status === "needs_you" ? "Needs you" : "Agents on it"}
+                  {f.at ? <span className="text-muted">, <When iso={f.at} f={long} /></span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {d && d.timeline.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-[12px] font-semibold text-muted">Timeline</h3>
+          <ol className="relative space-y-3 border-l border-line pl-4">
+            {d.timeline.map((e, i) => (
+              <li key={i} className="relative text-[12.5px] leading-snug">
+                <span className="absolute -left-[21px] top-1.5 size-2 rounded-full bg-neutral-300 ring-4 ring-surface dark:bg-neutral-600" aria-hidden />
+                <span className="block">{e.text.charAt(0).toUpperCase() + e.text.slice(1)}</span>
+                <span className="text-[11px] text-muted">
+                  <When iso={e.at} f={short} />
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </div>
   );
 }

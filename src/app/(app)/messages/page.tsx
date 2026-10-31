@@ -4,7 +4,8 @@ import { admin } from "@/lib/supabase/admin";
 import { gmailConfigured } from "@/lib/gmail";
 import { PageHeader, Empty } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
-import { MessagesApp, type InboxMsg, type InboxThread } from "./inbox";
+import { MessagesApp, type InboxMsg, type InboxThread, type SchoolDetail } from "./inbox";
+import { describe } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Messages" };
@@ -89,6 +90,40 @@ export default async function Messages({ searchParams }: { searchParams: Promise
   });
   const openId = t ? threads.find((x) => x.threadIds.includes(t))?.id ?? null : null;
 
+  // the panel beside a conversation: where the application with that school stands, what the agents are doing
+  // about its emails, and the timeline
+  const appIds = [...new Set(threads.map((x) => x.applicationId).filter((x): x is string => !!x))];
+  const details: Record<string, SchoolDetail> = {};
+  if (appIds.length) {
+    const db = admin();
+    const [{ data: apps }, { data: logins }, ups, { data: evs }] = await Promise.all([
+      auth.sb.from("applications").select("id, status, target_deadline, portal_url, runner_status, runner_note, programs(name, degree, app_fee_usd, fee_waiver)").in("id", appIds),
+      db.from("portal_accounts").select("application_id").eq("user_id", auth.user.id).in("application_id", appIds),
+      auth.sb.from("followups").select("application_id, title, kind, status, event_start").in("application_id", appIds).order("created_at", { ascending: false }).limit(60),
+      auth.sb.from("events").select("application_id, actor, action, created_at, context").in("application_id", appIds).not("action", "like", "guard.%").order("created_at", { ascending: false }).limit(300),
+    ]);
+    for (const a of apps ?? []) {
+      const p = a.programs as unknown as { name: string; degree: string | null; app_fee_usd: number | null; fee_waiver: string | null };
+      details[a.id] = {
+        program: p.name,
+        status: a.status,
+        runner: a.runner_status,
+        runnerNote: a.runner_note,
+        deadline: a.target_deadline,
+        fee: p.app_fee_usd,
+        waiver: p.fee_waiver,
+        portalUrl: a.portal_url,
+        hasLogin: (logins ?? []).some((l) => l.application_id === a.id),
+        followups: ((ups.error ? [] : ups.data) ?? []).filter((f) => f.application_id === a.id).slice(0, 5).map((f) => ({ title: f.title, kind: f.kind, status: f.status, at: f.event_start })),
+        timeline: (evs ?? [])
+          .filter((e) => e.application_id === a.id)
+          .map((e) => ({ at: e.created_at as string, text: describe(e) }))
+          .filter((e): e is { at: string; text: string } => !!e.text)
+          .slice(0, 8),
+      };
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -97,7 +132,7 @@ export default async function Messages({ searchParams }: { searchParams: Promise
         actions={!canSend ? <ButtonLink href="/settings" variant="accent"><Mail className="size-4" aria-hidden /> Connect Gmail</ButtonLink> : undefined}
       />
       {threads.length ? (
-        <MessagesApp threads={threads} initialId={openId} canSend={canSend} email={acct?.email ?? null} />
+        <MessagesApp threads={threads} initialId={openId} canSend={canSend} email={acct?.email ?? null} details={details} />
       ) : (
         <Empty
           icon={<Mail className="size-5" />}

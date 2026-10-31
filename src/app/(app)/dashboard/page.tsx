@@ -35,6 +35,8 @@ import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
 import { ShortlistProgress, type ShortlistRun } from "@/components/home/shortlist-progress";
 import { LocalTime } from "@/components/ui/local-time";
+import { ReportButton, WeeklyReportDialog, type WeeklyReport } from "@/components/home/weekly-report";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -133,6 +135,8 @@ export default async function Dashboard() {
   // follow-ups from school emails: events coming up, and forms the agents are doing or need help with
   const upQ = await sb.from("followups").select("id, title, school, kind, status, event_start, deadline, url, why, result_note, application_id").or(`event_start.gte.${new Date().toISOString()},status.in.(queued,working,needs_you)`).order("event_start", { ascending: true, nullsFirst: false }).limit(6);
   const upcoming = upQ.error ? [] : (upQ.data ?? []);
+  const { data: weekly } = await sb.from("digests").select("id, content, created_at").eq("content->>kind", "weekly").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const report = weekly && (weekly.content as { kind?: string }).kind === "weekly" ? weekly : null;
   const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
   const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
   const p = loadProfile(prof?.profile);
@@ -179,6 +183,11 @@ export default async function Dashboard() {
 
   return (
     <Stagger className="relative space-y-6">
+      {report && (
+        <Suspense>
+          <WeeklyReportDialog id={report.id} r={report.content as WeeklyReport} created={report.created_at} />
+        </Suspense>
+      )}
       <CampusInk className="pointer-events-none absolute -top-10 left-1/2 h-[500px] w-screen max-w-none -translate-x-1/2 opacity-60" />
       <Rise>
         <header className="relative mx-auto max-w-2xl pb-4 pt-4 text-center sm:pt-8">
@@ -190,6 +199,7 @@ export default async function Dashboard() {
                 <ChevronDown className="size-3.5 opacity-70" aria-hidden />
               </a>
             ) : null}
+            <ReportButton hasReport={!!report} />
             <span className={`inline-flex items-center gap-2 rounded-full border bg-surface/90 px-3 py-1 shadow-[0_1px_2px_rgb(9_9_11/0.04)] ${paused ? "border-stop/25 text-stop" : "border-line text-muted"}`}>
               <span className={`size-1.5 rounded-full ${paused ? "bg-stop" : working ? "animate-pulse bg-go" : "bg-neutral-400"}`} aria-hidden />
               {paused ? "Agents are paused" : working ? `Agents are on ${working} task${working === 1 ? "" : "s"}` : "Agents are standing by"}

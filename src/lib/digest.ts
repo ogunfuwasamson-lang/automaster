@@ -4,6 +4,18 @@ import { enqueue } from "@/lib/queue";
 import { buildDigest, digestText, localHour, type Digest } from "@/lib/activity";
 import { appUrl, mailAccount, sendAs } from "@/lib/gmail";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
+import { emailHtml, type Block } from "@/lib/email-layout";
+
+// the daily note in Ivyward's email layout: a headline, then short sections, one button
+function digestHtml(g: Digest, name: string | null): string {
+  const sec = (title: string, xs: string[]): Block[] => (xs.length ? [{ t: "p", text: `**${title}**` }, ...xs.slice(0, 6).map((x) => ({ t: "p" as const, text: x.charAt(0).toUpperCase() + x.slice(1) }))] : []);
+  return emailHtml({
+    kicker: "Today",
+    headline: `${name ? `${name.split(" ")[0]}, ` : ""}${g.headline}.`,
+    blocks: [...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: "Open Ivyward", href: `${appUrl()}/dashboard` }],
+    manageUrl: `${appUrl()}/settings`,
+  });
+}
 
 const DIGEST_HOUR = 7;
 
@@ -61,7 +73,20 @@ export async function runDigest(userId: string) {
   if (!digest.empty) {
     const subject = `Ivyward: ${digest.headline}`;
     const body = digestText(digest, appUrl(), name);
-    const acct = await mailAccount(userId);
+    // Ivyward's own email first (it can carry the designed layout); the applicant's Gmail as a note to self if not
+    if (systemMailReady()) {
+      const { data } = await db.auth.admin.getUserById(userId);
+      const to = data.user?.email;
+      if (to) {
+        try {
+          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
+          via = "resend";
+        } catch {
+          via = null;
+        }
+      }
+    }
+    const acct = !via ? await mailAccount(userId) : null;
     if (acct?.status === "active") {
       try {
         await sendAs(userId, { to: acct.email, subject, body, fromName: "Ivyward" });

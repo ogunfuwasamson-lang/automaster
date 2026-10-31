@@ -7,6 +7,7 @@ import { runDigest } from "@/lib/digest";
 import { checkInbox } from "@/lib/inbox";
 import { remind, say } from "@/lib/followups";
 import { notify } from "@/lib/notify";
+import { runWeekly } from "@/lib/weekly";
 
 // smoke test for the whole loop: queue -> worker -> claude -> agent_runs -> events.
 const PingOut = z.object({ status: z.literal("ok"), note: z.string() });
@@ -30,6 +31,8 @@ export const system: Record<string, Handler> = {
   "system.digest": async (job) => runDigest(job.user_id),
   // school emails: read, classify, queue what needs the applicant
   "system.inbox": async (job) => checkInbox(job.user_id, job.id),
+  // the monday report from Ivyward AI
+  "system.weekly": async (job) => runWeekly(job.user_id),
   // a reminder Ivyward AI set (an event tomorrow, in an hour, a deadline in two days)
   "system.remind": async (job) => {
     const p = job.payload as { followupId?: string; when?: string; title?: string; body?: string; href?: string };

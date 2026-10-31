@@ -138,6 +138,32 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     { id: "j4", status: "running", agent: "recon", task: "discover_region", payload: {}, last_error: null, created_at: ago(8) },
     ...Array.from({ length: 6 }, (_, i) => ({ id: `jr${i}`, status: i < 4 ? "done" : "queued", agent: "recon", task: "research_program", payload: {}, last_error: null, created_at: ago(5) })),
   ],
+  digests: [
+    {
+      id: "wk1",
+      created_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+      content: {
+        kind: "weekly",
+        week_of: "2026-10-26",
+        next_on: "2026-11-02",
+        headline: "Morning, Ada. Two things stand between you and your first submission.",
+        working: "Your essays are in good shape. The agents drafted **6 essays** this week and you approved **4**, and Brandeis registered you for the webinar that unlocks its **$75 fee waiver**.",
+        pivot: "So the question isn't whether your applications are good. It's what's stopping them from going in.",
+        items: [
+          { title: "Edinburgh closes in 7 days and is waiting on you", body: "The portal agents filled **84 answers** and stopped at one question your profile doesn't answer: your **country of birth**. Answer it and they finish the application the same day.", label: "Answer it", action: "chat:Edinburgh's portal is asking for my country of birth" },
+          { title: "Two essays are ready for your review", body: "Rice's **Why Rice** essay and Toronto's statement are drafted and fact-checked. Rice closes in **9 days**; signing this week keeps a few days spare.", label: "Review essays", action: "open:/applications" },
+          { title: "Your form details are missing", body: "**4 portals** will ask for your phone, date of birth and address. Filling them in once stops the agents from pausing on every portal.", label: "Fill details", action: "open:/profile?tab=details" },
+        ],
+        stats: [
+          { value: "1", label: "submitted this week" },
+          { value: "3", label: "school replies this week" },
+          { value: "2", label: "essays to review" },
+          { value: "7", label: "days to University of Edinburgh" },
+        ],
+        closing: "Clearing all three takes about 20 minutes and gets Edinburgh in before the deadline. Do nothing and Edinburgh waits on the one answer while the clock runs.",
+      },
+    },
+  ],
   followups: [
     { id: "fu1", title: "Graduate admissions webinar", school: "Brandeis University", kind: "register_event", status: "done", event_start: new Date(Date.now() + 5 * 86_400_000).toISOString(), deadline: null, url: "https://example.com", why: "Attending unlocks the application fee waiver.", result_note: "registered", application_id: "a2" },
     { id: "fu2", title: "Claim your fee waiver", school: "University of Rochester", kind: "claim_fee_waiver", status: "working", event_start: null, deadline: "2026-11-15", url: "https://example.com", why: "Waives the $75 application fee.", result_note: null, application_id: null },
@@ -210,6 +236,10 @@ class Query implements PromiseLike<{ data: unknown; count: number | null; error:
     return this;
   }
   eq(col: string, v: unknown) {
+    if (col.includes("->")) {
+      const [base, key] = col.split("->>");
+      return this.filter((r) => !(base in r) || (r[base] as Record<string, unknown> | null)?.[key] === v);
+    }
     return this.filter((r) => !(col in r) || r[col] === v);
   }
   neq(col: string, v: unknown) {
