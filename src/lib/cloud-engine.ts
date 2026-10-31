@@ -862,7 +862,18 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   if (a.action === "goto") {
     // only links on this page or pages on the same site
     const onPage = s.buttons.some((b) => b.href === a.url);
-    if (!/^https:\/\//.test(a.url) || (!onPage && root(a.url) !== root(s.url))) {
+    // a same-site address the model typed itself must start like one it has actually seen ("/ApplicantPortal/...",
+    // not a misspelt "/ApplicantPotal/...")
+    const seg = (u: string) => {
+      try {
+        return new URL(u).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+      } catch {
+        return "";
+      }
+    };
+    const seen = [s.url, ...s.buttons.map((b) => b.href ?? ""), ...(state.visited ?? []), deps.portalUrl ?? ""].filter(Boolean);
+    const plausible = onPage || seen.some((u) => root(u) === root(a.url) && seg(u) === seg(a.url));
+    if (!/^https:\/\//.test(a.url) || (!onPage && root(a.url) !== root(s.url)) || !plausible) {
       log(`refused goto ${a.url}`);
       return null;
     }
