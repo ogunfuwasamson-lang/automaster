@@ -241,8 +241,14 @@
   }
   // a cheap fingerprint of what the screen shows, to tell whether a step changed anything
   function sig() {
-    const a = document.activeElement;
-    return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + all("input,select,textarea").length + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
+    // the focused element, even inside a web component, and every field's value: typing into a box inside a shadow
+    // root changes neither the page text nor the field count, but it does change this
+    let a = document.activeElement;
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+    const vals = all("input,select,textarea").map((e) => (e.type === "checkbox" || e.type === "radio" ? (e.checked ? "1" : "0") : (e.value || "").length)).join(",");
+    let h = 0;
+    for (let i = 0; i < vals.length; i++) h = (h * 31 + vals.charCodeAt(i)) | 0;
+    return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + all("input,select,textarea").length + "|" + h + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
   }
   window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig };
 })();

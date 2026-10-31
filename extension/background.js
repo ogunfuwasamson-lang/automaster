@@ -5,8 +5,12 @@
   function stripMarkers(label) {
     return label.replace(/\(\s*(required|optional)\s*\)/gi, " ").replace(/\s[-–—]\s*(required|optional)\s*$/i, "").replace(/^\s*(required|optional)\s*[:*-]?\s+/i, "").replace(/\s+(required|optional)\s*\**\s*$/i, "").replace(/\s+/g, " ").trim();
   }
+  var MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december";
+  function stripOptionRuns(label) {
+    return label.replace(new RegExp(`\\b(month\\s+)?((${MONTHS})\\b[\\s,/]*){4,}(\\w{1,3}\\s*$)?`, "gi"), " ").replace(/\b(day|year)?\s*(\b\d{1,4}\b[\s,/]*){6,}/gi, " ").replace(/\b(month|day|year|select|choose)\b(\s+\b(month|day|year|select|choose)\b)*\s*$/i, " ").replace(/\s+/g, " ").trim();
+  }
   function cleanLabel(label, options = []) {
-    let l = stripMarkers(label.replace(/\s+/g, " "));
+    let l = stripOptionRuns(stripMarkers(label.replace(/\s+/g, " ")));
     const tails = [...options, "select", "select one", "choose", "choose one", "please select", "-- select --"].map((o) => o.trim().toLowerCase()).filter(Boolean).sort((a, b) => b.length - a.length);
     for (let guard = 0; guard < 60; guard++) {
       const low = l.toLowerCase();
@@ -633,7 +637,16 @@
     }
     if (a.action === "goto") {
       const onPage = s.buttons.some((b2) => b2.href === a.url);
-      if (!/^https:\/\//.test(a.url) || !onPage && root(a.url) !== root(s.url)) {
+      const seg = (u) => {
+        try {
+          return new URL(u).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+        } catch {
+          return "";
+        }
+      };
+      const seen = [s.url, ...s.buttons.map((b2) => b2.href ?? ""), ...state.visited ?? [], deps2.portalUrl ?? ""].filter(Boolean);
+      const plausible = onPage || seen.some((u) => root(u) === root(a.url) && seg(u) === seg(a.url));
+      if (!/^https:\/\//.test(a.url) || !onPage && root(a.url) !== root(s.url) || !plausible) {
         log(`refused goto ${a.url}`);
         return null;
       }

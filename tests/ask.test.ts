@@ -89,3 +89,11 @@ describe("words that mean the same thing on forms", () => {
     expect(bestOption("+234", ["United Kingdom (+44)", "Nigeria (+234)", "Niger (+227)"])).toBe("Nigeria (+234)");
   });
 });
+
+describe("labels polluted by a neighbour's options", () => {
+  it("cuts month and number runs out of a question", () => {
+    expect(cleanLabel("Start date * Month Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec")).toBe("Start date");
+    expect(cleanLabel("End date * Not finished yet? Month Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov D")).toBe("End date * Not finished yet?");
+    expect(cleanLabel("Date of birth Day 1 2 3 4 5 6 7 8 9 10")).toBe("Date of birth");
+  });
+});
