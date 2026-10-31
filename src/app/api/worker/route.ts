@@ -8,6 +8,7 @@ import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
 import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
+import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
 
 export const runtime = "nodejs";
@@ -35,6 +36,8 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 5) await refreshPrices().catch(() => null);
   if (tick) await sweepResumable().catch(() => 0);
   if (tick) await sweepOrphans().catch(() => 0);
+  // the nightly learning pass (02:00 UTC), run under a staff account
+  if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);
   // portal work runs in its own function (it ships chromium). poke it when some is due: up to 3 in parallel.
   const { count } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("agent", "runner").eq("status", "queued").lte("run_at", new Date().toISOString());
@@ -48,6 +51,12 @@ async function handle(req: NextRequest) {
     );
   }
   return NextResponse.json({ ran: results.length, results, mail: mail.length, digests, runner: count ?? 0 });
+}
+
+async function scheduleLearning() {
+  const { data: owner } = await admin().from("profiles").select("id").eq("is_admin", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (!owner) return;
+  await enqueue({ userId: owner.id, agent: "learning", task: "nightly", idempotencyKey: `learn:${new Date().toISOString().slice(0, 10)}` });
 }
 
 export const GET = handle;

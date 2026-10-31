@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/pricing";
 import { planOf } from "@/lib/plans";
+import { LessonsAdmin } from "@/components/learning/lessons-admin";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operator", robots: { index: false, follow: false } };
@@ -202,6 +203,11 @@ export default async function Admin() {
         </div>
       </section>
 
+      <section id="learning" className="scroll-mt-24 space-y-3">
+        <h2 className="text-lg font-semibold">Learning</h2>
+        <LessonsAdmin {...await lessonData()} />
+      </section>
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Recent failures</h2>
         <ul className="divide-y divide-line rounded-3xl border border-line bg-surface shadow-card font-mono text-xs">
@@ -220,4 +226,24 @@ export default async function Admin() {
       </section>
     </main>
   );
+}
+
+async function lessonData() {
+  const db = admin();
+  const empty = { proposed: [], active: [], retired: [], personal: { users: 0, lessons: 0 } };
+  const { data, error } = await db.from("lessons").select("id, scope, user_id, agent, task, topic, text, status, evidence, created_at, retired_reason").order("created_at", { ascending: false }).limit(1000);
+  if (error) return empty;
+  const rows = data ?? [];
+  const global = rows.filter((l) => l.scope === "global");
+  const { data: runs } = await db.from("agent_runs").select("lesson_ids").not("lesson_ids", "is", null).gte("started_at", monthStartUTC()).limit(20000);
+  const uses = new Map<string, number>();
+  for (const r of runs ?? []) for (const id of (r.lesson_ids as string[]) ?? []) uses.set(id, (uses.get(id) ?? 0) + 1);
+  const withUses = (xs: typeof rows) => xs.map((l) => ({ ...l, uses: uses.get(l.id) ?? 0 }));
+  const personal = rows.filter((l) => l.scope === "user" && l.status === "active");
+  return {
+    proposed: withUses(global.filter((l) => l.status === "proposed")),
+    active: withUses(global.filter((l) => l.status === "active")),
+    retired: withUses(global.filter((l) => l.status === "retired").slice(0, 10)),
+    personal: { users: new Set(personal.map((l) => l.user_id)).size, lessons: personal.length },
+  };
 }

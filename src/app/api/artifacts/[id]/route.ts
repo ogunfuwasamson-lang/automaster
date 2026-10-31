@@ -38,6 +38,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     await db.from("artifacts").update({ current_version: version }).eq("id", id);
     await logEvent({ userId: uid, actor: "user", action: "artifact.edited", applicationId: art.application_id, artifactVersionId: v.id as string, context: { title: art.title, version } });
+    // their edit of an agent's draft teaches the writer how they want to sound (only for them)
+    if (art.current_version) await enqueue({ userId: uid, agent: "learning", task: "edit", payload: { artifactId: id, from: art.current_version, to: version }, idempotencyKey: `edit:${id}:${version}`, runAt: new Date(Date.now() + 2 * 60_000) }).catch(() => {});
     return NextResponse.json({ ok: true, version });
   }
 
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       .contains("payload", { artifactId: id });
     if (count) return NextResponse.json({ error: "the writer is already on it" }, { status: 409 });
     await enqueue({ userId: uid, agent: "writer", task: "draft", payload: { artifactId: id, round: 1, userNotes: b.notes ?? "" } });
+    if (b.notes && b.notes.trim().length >= 6) await enqueue({ userId: uid, agent: "learning", task: "notes", payload: { artifactId: id, notes: b.notes } }).catch(() => {});
     await logEvent({ userId: uid, actor: "user", action: "artifact.revision_requested", applicationId: art.application_id, context: { title: art.title, notes: b.notes ?? "" } });
     after(() => drain("inline-revise", 1).catch(() => {}));
     return NextResponse.json({ ok: true });

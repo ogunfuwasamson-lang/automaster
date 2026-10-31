@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
+import { enqueue } from "@/lib/queue";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 
 // user moves on the shortlist. only the moves a person makes from this screen;
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { error } = await db.from("applications").update({ status: to }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   await logEvent({ userId: auth.user.id, actor: "user", action: `application.${to}`, applicationId: id, programId: app.program_id });
+  // what they keep and drop shapes their next search (once a day, after they've finished sorting)
+  await enqueue({ userId: auth.user.id, agent: "learning", task: "shortlist", idempotencyKey: `shortlist:${auth.user.id}:${new Date().toISOString().slice(0, 10)}`, runAt: new Date(Date.now() + 30 * 60_000) }).catch(() => {});
   return NextResponse.json({ ok: true });
 }
 

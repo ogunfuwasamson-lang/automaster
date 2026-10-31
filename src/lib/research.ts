@@ -3,6 +3,7 @@ import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/mes
 import { admin } from "@/lib/supabase/admin";
 import { MODELS, llm, cachedSystem } from "@/lib/llm";
 import { assertBudget } from "@/lib/budget";
+import { lessonsFor } from "@/lib/lessons";
 import { costOf, type Usage } from "@/lib/pricing";
 
 // web research with claude's server-side search + fetch tools.
@@ -25,8 +26,12 @@ export async function research(args: {
   prompt: string;
   maxSearches?: number;
   maxFetches?: number;
+  topic?: string | null;
 }): Promise<ResearchResult> {
   await assertBudget(args.userId, args.agent);
+  // what's been learned about researching for this agent (and this applicant)
+  const learned = await lessonsFor({ agent: args.agent, task: "research", topic: args.topic ?? null, userId: args.userId });
+  if (learned.text) args = { ...args, system: `${args.system}\n\n${learned.text}` };
   const db = admin();
   // research loops read a lot of web content: they run on the cheap tier
   const model = MODELS.cheap;
@@ -38,6 +43,7 @@ export async function research(args: {
       agent: args.agent,
       model,
       prompt_version: "research-v1",
+      ...(learned.ids.length ? { lesson_ids: learned.ids } : {}),
       input: { system: args.system, prompt: args.prompt },
     })
     .select("id")

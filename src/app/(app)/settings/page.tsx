@@ -8,6 +8,7 @@ import { PlanCard } from "@/components/billing/pay";
 import { billingState, confirmReturn } from "@/lib/billing";
 import { bachsReady } from "@/lib/bachs";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
+import { MyLessons } from "@/components/learning/lessons-admin";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -77,6 +78,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <div id="plan" className="scroll-mt-24">
           <PlanCard model={bill.pricing.model} label={bill.pricing.label} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
         </div>
+      </Group>
+
+      <Group title="What Ivyward has learned about you" description="From your essay edits, revision notes and shortlist choices. Used only for you.">
+        <MyLessons lessons={(((await db.from("lessons").select("id, agent, text").eq("scope", "user").eq("user_id", uid).eq("status", "active").order("created_at", { ascending: false }).limit(40)).data) ?? []) as { id: string; agent: string; text: string }[]} />
       </Group>
 
       <Group title="Account">

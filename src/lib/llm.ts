@@ -1,4 +1,5 @@
 import "server-only";
+import { lessonsFor, taskOf } from "@/lib/lessons";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, Message, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -54,6 +55,10 @@ interface RunArgs<S extends z.ZodType> {
   prompt: string | ContentBlockParam[];
   schema: S;
   maxTokens?: number;
+  // the portal host or school the call is about, so lessons about that place come along
+  topic?: string | null;
+  // false for the learning loop's own calls
+  lessons?: boolean;
 }
 
 // one structured call: budget-checked, metered, logged to agent_runs.
@@ -61,6 +66,9 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
   await assertBudget(args.userId, args.agent);
   const db = admin();
   const model = MODELS[args.tier ?? "write"];
+  // what the agents have learned that applies to this call
+  const learned = args.lessons === false ? { ids: [], text: "" } : await lessonsFor({ agent: args.agent, task: taskOf(args.promptVersion), topic: args.topic ?? null, userId: args.userId });
+  if (learned.text) args = { ...args, system: `${args.system}\n\n${learned.text}` };
   const { data: run, error } = await db
     .from("agent_runs")
     .insert({
@@ -69,6 +77,7 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
       agent: args.agent,
       model,
       prompt_version: args.promptVersion ?? "v1",
+      ...(learned.ids.length ? { lesson_ids: learned.ids } : {}),
       // never store file bytes in the run log, just a marker
       input: {
         system: args.system.slice(0, 4000),

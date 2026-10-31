@@ -42,6 +42,9 @@ export default function Privacy() {
         <p>
           The agents also learn how each school works and use it for everyone applying there: the link an application starts from, whether its portal lets accounts be created automatically, which form label takes which kind of answer, which school office addresses reply and how quickly, which fee-waiver routes worked, and the official essay prompts. These are facts about the school, stored without your name or email. Your answers, essays, emails, documents and passwords are never shared with other applicants.
         </p>
+        <p>
+          The agents learn from your own edits, revision notes and shortlist choices how you like to write and what you want, and use that only for you. You can see and remove each of these in Settings. Ivyward also learns general lessons from patterns across many applicants (for example, which kinds of emails get replies); these contain no personal details and are reviewed by our team before any agent uses them.
+        </p>
       </section>
       <section>
         <h2>What we never take</h2>
