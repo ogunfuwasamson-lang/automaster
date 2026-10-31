@@ -10,8 +10,8 @@ export class BudgetExceeded extends Error {
 }
 
 export async function userPlan(userId: string): Promise<{ plan: Plan; budget: number }> {
-  const { data } = await admin().from("profiles").select("plan, monthly_budget_usd").eq("id", userId).maybeSingle();
-  const plan = planOf(data?.plan);
+  const { data } = await admin().from("profiles").select("plan, plan_until, monthly_budget_usd").eq("id", userId).maybeSingle();
+  const plan = planOf(data?.plan, data?.plan_until);
   // per-user override (e.g. the founder's own account) beats the plan's budget
   const own = data?.monthly_budget_usd != null ? Number(data.monthly_budget_usd) : null;
   return { plan, budget: own ?? plan.aiBudgetUsd };

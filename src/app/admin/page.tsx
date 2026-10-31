@@ -18,7 +18,7 @@ export default async function Admin() {
 
   const since = monthStartUTC();
   const [{ data: users }, { data: runs }, { data: failed }, { data: runner }] = await Promise.all([
-    db.from("profiles").select("id, email, plan, monthly_budget_usd, created_at"),
+    db.from("profiles").select("id, email, plan, plan_until, billing_currency, monthly_budget_usd, created_at"),
     db.from("agent_runs").select("user_id, agent, model, cost_usd, input_tokens, output_tokens").gte("started_at", since).limit(50000),
     db.from("agent_runs").select("agent, error, started_at").eq("status", "failed").gte("started_at", since).order("started_at", { ascending: false }).limit(15),
     db.from("applications").select("id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name))").neq("runner_status", "idle").order("runner_updated_at", { ascending: false }).limit(40),
@@ -43,9 +43,10 @@ export default async function Admin() {
     perAgent.set(key, a);
   }
   const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
-  // pro is free: only season passes pay ($199 per six months, counted monthly)
-  const paying = (users ?? []).filter((u) => u.plan === "season");
-  const revenue = paying.length * (199 / 6);
+  // paying: an active pro subscription ($15, or ₦4,500 counted at about $3) or a season pass ($199 per six months)
+  const active = (u: { plan: string; plan_until: string | null }) => planOf(u.plan, u.plan_until).id !== "free";
+  const paying = (users ?? []).filter(active);
+  const revenue = paying.reduce((t, u) => t + (u.plan === "season" ? 199 / 6 : u.billing_currency === "NGN" ? 3 : 15), 0);
   const $ = (n: number) => `$${n.toFixed(2)}`;
   const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 
@@ -101,7 +102,7 @@ export default async function Admin() {
                 .map((u) => ({ u, r: perUser.get(u.id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 } }))
                 .sort((a, b) => b.r.cost - a.r.cost)
                 .map(({ u, r }) => {
-                  const budget = u.monthly_budget_usd != null ? Number(u.monthly_budget_usd) : planOf(u.plan).aiBudgetUsd;
+                  const budget = u.monthly_budget_usd != null ? Number(u.monthly_budget_usd) : planOf(u.plan, u.plan_until).aiBudgetUsd;
                   const share = budget ? Math.min(1, r.cost / budget) : 0;
                   return (
                     <tr key={u.id}>

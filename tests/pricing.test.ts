@@ -46,15 +46,22 @@ describe("budgets", () => {
 });
 
 describe("plans", () => {
-  it("pro budget fits inside the price with margin", () => {
-    expect(PLANS.pro.aiBudgetUsd / 49).toBeLessThanOrEqual(0.52);
-    expect(PLANS.season.aiBudgetUsd * 6 / 199).toBeLessThan(0.76);
+  it("paid budgets fit inside the dollar prices", () => {
+    expect(PLANS.pro.aiBudgetUsd / 15).toBeLessThan(0.85);
+    expect((PLANS.season.aiBudgetUsd * 6) / 199).toBeLessThan(0.76);
+    expect(PLANS.free.aiBudgetUsd).toBeLessThan(PLANS.pro.aiBudgetUsd);
   });
-  it("pro is free for everyone: unknown, old free and missing plans all get pro", () => {
-    expect(planOf("enterprise").id).toBe("pro");
-    expect(planOf("free").id).toBe("pro");
-    expect(planOf(null).id).toBe("pro");
-    expect(planOf("season").id).toBe("season");
-    expect(PLANS.pro.priceLabel).toBe("Free");
+  it("everyone without an active paid plan is on free", () => {
+    expect(planOf("enterprise").id).toBe("free");
+    expect(planOf("free").id).toBe("free");
+    expect(planOf(null).id).toBe("free");
+  });
+  it("a paid plan counts until it lapses", () => {
+    const now = new Date("2026-11-10T00:00:00Z");
+    expect(planOf("pro", "2026-12-01T00:00:00Z", now).id).toBe("pro");
+    expect(planOf("pro", "2026-11-01T00:00:00Z", now).id).toBe("free");
+    expect(planOf("season", "2027-04-01T00:00:00Z", now).id).toBe("season");
+    expect(planOf("season", null, now).id).toBe("season"); // granted by hand, no end date
+    expect(planOf("pro", null, now).id).toBe("free"); // marked pro back when pro was free
   });
 });

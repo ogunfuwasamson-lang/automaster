@@ -15,6 +15,7 @@ const PUBLIC = [
   "/api/runner/report",
   "/api/runner/work",
   "/api/runner/engine", // the chrome extension's engine calls (extension key, no cookie)
+  "/api/billing/webhook", // paystack (signed with our secret key, no cookie)
   "/pricing",
   "/privacy",
   "/terms",
