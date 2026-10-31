@@ -15,6 +15,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.url}/guides`, lastModified: libDate, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE.url}/scholarships`, lastModified: libDate, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE.url}/universities`, lastModified: libDate, changeFrequency: "weekly", priority: 0.85 },
+    { url: `${SITE.url}/alerts`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE.url}/ambassadors`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/glossary`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/tools/scholarship-finder`, lastModified: libDate, changeFrequency: "monthly", priority: 0.8 },
     ...UNIVERSITIES.map((u) => ({ url: `${SITE.url}/universities/${u.slug}`, lastModified: new Date(`${u.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.7 })),

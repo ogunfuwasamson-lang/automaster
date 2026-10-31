@@ -56,7 +56,7 @@ function judge(slug: string, c: string, level: string, work: number, age: number
   }
 }
 
-export function Finder({ items }: { items: FinderItem[] }) {
+export function Finder({ items, embedded }: { items: FinderItem[]; embedded?: boolean }) {
   const [country, setCountry] = useState("Nigeria");
   const [level, setLevel] = useState("Master's");
   const [work, setWork] = useState(2);
@@ -105,9 +105,15 @@ export function Finder({ items }: { items: FinderItem[] }) {
       <ul className="mt-3 divide-y divide-line border-y border-line">
         {results.map(({ s, v }) => (
           <li key={s.slug} className="grid gap-1 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-baseline sm:gap-6">
-            <Link href={`/scholarships/${s.slug}`} className="font-serif text-[19px] hover:text-brand">
-              {s.name}
-            </Link>
+            {embedded ? (
+              <a href={`https://tryivyward.com/scholarships/${s.slug}?utm_source=embed`} target="_blank" rel="noopener" className="font-serif text-[19px] hover:text-brand">
+                {s.name}
+              </a>
+            ) : (
+              <Link href={`/scholarships/${s.slug}`} className="font-serif text-[19px] hover:text-brand">
+                {s.name}
+              </Link>
+            )}
             <span className="text-[14.5px] text-muted">
               {s.country}. {v!.why}.
             </span>

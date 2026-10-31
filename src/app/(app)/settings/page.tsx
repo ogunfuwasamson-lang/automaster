@@ -9,6 +9,8 @@ import { billingState, confirmReturn } from "@/lib/billing";
 import { bachsReady } from "@/lib/bachs";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
 import { MyLessons } from "@/components/learning/lessons-admin";
+import { InviteCard } from "@/components/growth/invite-card";
+import { inviteUrl, referralCode, referralStats } from "@/lib/referrals";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -74,6 +76,12 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <RunnerCard tokens={tokens ?? []} />
       </section>
 
+      <Group title="Invite friends" description="A free submission for them, and one for you.">
+        <div id="invite" className="scroll-mt-24">
+          <InviteSection uid={uid} />
+        </div>
+      </Group>
+
       <Group title="Plan" description={bill.pricing.model === "per_submission" ? "Pay only for what you submit." : "Free to start; Pro when you need more."}>
         <div id="plan" className="scroll-mt-24">
           <PlanCard model={bill.pricing.model} label={bill.pricing.label} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
@@ -89,4 +97,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       </Group>
     </div>
   );
+}
+
+async function InviteSection({ uid }: { uid: string }) {
+  const [code, stats] = await Promise.all([referralCode(uid).catch(() => null), referralStats(uid).catch(() => ({ bonus: 0, joined: 0, submitted: 0 }))]);
+  return <InviteCard url={code ? inviteUrl(code) : null} joined={stats.joined} submitted={stats.submitted} bonus={stats.bonus} />;
 }

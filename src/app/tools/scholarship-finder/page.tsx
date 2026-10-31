@@ -5,6 +5,8 @@ import { Script } from "@/components/seo/json-ld";
 import { Cta, Faq, LibraryShell } from "@/components/library/library";
 import { SITE } from "@/lib/site";
 import { Finder } from "./finder";
+import { AlertSignup } from "@/components/growth/alert-signup";
+import { EmbedCode } from "@/components/growth/embed-code";
 
 export const metadata: Metadata = {
   title: "Scholarship finder: which fully funded scholarships can you apply for?",
@@ -42,6 +44,8 @@ export default function FinderPage() {
           <Finder items={SCHOLARSHIPS.map((s) => ({ slug: s.slug, name: s.name, country: s.country, levels: s.levels, funding: s.funding }))} />
         </div>
         <div className="max-w-3xl">
+          <AlertSignup source="finder" />
+          <EmbedCode />
           <Faq items={FAQ} />
           <p className="mt-8 text-[15px]">
             Also see <Link href="/guides/fully-funded-masters-scholarships-international-students" className="text-brand underline decoration-current/30 underline-offset-4">fully funded master&apos;s scholarships</Link> and the{" "}

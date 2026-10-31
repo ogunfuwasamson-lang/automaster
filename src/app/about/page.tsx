@@ -41,7 +41,7 @@ export default function About() {
           {SITE.name} is a web app where AI agents run your university applications, from the shortlist to the submit button. It covers bachelor&apos;s, master&apos;s, MBA and PhD programs in any field, at schools in any country with an online application, and it chases the money too: application fee waivers, scholarships, assistantships and funding.
         </p>
         <p className="mt-4 text-[17px] leading-relaxed text-muted">
-          It was started in Lagos, Nigeria, because applying abroad from Africa is slow, expensive and full of gatekeepers: consultants that cost more than the applications, agents paid by the universities they recommend, and application fees that add up to months of income. Ivyward does the work for a small fee per submission and leaves every decision and signature to you.
+          Applying abroad is slow, expensive and full of gatekeepers: consultants that cost more than the applications, agents paid by the universities they recommend, and application fees that add up to months of income. Ivyward does the work for a small fee per submission and leaves every decision and signature to you.
         </p>
 
         <section className="mt-12">

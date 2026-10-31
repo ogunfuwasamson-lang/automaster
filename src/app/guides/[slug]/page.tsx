@@ -11,6 +11,8 @@ const COUNTRY_OF: Record<string, string> = {
   "study-in-germany-tuition-free": "Germany",
 };
 import { renderMarkdown, readMinutes } from "@/lib/markdown";
+import { AlertSignup } from "@/components/growth/alert-signup";
+import { ShareRow } from "@/components/growth/share-row";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, Sources, longDate } from "@/components/library/library";
 
@@ -60,6 +62,8 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
               body="Ivyward builds your shortlist, drafts and fact-checks your essays, asks schools for fee waivers, finds funding and fills in every application portal. You review and sign. Preparing is free."
             />
             <Faq items={g.faq} />
+            <AlertSignup source={`guide:${g.slug}`} />
+            <ShareRow path={path} title={g.title} />
             <Sources items={g.sources} />
             <Related
               items={[

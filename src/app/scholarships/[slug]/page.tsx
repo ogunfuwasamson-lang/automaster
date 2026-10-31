@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SCHOLARSHIPS, scholarship } from "@/content";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
+import { AlertSignup } from "@/components/growth/alert-signup";
+import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 
 export const dynamicParams = false;
@@ -88,6 +90,8 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ sl
           body="Ivyward matches you to scholarships you're eligible for, drafts your essays from your own record and checks every claim, keeps track of each deadline, and applies to the universities the scholarship needs. You review and sign everything."
         />
         <Faq items={s.faq} />
+        <AlertSignup source={`scholarship:${s.slug}`} />
+        <ShareRow path={path} title={s.name} />
         <p className="mt-10 text-[13.5px] leading-relaxed text-muted">Rules, amounts and dates change every cycle. Confirm everything on the official page before you apply. Ivyward is not affiliated with {s.funder}.</p>
         <Related items={[...similar, { href: "/guides/fully-funded-masters-scholarships-international-students", title: "Fully funded master's scholarships for international students", kind: "Funding" }]} />
       </div>

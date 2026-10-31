@@ -5,6 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/pricing";
 import { planOf } from "@/lib/plans";
 import { LessonsAdmin } from "@/components/learning/lessons-admin";
+import { GrowthAdmin } from "@/components/growth/growth-admin";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operator", robots: { index: false, follow: false } };
@@ -201,6 +202,11 @@ export default async function Admin() {
             );
           })}
         </div>
+      </section>
+
+      <section id="growth" className="scroll-mt-24 space-y-3">
+        <h2 className="text-lg font-semibold">Growth</h2>
+        <GrowthAdmin />
       </section>
 
       <section id="learning" className="scroll-mt-24 space-y-3">

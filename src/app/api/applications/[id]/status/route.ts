@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       await move("submitted");
       await logEvent({ userId: uid, actor: "user", action: "application.submitted", applicationId: id, programId: app.program_id, channel: "portal" });
       await recordOutcome({ userId: uid, applicationId: id, kind: "proxy", label: "submitted", source: "user" });
-      await afterSubmitted(uid, id).catch(() => null);
+      await afterSubmitted(uid, id, { byAgents: false }).catch(() => null);
       return NextResponse.json({ ok: true });
     }
 

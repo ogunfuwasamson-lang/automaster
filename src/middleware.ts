@@ -33,6 +33,11 @@ const PUBLIC = [
   "/glossary",
   "/tools",
   "/md/",
+  "/alerts",
+  "/api/alerts",
+  "/embed",
+  "/ambassadors",
+  "/api/ambassadors",
   "/opengraph-image",
   "/twitter-image",
   "/icon",
@@ -68,6 +73,32 @@ export async function middleware(req: NextRequest) {
     // come back to the page you asked for after signing in
     if (path !== "/dashboard") to.searchParams.set("next", path + req.nextUrl.search);
     return NextResponse.redirect(to);
+  }
+  return withAttribution(req, res);
+}
+
+// remember who invited a visitor (?ref=) and where they first came from (utm tags, referring site, landing page),
+// so a signup can be credited to the right person and channel. first touch wins; nothing personal is stored.
+function withAttribution(req: NextRequest, res: NextResponse) {
+  if (req.method !== "GET" || req.nextUrl.pathname.startsWith("/api/")) return res;
+  const q = req.nextUrl.searchParams;
+  const ref = q.get("ref");
+  const opts = { path: "/", maxAge: 60 * 86400, sameSite: "lax" as const, secure: true };
+  if (ref && /^[a-z0-9]{4,16}$/i.test(ref)) res.cookies.set("iv_ref", ref.toLowerCase(), opts);
+  if (!req.cookies.get("iv_src")) {
+    const referrer = req.headers.get("referer");
+    let host = "";
+    try {
+      host = referrer ? new URL(referrer).hostname : "";
+    } catch {}
+    if (host === req.nextUrl.hostname) host = "";
+    const src: Record<string, string> = { landing: req.nextUrl.pathname.slice(0, 120), at: new Date().toISOString().slice(0, 10) };
+    for (const k of ["utm_source", "utm_medium", "utm_campaign"]) {
+      const v = q.get(k);
+      if (v) src[k] = v.slice(0, 60);
+    }
+    if (host) src.referrer = host.slice(0, 80);
+    res.cookies.set("iv_src", JSON.stringify(src), opts);
   }
   return res;
 }

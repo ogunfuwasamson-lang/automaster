@@ -24,7 +24,8 @@ import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
 import { crawlForApply } from "@/lib/apply-crawl";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
-import { askToPay, paymentNeeded } from "@/lib/billing";
+import { askToPay, paymentNeeded, spendBonusIfUsed } from "@/lib/billing";
+import { rewardInviter } from "@/lib/referrals";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
@@ -366,8 +367,13 @@ async function learnFromSubmission(userId: string, applicationId: string, progra
 }
 
 // once something goes in: a scholarship is marked applied; a program gets its school's separate scholarship forms checked
-export async function afterSubmitted(userId: string, applicationId: string) {
+export async function afterSubmitted(userId: string, applicationId: string, opts: { byAgents?: boolean } = {}) {
   const db = admin();
+  // invite credits only count for submissions the agents made, not ones the applicant marked as sent themselves
+  if (opts.byAgents !== false) {
+    await spendBonusIfUsed(userId, applicationId).catch(() => {});
+    await rewardInviter(userId).catch(() => {});
+  }
   await db.from("user_funding").update({ status: "applied" }).eq("user_id", userId).eq("application_id", applicationId);
   const { data } = await db.from("applications").select("programs(degree)").eq("id", applicationId).maybeSingle();
   if ((data?.programs as unknown as { degree?: string } | null)?.degree === "Scholarship") return;

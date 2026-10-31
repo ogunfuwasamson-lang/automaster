@@ -49,7 +49,7 @@ Other destinations changed too:
 
 ## How Ivyward helps
 
-Ivyward was built in Lagos with African applicants in mind. In Africa, preparing applications is free and each submission costs the local equivalent of ₦2,500. The agents shortlist programs and scholarships you're eligible for, factor in current visa rules, draft and fact-check your essays, ask for fee waivers and fill in each portal. You review and sign everything.
+Ivyward is priced for African applicants: in Africa, preparing applications is free and each submission costs the local equivalent of ₦2,500. The agents shortlist programs and scholarships you're eligible for, factor in current visa rules, draft and fact-check your essays, ask for fee waivers and fill in each portal. You review and sign everything.
 `,
   faq: [
     ["Can Nigerians still study in the US in 2027?", "New US student visas for Nigerian nationals have been partially suspended since 1 January 2026, though students already holding valid F-1 or J-1 visas are not affected. Check the US Mission in Nigeria's current guidance before applying."],

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { COUNTRY_NOTES, UNIVERSITIES, university } from "@/content/universities";
 import { scholarship } from "@/content";
 import { ArticleJsonLd, Script } from "@/components/seo/json-ld";
+import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 import { SITE } from "@/lib/site";
 
@@ -125,6 +126,7 @@ export default async function UniversityPage({ params }: { params: Promise<{ slu
           body={`The agents find the right ${u.short} program portal, create your account, fill in every page, upload your documents and ask for a fee waiver first. You review and sign before anything is submitted.`}
         />
         <Faq items={faq} />
+        <ShareRow path={path} title={title(u.name)} />
         <p className="mt-10 text-[13.5px] leading-relaxed text-muted">Deadlines, fees and requirements differ by program and change each cycle. Confirm on {u.short}&apos;s official pages. Ivyward is not affiliated with {u.name}.</p>
         <Related items={peers} />
       </div>

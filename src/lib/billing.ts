@@ -56,8 +56,29 @@ export async function requestPaymentNeeded(userId: string, messageId: string): P
   return { kind: "pro", label: b.pricing.label, note: `your ${FREE_APPLICATIONS} free sends are used. Subscribe (${b.pricing.label}) to send this request` };
 }
 
-// may this application be submitted without paying first?
+// may this application be submitted without paying first? a free submission earned through an invite covers one
+// that would otherwise need paying for; it's spent when the application is actually submitted (spendBonusIfUsed).
 export async function paymentNeeded(userId: string, applicationId: string): Promise<PaymentNeed> {
+  const need = await needBeforeBonus(userId, applicationId);
+  if (need && need.kind !== "limit" && (await bonusLeft(userId)) > 0) return null;
+  return need;
+}
+
+async function bonusLeft(userId: string): Promise<number> {
+  const { data, error } = await admin().from("profiles").select("bonus_submissions").eq("id", userId).maybeSingle();
+  return error ? 0 : (data?.bonus_submissions ?? 0);
+}
+
+// after a submission: if it went through on a free submission, use it up and mark the application paid
+export async function spendBonusIfUsed(userId: string, applicationId: string) {
+  const need = await needBeforeBonus(userId, applicationId);
+  if (!need || need.kind === "limit") return;
+  const db = admin();
+  const { data: ok } = await db.rpc("use_bonus_submission", { uid: userId });
+  if (ok) await db.from("applications").update({ paid_at: new Date().toISOString() }).eq("id", applicationId).is("paid_at", null);
+}
+
+async function needBeforeBonus(userId: string, applicationId: string): Promise<PaymentNeed> {
   const b = await billingState(userId);
   if (b.exempt) return null;
   const db = admin();

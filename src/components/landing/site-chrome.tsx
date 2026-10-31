@@ -107,6 +107,12 @@ export function SiteFooter() {
           <Link href="/glossary" className="block text-muted hover:text-foreground">
             Glossary
           </Link>
+          <Link href="/alerts" className="block text-muted hover:text-foreground">
+            Deadline alerts
+          </Link>
+          <Link href="/ambassadors" className="block text-muted hover:text-foreground">
+            Become an ambassador
+          </Link>
           <Link href="/about" className="block text-muted hover:text-foreground">
             About Ivyward
           </Link>
