@@ -47,6 +47,13 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
     await notify({ userId, key: "setup:details", kind: "setup", urgent: true, title: "Fill in your form details", body: `Every portal asks for these: ${blank.map((f) => f.label).join(", ")}.`, href: "/profile?tab=details&setup=1", actionLabel: "Fill in details" });
   } else await resolve(userId, "setup:details");
 
+  // without gmail the agents can't read school replies or act on them: say how to fix it, and the fallback
+  const { data: mail } = await db.from("mail_accounts").select("status").eq("user_id", userId).maybeSingle();
+  if (mail?.status !== "active") {
+    missing.push("gmail");
+    await notify({ userId, key: "setup:gmail", kind: "setup", title: "Connect Gmail so the agents can act on school emails", body: "They register you for webinars that unlock fee waivers, claim waivers, read verification codes and tell you when a school replies. No Gmail? Paste a school's email in Messages and they'll do the same.", href: "/settings", actionLabel: "Connect Gmail" });
+  } else await resolve(userId, "setup:gmail");
+
   const gaps = profileGaps(profile).length;
   if (gaps) {
     missing.push("interview");

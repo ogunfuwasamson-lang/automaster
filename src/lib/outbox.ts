@@ -4,13 +4,15 @@ import { guard } from "@/lib/guard";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { MailAuthError, gmailConfigured, mailAccount, sendAs } from "@/lib/gmail";
 import { isEmail } from "@/lib/mime";
+import { requestPaymentNeeded, type PaymentNeed } from "@/lib/billing";
+import { notify } from "@/lib/notify";
 
 // the outbox. a message goes draft -> scheduled (undo window) -> sent.
 // user-approved sends get a short undo window; agent-initiated ones go through the dial (email.new_contact).
 
 const USER_UNDO_SECONDS = 60;
 
-type Result = { ok: true; sendAt: string } | { ok: false; reason: string; needsApproval?: boolean };
+type Result = { ok: true; sendAt: string } | { ok: false; reason: string; needsApproval?: boolean; payment?: NonNullable<PaymentNeed> };
 
 async function messageRow(userId: string, messageId: string) {
   const { data } = await admin()
@@ -43,6 +45,12 @@ export async function schedule(userId: string, messageId: string, by: "user" | "
   if (!gmailConfigured()) return { ok: false, reason: "email sending isn't set up on this server yet" };
   const acct = await mailAccount(userId);
   if (!acct || acct.status !== "active") return { ok: false, reason: "connect your gmail to send from here" };
+  const pay = await requestPaymentNeeded(userId, messageId).catch(() => null);
+  if (pay) {
+    if (by === "agent")
+      await notify({ userId, key: `payreq:${messageId}`, kind: "setup", title: pay.kind === "request" ? `A funding request is ready: pay ${pay.label} to send it` : "A funding request is ready: subscribe to send it", body: `"${m.subject ?? "Funding request"}" is drafted and checked. It goes out as soon as it's paid for.`, href: `/messages?m=${messageId}`, actionLabel: pay.kind === "request" ? `Pay ${pay.label}` : "Subscribe" }).catch(() => null);
+    return { ok: false, reason: pay.note, payment: pay };
+  }
 
   let undo = USER_UNDO_SECONDS;
   if (by === "agent") {

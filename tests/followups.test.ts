@@ -26,3 +26,18 @@ describe("follow-ups from school emails", () => {
     expect(t.split("\r\n").every((l) => l.length <= 75)).toBe(true);
   });
 });
+
+import { eventBody, eventId } from "@/lib/gcal";
+describe("google calendar events", () => {
+  it("uses an event id google accepts, the same every time", () => {
+    const id = eventId("abc12345-webinar-1730000000");
+    expect(id).toMatch(/^[a-v0-9]{5,1024}$/);
+    expect(eventId("abc12345-webinar-1730000000")).toBe(id);
+  });
+  it("builds the event with reminders and the link", () => {
+    const b = eventBody({ uid: "x1", title: "Brandeis webinar", start: new Date("2026-11-05T17:00:00Z"), end: new Date("2026-11-05T18:00:00Z"), url: "https://brandeis.zoom.us/w/1", description: "Registered for you" });
+    expect(b.start.dateTime).toBe("2026-11-05T17:00:00.000Z");
+    expect(b.description).toContain("https://brandeis.zoom.us/w/1");
+    expect(b.reminders.overrides).toHaveLength(2);
+  });
+});

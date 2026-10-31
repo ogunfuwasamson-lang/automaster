@@ -29,6 +29,18 @@ const Body = z.discriminatedUnion("op", [
   z.object({ op: z.literal("progress"), application: z.string().uuid(), note: z.string().max(300) }),
   z.object({ op: z.literal("decide"), application: z.string().uuid(), fields: z.array(Field).max(60), page: z.object({ url: z.string().max(2000), title: z.string().max(300), body: z.string().max(4000) }) }),
   z.object({ op: z.literal("reset_link"), application: z.string().uuid(), host: z.string().max(253), since: z.number() }),
+  z.object({
+    op: z.literal("see"),
+    application: z.string().uuid(),
+    host: z.string().max(253),
+    image: z.string().max(3_000_000), // base64 jpeg
+    goal: z.string().max(400),
+    url: z.string().max(2000),
+    history: z.array(z.string().max(200)).max(12),
+    empty: z.array(z.string().max(200)).max(30),
+    marks: z.array(z.object({ n: z.number(), type: z.string().max(30), label: z.string().max(200), value: z.string().max(200), x: z.number(), y: z.number(), w: z.number(), h: z.number() })).max(120),
+    goalJob: z.string().max(400).optional(),
+  }),
   z.object({ op: z.literal("rotate"), application: z.string().uuid(), host: z.string().max(253) }),
   z.object({ op: z.literal("save"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional() }),
   z.object({ op: z.literal("finish"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional(), filled: z.number().int().min(0).max(5000).optional(), host: z.string().max(253).optional(), outcome: Outcome }),
@@ -111,6 +123,11 @@ export async function POST(req: NextRequest) {
   if (b.op === "fill_key") return NextResponse.json({ fill: deps.fillFromKey!(b.field, b.key) });
   if (b.op === "decide") return NextResponse.json({ fills: await deps.decide!(b.fields, b.page).catch(() => []) });
   if (b.op === "reset_link") return NextResponse.json({ link: deps.resetLink ? await deps.resetLink(b.since).catch(() => null) : null });
+  if (b.op === "see") {
+    const image = Buffer.from(b.image, "base64");
+    const action = deps.see ? await deps.see({ image: new Uint8Array(image), goal: b.goal, url: b.url, history: b.history, empty: b.empty, marks: b.marks, files: deps.files?.() ?? [] }).catch(() => null) : null;
+    return NextResponse.json({ action, value: action?.action === "type" && action.sheet_key ? (deps.sheetValue?.(action.sheet_key) ?? null) : null });
+  }
   if (b.op === "rotate") return NextResponse.json({ login: await deps.rotatePassword!() });
 
   // finish: one run of the engine in chrome ended

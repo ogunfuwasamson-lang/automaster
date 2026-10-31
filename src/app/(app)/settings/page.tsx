@@ -2,11 +2,12 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
-import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard, DeleteAccount } from "./controls";
+import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard, DeleteAccount, CalendarCard } from "./controls";
 import type { GrantMode } from "@/lib/policy";
 import { PlanCard } from "@/components/billing/pay";
 import { billingState, confirmReturn } from "@/lib/billing";
 import { bachsReady } from "@/lib/bachs";
+import { calendarAccount, gcalReady } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -23,12 +24,12 @@ function Group({ title, description, children }: { title: string; description?: 
   );
 }
 
-export default async function Settings({ searchParams }: { searchParams: Promise<{ mail?: string; paid?: string }> }) {
+export default async function Settings({ searchParams }: { searchParams: Promise<{ mail?: string; paid?: string; calendar?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
   const uid = auth.user.id;
   const db = admin();
-  const { mail, paid } = await searchParams;
+  const { mail, paid, calendar } = await searchParams;
   // back from a Bachs checkout: confirm it now rather than waiting for the webhook
   if (paid) await confirmReturn(uid, paid).catch(() => null);
   const bill = await billingState(uid);
@@ -50,6 +51,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
       <Group title="Gmail" description="Lets the agents email as you and read what schools send back.">
         <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} via={composioMail() ? "composio" : "google"} />
+      </Group>
+
+      <Group title="Calendar" description="Where webinars, deadlines and interviews land.">
+        <CalendarCard available={gcalReady()} connected={!!(await calendarAccount(uid).catch(() => null))} notice={calendar ?? null} />
       </Group>
 
       <Group title="Autonomy" description="Choose what happens without asking. Signing and new claims about you always come to you.">

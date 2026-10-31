@@ -1,3 +1,4 @@
+import { confirmReturn } from "@/lib/billing";
 import { Mail } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
@@ -6,6 +7,7 @@ import { PageHeader, Empty } from "@/components/ui/page";
 import { ButtonLink } from "@/components/ui/button";
 import { MessagesApp, type InboxMsg, type InboxThread, type SchoolDetail } from "./inbox";
 import { describe } from "@/lib/activity";
+import { PasteEmail } from "./paste-email";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Messages" };
@@ -23,10 +25,12 @@ type Row = {
   messages: Partial<InboxMsg>[];
 };
 
-export default async function Messages({ searchParams }: { searchParams: Promise<{ t?: string }> }) {
+export default async function Messages({ searchParams }: { searchParams: Promise<{ t?: string; paid?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
-  const { t } = await searchParams;
+  const { t, paid } = await searchParams;
+  // back from paying for a funding request: confirm it now, which also sends it
+  if (paid) await confirmReturn(auth.user.id, paid).catch(() => null);
   // the inbox migration adds sender, summary and read state; until it runs, read without them
   const rich = await auth.sb.from("threads").select(THREAD(RICH)).order("created_at", { ascending: false }).limit(300);
   const res = rich.error ? await auth.sb.from("threads").select(THREAD(BASE)).order("created_at", { ascending: false }).limit(300) : rich;
@@ -88,6 +92,8 @@ export default async function Messages({ searchParams }: { searchParams: Promise
     const lastMsg = g.messages[g.messages.length - 1];
     return { ...g, id: g.threadIds[0], replyThreadId: lastMsg.threadId, subject: lastMsg.subject ?? g.subject };
   });
+  const { data: appRows } = await auth.sb.from("applications").select("id, programs(schools(name))").not("status", "in", "(dropped,withdrawn)").limit(60);
+  const schoolList = [...new Map((appRows ?? []).map((a) => [a.id, { id: a.id as string, name: (a.programs as unknown as { schools: { name: string } }).schools.name }])).values()].sort((a, b) => a.name.localeCompare(b.name));
   const openId = t ? threads.find((x) => x.threadIds.includes(t))?.id ?? null : null;
 
   // the panel beside a conversation: where the application with that school stands, what the agents are doing
@@ -129,7 +135,12 @@ export default async function Messages({ searchParams }: { searchParams: Promise
       <PageHeader
         title="Messages"
         description={acct?.email && canSend ? `Sent from ${acct.email}` : "Emails to and from your schools"}
-        actions={!canSend ? <ButtonLink href="/settings" variant="accent"><Mail className="size-4" aria-hidden /> Connect Gmail</ButtonLink> : undefined}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <PasteEmail schools={schoolList} />
+            {!canSend ? <ButtonLink href="/settings" variant="accent"><Mail className="size-4" aria-hidden /> Connect Gmail</ButtonLink> : null}
+          </div>
+        }
       />
       {threads.length ? (
         <MessagesApp threads={threads} initialId={openId} canSend={canSend} email={acct?.email ?? null} details={details} />

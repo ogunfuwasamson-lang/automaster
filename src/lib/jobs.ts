@@ -4,6 +4,7 @@ import { logEvent } from "@/lib/events";
 import { HANDLERS } from "@/agents";
 import { nextMonthStartUTC } from "@/lib/pricing";
 import { shortlistFinished } from "@/lib/kickoff";
+import { alert } from "@/lib/alerts";
 
 export { enqueue } from "@/lib/queue";
 export type { Job } from "@/lib/queue";
@@ -93,6 +94,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         context: { jobId: job.id, agent: job.agent, task: job.task, error: msg },
       });
       if (job.agent === "recon" && job.task !== "scholarships") await shortlistFinished(job.user_id).catch(() => {});
+      await alert(`job:${job.agent}.${job.task}:${msg.slice(0, 50)}`, `${job.agent}.${job.task} failed for good`, { user: job.user_id, job: job.id, attempts: job.attempts, error: msg }).catch(() => false);
     }
     return { id: job.id, ok: false, error: msg };
   }

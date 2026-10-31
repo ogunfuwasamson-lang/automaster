@@ -7,6 +7,7 @@ import { SiteFooter, SiteHeader } from "@/components/landing/site-chrome";
 import { BreadcrumbJsonLd, SiteJsonLd } from "@/components/seo/json-ld";
 import { requireUser } from "@/lib/supabase/server";
 import { pricingFor } from "@/lib/geo-pricing";
+import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -50,7 +51,7 @@ function Card({ title, price, per, note, items, cta, featured }: { title: string
 
 export default async function Pricing() {
   const signedIn = !!(await requireUser().catch(() => null));
-  const p = pricingFor((await headers()).get("x-vercel-ip-country"));
+  const p = pricingFor((await headers()).get("x-vercel-ip-country"), await submissionAmounts().catch(() => null));
   const where = NAMES[p.country] ?? null;
   return (
     <div className="relative min-h-dvh overflow-x-clip">

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleCheck, Mail, Puzzle, TriangleAlert } from "lucide-react";
+import { CalendarDays, CircleCheck, Mail, Puzzle, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { CAPABILITY_LABEL, MODE_LABEL, USER_SETTABLE } from "@/lib/dial";
 import type { GrantMode } from "@/lib/policy";
@@ -274,6 +274,59 @@ export function DeleteAccount({ email }: { email: string }) {
           window.location.assign("/?deleted=1");
         }}
       />
+    </div>
+  );
+}
+
+export function CalendarCard({ available, connected, notice }: { available: boolean; connected: boolean; notice: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const NOTICE: Record<string, [string, "go" | "stop"]> = {
+    connected: ["Google Calendar connected. Webinars, deadlines and interviews now go straight onto it.", "go"],
+    declined: ["You cancelled on Google's screen, so nothing was connected.", "stop"],
+    expired: ["That link expired. Try again.", "stop"],
+    error: ["Couldn't connect Google Calendar. Try again.", "stop"],
+    unavailable: ["Google Calendar isn't switched on for this app yet.", "stop"],
+  };
+  const n = notice ? NOTICE[notice] : null;
+  return (
+    <div className="space-y-4">
+      {n && <p className={`rounded-lg border px-3.5 py-2.5 text-sm ${n[1] === "go" ? "border-go/40 bg-go/8" : "border-stop/40 bg-stop/8"}`}>{n[0]}</p>}
+      {connected ? (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-full bg-go/10 text-go">
+              <CircleCheck className="size-5" aria-hidden />
+            </span>
+            <span className="text-sm font-medium">Google Calendar connected</span>
+          </div>
+          <p className="text-sm text-muted">Events the agents set up are added to your main calendar, with a reminder the day before and an hour before. They never change or remove your own events.</p>
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await post("/api/calendar/disconnect").catch(() => {});
+              toast.success("Google Calendar disconnected");
+              setBusy(false);
+              router.refresh();
+            }}
+          >
+            Disconnect
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm">Webinars the agents register you for, deadlines and interviews go on your calendar. Without a connection they arrive as email invites you accept; connect Google Calendar and they appear on it directly.</p>
+          {available ? (
+            <ButtonLink href="/api/calendar/connect" variant="secondary">
+              <CalendarDays className="size-4" aria-hidden /> Connect Google Calendar
+            </ButtonLink>
+          ) : (
+            <p className="text-xs text-muted">Direct connection isn&apos;t switched on yet, so invites come by email.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function Privacy() {
           <li>Your applications: shortlisted programs, essays and drafts, the packets you approve and sign, and a log of everything the agents do for you.</li>
           <li>Portal logins the agents create for you, encrypted at rest. You can see them under Portal logins.</li>
           <li>Emails between you and schools, when you connect Gmail, and what the agents did about them (event registrations, waiver requests, reminders).</li>
-          <li>Documents you choose to upload, including a passport copy if you add one: it's kept private and only uploaded to portals that ask for it.</li>
+          <li>Documents you choose to upload, including a passport copy if you add one: it&apos;s kept private and only uploaded to portals that ask for it.</li>
           <li>Your country, worked out from your connection when you first sign in, to show prices in your currency. Payment records: amount, date and reference, never card details.</li>
         </ul>
       </section>

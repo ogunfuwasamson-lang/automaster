@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { disconnect } from "@/lib/gmail";
+import { disconnectCalendar } from "@/lib/gcal";
 
 // delete the account for good. order: stop the agents, revoke gmail, remove uploaded files, then delete the
 // sign-in itself — every table hangs off it with on delete cascade, so the rest goes with it.
@@ -15,6 +16,7 @@ export async function DELETE(req: NextRequest) {
 
   await db.from("jobs").update({ status: "cancelled", last_error: "account deleted" }).eq("user_id", uid).in("status", ["queued", "running"]);
   await disconnect(uid).catch(() => {});
+  await disconnectCalendar(uid).catch(() => {});
 
   // documents live under <user_id>/<document_id>/<file>; list two levels and remove everything
   const bucket = db.storage.from("documents");

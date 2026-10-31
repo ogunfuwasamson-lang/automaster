@@ -86,6 +86,9 @@ const sheets = new Map<string, { files: { key: string; url: string; filename: st
 function deps(taskId: string, start: { canReadMail: boolean; accountEmail: string }, tabId: number): EngineDeps {
   const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
   let lastNote = "";
+  const typed = new Map<string, string>();
+  // the document keys, for the screenshot steps' upload choices
+  if (!sheets.has(taskId)) apiJson(`/api/runner/sheet?application=${taskId}`).then((d) => sheets.set(taskId, d)).catch(() => {});
   // paused or cancelled in Ivyward: stop between steps
   let stop = false;
   let checkedAt = 0;
@@ -125,6 +128,16 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 4000) } })).fills ?? [],
     resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : undefined,
     rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
+    // screenshot steps: the picture goes to Ivyward, which picks the move (and the value to type, from the fill sheet)
+    see: async (v) => {
+      let bin = "";
+      for (let i = 0; i < v.image.length; i += 0x8000) bin += String.fromCharCode.apply(null, Array.from(v.image.subarray(i, i + 0x8000)));
+      const r = await eng(taskId, "see", { host: await host(), image: btoa(bin), goal: v.goal.slice(0, 400), url: v.url.slice(0, 2000), history: v.history.slice(-12).map((h) => h.slice(0, 200)), empty: v.empty.slice(0, 30).map((e) => e.slice(0, 200)), marks: v.marks.slice(0, 120).map((m) => ({ ...m, type: m.type.slice(0, 30), label: m.label.slice(0, 200), value: m.value.slice(0, 200) })) });
+      if (r.action?.sheet_key && typeof r.value === "string") typed.set(r.action.sheet_key, r.value);
+      return r.action ?? null;
+    },
+    sheetValue: (key) => typed.get(key) ?? null,
+    files: () => sheets.get(taskId)?.files.map((f) => f.key) ?? [],
     progress: async (note) => {
       if (note === lastNote) return;
       lastNote = note;

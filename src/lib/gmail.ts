@@ -21,7 +21,7 @@ export function gmailConfigured(): boolean {
 
 // ---- composio ----
 const CX = "https://backend.composio.dev/api/v3.1";
-async function cx<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function cx<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const res = await fetch(`${CX}${path}`, {
     method: init?.method ?? "GET",
     headers: { "x-api-key": process.env.COMPOSIO_API_KEY!, "content-type": "application/json" },
@@ -35,7 +35,7 @@ async function cx<T>(path: string, init?: { method?: string; body?: unknown }): 
   }
   return json;
 }
-type CxAccount = { id: string; status: string; user_id?: string; auth_config?: { id?: string } };
+export type CxAccount = { id: string; status: string; user_id?: string; auth_config?: { id?: string } };
 
 // a composio connect link for this applicant. if they already have an active gmail connection there (say they
 // disconnected here but composio kept it), reuse it instead of asking google again.
@@ -70,7 +70,7 @@ export async function connectComposio(userId: string, accountId: string) {
 }
 
 // user_id is required alongside the connection: composio checks the connection belongs to that user
-async function proxy(userId: string, accountId: string, url: string, method: "GET" | "POST", body?: unknown): Promise<{ status: number; data: unknown }> {
+export async function proxy(userId: string, accountId: string, url: string, method: "GET" | "POST", body?: unknown): Promise<{ status: number; data: unknown }> {
   const r = await cx<{ status: number; data?: unknown }>("/tools/execute/proxy", { method: "POST", body: { connected_account_id: accountId, user_id: userId, endpoint: url, method, ...(body === undefined ? {} : { body }) } });
   return { status: r.status, data: r.data };
 }

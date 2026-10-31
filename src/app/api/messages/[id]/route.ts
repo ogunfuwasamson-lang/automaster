@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   if (b.action === "send") {
     const r = await schedule(uid, id, "user");
-    return r.ok ? NextResponse.json({ ok: true, sendAt: r.sendAt }) : NextResponse.json({ error: r.reason }, { status: 400 });
+    return r.ok ? NextResponse.json({ ok: true, sendAt: r.sendAt }) : NextResponse.json({ error: r.reason, payment: r.payment ?? null }, { status: r.payment ? 402 : 400 });
   }
   if (b.action === "cancel") {
     return (await cancel(uid, id)) ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "too late: it already went out" }, { status: 409 });

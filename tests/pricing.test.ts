@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { costOf, budgetCheck, categoryOf, monthStartUTC, nextMonthStartUTC } from "@/lib/pricing";
 import { BUDGET_PER_SUBMISSION_USD, PLANS, planOf } from "@/lib/plans";
-import { pricingFor } from "@/lib/geo-pricing";
+import { friendlyAmount, pricingFor } from "@/lib/geo-pricing";
 
 describe("costOf", () => {
   it("prices sonnet", () => {
@@ -62,6 +62,16 @@ describe("plans", () => {
 });
 
 describe("prices by country", () => {
+  it("rounds converted prices like a price tag", () => {
+    expect(friendlyAmount(1.86)).toBe("1.90");
+    expect(friendlyAmount(21.58)).toBe("22.00");
+    expect(friendlyAmount(241.5)).toBe("240.00");
+    expect(friendlyAmount(7960)).toBe("8000.00");
+    expect(friendlyAmount(10917)).toBe("11000.00");
+  });
+  it("uses the refreshed amounts when they're passed in", () => {
+    expect(pricingFor("GH", { GHS: "23.00" })).toMatchObject({ amount: "23.00", label: "GH₵23" });
+  });
   it("charges africa per submission in its own currency, the equivalent of ₦2,500", () => {
     expect(pricingFor("NG")).toMatchObject({ model: "per_submission", currency: "NGN", amount: "2500.00", label: "₦2,500" });
     expect(pricingFor("ke")).toMatchObject({ model: "per_submission", currency: "KES" });

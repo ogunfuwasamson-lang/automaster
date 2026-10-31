@@ -3,8 +3,9 @@ import { admin } from "@/lib/supabase/admin";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
 import { emailHtml } from "@/lib/email-layout";
 import { appUrl } from "@/lib/gmail";
+import { addToCalendar } from "@/lib/gcal";
 
-// calendar invites: a standard .ics invitation emailed to the applicant. Gmail and Google Calendar put it straight
+// calendar invites: straight onto a connected google calendar (gcal.ts), or else a standard .ics invitation emailed to the applicant. Gmail and Google Calendar put it straight
 // on the calendar (and Outlook and Apple Calendar do the same), so nothing extra has to be connected.
 
 export interface CalEvent {
@@ -66,6 +67,8 @@ export function ics(e: CalEvent, attendee: string): string {
 
 // email the invite to the applicant's sign-in address. returns false when email isn't set up.
 export async function sendInvite(userId: string, e: CalEvent, why?: string | null): Promise<boolean> {
+  // a connected google calendar takes it directly; no email needed
+  if (await addToCalendar(userId, e).catch(() => false)) return true;
   if (!systemMailReady()) return false;
   const { data } = await admin().auth.admin.getUserById(userId);
   const to = data.user?.email;

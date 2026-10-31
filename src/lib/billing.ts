@@ -6,6 +6,7 @@ import { notify, resolve } from "@/lib/notify";
 import { bachs, type CheckoutSession } from "@/lib/bachs";
 import { FREE_APPLICATIONS, PRO_MONTHLY, PRO_MONTHLY_SUBMISSIONS, SUBMISSION_PRICE, pricingFor, type Pricing } from "@/lib/geo-pricing";
 import { planOf } from "@/lib/plans";
+import { submissionAmounts } from "@/lib/fx";
 
 // who pays what, and recording it when they do. the agents check paymentNeeded() before pressing submit.
 
@@ -24,7 +25,7 @@ export async function billingState(userId: string): Promise<BillingState> {
   const { data, error } = await admin().from("profiles").select("plan, plan_until, plan_cancelled_at, billing_country, bachs_customer, is_admin").eq("id", userId).maybeSingle();
   if (error || !data) return { pricing: pricingFor(null), pro: false, planUntil: null, cancelled: false, customer: null, exempt: false };
   return {
-    pricing: pricingFor(data.billing_country),
+    pricing: pricingFor(data.billing_country, await submissionAmounts().catch(() => null)),
     pro: planOf(data.plan, data.plan_until).id === "pro",
     planUntil: data.plan_until,
     cancelled: !!data.plan_cancelled_at,
@@ -33,7 +34,27 @@ export async function billingState(userId: string): Promise<BillingState> {
   };
 }
 
-export type PaymentNeed = { kind: "submission" | "pro" | "limit"; label: string; note: string; resumeAt?: string } | null;
+export type PaymentNeed = { kind: "submission" | "pro" | "limit" | "request"; label: string; note: string; resumeAt?: string } | null;
+
+// outgoing emails that ask a school for money: charged like a submission
+export const FUNDING_PURPOSES = ["fee_waiver", "aid_reconsideration", "assistantship_inquiry", "scholarship_inquiry"];
+
+// may this funding request go out without paying first? pro covers them; the free allowance counts them with applications.
+export async function requestPaymentNeeded(userId: string, messageId: string): Promise<PaymentNeed> {
+  const db = admin();
+  const { data: m, error } = await db.from("messages").select("id, purpose, paid_at").eq("id", messageId).eq("user_id", userId).maybeSingle();
+  if (error || !m) return null; // before the ops migration: nothing is charged
+  if (!FUNDING_PURPOSES.includes(m.purpose as string) || m.paid_at) return null;
+  const b = await billingState(userId);
+  if (b.exempt || b.pro) return null;
+  if (b.pricing.model === "per_submission") return { kind: "request", label: b.pricing.label, note: `pay ${b.pricing.label} to send this request` };
+  const [{ count: apps }, { count: reqs }] = await Promise.all([
+    db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).or(`status.in.(${SENT.join(",")}),paid_at.not.is.null`),
+    db.from("messages").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("direction", "out").neq("id", messageId).in("purpose", FUNDING_PURPOSES).in("status", ["sent", "scheduled"]),
+  ]);
+  if ((apps ?? 0) + (reqs ?? 0) < FREE_APPLICATIONS) return null;
+  return { kind: "pro", label: b.pricing.label, note: `your ${FREE_APPLICATIONS} free sends are used. Subscribe (${b.pricing.label}) to send this request` };
+}
 
 // may this application be submitted without paying first?
 export async function paymentNeeded(userId: string, applicationId: string): Promise<PaymentNeed> {
@@ -76,16 +97,16 @@ async function proProduct(): Promise<string> {
 }
 
 // a Bachs checkout page for one submission or the monthly plan
-export async function checkout(userId: string, email: string, kind: "submission" | "pro", returnUrl: string, applicationId?: string): Promise<string> {
+export async function checkout(userId: string, email: string, kind: "submission" | "pro" | "request", returnUrl: string, applicationId?: string, messageId?: string): Promise<string> {
   const b = await billingState(userId);
-  const ref = `ivw_${kind}_${(applicationId ?? userId).slice(0, 8)}_${Date.now().toString(36)}`;
-  const metadata = { user_id: userId, kind, ...(applicationId ? { application_id: applicationId } : {}) };
+  const ref = `ivw_${kind}_${(messageId ?? applicationId ?? userId).slice(0, 8)}_${Date.now().toString(36)}`;
+  const metadata = { user_id: userId, kind, ...(applicationId ? { application_id: applicationId } : {}), ...(messageId ? { message_id: messageId } : {}) };
   const success = `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}paid=${ref}`;
   const body =
-    kind === "submission"
+    kind !== "pro"
       ? (() => {
           const currency = b.pricing.model === "per_submission" ? b.pricing.currency : "USD";
-          const amount = SUBMISSION_PRICE[currency]?.amount ?? SUBMISSION_PRICE.USD.amount;
+          const amount = b.pricing.model === "per_submission" ? b.pricing.amount : SUBMISSION_PRICE.USD.amount;
           return { pricing: { currency, amount }, billing_currency: currency, customer: { email }, success_url: success, cancel_url: returnUrl, reference: ref, metadata };
         })()
       : { product_cart: [{ product_id: await proProduct(), quantity: 1 }], billing_currency: "USD", customer: b.customer ? { customer_id: b.customer } : { email }, success_url: success, cancel_url: returnUrl, reference: ref, metadata };
@@ -97,7 +118,7 @@ export async function checkout(userId: string, email: string, kind: "submission"
 
 // the applicant came back from checkout: confirm with Bachs and apply it now
 export async function confirmReturn(userId: string, ref: string): Promise<{ applied: boolean; kind?: string }> {
-  if (!/^ivw_(submission|pro)_[\w]+$/.test(ref)) return { applied: false };
+  if (!/^ivw_(submission|pro|request)_[\w]+$/.test(ref)) return { applied: false };
   const db = admin();
   const { data } = await db.from("billing_settings").select("value").eq("key", `pending:${ref}`).maybeSingle();
   if (!data?.value) return { applied: false };
@@ -131,16 +152,29 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   if (c.status !== "completed" && c.payment_status !== "paid") return { applied: false };
   const meta = c.metadata ?? {};
   const userId = meta.user_id;
-  if (!userId || (meta.kind !== "submission" && meta.kind !== "pro")) return { applied: false };
+  if (!userId || (meta.kind !== "submission" && meta.kind !== "pro" && meta.kind !== "request")) return { applied: false };
   const db = admin();
   const reference = c.checkout_id ?? c.reference ?? "";
   if (!reference) return { applied: false };
   // the amount must be a real price, so an edited checkout can't buy a submission for less
   const amt = Number(c.amount ?? 0);
-  if (meta.kind === "submission" && c.currency && SUBMISSION_PRICE[c.currency] && amt + 0.001 < Number(SUBMISSION_PRICE[c.currency].amount)) return { applied: false };
-  const { error: dup } = await db.from("billing_events").insert({ reference, user_id: userId, kind: meta.kind, application_id: meta.application_id ?? null, amount: amt || null, currency: c.currency ?? null, raw: c as unknown as object });
+  const amounts = await submissionAmounts().catch(() => ({}) as Record<string, string>);
+  const floor = c.currency ? Number(amounts[c.currency] ?? SUBMISSION_PRICE[c.currency]?.amount ?? 0) * 0.9 : 0; // 10% slack for a refresh mid-checkout
+  if ((meta.kind === "submission" || meta.kind === "request") && c.currency && amt + 0.001 < floor) return { applied: false };
+  const { error: dup } = await db.from("billing_events").insert({ reference, user_id: userId, kind: meta.kind, application_id: meta.application_id ?? null, ...(meta.message_id ? { message_id: meta.message_id } : {}), amount: amt || null, currency: c.currency ?? null, raw: c as unknown as object });
   if (dup) return { applied: false, kind: meta.kind };
   const customer = typeof c.customer === "string" ? c.customer : (c.customer?.id ?? c.customer?.customer_id ?? null);
+
+  if (meta.kind === "request" && meta.message_id) {
+    await db.from("messages").update({ paid_at: new Date().toISOString() }).eq("id", meta.message_id).eq("user_id", userId);
+    if (customer) await db.from("profiles").update({ bachs_customer: customer }).eq("id", userId);
+    await logEvent({ userId, actor: "user", action: "billing.request_paid", context: { messageId: meta.message_id, amount: amt, currency: c.currency } });
+    await resolve(userId, `payreq:${meta.message_id}`);
+    // they paid from the send button: send it now (with the usual undo window)
+    const { schedule } = await import("@/lib/outbox");
+    await schedule(userId, meta.message_id, "user").catch(() => null);
+    return { applied: true, kind: "request" };
+  }
 
   if (meta.kind === "submission" && meta.application_id) {
     await db.from("applications").update({ paid_at: new Date().toISOString() }).eq("id", meta.application_id).eq("user_id", userId);

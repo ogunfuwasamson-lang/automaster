@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/server";
 import { appUrl, connect, connectComposio } from "@/lib/gmail";
+import { resolve } from "@/lib/notify";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
   if (!state || state !== q.get("state") || (!ca && !q.get("code"))) return back("expired");
   try {
     const email = ca ? await connectComposio(auth.user.id, ca) : await connect(auth.user.id, q.get("code")!);
+    await resolve(auth.user.id, "setup:gmail").catch(() => {});
     await logEvent({ userId: auth.user.id, actor: "user", action: "mail.connected", channel: "email", context: { email } });
     await enqueue({ userId: auth.user.id, agent: "system", task: "inbox", idempotencyKey: `inbox:${auth.user.id}:connect:${Date.now()}` });
     return back("connected");

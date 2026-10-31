@@ -113,8 +113,39 @@ const long = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday:
 async function post(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error ?? "Something went wrong");
+  if (!res.ok) throw Object.assign(new Error(json.error ?? "Something went wrong"), { payment: json.payment ?? null });
   return json;
+}
+
+type Payment = { kind: "request" | "pro" | "submission" | "limit"; label: string; note: string };
+
+// a funding request waiting on payment: pay for it (or subscribe) and it sends straight after
+function PayToSend({ messageId, pay }: { messageId: string; pay: Payment }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-brand/30 bg-brand/5 p-3.5">
+      <p className="min-w-0 flex-1 text-[13.5px]">
+        {pay.kind === "request" ? `Funding requests are ${pay.label} each. Pay and it sends straight away.` : `Your free sends are used. Pro (${pay.label}) covers this request and every other one.`}
+      </p>
+      <Button
+        size="sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const j = await post("/api/billing/checkout", pay.kind === "request" ? { kind: "request", messageId } : { kind: "pro" });
+            window.location.assign(j.url);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
+            setBusy(false);
+          }
+        }}
+      >
+        {busy && <LoaderCircle className="size-3.5 animate-spin" />}
+        {pay.kind === "request" ? `Pay ${pay.label} and send` : "Subscribe"}
+      </Button>
+    </div>
+  );
 }
 
 const FILTERS = [
@@ -590,6 +621,7 @@ function DraftCard({ m, canSend, onChange }: { m: InboxMsg; canSend: boolean; on
   const [subject, setSubject] = useState(m.subject ?? "");
   const [body, setBody] = useState(m.body);
   const [busy, setBusy] = useState<string | null>(null);
+  const [pay, setPay] = useState<Payment | null>(null);
   const dirty = to !== (m.to_email ?? "") || subject !== (m.subject ?? "") || body !== m.body;
   const kind = m.purpose ? KIND[m.purpose] : null;
 
@@ -600,7 +632,9 @@ function DraftCard({ m, canSend, onChange }: { m: InboxMsg; canSend: boolean; on
       toast.success(ok);
       onChange();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't do that");
+      const p = (e as { payment?: Payment | null }).payment;
+      if (p) setPay(p);
+      else toast.error(e instanceof Error ? e.message : "Couldn't do that");
     }
     setBusy(null);
   }
@@ -655,6 +689,7 @@ function DraftCard({ m, canSend, onChange }: { m: InboxMsg; canSend: boolean; on
           <Trash2 className="size-3.5" aria-hidden /> Discard
         </Button>
       </div>
+      {pay && <PayToSend messageId={m.id} pay={pay} />}
     </article>
   );
 }
