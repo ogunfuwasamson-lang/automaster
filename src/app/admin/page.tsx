@@ -43,9 +43,10 @@ export default async function Admin() {
     perAgent.set(key, a);
   }
   const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
-  // pro is free: only season passes pay ($199 per six months, counted monthly)
-  const paying = (users ?? []).filter((u) => u.plan === "season");
-  const revenue = paying.length * (199 / 6);
+  // this month's payments in USD (local-currency submissions converted roughly from ₦2,500 ≈ $1.90)
+  const { data: pays } = await admin().from("billing_events").select("user_id, kind, amount, currency").gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString());
+  const paying = [...new Set((pays ?? []).map((p) => p.user_id))];
+  const revenue = (pays ?? []).reduce((s, p) => s + (p.currency === "USD" ? Number(p.amount) || 0 : p.kind === "submission" ? 1.9 : 0), 0);
   const $ = (n: number) => `$${n.toFixed(2)}`;
   const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 

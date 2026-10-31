@@ -11,6 +11,8 @@ import { SeasonSteps } from "@/components/landing/season-steps";
 import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
 import { SITE } from "@/lib/site";
+import { headers } from "next/headers";
+import { pricingFor } from "@/lib/geo-pricing";
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },
@@ -31,6 +33,8 @@ const CONTROL = [
 export default async function Home() {
   // signed in already: the header takes you back into the app instead of offering sign-in
   const signedIn = !!(await requireUser().catch(() => null));
+  // prices by where the visitor is (Vercel's country header): pay per submission in Africa, a monthly plan elsewhere
+  const price = pricingFor((await headers()).get("x-vercel-ip-country"));
   return (
     <div className="relative min-h-dvh overflow-x-clip">
       <SiteJsonLd faq={FAQ} />
@@ -63,7 +67,9 @@ export default async function Home() {
                     Start free <ArrowRight className="size-4" aria-hidden />
                   </button>
                 </div>
-                <p className="mt-2.5 text-[13px] text-muted">Free for up to 15 applications. No card needed. Nothing goes to a school until you sign.</p>
+                <p className="mt-2.5 text-[13px] text-muted">
+                  {price.model === "per_submission" ? `Free to prepare. ${price.label} only when an application is ready to submit.` : `Your first ${price.free} applications are free. No card needed.`} Nothing goes to a school until you sign.
+                </p>
               </form>
             </HeroIn>
           </div>

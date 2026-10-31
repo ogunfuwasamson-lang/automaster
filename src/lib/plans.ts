@@ -1,78 +1,36 @@
-// plans and their limits. the ai budget is the hard cost ceiling; the other limits keep
-// usage inside it and make the free tier useful but clearly limited.
-// prices are display values; billing (stripe / paystack) is wired separately.
+// plans and their limits. every applicant gets the whole product; what differs is how they pay (lib/geo-pricing)
+// and the monthly allowance of agent work (the ai budget, the hard cost ceiling).
+//   free: preparing applications. in africa each submission is paid for (and adds to the allowance); elsewhere
+//         the first 3 applications are free.
+//   pro:  $20 a month (outside africa): unlimited submissions and a bigger allowance. counts only while paid up.
 
-export type PlanId = "free" | "pro" | "season";
+export type PlanId = "free" | "pro";
 
 export interface Plan {
   id: PlanId;
   name: string;
-  priceLabel: string;
-  blurb: string;
   aiBudgetUsd: number; // per calendar month
   maxRegions: number;
   programsPerRun: number;
   recon_runs_per_month: number;
   maxActiveApplications: number; // applications being prepared or later
   maxDocuments: number;
-  features: string[];
 }
 
+const EVERYTHING = { maxRegions: 9, programsPerRun: 20, recon_runs_per_month: 6, maxActiveApplications: 40, maxDocuments: 60 };
+
 export const PLANS: Record<PlanId, Plan> = {
-  free: {
-    id: "free",
-    name: "free",
-    priceLabel: "$0",
-    blurb: "see what the agents find for you",
-    aiBudgetUsd: 1.5,
-    maxRegions: 1,
-    programsPerRun: 6,
-    recon_runs_per_month: 1,
-    maxActiveApplications: 1,
-    maxDocuments: 5,
-    features: [
-      "profile from your documents + voice interview",
-      "1 shortlist run: 6 programs in 1 region",
-      "scholarship matches",
-      "1 application with drafted essays and red-team review",
-    ],
-  },
-  pro: {
-    id: "pro",
-    name: "pro",
-    priceLabel: "Free",
-    blurb: "run your whole application season, free",
-    aiBudgetUsd: 25,
-    maxRegions: 9,
-    programsPerRun: 20,
-    recon_runs_per_month: 6,
-    maxActiveApplications: 15,
-    maxDocuments: 40,
-    features: [
-      "all regions, bachelor's, master's and PhD",
-      "up to 6 shortlist runs a month, 20 programs each",
-      "15 applications with essays, briefs and red-team review",
-      "fee-waiver and funding agent after admission",
-      "deadline tracking and the full audit log",
-    ],
-  },
-  season: {
-    id: "season",
-    name: "season pass",
-    priceLabel: "$199 / 6 months",
-    blurb: "everything in Pro, paid once for one admissions cycle",
-    aiBudgetUsd: 25,
-    maxRegions: 9,
-    programsPerRun: 20,
-    recon_runs_per_month: 6,
-    maxActiveApplications: 15,
-    maxDocuments: 40,
-    features: ["everything in Pro", "paid once for a full cycle (apply in autumn, decisions in spring)"],
-  },
+  free: { id: "free", name: "free", aiBudgetUsd: 7.5, ...EVERYTHING },
+  pro: { id: "pro", name: "pro", aiBudgetUsd: 15, ...EVERYTHING },
 };
 
-// pro is free for everyone: accounts on the old free tier (or none) get pro's limits
-export function planOf(id: string | null | undefined): Plan {
-  if (id === "season") return PLANS.season;
-  return PLANS.pro;
+// each paid submission in africa adds this much agent work to the month
+export const BUDGET_PER_SUBMISSION_USD = 1;
+
+// pro counts only while paid up (plan_until, pushed forward by each renewal). old "pro"/"season" accounts from when
+// everything was free have no date: they're free now (a season pass granted by hand keeps working without a date).
+export function planOf(id: string | null | undefined, until?: string | null, now = new Date()): Plan {
+  if (id === "pro" && until && Date.parse(until) > now.getTime()) return PLANS.pro;
+  if (id === "season") return PLANS.pro;
+  return PLANS.free;
 }

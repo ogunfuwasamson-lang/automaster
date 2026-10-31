@@ -11,6 +11,8 @@ import { PageInk } from "@/components/landing/page-ink";
 import { NotificationBell } from "@/components/notifications/bell";
 import { UserJot } from "@/components/support/userjot";
 import { createHmac } from "node:crypto";
+import { headers } from "next/headers";
+import { admin } from "@/lib/supabase/admin";
 
 // the signed-in app is private: keep it out of search results
 export const metadata = { robots: { index: false, follow: false } };
@@ -32,6 +34,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const noticeQ = await sb.from("notifications").select("id", { count: "exact", head: true }).is("resolved_at", null).is("read_at", null);
   const notices = noticeQ.error ? 0 : (noticeQ.count ?? 0);
   const paused = !!cords?.length;
+  // where they are decides how they pay: recorded once, from the first signed-in visit (Vercel's country header)
+  const country = (await headers()).get("x-vercel-ip-country");
+  if (country) {
+    const { data: bc, error: bcErr } = await admin().from("profiles").select("billing_country").eq("id", user.id).maybeSingle();
+    if (!bcErr && bc && !bc.billing_country) await admin().from("profiles").update({ billing_country: country.toUpperCase() }).eq("id", user.id);
+  }
   const name = loadProfile(prof?.profile).identity.full_name ?? "";
   const [firstName, ...rest] = name.split(/\s+/).filter(Boolean);
   // signed with the UserJot project secret so feedback is tied to this account without a second sign-in

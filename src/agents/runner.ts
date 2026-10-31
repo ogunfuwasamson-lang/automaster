@@ -21,6 +21,7 @@ import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
 import { crawlForApply } from "@/lib/apply-crawl";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
+import { askToPay, paymentNeeded } from "@/lib/billing";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
@@ -609,6 +610,16 @@ export const runner: Record<string, Handler> = {
         return { outcome: "moved_to_chrome", reason: outcome.reason, filled };
       }
 
+      // every page filled and the submit button in reach, waiting on payment: say so once, and wait for it
+      // (the payment restarts the agents straight away)
+      if (outcome.kind === "needs_you" && next.reachedSubmit) {
+        const need = await paymentNeeded(job.user_id, applicationId).catch(() => null);
+        if (need) {
+          await db.from("applications").update({ runner_state: { ...saved, reason: "unpaid", samePageCount: 0, rechecks: 0 }, runner_session_id: null, runner_status: "needs_you", runner_note: need.note.replace(/^ready to submit: /, "Ready to submit: "), runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
+          await askToPay(job.user_id, applicationId, need, sheet.school);
+          return { outcome: "waiting_for_payment" };
+        }
+      }
       if (outcome.kind === "needs_you" && outcome.reason === "question") await recordQuestions(job.user_id, applicationId, next.questions).catch(() => 0);
       // a portal that blocks cloud browsers and no Chrome connected yet: say how to fix it once
       if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason)) {

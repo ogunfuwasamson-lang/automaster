@@ -7,8 +7,8 @@ export const FAQ: [string, string][] = [
     "Ivyward is a web app where AI agents run your university applications for you. They build a shortlist of programs that fit you, draft and fact-check your essays from your own documents, fill in and submit each school's online application, and follow up on fee waivers, scholarships and funding. You review and sign everything before it goes to a school.",
   ],
   [
-    "Is Ivyward free?",
-    "Yes. The Pro plan is free: every region, up to 15 applications per cycle, essays and portal submission. If you'd rather pay once for the whole cycle, the Season pass is $199 for six months. Application fees go to schools directly, and the agents ask for fee waivers first.",
+    "How much does Ivyward cost?",
+    "Preparing is free: the shortlist, essays and portal work. In Africa you pay only when an application is ready to go: the local equivalent of ₦2,500 per submission, with no limit on how many. Everywhere else, your first 3 applications are free, then Pro is $20 a month for unlimited submissions. Application fees go to schools directly, and the agents ask for fee waivers first.",
   ],
   [
     "Which degrees and countries does it cover?",

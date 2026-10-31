@@ -108,8 +108,8 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
   return (
     <label className="flex cursor-pointer items-center justify-between gap-4">
       <span>
-        <span className="block text-sm font-medium">Morning digest at 7am</span>
-        <span className="block text-xs text-muted">On your home page, and in your inbox when Gmail is connected</span>
+        <span className="block text-sm font-medium">Daily note at 7am and a weekly report on Mondays</span>
+        <span className="block text-xs text-muted">On your home page and by email. Reminders and urgent notices still come through.</span>
       </span>
       <button
         type="button"

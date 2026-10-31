@@ -8,6 +8,7 @@ import { buildSheet, type FillSheet, type PortalDetails, type RecommenderRow, ty
 import { mapByRules, resolve, keyMenu, bestOption, type Fill, type PageField } from "@/lib/runner-map";
 import { runStructured } from "@/lib/llm";
 import { guard } from "@/lib/guard";
+import { paymentNeeded } from "@/lib/billing";
 import { textPdf } from "@/lib/pdf";
 
 // the extension authenticates with a personal key (Authorization: Bearer amr_...). we keep only its hash.
@@ -220,6 +221,9 @@ export async function submitDecision(userId: string, applicationId: string) {
   if (!app) return { allowed: false, reason: "application not found" };
   if (app.status !== "packet_approved") return { allowed: false, reason: app.status === "submitted" ? "already submitted" : "packet not approved" };
   if (!app.attested_at) return { allowed: false, reason: "approve the packet with the attestation first" };
+  // pay per submission (africa), or the monthly plan after the free applications (elsewhere)
+  const need = await paymentNeeded(userId, applicationId).catch(() => null);
+  if (need) return { allowed: false, reason: need.note.replace(/^ready to submit: /, ""), payment: need };
   const schoolId = (app.programs as unknown as { school_id: string }).school_id;
   const v = await guard(userId, "submit", { agent: "runner", schoolId, packetApproved: true });
   if (v.kind === "allow" || v.kind === "allow_with_undo") return { allowed: true, reason: "packet approved and attested" };

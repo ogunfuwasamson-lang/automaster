@@ -12,6 +12,8 @@ import { Milestones } from "./milestones";
 import { admin } from "@/lib/supabase/admin";
 import { RunnerPanel } from "./runner-panel";
 import { DeleteApplication } from "./delete-application";
+import { PayToSubmit } from "@/components/billing/pay";
+import { confirmReturn, paymentNeeded } from "@/lib/billing";
 import { loadSheet } from "@/lib/runner";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +52,13 @@ interface Art {
   artifact_versions: Version[];
 }
 
-export default async function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ApplicationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ pay?: string; paid?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
   const { id } = await params;
+  const sp = await searchParams;
+  // back from paying for this submission: confirm with Bachs now (the agents restart on it)
+  if (sp.paid) await confirmReturn(auth.user.id, sp.paid).catch(() => null);
   const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }, { data: asked }] = await Promise.all([
     auth.sb
       .from("applications")
@@ -68,6 +73,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   ]);
   if (!app) notFound();
   const sheet = app.status === "packet_approved" ? await loadSheet(auth.user.id, id).catch(() => null) : null;
+  const pay = app.status === "packet_approved" ? await paymentNeeded(auth.user.id, id).catch(() => null) : null;
   const p = app.programs as unknown as { name: string; degree: string; url: string | null; app_fee_usd: number | null; schools: { name: string; country: string | null } };
   const arts = (app.artifacts ?? []) as unknown as Art[];
   const brief = arts.find((a) => a.kind === "strategy");
@@ -209,6 +215,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         essaysTotal={essayData.filter((e) => e.kind !== "video_or_interview").length}
         essaysApproved={essayData.filter((e) => e.kind !== "video_or_interview" && e.approved).length}
       />
+
+      {pay && <PayToSubmit applicationId={id} kind={pay.kind} label={pay.label} school={p.degree === "Scholarship" ? p.name : p.schools.name} highlight={!!sp.pay} />}
 
       {["packet_approved", "submitted"].includes(app.status) && (
         <RunnerPanel

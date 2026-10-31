@@ -4,6 +4,9 @@ import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
 import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard, DeleteAccount } from "./controls";
 import type { GrantMode } from "@/lib/policy";
+import { PlanCard } from "@/components/billing/pay";
+import { billingState, confirmReturn } from "@/lib/billing";
+import { bachsReady } from "@/lib/bachs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -20,12 +23,20 @@ function Group({ title, description, children }: { title: string; description?: 
   );
 }
 
-export default async function Settings({ searchParams }: { searchParams: Promise<{ mail?: string }> }) {
+export default async function Settings({ searchParams }: { searchParams: Promise<{ mail?: string; paid?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
   const uid = auth.user.id;
   const db = admin();
-  const { mail } = await searchParams;
+  const { mail, paid } = await searchParams;
+  // back from a Bachs checkout: confirm it now rather than waiting for the webhook
+  if (paid) await confirmReturn(uid, paid).catch(() => null);
+  const bill = await billingState(uid);
+  const SENT = "(submitted,under_review,interview,waitlisted,admitted,accepted,declined,rejected)";
+  const [{ count: used }, { count: paidThisMonth }] = await Promise.all([
+    db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", uid).or(`status.in.${SENT},paid_at.not.is.null`),
+    db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", uid).eq("kind", "submission").gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString()),
+  ]);
   const [{ data: grants }, { data: prof }, { data: acct }, { data: tokens }] = await Promise.all([
     auth.sb.from("grants").select("capability, mode, undo_seconds"),
     db.from("profiles").select("fee_envelope_cents, digest_enabled, plan").eq("id", uid).single(),
@@ -56,6 +67,12 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       <section className="border-t border-line pt-8">
         <RunnerCard tokens={tokens ?? []} />
       </section>
+
+      <Group title="Plan" description={bill.pricing.model === "per_submission" ? "Pay only for what you submit." : "Free to start; Pro when you need more."}>
+        <div id="plan" className="scroll-mt-24">
+          <PlanCard model={bill.pricing.model} label={bill.pricing.label} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
+        </div>
+      </Group>
 
       <Group title="Account">
         <DeleteAccount email={auth.user.email ?? "your account"} />

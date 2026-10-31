@@ -7,7 +7,7 @@ export const SITE = {
   tagline: "Your way in.",
   title: "Ivyward: AI agents that run your university applications",
   description:
-    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Free for up to 15 applications.",
+    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Preparing is free; you pay only to submit.",
   short: "AI agents that run your university applications, from shortlist to submission. You review and sign everything.",
 } as const;
 
@@ -22,11 +22,12 @@ export const FACTS = [
   "Application fees are paid by the applicant directly to the school. The agents ask for fee waivers first. Card details never reach Ivyward.",
   "When a portal blocks cloud browsers, the application finishes in the applicant's own Chrome through the Ivyward runner extension. Bot checks are always left to the applicant.",
   "After an admission, the agents look for merit reconsideration, assistantships and scholarships, and draft the emails.",
-  "The Pro plan is free: every region, up to 15 applications per cycle, essays and submission. A Season pass covers one admissions cycle for $199 as a single payment.",
+  "Preparing applications is free. In Africa, each submission costs the local equivalent of ₦2,500, paid just before the agents submit, with no limit on how many. Everywhere else, the first 3 applications are free and Pro is $20 a month for unlimited submissions.",
   "Applicants can pause every agent at once. Portal passwords are encrypted, and applicant data is not used to train AI models.",
 ] as const;
 
 export const PLAN_OFFERS = [
-  { name: "Pro", price: "0", description: "Every region, up to 15 applications per cycle, essays and portal submission." },
-  { name: "Season pass", price: "199", description: "Everything in Pro, paid once for one admissions cycle (six months)." },
+  { name: "Free", price: "0", description: "Shortlist, essays and portal preparation for every application; 3 submissions free outside Africa." },
+  { name: "Pro", price: "20", description: "Unlimited submissions, every month (outside Africa). Cancel any time." },
+  { name: "Pay per submission (Africa)", price: "1.90", description: "The local equivalent of ₦2,500 per submitted application, scholarship or funding form." },
 ] as const;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { costOf, budgetCheck, categoryOf, monthStartUTC, nextMonthStartUTC } from "@/lib/pricing";
-import { PLANS, planOf } from "@/lib/plans";
+import { BUDGET_PER_SUBMISSION_USD, PLANS, planOf } from "@/lib/plans";
+import { pricingFor } from "@/lib/geo-pricing";
 
 describe("costOf", () => {
   it("prices sonnet", () => {
@@ -46,15 +47,30 @@ describe("budgets", () => {
 });
 
 describe("plans", () => {
-  it("pro budget fits inside the price with margin", () => {
-    expect(PLANS.pro.aiBudgetUsd / 49).toBeLessThanOrEqual(0.52);
-    expect(PLANS.season.aiBudgetUsd * 6 / 199).toBeLessThan(0.76);
+  it("pro's budget leaves margin inside $20, and a paid submission covers its agent work", () => {
+    expect(PLANS.pro.aiBudgetUsd / 20).toBeLessThanOrEqual(0.75);
+    expect(BUDGET_PER_SUBMISSION_USD).toBeLessThan(1.9);
   });
-  it("pro is free for everyone: unknown, old free and missing plans all get pro", () => {
-    expect(planOf("enterprise").id).toBe("pro");
-    expect(planOf("free").id).toBe("pro");
-    expect(planOf(null).id).toBe("pro");
-    expect(planOf("season").id).toBe("season");
-    expect(PLANS.pro.priceLabel).toBe("Free");
+  it("pro counts only while paid up; old accounts are on free", () => {
+    const now = new Date("2026-11-01T00:00:00Z");
+    expect(planOf("pro", "2026-11-20T00:00:00Z", now).id).toBe("pro");
+    expect(planOf("pro", "2026-10-20T00:00:00Z", now).id).toBe("free");
+    expect(planOf("pro", null, now).id).toBe("free");
+    expect(planOf("free", null, now).id).toBe("free");
+    expect(planOf(null).id).toBe("free");
+  });
+});
+
+describe("prices by country", () => {
+  it("charges africa per submission in its own currency, the equivalent of ₦2,500", () => {
+    expect(pricingFor("NG")).toMatchObject({ model: "per_submission", currency: "NGN", amount: "2500.00", label: "₦2,500" });
+    expect(pricingFor("ke")).toMatchObject({ model: "per_submission", currency: "KES" });
+    expect(pricingFor("SN")).toMatchObject({ model: "per_submission", currency: "XOF" });
+    expect(pricingFor("ZA")).toMatchObject({ model: "per_submission", currency: "USD", amount: "1.90" });
+  });
+  it("gives everyone else 3 free applications, then $20 a month", () => {
+    expect(pricingFor("US")).toMatchObject({ model: "subscription", amount: "20.00", free: 3 });
+    expect(pricingFor("GB")).toMatchObject({ model: "subscription" });
+    expect(pricingFor(null)).toMatchObject({ model: "subscription" });
   });
 });

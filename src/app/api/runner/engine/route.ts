@@ -8,6 +8,7 @@ import { logEvent } from "@/lib/events";
 import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
 import { recordQuestions } from "@/lib/portal-questions";
+import { askToPay, paymentNeeded } from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -130,6 +131,14 @@ export async function POST(req: NextRequest) {
     const resume_at = o.kind === "wait" ? Date.now() + (o.seconds ?? 60) * 1000 : undefined;
     await db.from("applications").update({ runner_state: { ...state, resume_at }, runner_status: "running", runner_note: o.note, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
     return NextResponse.json({ ok: true });
+  }
+  if (o.kind === "needs_you" && state.reachedSubmit) {
+    const need = await paymentNeeded(uid, b.application).catch(() => null);
+    if (need) {
+      await db.from("applications").update({ runner_state: { ...state, reason: "unpaid" }, runner_status: "needs_you", runner_note: need.note.replace(/^ready to submit: /, "Ready to submit: "), runner_updated_at: new Date().toISOString() }).eq("id", b.application);
+      await askToPay(uid, b.application, need, sheet.school);
+      return NextResponse.json({ ok: true, note: need.note });
+    }
   }
   if (o.kind === "needs_you") {
     const note = chromeNote(o.reason, o.note).slice(0, 300);
