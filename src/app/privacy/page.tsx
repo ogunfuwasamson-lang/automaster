@@ -19,7 +19,9 @@ export default function Privacy() {
           <li>Your profile: what you tell Ivyward AI, what we read from documents you upload (CV, transcripts, certificates), and answers you give to portal questions.</li>
           <li>Your applications: shortlisted programs, essays and drafts, the packets you approve and sign, and a log of everything the agents do for you.</li>
           <li>Portal logins the agents create for you, encrypted at rest. You can see them under Portal logins.</li>
-          <li>Emails between you and schools, when you connect Gmail.</li>
+          <li>Emails between you and schools, when you connect Gmail, and what the agents did about them (event registrations, waiver requests, reminders).</li>
+          <li>Documents you choose to upload, including a passport copy if you add one: it's kept private and only uploaded to portals that ask for it.</li>
+          <li>Your country, worked out from your connection when you first sign in, to show prices in your currency. Payment records: amount, date and reference, never card details.</li>
         </ul>
       </section>
       <section>
@@ -41,13 +43,13 @@ export default function Privacy() {
       <section>
         <h2>What we never take</h2>
         <ul>
-          <li>Card or bank details: you pay application fees on the school&apos;s site yourself.</li>
+          <li>Card or bank details: you pay application fees on the school&apos;s site yourself, and Ivyward&apos;s own fees are paid on Bachs&apos;s checkout page, which keeps the card details.</li>
           <li>Government ID numbers: the agents never fill passport or national ID fields.</li>
         </ul>
       </section>
       <section>
         <h2>Where it&apos;s stored</h2>
-        <p>Data is stored with our hosting and database providers (Vercel and Supabase) and is encrypted in transit. Our email providers handle only the messages they carry: Resend sends Ivyward&apos;s own emails, and Composio carries the Gmail connection. Portal passwords are additionally encrypted with our own keys.</p>
+        <p>Data is stored with our hosting and database providers (Vercel and Supabase) and is encrypted in transit. Our email providers handle only the messages they carry: Resend sends Ivyward&apos;s own emails (including calendar invites), and Composio carries the Gmail connection. Bachs processes payments. Cloudflare Turnstile checks that sign-ins come from a person, not a bot. UserJot hosts feedback and support: when you use it, it receives your name and email so your messages reach us with your account. Portal passwords are additionally encrypted with our own keys.</p>
       </section>
       <section>
         <h2>Your control</h2>

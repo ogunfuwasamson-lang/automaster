@@ -58,7 +58,7 @@ function monday(d = new Date()) {
 export async function buildWeekly(userId: string, now = new Date()): Promise<WeeklyReport> {
   const db = admin();
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-  const [{ data: prof }, { data: apps }, { data: events }, { data: inbound }, { data: ups }, { data: notes }, { data: drafts }] = await Promise.all([
+  const [{ data: prof }, { data: apps }, { data: events }, { data: inbound }, { data: ups }, { data: notes }, { data: drafts }, { data: past }] = await Promise.all([
     db.from("profiles").select("profile, full_name, timezone, portal_details").eq("id", userId).single(),
     db.from("applications").select("id, status, target_deadline, runner_status, runner_note, programs(name, app_fee_usd, schools(name))").eq("user_id", userId).not("status", "in", "(dropped,withdrawn)"),
     db.from("events").select("action, actor").eq("user_id", userId).gte("created_at", since).limit(2000),
@@ -66,7 +66,13 @@ export async function buildWeekly(userId: string, now = new Date()): Promise<Wee
     db.from("followups").select("title, school, kind, status, event_start, why").eq("user_id", userId).gte("created_at", since).limit(20),
     db.from("notifications").select("title, href, kind").eq("user_id", userId).is("resolved_at", null).limit(20),
     db.from("events").select("id").eq("user_id", userId).eq("action", "artifact.ready_for_user").gte("created_at", since),
+    db.from("digests").select("content").eq("user_id", userId).eq("content->>kind", "weekly").order("created_at", { ascending: false }).limit(4),
   ]);
+  // items the applicant marked "not relevant" in recent reports: don't raise those again
+  const dismissed = (past ?? []).flatMap((d) => {
+    const c = d.content as { items?: { title: string }[]; dismissed?: number[] };
+    return (c.dismissed ?? []).map((i) => c.items?.[i]?.title).filter((t): t is string => !!t);
+  });
   type P = { name: string; app_fee_usd: number | null; schools: { name: string } };
   const list = (apps ?? []).map((a) => ({ ...a, p: a.programs as unknown as P }));
   const count = (re: RegExp) => (events ?? []).filter((e) => re.test(e.action)).length;
@@ -103,6 +109,7 @@ essays waiting for the applicant's review: ${toReview}
 school emails this week: ${(inbound ?? []).map((m) => `${m.subject} (${m.purpose}): ${String(m.summary ?? "").slice(0, 100)}`).join("; ") || "none"}
 follow-ups this week: ${(ups ?? []).map((f) => `${f.school ?? ""} ${f.title} (${f.status}${f.event_start ? `, ${String(f.event_start).slice(0, 16)}` : ""})${f.why ? `: ${f.why}` : ""}`).join("; ") || "none"}
 open notices: ${(notes ?? []).map((n) => n.title).join("; ") || "none"}
+marked "not relevant" in earlier reports (leave these out unless something has changed): ${dismissed.join("; ") || "none"}
 
 allowed actions:
 ${allowed.join("\n")}`;
