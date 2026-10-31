@@ -39,7 +39,8 @@ export function trusted(f: Fact, now = Date.now()) {
 export const labelKey = (label: string) =>
   label
     .toLowerCase()
-    .replace(/\*|\(?(required|optional)\)?/g, "")
+    .replace(/\*|\(\s*(required|optional)\s*\)/g, "")
+    .replace(/\s+(required|optional)\s*$/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .slice(0, 120);

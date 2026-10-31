@@ -229,7 +229,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             </div>
           ) : null}
           <h2 className="text-lg font-bold tracking-[-0.02em]">Details for application forms</h2>
-          <p className="mb-6 mt-1 max-w-2xl text-[13.5px] text-muted">Contact, address and recommenders. The agents copy these into every portal, and restart any application that was waiting for one as soon as you save.</p>
+          <p className="mb-6 mt-1 max-w-2xl text-[13.5px] text-muted">What school forms ask: contact, citizenship, languages, background, family, interests and recommenders. Fill in what you can; the agents use it on every portal so no school asks twice, and anything a school asks later is saved here too.</p>
           <PortalDetailsForm
             setup={!!setup}
             details={{ ...((data?.portal_details ?? {}) as PortalDetails), email: ((data?.portal_details ?? {}) as PortalDetails).email || auth.user.email || null }}

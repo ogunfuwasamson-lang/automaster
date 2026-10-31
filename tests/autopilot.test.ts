@@ -213,7 +213,7 @@ describe("form details save", () => {
   it("keeps every field the form shows, country of birth included", async () => {
     const { DetailsSchema } = await import("@/lib/details-schema");
     const { PORTAL_DETAIL_FIELDS } = await import("@/lib/portal-fields");
-    const input = Object.fromEntries(PORTAL_DETAIL_FIELDS.map((f) => [f.key, f.key === "date_of_birth" ? "1990-01-31" : "x"]));
+    const input = Object.fromEntries(PORTAL_DETAIL_FIELDS.map((f) => [f.key, f.kind === "date" ? "1990-01-31" : "x"]));
     const out = DetailsSchema.parse(input) as Record<string, unknown>;
     for (const f of PORTAL_DETAIL_FIELDS) expect(out[f.key], f.key).toBeDefined();
     expect(out.country_of_birth).toBe("x");

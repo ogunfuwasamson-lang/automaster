@@ -27,3 +27,35 @@ describe("reusing an earlier answer on the next school's form", () => {
     expect(matchOption("Yoruba", ["English", "French"])).toBe(null);
   });
 });
+
+import { cleanLabel, stripMarkers } from "@/lib/labels";
+describe("form labels", () => {
+  it("strips required/optional markers but keeps the word inside a sentence", () => {
+    expect(stripMarkers("McGill is required to report applicants' first language (required)")).toBe("McGill is required to report applicants' first language");
+    expect(stripMarkers("Phone number - optional")).toBe("Phone number");
+    expect(stripMarkers("Country of birth required *")).toBe("Country of birth");
+    expect(cleanLabel("Required: Date of birth")).toBe("Date of birth");
+  });
+});
+
+import { detailFor, detailsBrief, PORTAL_DETAIL_FIELDS } from "@/lib/portal-fields";
+describe("profile details", () => {
+  it("has a unique key for every field", () => {
+    const keys = PORTAL_DETAIL_FIELDS.map((f) => f.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.length).toBeGreaterThan(50);
+  });
+  it("files a portal answer under the matching detail", () => {
+    expect(detailFor("Language spoken most frequently at your permanent address")).toBe("home_language");
+    expect(detailFor("McGill is required to report applicants' first language")).toBe("first_language");
+    expect(detailFor("Are you Hispanic or Latino?")).toBe("hispanic_latino");
+    expect(detailFor("How did you hear about our program?")).toBe("how_heard");
+    expect(detailFor("Upload your CV")).toBe(null);
+  });
+  it("keeps background and contact details out of what the essay writer sees", () => {
+    const d = { hobbies: "chess, club level", religion: "Christian", phone: "+234 800", race_ethnicity: "Black or African" };
+    expect(detailsBrief(d, "activities")).toBe("Hobbies: chess, club level");
+    expect(detailsBrief(d, "eligibility")).toContain("Religion or faith: Christian");
+    expect(detailsBrief(d, "eligibility")).not.toContain("+234");
+  });
+});

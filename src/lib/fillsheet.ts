@@ -103,6 +103,9 @@ export function buildSheet(a: {
   set("country", d.country || p.identity.country_of_residence);
   set("linkedin", d.linkedin);
   set("website", d.website);
+  // everything else on the profile details (languages, background, family, activities, the yes/no questions):
+  // offered under its own key, so a form question about it is filled without asking
+  for (const fd of PORTAL_DETAIL_FIELDS) if (!(fd.key in f)) set(fd.key, d[fd.key]);
 
   // the application itself
   set("program", a.program);

@@ -10,6 +10,7 @@ import { kickoff } from "@/lib/kickoff";
 import { research } from "@/lib/research";
 import { runActions, seasonOverview } from "@/lib/assistant";
 import { toAsk, type Ask } from "@/lib/ask";
+import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
 
 export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link"] as const;
 
@@ -95,7 +96,7 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
     getProfile(userId),
     db.from("interview_turns").select("role, content").eq("user_id", userId).order("created_at", { ascending: false }).limit(24),
     db.from("documents").select("filename, extracted").eq("user_id", userId).eq("status", "extracted"),
-    db.from("profiles").select("target_term").eq("id", userId).single(),
+    db.from("profiles").select("target_term, portal_details").eq("id", userId).single(),
     openQuestions(userId),
     seasonOverview(userId),
   ]);
@@ -104,6 +105,9 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
 
   const prompt = `profile:
 ${profileBrief(profile, row?.target_term)}
+
+profile details already on file (never ask these again):
+${detailsBrief(row?.portal_details as PortalDetails | null, "all") || "(none yet)"}
 
 documents on file: ${(docs ?? []).map((d) => (d.extracted as { kind?: string } | null)?.kind ?? d.filename).join(", ") || "none"}
 

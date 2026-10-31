@@ -1,4 +1,5 @@
 import "server-only";
+import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
@@ -270,6 +271,11 @@ fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0,
 official page: ${program.url ?? "(find it)"}
 what recon already found about the fee and waivers: fee ${program.app_fee_usd ?? "unknown"} USD; ${program.fee_waiver ?? "no waiver info"}
 ${await schoolBrief(school.id).catch(() => "")}
+${await (async () => {
+  const { data } = await admin().from("profiles").select("portal_details").eq("id", job.user_id).maybeSingle();
+  const b = detailsBrief(data?.portal_details as PortalDetails | null, "eligibility");
+  return b ? `what else the applicant shared that might qualify them (match waiver routes to it; mention a sensitive detail in an email only if a route requires it):\n${b}` : "";
+})()}
 applicant citizenship: ${profile.identity.citizenship ?? "unknown"}; level: ${LEVEL_LABEL[levelOf(profile)]}
 
 find: whether application fee waivers exist and who qualifies, by EVERY route, not just nationality: country or region, income or financial hardship, attending a webinar, info session, fair or campus visit, applying early, alumni or partner-organisation links, employer sponsorship, military service, academic merit (grades, test scores, honours), first-generation status, athletes and artists, service programmes (peace corps, teach for, americorps, ngos), mcnair/fulbright/other scholar networks, competitions, and case-by-case requests. say how to request one (a form, a code, an email) and the official admissions contact email.`,

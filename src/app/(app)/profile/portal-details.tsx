@@ -1,14 +1,50 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { PORTAL_DETAIL_FIELDS, type PortalDetails, type RecommenderRow } from "@/lib/portal-fields";
+import { DETAIL_GROUPS, type DetailField, type PortalDetails, type RecommenderRow } from "@/lib/portal-fields";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
 const blankRec = (): RecommenderRow => ({ name: "", email: "", title: "", organization: "", relationship: "", phone: "" });
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const filled = (v: unknown) => typeof v === "string" && v.trim() !== "";
+
+// one detail, with the control that fits it: buttons for a short list, a dropdown for a longer one, a text box
+function DetailInput({ f, value, onChange }: { f: DetailField; value: string; onChange: (v: string) => void }) {
+  const kind = f.kind ?? "text";
+  const opts = f.options ?? [];
+  if ((kind === "yes_no" || kind === "select") && opts.length <= 6) {
+    return (
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={f.label}>
+        {opts.map((o) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={value === o}
+            onClick={() => onChange(value === o ? "" : o)}
+            className={`min-h-9 rounded-lg border px-3 text-[13.5px] transition ${value === o ? "border-brand bg-brand text-white" : "border-line bg-background hover:border-brand/50"}`}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  if (kind === "select") {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={f.label} className="h-10 w-full rounded-xl border border-line bg-background px-3 text-[14px] outline-none focus:border-accent">
+        <option value="">Choose…</option>
+        {opts.map((o) => (
+          <option key={o}>{o}</option>
+        ))}
+      </select>
+    );
+  }
+  if (kind === "long") return <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} aria-label={f.label} className="field-sizing-content min-h-16 w-full rounded-xl border border-line bg-background px-3 py-2 text-[14px] outline-none focus:border-accent" />;
+  return <Input type={kind === "url" ? "url" : kind} value={value} onChange={(e) => onChange(e.target.value)} />;
+}
 const REC_FIELDS: [keyof RecommenderRow, string, string?][] = [
   ["name", "Name"],
   ["email", "Email", "email"],
@@ -61,20 +97,41 @@ export function PortalDetailsForm({ details, recommenders, setup = false }: { de
         router.refresh();
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        {PORTAL_DETAIL_FIELDS.map((f) => (
-          <Field key={f.key} label={`${cap(f.label)}${f.required ? "" : " (optional)"}`}>
-            <Input
-              type={f.type ?? "text"}
-              required={false}
-              value={(d[f.key] as string | null | undefined) ?? ""}
-              onChange={(e) => {
-                setD({ ...d, [f.key]: e.target.value });
-                setDirty(true);
-              }}
-            />
-          </Field>
-        ))}
+      <div className="space-y-3">
+        {DETAIL_GROUPS.map((g, gi) => {
+          const done = g.fields.filter((f) => filled(d[f.key])).length;
+          return (
+            <details key={g.id} open={gi === 0 || (setup && gi < 2)} className="group rounded-2xl border border-line bg-background">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{g.title}</span>
+                  <span className="block text-[13px] text-muted">{g.why}</span>
+                </span>
+                <span className={`shrink-0 text-[12.5px] tabular-nums ${done === g.fields.length ? "text-go" : "text-muted"}`}>
+                  {done} of {g.fields.length}
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden />
+              </summary>
+              <div className="grid gap-4 border-t border-line px-4 py-4 sm:grid-cols-2">
+                {g.fields.map((f) => (
+                  <div key={f.key} className={f.kind === "long" || (f.options?.length ?? 0) > 3 ? "sm:col-span-2" : ""}>
+                    <Field label={`${f.label}${f.required ? "" : " (optional)"}`}>
+                      <DetailInput
+                        f={f}
+                        value={(d[f.key] as string | null | undefined) ?? ""}
+                        onChange={(v) => {
+                          setD({ ...d, [f.key]: v });
+                          setDirty(true);
+                        }}
+                      />
+                    </Field>
+                    {f.hint && <p className="mt-1 text-xs text-muted">{f.hint}</p>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        })}
       </div>
 
       <fieldset className="space-y-3">

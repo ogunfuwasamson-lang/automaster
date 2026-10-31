@@ -1,4 +1,5 @@
 import "server-only";
+import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
 import { normalizeUrl } from "@/lib/portal-url";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
@@ -450,8 +451,9 @@ export const Scholarships = z.object({
 recon["recon.scholarships"] = async (job) => {
   const profile = await getProfile(job.user_id);
   const db = admin();
-  const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();
+  const { data: row } = await db.from("profiles").select("target_term, portal_details").eq("id", job.user_id).single();
   const term = row?.target_term ?? "fall-2027";
+  const more = detailsBrief(row?.portal_details as PortalDetails | null, "eligibility");
 
   const found = await research({
     userId: job.user_id,
@@ -463,6 +465,9 @@ ${profileBrief(profile, term)}
 
 awards, ventures and other notes:
 ${profile.notes.join("\n") || "(none)"}
+
+background, family, languages and activities they chose to share (use these only to find awards they qualify for):
+${more || "(none)"}
 
 stories:
 ${profile.stories.map((s) => `- ${s.title}: ${s.summary}`).join("\n") || "(none)"}

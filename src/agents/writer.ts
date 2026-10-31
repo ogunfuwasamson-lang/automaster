@@ -1,4 +1,5 @@
 import "server-only";
+import { detailFor, detailsBrief, isSensitiveDetail, type PortalDetails } from "@/lib/portal-fields";
 import { knownPrompts, learnPrompts } from "@/lib/school-memory";
 import { isScholarship } from "@/lib/scholarship-kind";
 import * as z from "zod/v4";
@@ -33,7 +34,8 @@ export function factSheet(p: Profile) {
     stories: p.stories,
     awards_and_other: p.notes,
     skills: p.skills.slice(0, 25),
-    confirmed_facts: p.confirmed_facts,
+    // answers to portal questions about background (race, religion, disability...) are for forms, not essays
+    confirmed_facts: p.confirmed_facts.filter((f) => { const k = detailFor(f.topic); return !k || !isSensitiveDetail(k); }),
   };
 }
 
@@ -51,8 +53,10 @@ export async function disputed(userId: string): Promise<{ titles: string[]; figu
 
 // the fact sheet an agent may write from: disputed figures already removed
 export async function safeFactSheet(userId: string, p: Profile) {
-  const { figures } = await disputed(userId);
-  return maskDisputed(factSheet(p), figures);
+  const [{ figures }, { data: prof }] = await Promise.all([disputed(userId), admin().from("profiles").select("portal_details").eq("id", userId).maybeSingle()]);
+  // hobbies, activities, awards they filled in under their profile details (never background or contact details)
+  const activities = detailsBrief(prof?.portal_details as PortalDetails | null, "activities");
+  return maskDisputed({ ...factSheet(p), ...(activities ? { activities_and_interests: activities } : {}) }, figures);
 }
 
 async function loadApp(userId: string, applicationId: string) {

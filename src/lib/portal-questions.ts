@@ -4,7 +4,7 @@ import { getProfile, updateProfile } from "@/lib/profile-store";
 import { answerFor } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 import { confirmFact } from "@/lib/profile";
-import { PORTAL_DETAIL_FIELDS } from "@/lib/portal-fields";
+import { PORTAL_DETAIL_FIELDS, detailFor } from "@/lib/portal-fields";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
 import type { PortalQuestion } from "@/lib/cloud-engine";
@@ -15,7 +15,8 @@ import type { PortalQuestion } from "@/lib/cloud-engine";
 export const qkeyOf = (q: string) =>
   q
     .toLowerCase()
-    .replace(/\(?(required|optional)\)?/g, "")
+    .replace(/\(\s*(required|optional)\s*\)/g, "")
+    .replace(/\s+(required|optional)\s*\**\s*$/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .slice(0, 160);
@@ -124,7 +125,8 @@ export async function answerQuestion(userId: string, id: string, answer: string 
     await clearNoticeIfDone(userId);
     return true;
   }
-  const dk = detailKey(q.sheet_key ?? undefined);
+  // the matching profile detail, when there is one (by the form's key, or by what the question asks)
+  const dk = detailKey(q.sheet_key ?? undefined) ?? detailFor(q.question);
   if (dk) {
     const { data: prof } = await db.from("profiles").select("portal_details").eq("id", userId).single();
     await db.from("profiles").update({ portal_details: { ...((prof?.portal_details as Record<string, unknown>) ?? {}), [dk]: value } }).eq("id", userId);
