@@ -8,6 +8,9 @@ import { Suspense } from "react";
 import { TopNav, TabBar, UserMenu } from "./nav";
 import { ChatDock } from "@/components/chat/chat-dock";
 import { PageInk } from "@/components/landing/page-ink";
+import { NotificationBell } from "@/components/notifications/bell";
+import { UserJot } from "@/components/support/userjot";
+import { createHmac } from "node:crypto";
 
 // the signed-in app is private: keep it out of search results
 export const metadata = { robots: { index: false, follow: false } };
@@ -25,8 +28,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const needsYou = (approvals ?? 0) + (runner ?? 0);
   const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
   const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
+  // notifications arrive with their migration; before it, the bell just shows none
+  const noticeQ = await sb.from("notifications").select("id", { count: "exact", head: true }).is("resolved_at", null).is("read_at", null);
+  const notices = noticeQ.error ? 0 : (noticeQ.count ?? 0);
   const paused = !!cords?.length;
   const name = loadProfile(prof?.profile).identity.full_name ?? "";
+  const [firstName, ...rest] = name.split(/\s+/).filter(Boolean);
+  // signed with the UserJot project secret so feedback is tied to this account without a second sign-in
+  const ujSecret = process.env.USERJOT_SECRET;
+  const ujSignature = ujSecret ? createHmac("sha256", ujSecret).update(user.id).digest("hex") : null;
 
   return (
     <div className="relative min-h-dvh">
@@ -41,6 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Paused
               </Link>
             ) : null}
+            <NotificationBell initialUnread={notices} />
             <UserMenu name={name} email={user.email ?? ""} paused={paused} needsYou={needsYou} />
           </div>
         </div>
@@ -48,6 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <PageInk />
       <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-7 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">{children}</main>
       <TabBar needsYou={needsYou} unread={unread} />
+      <UserJot user={{ id: user.id, email: user.email ?? "", firstName, lastName: rest.join(" ") || undefined, signature: ujSignature }} />
       <Suspense>
         <ChatDock />
       </Suspense>

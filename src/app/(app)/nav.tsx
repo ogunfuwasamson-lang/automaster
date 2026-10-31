@@ -3,8 +3,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { House, Send, ListChecks, Mail, UserRound, FolderOpen, Settings, LogOut, CirclePause, ChevronDown, KeyRound } from "lucide-react";
+import { House, Send, ListChecks, Mail, UserRound, FolderOpen, Settings, LogOut, CirclePause, ChevronDown, KeyRound, MessageSquareText, Sparkles } from "lucide-react";
 import { ThemeSwitch } from "@/components/theme";
+import { openFeedback } from "@/components/support/userjot";
 
 const ITEMS = [
   { href: "/dashboard", label: "Home", icon: House, mobile: true },
@@ -96,21 +97,42 @@ export function UserMenu({ name, email, paused, needsYou = 0 }: { name: string; 
               </Menu.Item>
             ))}
           </div>
+          <div className="border-t border-line p-1.5">
+            {(
+              [
+                ["feedback", "Feedback and support", "Report a problem or suggest something", MessageSquareText],
+                ["updates", "What's new", "Roadmap and product updates", Sparkles],
+              ] as const
+            ).map(([section, label, hint, Icon]) => (
+              <Menu.Item key={section} onSelect={() => openFeedback(section)} className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 outline-none transition-colors data-[highlighted]:bg-neutral-100 dark:data-[highlighted]:bg-neutral-800">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line text-muted">
+                  <Icon className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[13.5px] font-medium">{label}</span>
+                  <span className="block truncate text-[11.5px] text-muted">{hint}</span>
+                </span>
+              </Menu.Item>
+            ))}
+          </div>
           <div className="border-t border-line px-3.5 py-3">
             <p className="mb-2 text-[11.5px] font-bold text-muted">Appearance</p>
             <ThemeSwitch />
           </div>
           <div className="border-t border-line p-1.5">
-            <form action="/auth/signout" method="post">
-              <Menu.Item asChild>
-                <button className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-stop outline-none data-[highlighted]:bg-stop/8">
-                  <span className="grid size-8 place-items-center rounded-lg border border-stop/20">
-                    <LogOut className="size-4" aria-hidden />
-                  </span>
-                  Sign out
-                </button>
-              </Menu.Item>
-            </form>
+            {/* the menu unmounts its items when one is picked, which would cancel a form submit; sign out directly */}
+            <Menu.Item
+              onSelect={(e) => {
+                e.preventDefault();
+                fetch("/auth/signout", { method: "POST", redirect: "manual" }).finally(() => window.location.assign("/"));
+              }}
+              className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-stop outline-none data-[highlighted]:bg-stop/8"
+            >
+              <span className="grid size-8 place-items-center rounded-lg border border-stop/20">
+                <LogOut className="size-4" aria-hidden />
+              </span>
+              Sign out
+            </Menu.Item>
           </div>
         </Menu.Content>
       </Menu.Portal>

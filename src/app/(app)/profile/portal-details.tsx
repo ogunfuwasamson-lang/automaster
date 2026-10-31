@@ -19,7 +19,7 @@ const REC_FIELDS: [keyof RecommenderRow, string, string?][] = [
 ];
 
 // what application portals ask that the study profile doesn't cover. the runner fills forms from this.
-export function PortalDetailsForm({ details, recommenders }: { details: PortalDetails; recommenders: RecommenderRow[] }) {
+export function PortalDetailsForm({ details, recommenders, setup = false }: { details: PortalDetails; recommenders: RecommenderRow[]; setup?: boolean }) {
   const [d, setD] = useState<PortalDetails>(details);
   const [recs, setRecs] = useState<RecommenderRow[]>(recommenders.length ? recommenders : [blankRec()]);
   const [saving, setSaving] = useState(false);
@@ -50,6 +50,13 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
         setSaving(false);
         if (!res.ok) return toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't save");
         setDirty(false);
+        if (setup) {
+          // the end of setup: back home, where the shortlist banner shows the agents at work
+          const out = (await res.json().catch(() => ({}))) as { missing?: string[] };
+          toast.success(out.missing?.length ? "Saved. Your agents have started; check the bell for what's still missing." : "Saved. Your agents have started.");
+          router.push("/dashboard");
+          return;
+        }
         toast.success("Saved. The agents use these on every form.");
         router.refresh();
       }}
@@ -105,8 +112,8 @@ export function PortalDetailsForm({ details, recommenders }: { details: PortalDe
       </fieldset>
 
       <div className={`glass sticky bottom-[calc(env(safe-area-inset-bottom)+76px)] z-20 flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-lift lg:bottom-4 ${dirty ? "border-accent/40" : "border-line"}`}>
-        <Button type="submit" disabled={saving || !dirty}>
-          {saving ? "Saving…" : dirty ? "Save details" : "Saved"}
+        <Button type="submit" disabled={saving || (!dirty && !setup)}>
+          {saving ? "Saving…" : setup ? "Save and finish setup" : dirty ? "Save details" : "Saved"}
         </Button>
         <span className="text-xs text-muted">{dirty ? <span className="font-bold text-accent">You have unsaved changes.</span> : "Passport and ID numbers are never stored. The agents leave those fields for you."}</span>
       </div>

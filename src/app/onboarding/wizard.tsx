@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { chipClass } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
+import { DOC_KINDS, DOC_KIND_WHY } from "@/lib/doc-kinds";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -21,7 +22,7 @@ const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, m
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
 const STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Your interview"];
 const STEP_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV and transcripts fill your profile", "Lets agents send and read for you", "Ten minutes, by voice or text"];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Ten minutes, by voice or text"];
 
 async function save(body: Record<string, unknown>) {
   const res = await fetch("/api/profile/preferences", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -29,6 +30,20 @@ async function save(body: Record<string, unknown>) {
 }
 
 const chip = (on: boolean) => chipClass(on, "md");
+
+function guessKind(name: string, already: number): string {
+  if (/\b(cv|resume|résumé)\b/i.test(name)) return "cv";
+  if (/transcript|record|marksheet|result/i.test(name)) return "transcript";
+  if (/ielts|toefl|gre|gmat|sat|duolingo|pte|score/i.test(name)) return "test_score";
+  if (/passport|national.?id|\bid\b/i.test(name)) return "passport";
+  if (/reference|recommendation|lor\b/i.test(name)) return "reference_letter";
+  if (/degree|diploma|certificate|cert/i.test(name)) return /award|prize|winner/i.test(name) ? "award" : "degree_certificate";
+  if (/award|prize|honou?r|scholarship/i.test(name)) return "award";
+  if (/bank|sponsor|affidavit|proof.?of.?fund/i.test(name)) return "financial";
+  if (/sop|statement|essay|personal/i.test(name)) return "old_essay";
+  if (/portfolio|sample|publication|paper/i.test(name)) return "portfolio";
+  return already ? "other" : "cv";
+}
 
 export function Onboarding(props: {
   userId: string;
@@ -55,9 +70,14 @@ export function Onboarding(props: {
   const termLabel = (t: string | null) => (t ? t.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "");
   const [term, setTerm] = useState(termLabel(props.term) || "Fall 2027");
   const [regions, setRegions] = useState<string[]>(props.regions);
-  const [uploaded, setUploaded] = useState<string[]>([]);
-  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<{ name: string; kind: string }[]>([]);
+  const [uploading, setUploading] = useState<{ name: string; kind: string | null } | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const kindFor = useRef<string | null>(null);
+  const pick = (k: string) => {
+    kindFor.current = k === "other" ? null : k;
+    file.current?.click();
+  };
 
   async function next(body?: Record<string, unknown>) {
     if (body) {
@@ -74,14 +94,15 @@ export function Onboarding(props: {
     setStep((s) => Math.min(s + 1, 5));
   }
 
-  async function onFiles(list: FileList | null) {
+  // kind: what the applicant said the file is; null means work it out from the name (the intake agent checks it)
+  async function onFiles(list: FileList | null, kind: string | null) {
     if (!list?.length) return;
     for (const f of Array.from(list)) {
-      setUploading(f.name);
-      const kind = /transcript|record|marksheet/i.test(f.name) ? "transcript" : /cert/i.test(f.name) ? "degree_certificate" : uploaded.length || props.docCount ? "other" : "cv";
-      const err = await uploadDocument(props.userId, f, kind);
+      setUploading({ name: f.name, kind });
+      const k = kind ?? guessKind(f.name, uploaded.length + props.docCount);
+      const err = await uploadDocument(props.userId, f, k);
       if (err) toast.error(err);
-      else setUploaded((u) => [...u, f.name]);
+      else setUploaded((u) => [...u, { name: f.name, kind: k }]);
     }
     setUploading(null);
     if (file.current) file.current.value = "";
@@ -253,35 +274,52 @@ export function Onboarding(props: {
             )}
 
             {step === 3 && (
-              <div className="space-y-8">
+              <div className="space-y-7">
                 <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Add your CV and transcripts</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Add your documents</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Agents read them to build your profile, so the interview only asks what&apos;s missing. PDF, Word or photos, up to 10 MB each. Only you and your agents can see them.
+                    Start with your CV. Add anything else you have: agents read every file to fill your profile and your forms, and upload them to portals. PDF, Word or photos, up to 10 MB each. Only you and your agents can see them.
                   </p>
                 </div>
+                <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+                  {DOC_KINDS.filter(([k]) => k !== "other").map(([k, label]) => {
+                    const mine = uploaded.filter((u) => u.kind === k);
+                    const busyHere = uploading?.kind === k;
+                    return (
+                      <li key={k} className="flex items-center gap-3 px-4 py-3">
+                        <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${mine.length || (k === "cv" && props.docCount) ? "bg-go/10 text-go" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
+                          {mine.length ? <Check className="size-4" aria-hidden /> : <FileUp className="size-4" aria-hidden />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[14px] font-medium">
+                            {label}
+                            {k === "cv" && <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">Start here</span>}
+                          </span>
+                          <span className="block truncate text-[12.5px] text-muted">{mine.length ? mine.map((m) => m.name).join(", ") : DOC_KIND_WHY[k]}</span>
+                        </span>
+                        <Button size="sm" variant={mine.length ? "ghost" : "secondary"} disabled={!!uploading} onClick={() => pick(k)}>
+                          {busyHere ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : null}
+                          {mine.length ? "Add another" : "Add"}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
                 <button
-                  onClick={() => file.current?.click()}
+                  onClick={() => pick("other")}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
-                    onFiles(e.dataTransfer.files);
+                    onFiles(e.dataTransfer.files, null);
                   }}
-                  className="flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-accent/30 bg-accent/[0.03] px-6 py-12 text-center transition-colors hover:border-accent/60 hover:bg-accent/[0.06]"
+                  className="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line px-6 py-7 text-center transition-colors hover:border-neutral-400"
                 >
-                  {uploading ? <LoaderCircle className="size-7 animate-spin text-muted" aria-hidden /> : <span className="bg-hero-gradient grid size-14 place-items-center rounded-2xl text-white"><FileUp className="size-6" aria-hidden /></span>}
-                  <span className="font-bold">{uploading ? `Uploading ${uploading}…` : "Drop files here or choose files"}</span>
-                  <span className="text-sm text-muted">Start with your CV</span>
+                  {uploading && !uploading.kind ? <LoaderCircle className="size-6 animate-spin text-muted" aria-hidden /> : <FileUp className="size-6 text-muted" aria-hidden />}
+                  <span className="font-medium">{uploading ? `Uploading ${uploading.name}…` : "Drop several files here"}</span>
+                  <span className="text-[13px] text-muted">Agents work out what each one is</span>
                 </button>
-                <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files)} />
-                {uploaded.length || props.docCount ? (
-                  <ul className="space-y-2 text-sm">
-                    {props.docCount ? <li className="flex items-center gap-2 text-muted"><Check className="size-4 text-go" aria-hidden />{props.docCount} document{props.docCount > 1 ? "s" : ""} already added</li> : null}
-                    {uploaded.map((u) => (
-                      <li key={u} className="flex items-center gap-2"><Check className="size-4 text-go" aria-hidden />{u}</li>
-                    ))}
-                  </ul>
-                ) : null}
+                <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files, kindFor.current)} />
+                {props.docCount ? <p className="flex items-center gap-2 text-sm text-muted"><Check className="size-4 text-go" aria-hidden />{props.docCount} document{props.docCount > 1 ? "s" : ""} added earlier</p> : null}
                 <div className="flex gap-3">
                   <Button size="lg" onClick={() => next()} disabled={!!uploading}>{uploaded.length || props.docCount ? "Continue" : "Skip for now"}</Button>
                   <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
@@ -326,12 +364,24 @@ export function Onboarding(props: {
                   <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: a short interview</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
                     Ten minutes, by voice or typing. The interviewer asks about your goals, your best work and anything your documents
-                    didn&apos;t cover. Your essays are written from these answers.
+                    didn&apos;t cover. Your essays are written from these answers. When you finish, your agents start building your shortlist straight away.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/dashboard?chat=open" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
-                  <Button size="lg" variant="secondary" onClick={() => router.push("/dashboard")}>Go to my dashboard</Button>
+                  <ButtonLink href="/dashboard?chat=open&setup=1" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Start the interview</ButtonLink>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={async () => {
+                      // skipping the interview still starts the agents; what's missing turns into notifications
+                      setBusy(true);
+                      await fetch("/api/onboarding/kickoff", { method: "POST" }).catch(() => null);
+                      router.push("/dashboard");
+                    }}
+                  >
+                    {busy ? "Starting your agents…" : "Skip it, start my agents"}
+                  </Button>
                 </div>
               </div>
             )}

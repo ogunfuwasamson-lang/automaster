@@ -175,8 +175,23 @@ d("database invariants", () => {
     expect(browser.rows.map((r) => r.agent)).toEqual(["runner"]);
   });
 
+  it("deleting an application unlinks its events but keeps them, and nothing else can be edited", async () => {
+    const sch = await db.query(`select id from schools limit 1`);
+    const s = await db.query(`insert into programs(school_id, name, degree) values ($1, 'MS Data', 'MS') returning id`, [sch.rows[0].id]);
+    const app = await db.query(`insert into applications(user_id, program_id) values ($1, $2) returning id`, [ALICE, s.rows[0].id]);
+    const art = await db.query(`insert into artifacts(user_id, application_id, kind, title) values ($1, $2, 'sop', 'SOP') returning id`, [ALICE, app.rows[0].id]);
+    const ver = await db.query(`insert into artifact_versions(artifact_id, user_id, version, content, author) values ($1, $2, 1, 'x', 'agent:writer') returning id`, [art.rows[0].id, ALICE]);
+    const ev = await db.query(`insert into events(user_id, actor, action, application_id, artifact_version_id) values ($1, 'agent:test', 'drafted', $2, $3) returning id`, [ALICE, app.rows[0].id, ver.rows[0].id]);
+    await db.query(`delete from applications where id = $1`, [app.rows[0].id]);
+    const left = await db.query(`select application_id, artifact_version_id, action from events where id = $1`, [ev.rows[0].id]);
+    expect(left.rows[0]).toEqual({ application_id: null, artifact_version_id: null, action: "drafted" });
+    await expect(db.query(`update events set application_id = null, action = 'z' where id = $1`, [ev.rows[0].id])).rejects.toThrow(/append-only/);
+  });
+
   it("deleting a user cascades cleanly, events included", async () => {
     await db.query(`insert into events(user_id, actor, action) values ($1, 'agent:test', 'x')`, [BOB]);
+    const bobApp = await db.query(`select id from applications where user_id = $1 limit 1`, [BOB]);
+    await db.query(`insert into events(user_id, actor, action, application_id) values ($1, 'agent:test', 'y', $2)`, [BOB, bobApp.rows[0].id]);
     await db.query(`delete from auth.users where id = $1`, [BOB]);
     const { rows } = await db.query(`select count(*)::int as n from grants where user_id = $1`, [BOB]);
     expect(rows[0].n).toBe(0);

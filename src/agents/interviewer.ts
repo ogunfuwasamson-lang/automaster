@@ -6,6 +6,7 @@ import { WirePatch, fromWire, WIRE_GUIDE, profileGaps, completeness, profileBrie
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
 import { answerQuestion, openQuestions } from "@/lib/portal-questions";
+import { kickoff } from "@/lib/kickoff";
 
 export const TurnOut = z.object({
   reply: z.string(), // spoken aloud
@@ -121,9 +122,17 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     context: { sessionId, patched: patchKeys, mode: output.mode, portalAnswers: answered },
   });
 
+  // the conversation is done: the agents start now, and whatever they still need becomes a notification
+  let next: string | null = null;
+  if (output.mode === "wrap_up") {
+    const k = await kickoff(userId, "interview").catch(() => null);
+    if (k?.missing.includes("details")) next = "/profile?tab=details&setup=1";
+  }
+
   return {
     reply: output.reply,
     wrapUp: output.mode === "wrap_up",
+    next,
     completeness: completeness(updated),
     gapsLeft: profileGaps(updated).length,
     questionsLeft: questions.length - answered,

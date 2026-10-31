@@ -6,6 +6,7 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { NEVER_FILL } from "@/lib/fillsheet";
 import { DetailsSchema } from "@/lib/details-schema";
+import { kickoff } from "@/lib/kickoff";
 
 export const runtime = "nodejs";
 
@@ -44,5 +45,6 @@ export async function POST(req: NextRequest) {
   }
   await logEvent({ userId: uid, actor: "user", action: "profile.details_saved", context: { recommenders: parsed.data.recommenders.length } });
   const resumed = await resumeAfterProfileChange(uid, "form details");
-  return NextResponse.json({ ok: true, resumed });
+  const k = await kickoff(uid, "details").catch(() => null);
+  return NextResponse.json({ ok: true, resumed, shortlist: k?.shortlist ?? false, missing: k?.missing ?? [] });
 }

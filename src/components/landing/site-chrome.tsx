@@ -65,6 +65,12 @@ export function SiteFooter() {
           <Link href="/#faq" className="block text-muted hover:text-foreground">
             Questions
           </Link>
+          <a href="https://ivyward.userjot.com" target="_blank" rel="noreferrer" className="block text-muted hover:text-foreground">
+            Feedback and support
+          </a>
+          <a href="https://ivyward.userjot.com/roadmap" target="_blank" rel="noreferrer" className="block text-muted hover:text-foreground">
+            Roadmap
+          </a>
         </nav>
         <nav aria-label="Account" className="space-y-2.5">
           <p className="font-medium">Account</p>

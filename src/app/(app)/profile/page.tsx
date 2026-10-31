@@ -69,10 +69,10 @@ function Item({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string; setup?: string }> }) {
   const auth = await requireUser();
   if (!auth) return null;
-  const { tab: t } = await searchParams;
+  const { tab: t, setup } = await searchParams;
   const tab = TABS.some(([k]) => k === t) ? t! : "overview";
   const [{ data }, { data: decisions }, { data: recs }] = await Promise.all([
     auth.sb.from("profiles").select("profile, portal_details").single(),
@@ -222,9 +222,19 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       {tab === "details" && (
         <section id="details" className="rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-7">
+          {setup ? (
+            <div className="mb-6 rounded-2xl border border-brand/25 bg-brand/[0.05] px-4 py-3.5">
+              <p className="font-medium">Last step of setup</p>
+              <p className="mt-0.5 text-[13.5px] text-muted">Your agents are already building your shortlist. These details go into every application form, so fill them in now and they won&apos;t have to stop and ask later.</p>
+            </div>
+          ) : null}
           <h2 className="text-lg font-bold tracking-[-0.02em]">Details for application forms</h2>
           <p className="mb-6 mt-1 max-w-2xl text-[13.5px] text-muted">Contact, address and recommenders. The agents copy these into every portal, and restart any application that was waiting for one as soon as you save.</p>
-          <PortalDetailsForm details={(data?.portal_details ?? {}) as PortalDetails} recommenders={(recs ?? []) as RecommenderRow[]} />
+          <PortalDetailsForm
+            setup={!!setup}
+            details={{ ...((data?.portal_details ?? {}) as PortalDetails), email: ((data?.portal_details ?? {}) as PortalDetails).email || auth.user.email || null }}
+            recommenders={(recs ?? []) as RecommenderRow[]}
+          />
         </section>
       )}
 

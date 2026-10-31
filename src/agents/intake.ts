@@ -1,4 +1,5 @@
 import "server-only";
+import { DOC_KIND_IDS } from "@/lib/doc-kinds";
 import * as z from "zod/v4";
 import mammoth from "mammoth";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
@@ -13,7 +14,7 @@ import { scheduleConsolidate } from "./curator";
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
 export const ExtractOut = z.object({
-  detected_kind: z.enum(["cv", "transcript", "degree_certificate", "test_score", "reference_letter", "old_essay", "other"]),
+  detected_kind: z.enum(DOC_KIND_IDS),
   summary: z.string(), // one or two lines for the documents list
   patch: WirePatch,
   issues: z.array(z.string()), // anything unreadable, inconsistent, or worth asking about

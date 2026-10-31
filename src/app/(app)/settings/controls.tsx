@@ -7,6 +7,7 @@ import { CAPABILITY_LABEL, MODE_LABEL, USER_SETTABLE } from "@/lib/dial";
 import type { GrantMode } from "@/lib/policy";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
+import { ConfirmDelete } from "@/components/ui/confirm-delete";
 
 async function post(url: string, body?: Record<string, unknown>, method = "POST") {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -242,5 +243,37 @@ export function RunnerCard({ tokens }: { tokens: { id: string; label: string | n
         ) : null}
       </div>
     </details>
+  );
+}
+
+export function DeleteAccount({ email }: { email: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-stop/25 bg-stop/[0.03] px-5 py-4">
+      <div className="min-w-0">
+        <p className="font-medium">Delete your account</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">Removes {email} and everything Ivyward holds for you.</p>
+      </div>
+      <ConfirmDelete
+        title="Delete your Ivyward account?"
+        lines={[
+          "Your profile, documents and every uploaded file",
+          "All applications, essays, briefs and fee and funding plans",
+          "Portal logins the agents saved, and your Gmail connection",
+          "Applications already sent to schools stay with those schools",
+        ]}
+        word="delete my account"
+        action="Delete account"
+        trigger={
+          <Button variant="danger" size="sm">
+            Delete account
+          </Button>
+        }
+        onConfirm={async () => {
+          const r = await fetch("/api/account", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: "delete my account" }) });
+          if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't delete the account");
+          window.location.assign("/?deleted=1");
+        }}
+      />
+    </div>
   );
 }

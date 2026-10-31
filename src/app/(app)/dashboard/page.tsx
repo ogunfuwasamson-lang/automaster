@@ -33,6 +33,7 @@ import { AskBox } from "@/components/home/ask-box";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
+import { ShortlistProgress, type ShortlistRun } from "@/components/home/shortlist-progress";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -65,6 +66,26 @@ function greeting() {
   // the server runs in UTC; most applicants are a few hours either side, so keep it broad
   const h = new Date().getUTCHours() + 1;
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+// the shortlist run in progress, if any: the latest planner job and the recon jobs queued since
+async function loadShortlistRun(sb: NonNullable<Awaited<ReturnType<typeof requireUser>>>["sb"]): Promise<ShortlistRun | null> {
+  const { data: jobs } = await sb.from("jobs").select("task, status, created_at, result").eq("agent", "recon").neq("task", "scholarships").order("created_at", { ascending: false }).limit(80);
+  const list = (jobs ?? []) as { task: string; status: string; created_at: string; result: { regions?: string[] } | null }[];
+  const plan = list.find((j) => j.task === "discover");
+  if (!plan) return null;
+  const run = list.filter((j) => j.created_at >= plan.created_at);
+  const open = (j: { status: string }) => j.status === "queued" || j.status === "running";
+  if (!run.some(open)) return null;
+  const regionJobs = run.filter((j) => j.task === "discover_region");
+  const programs = run.filter((j) => j.task === "research_program");
+  return {
+    planning: open(plan),
+    regions: plan.result?.regions?.length ?? (regionJobs.length || 1),
+    regionsLeft: regionJobs.filter(open).length,
+    programsTotal: programs.length,
+    programsDone: programs.filter((j) => !open(j)).length,
+  };
 }
 
 export default async function Dashboard() {
@@ -105,6 +126,9 @@ export default async function Dashboard() {
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
 
+  const shortlistRun = await loadShortlistRun(sb);
+  const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
+  const setupTodo = setupQ.error ? [] : (setupQ.data ?? []);
   const unreadQ = await sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "in").is("read_at", null);
   const unread = unreadQ.error ? 0 : (unreadQ.count ?? 0);
   const p = loadProfile(prof?.profile);
@@ -183,6 +207,35 @@ export default async function Dashboard() {
           </div>
         </header>
       </Rise>
+
+      {shortlistRun && (
+        <Rise>
+          <ShortlistProgress run={shortlistRun.planning ? { ...shortlistRun, regions: p.preferences.regions?.length || 1 } : shortlistRun} />
+        </Rise>
+      )}
+
+      {setupTodo.length > 0 && (
+        <Rise>
+          <Card className="p-5 sm:p-6">
+            <h2 className="text-lg font-bold tracking-[-0.02em]">What your agents still need</h2>
+            <p className="mt-0.5 text-[13.5px] text-muted">They&apos;re working with what they have. Each of these lets them do more without stopping to ask.</p>
+            <ul className="mt-4 grid gap-2 md:grid-cols-2">
+              {setupTodo.map((n) => (
+                <li key={n.id}>
+                  <Link href={n.href ?? "/dashboard"} className="group flex h-full items-start gap-3 rounded-2xl border border-line p-3.5 transition-colors hover:border-signal/40 hover:bg-signal/[0.04]">
+                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.urgent ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">{n.title}</span>
+                      {n.body && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted">{n.body}</span>}
+                    </span>
+                    <span className="mt-0.5 shrink-0 text-[12.5px] font-medium text-brand">{n.action_label ?? "Open"}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </Rise>
+      )}
 
       {(paused || !!parked || !!billing?.length) && (
         <Rise className="space-y-2">

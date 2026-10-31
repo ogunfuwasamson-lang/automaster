@@ -11,6 +11,7 @@ import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
 import { admin } from "@/lib/supabase/admin";
 import { RunnerPanel } from "./runner-panel";
+import { DeleteApplication } from "./delete-application";
 import { loadSheet } from "@/lib/runner";
 
 export const dynamic = "force-dynamic";
@@ -150,6 +151,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={app.status} runner={app.runner_status === "idle" && ((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused ? "paused" : app.runner_status} />
             {["shortlisted", "preparing", "ready_for_review"].includes(app.status) && <PrepareButton id={id} replan={!!brief} busy={strategizing} size="sm" />}
+            <DeleteApplication id={id} school={p.degree === "Scholarship" ? p.name : p.schools.name} status={app.status} />
           </div>
         </div>
         <dl className="flex flex-wrap gap-x-8 gap-y-2 border-y border-line py-3 text-sm">

@@ -3,6 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { HANDLERS } from "@/agents";
 import { nextMonthStartUTC } from "@/lib/pricing";
+import { shortlistFinished } from "@/lib/kickoff";
 
 export { enqueue } from "@/lib/queue";
 export type { Job } from "@/lib/queue";
@@ -38,6 +39,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
       .from("jobs")
       .update({ status: "done", result: result ?? null, finished_at: new Date().toISOString(), last_error: null })
       .eq("id", job.id);
+    if (job.agent === "recon" && job.task !== "scholarships") await shortlistFinished(job.user_id).catch(() => {});
     return { id: job.id, ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -90,6 +92,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         action: "job.failed",
         context: { jobId: job.id, agent: job.agent, task: job.task, error: msg },
       });
+      if (job.agent === "recon" && job.task !== "scholarships") await shortlistFinished(job.user_id).catch(() => {});
     }
     return { id: job.id, ok: false, error: msg };
   }

@@ -2,9 +2,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
-import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard } from "./controls";
+import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard, DeleteAccount } from "./controls";
 import type { GrantMode } from "@/lib/policy";
-import { PLANS, planOf } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -54,20 +53,13 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <DigestToggle enabled={prof?.digest_enabled ?? true} />
       </Group>
 
-      <Group title="Plan" description="Pro is free. The Season pass is the one paid option.">
-        <div id="plan" className="scroll-mt-24 space-y-3 text-sm">
-          <p>
-            You&apos;re on <span className="font-medium">{planOf(prof?.plan).id === "season" ? "the Season pass" : "Pro, free"}</span>. Every feature is included: all regions, up to {PLANS.pro.maxActiveApplications} applications, essays, submission and funding help.
-          </p>
-          {planOf(prof?.plan).id !== "season" && (
-            <p className="text-muted">The Season pass ({PLANS.season.priceLabel}) pays once for the whole cycle. Payments aren&apos;t open yet, so nothing changes for you until they are.</p>
-          )}
-        </div>
-      </Group>
-
       <section className="border-t border-line pt-8">
         <RunnerCard tokens={tokens ?? []} />
       </section>
+
+      <Group title="Account">
+        <DeleteAccount email={auth.user.email ?? "your account"} />
+      </Group>
     </div>
   );
 }

@@ -133,7 +133,14 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
   ripcords: [],
   jobs: [
     { id: "j1", status: "running", agent: "writer", task: "draft", payload: {}, last_error: null },
-    { id: "j2", status: "queued", agent: "recon", task: "research", payload: {}, last_error: null },
+    { id: "j2", status: "done", agent: "recon", task: "discover", payload: {}, last_error: null, created_at: ago(9), result: { regions: ["us", "uk"] } },
+    { id: "j3", status: "done", agent: "recon", task: "discover_region", payload: {}, last_error: null, created_at: ago(8) },
+    { id: "j4", status: "running", agent: "recon", task: "discover_region", payload: {}, last_error: null, created_at: ago(8) },
+    ...Array.from({ length: 6 }, (_, i) => ({ id: `jr${i}`, status: i < 4 ? "done" : "queued", agent: "recon", task: "research_program", payload: {}, last_error: null, created_at: ago(5) })),
+  ],
+  notifications: [
+    { id: "n1", kind: "setup", title: "Fill in your form details", body: "Every portal asks for these: phone (with country code), date of birth, address line 1, city, country.", href: "/profile?tab=details&setup=1", action_label: "Fill in details", urgent: true, created_at: ago(3), read_at: null, resolved_at: null },
+    { id: "n2", kind: "setup", title: "Add your transcript", body: "Almost every application asks for it, and agents read your grades and courses from it.", href: "/documents", action_label: "Upload transcript", urgent: false, created_at: ago(3), read_at: null, resolved_at: null },
   ],
   grants: [
     { capability: "research", mode: "auto", undo_seconds: 0 },

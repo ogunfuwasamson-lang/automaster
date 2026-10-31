@@ -1,4 +1,6 @@
 import { resumeAfterProfileChange } from "@/lib/requeue";
+import { DOC_KIND_IDS } from "@/lib/doc-kinds";
+import { resolve } from "@/lib/notify";
 import { NextResponse, after, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
@@ -13,7 +15,7 @@ export const maxDuration = 300;
 
 const Body = z.object({
   id: z.uuid(),
-  kind: z.enum(["cv", "transcript", "degree_certificate", "test_score", "reference_letter", "old_essay", "other"]),
+  kind: z.enum(DOC_KIND_IDS),
   filename: z.string().min(1).max(200),
   storagePath: z.string(),
   mime: z.string().max(200),
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest) {
   await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
   // a new document can be exactly what a stopped submission was waiting for
   await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);
+  await resolve(uid, `setup:${b.kind}`).catch(() => {});
   after(() => drain("inline-upload", 2).catch(() => {}));
   return NextResponse.json({ ok: true });
 }

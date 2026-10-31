@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
@@ -36,6 +36,8 @@ export function ChatDock() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [kickoff, setKickoff] = useState(false);
   const [say, setSay] = useState<string | null>(null);
+  // opened from the last step of setup: closing the panel, finished or not, starts the agents
+  const fromSetup = useRef(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/interview/history");
@@ -70,6 +72,7 @@ export function ChatDock() {
     if (params.get("chat") === "open") {
       const said = params.get("say");
       setSay(said || null);
+      if (params.get("setup") === "1") fromSetup.current = true;
       setKickoff(!!said || questions.length > 0);
       if (said) setHist(null);
       setOpen(true);
@@ -77,6 +80,7 @@ export function ChatDock() {
       const next = new URLSearchParams(params);
       next.delete("chat");
       next.delete("say");
+      next.delete("setup");
       router.replace(next.size ? `${path}?${next}` : path, { scroll: false });
     }
   }, [params, path, router, questions.length]);
@@ -96,7 +100,10 @@ export function ChatDock() {
           setSay(null);
           markSeen(questions.map((q) => q.id));
           void check(false);
-          router.refresh(); // the interview may have filled the profile
+          if (fromSetup.current) {
+            fromSetup.current = false;
+            void fetch("/api/onboarding/kickoff", { method: "POST" }).finally(() => router.refresh());
+          } else router.refresh(); // the interview may have filled the profile
         }
       }}
     >

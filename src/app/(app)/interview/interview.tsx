@@ -84,6 +84,8 @@ export function Interview({
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
   const [pct, setPct] = useState(initialCompleteness);
+  // set when the conversation wraps up: the agents have started, and this is where the applicant goes next
+  const [done, setDone] = useState<{ next: string | null } | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [interim, setInterim] = useState("");
   const [draft, setDraft] = useState("");
@@ -274,6 +276,7 @@ export function Interview({
       setSessionId(data.sessionId);
       setTurns((t) => [...t, { role: "agent", content: data.reply }]);
       setPct(data.completeness);
+      if (data.wrapUp) setDone({ next: data.next ?? null });
       onTurn?.();
       say(data.reply, () => {
         if (settings.current.handsFree && settings.current.voiceOk && !data.wrapUp) startListening(true);
@@ -489,6 +492,17 @@ export function Interview({
                 <span key={i} className="size-1.5 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: `${i * 120}ms` }} />
               ))}
             </span>
+          </div>
+        )}
+        {done && (
+          <div className="mt-4 rounded-2xl border border-go/25 bg-go/[0.05] p-4">
+            <p className="font-medium">Your agents are on it.</p>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-muted">
+              {done.next ? "They're building your shortlist now. One more thing: the contact and address details every portal asks for." : "They're building your shortlist now. You'll get a notification when it's ready."}
+            </p>
+            <a href={done.next ?? "/dashboard"} className="mt-3 inline-flex h-9 items-center rounded-lg bg-ink px-4 text-[13.5px] font-medium text-on-ink hover:opacity-90">
+              {done.next ? "Fill in your form details" : "Go to home"}
+            </a>
           </div>
         )}
         <div ref={bottom} />
