@@ -26,10 +26,17 @@ const ALIASES: Record<string, string[]> = {
   nigeria: ["nigerian", "ng", "nga", "federal republic of nigeria"],
   "united states": ["usa", "us", "united states of america", "american"],
   "united kingdom": ["uk", "great britain", "british", "england"],
-  male: ["man", "m"],
-  female: ["woman", "f"],
-  yes: ["true", "y"],
-  no: ["false", "n"],
+  male: ["man", "m", "male m"],
+  female: ["woman", "f", "female f"],
+  yes: ["true", "y", "oui", "si"],
+  no: ["false", "n", "non"],
+  "prefer not to say": ["prefer not to answer", "decline to answer", "rather not say", "do not wish to disclose", "i prefer not to say", "not disclosed", "decline to state", "prefer not to disclose"],
+  "non binary": ["nonbinary", "non binary person"],
+  "another gender": ["other gender", "gender not listed", "prefer to self describe", "self describe"],
+  english: ["anglais", "ingles", "englisch"],
+  french: ["francais", "frances"],
+  "full time": ["full-time", "fulltime", "ft"],
+  "part time": ["part-time", "parttime", "pt"],
 };
 
 // words that mean the same thing on forms, often bilingual ("Fall / Automne 2027"): mapped to one spelling
@@ -116,7 +123,12 @@ function fileFor(label: string, sheet: FillSheet): string | null {
 
 // when the question text is unclear, the answers can give it away
 export function keyForOptions(options: string[]): string | null {
-  const o = options.map((x) => x.toLowerCase());
+  const o = options.map((x) => x.toLowerCase().trim());
+  // a field whose label says nothing useful ("My details") still gives itself away by its options
+  if (o.some((x) => /^(male|man|m)$/.test(x)) && o.some((x) => /^(female|woman|f)$/.test(x))) return "gender";
+  if (o.filter((x) => /^(mr|mrs|ms|miss|mx|dr)\.?$/.test(x)).length >= 3) return "title";
+  if (o.filter((x) => /\+\s?\d{1,3}\b|\(\+?\d{1,3}\)/.test(x)).length >= 10) return "phone_country_code";
+  if (o.filter((x) => /^(single|married|divorced|widowed|separated)\b/.test(x)).length >= 3) return "marital_status";
   if (o.some((x) => /full.?time/.test(x)) && o.some((x) => /part.?time/.test(x))) return "study_mode";
   if (o.some((x) => /myself|my own behalf/.test(x)) && o.some((x) => /agent/.test(x))) return "applying_as";
   return null;
@@ -146,6 +158,7 @@ export function answerFor(label: string, sheet: FillSheet, options: string[] = [
 
 // first pass: rules only. returns fills plus the fields the model should look at.
 export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill[]; unresolved: PageField[] } {
+  const hasCodeBox = fields.some((x) => keyForLabel(x.label) === "phone_country_code" || (x.type === "select" && keyForOptions(x.options ?? []) === "phone_country_code"));
   const fills: Fill[] = [];
   const unresolved: PageField[] = [];
   for (const f of fields) {
@@ -177,7 +190,9 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
       fills.push(ra);
       continue;
     }
-    const key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
+    let key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
+    // a number box next to its own dialling-code box takes the number without the code
+    if (key === "phone" && f.type !== "select" && hasCodeBox) key = sheet.fields.phone_number ? "phone_number" : key;
     const r = key ? resolve(f, key, sheet) : null;
     if (r) fills.push(r);
     else if (key && !sheet.fields[key] && !key.startsWith("essay:")) fills.push({ id: f.id, action: "skip", reason: `missing:${key}` });
@@ -207,6 +222,10 @@ const RELATED: Record<string, string[]> = {
   degree: ["level", "application_type", "program"],
   program: ["degree", "field_of_interest"],
   study_mode: ["application_type"],
+  phone_country_code: ["lives_in", "country", "citizenship"],
+  citizenship: ["nationality", "country"],
+  first_language: ["english_first_language"],
+  english_first_language: ["first_language"],
 };
 
 export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | null {

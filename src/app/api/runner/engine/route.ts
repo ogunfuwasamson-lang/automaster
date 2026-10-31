@@ -28,7 +28,7 @@ const Body = z.discriminatedUnion("op", [
   z.object({ op: z.literal("navigate"), application: z.string().uuid(), host: z.string().max(253), input: z.any() }),
   z.object({ op: z.literal("fill_key"), application: z.string().uuid(), field: Field, key: z.string().max(120) }),
   z.object({ op: z.literal("progress"), application: z.string().uuid(), note: z.string().max(300) }),
-  z.object({ op: z.literal("decide"), application: z.string().uuid(), fields: z.array(Field).max(60), page: z.object({ url: z.string().max(2000), title: z.string().max(300), body: z.string().max(4000) }) }),
+  z.object({ op: z.literal("decide"), application: z.string().uuid(), fields: z.array(Field).max(60), page: z.object({ url: z.string().max(2000), title: z.string().max(300), body: z.string().max(4000), errors: z.array(z.string().max(300)).max(20).optional() }) }),
   z.object({ op: z.literal("reset_link"), application: z.string().uuid(), host: z.string().max(253), since: z.number() }),
   z.object({
     op: z.literal("see"),
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const { storage_enc: _drop, ...state } = st;
     void _drop;
     return NextResponse.json({
-      state: { ...state, steps: 0, samePageCount: 0, navCalls: 0 },
+      state: { ...state, steps: 0, samePageCount: 0, navCalls: 0, visionCalls: 0, decided: [] },
       url: normalizeUrl(st.last_url) ?? portal,
       canReadMail: await canReadMail(uid).catch(() => false),
       accountEmail: sheet.fields.email ?? "",

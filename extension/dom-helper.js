@@ -76,7 +76,9 @@
         if (!el.name || seen.has(el.name)) continue; seen.add(el.name);
         const group = [...document.querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')];
         if (!includeFilled && group.some((g) => g.checked)) continue;
-        out.push({ id: idOf(el), label: groupLabel(el), type: "radio", name: el.name, options: group.map((g) => labelFor(g) || g.value), required: group.some((g) => g.required) });
+        const gl = groupLabel(el);
+        // "Will you be resident in the UK...? *": an asterisk anywhere in the question marks it required
+        out.push({ id: idOf(el), label: gl, type: "radio", name: el.name, options: group.map((g) => labelFor(g) || g.value), required: group.some((g) => g.required || g.getAttribute("aria-required") === "true") || /\*/.test(gl) || !!el.closest('[aria-required="true"], .required, .mandatory') });
         continue;
       }
       if (!includeFilled && !isEmpty(el)) continue;
@@ -85,7 +87,7 @@
       const combo = type === "text" && (role === "combobox" || /^(list|both)$/i.test(el.getAttribute("aria-autocomplete") || "") || !!el.getAttribute("list") || !!el.closest('[class*="select2" i], [class*="react-select" i], [class*="combobox" i], [class*="autocomplete" i], [class*="typeahead" i]'));
       out.push({ id: idOf(el), label, type, combo: combo || undefined, name: el.name || undefined, autocomplete: el.autocomplete || undefined,
         options: type === "select" ? [...el.options].map((o) => o.text.trim()) : undefined,
-        required: el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(label) });
+        required: el.required || el.getAttribute("aria-required") === "true" || /\*\s*$|\*\s*\(/.test(label) || (type !== "checkbox" && /\*/.test(label) && label.length < 200) });
     }
     return out.slice(0, 150);
   }

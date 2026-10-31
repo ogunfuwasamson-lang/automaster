@@ -83,7 +83,16 @@ export function buildSheet(a: {
   set("email", d.email || a.accountEmail);
   // portals that want a user id as well as an email: the email's local part
   set("username", (d.email || a.accountEmail || "").split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
-  set("phone", d.phone || fact(/\b(phone|mobile)\b/i));
+  const phone = d.phone || fact(/\b(phone|mobile)\b/i);
+  set("phone", phone);
+  // split for portals with a separate dialling-code box: "+234 803 123 4567" -> "+234" and "8031234567"
+  const pm = (phone ?? "").replace(/[^\d+]/g, "").match(/^\+(\d{1,3})(\d{6,12})$/);
+  if (pm) {
+    const cc = DIAL.find((c) => pm[1].startsWith(c)) ?? pm[1].slice(0, 3);
+    set("phone_country_code", `+${cc}`);
+    set("phone_number", (pm[1] + pm[2]).slice(cc.length).replace(/^0/, ""));
+    set("phone_local", `0${(pm[1] + pm[2]).slice(cc.length).replace(/^0/, "")}`);
+  }
   const dob = d.date_of_birth || fact(/date of birth|birth ?date|\bdob\b/i);
   set("date_of_birth", dob);
   if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
@@ -103,6 +112,12 @@ export function buildSheet(a: {
   set("country", d.country || p.identity.country_of_residence);
   set("linkedin", d.linkedin);
   set("website", d.website);
+  set("nationality", p.identity.citizenship);
+  // plain facts that follow from where they live and what they speak, for the yes/no questions forms ask
+  const lives = (d.country || p.identity.country_of_residence || "").trim();
+  if (lives) set("lives_in", lives);
+  const firstLang = d.first_language || fact(/(first|native|mother).{0,10}(language|tongue)/i);
+  if (firstLang) set("english_first_language", /^english\b/i.test(firstLang.trim()) ? "Yes" : "No");
   // everything else on the profile details (languages, background, family, activities, the yes/no questions):
   // offered under its own key, so a form question about it is filled without asking
   for (const fd of PORTAL_DETAIL_FIELDS) if (!(fd.key in f)) set(fd.key, d[fd.key]);
@@ -225,7 +240,34 @@ export function buildSheet(a: {
 // label -> sheet key. the runner tries these before asking the model.
 // order matters: more specific patterns first.
 // ---------------------------------------------------------------------------
+// the start of international dialling codes, longest first ("+234" not "+23")
+const DIAL = ["1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98", "211", "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", "266", "267", "268", "269", "290", "291", "297", "298", "299", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "380", "381", "382", "383", "385", "386", "387", "389", "420", "421", "423", "852", "853", "855", "856", "880", "886", "960", "961", "962", "963", "964", "965", "966", "967", "968", "970", "971", "972", "973", "974", "975", "976", "977", "992", "993", "994", "995", "996", "998"].sort((a, b) => b.length - a.length);
+
 export const LABEL_RULES: [RegExp, string][] = [
+  // words forms use for the same thing: tried before the general rules below. most specific first.
+  [/\bemergency\s*contact.*\b(phone|number|tel|mobile)\b/i, "emergency_contact_phone"],
+  [/\bemergency\s*contact.*\be-?mail\b/i, "emergency_contact_email"],
+  [/\bemergency\s*contact.*\brelation/i, "emergency_contact_relationship"],
+  [/\bemergency\s*contact/i, "emergency_contact_name"],
+  [/\b(country|dial(l?ing)?|international|area)\s*(phone\s*)?code\b|\bphone\s*prefix\b|\bcalling code\b/i, "phone_country_code"],
+  [/\b(fore\s*names?|given\s*names?|christian\s*name)\b/i, "first_name"],
+  [/\b(family\s*name|last\s*names?|surname)\b/i, "last_name"],
+  [/^(?!.*\b(job|position|course|programme|program|thesis|dissertation)\b).*\b(salutation|honorific|title)\s*\*?\s*$|^\s*(salutation|title)\b(?!.*\b(job|course)\b)/i, "title"],
+  [/\b(nationality|citizen(ship)?|passport\s*country|country\s*of\s*citizenship)\b/i, "citizenship"],
+  [/\b(sex|gender|gender identity|legal sex|sex at birth)\b/i, "gender"],
+  [/\bis english your (first|native|main)\b|english.*\b(first|native|mother|main)\b.{0,10}(language|tongue)/i, "english_first_language"],
+  [/\b(first|native|mother|home|main)\s*(language|tongue)\b|\blanguage\s*(spoken\s*)?(most\s*)?(at\s*home|often)\b/i, "first_language"],
+  [/^(?!.*\b(no|none|don.?t have|do not have)\b).*\b(mobile|cell(ular)?|telephone|phone|contact\s*number|tel\.?|whats\s*app)\b/i, "phone"],
+  [/\bmarital\s*status|civil\s*status\b/i, "marital_status"],
+  [/\b(ethnic|ethnicity|race)\b/i, "race_ethnicity"],
+  [/\breligio|\bfaith\b/i, "religion"],
+  [/\bdisabilit|special\s*(needs|requirements)|learning\s*difficult/i, "disability"],
+  [/\b(city|town|place)\s*of\s*birth\b/i, "city_of_birth"],
+  [/\bhow\s*did\s*you\s*(hear|find|learn)|where\s*did\s*you\s*hear|source\s*of\s*(information|referral)/i, "how_heard"],
+  [/\bpronoun/i, "pronouns"],
+  [/\b(post\s*code|postcode|zip(\s*code)?|postal\s*code)\b/i, "postal_code"],
+  [/^\s*(country|country\s*\/\s*region|country or region|country of (residence|domicile))\s*\*?\s*$/i, "country"],
+  [/^(?!.*\bcountry\b).*\b(county|state|province|region)\s*(\/\s*(state|province|county))?\s*\*?\s*$/i, "state"],
   [/\b(re-?enter|confirm|verify)\b.*e-?mail/i, "email"],
   [/\b(first|given)\s*name/i, "first_name"],
   [/\bmiddle\s*name/i, "middle_name"],
@@ -233,12 +275,10 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\bpreferred\s*(first\s*)?name|nick\s*name/i, "preferred_name"],
   [/^\s*(full\s*)?(legal\s*)?name\s*\*?\s*$/i, "full_name"],
   [/e-?mail/i, "email"],
-  [/\b(mobile|cell|phone|telephone)\b/i, "phone"],
   [/\b(birth|dob)\w*\b.*\b(month|mm|m)\s*\*?$|\bbirth\s*month\b/i, "dob_month"],
   [/\b(birth|dob)\w*\b.*\b(day|dd|d)\s*\*?$|\bbirth\s*day\b/i, "dob_day"],
   [/\b(birth|dob)\w*\b.*\b(year|yyyy|y)\s*\*?$|\bbirth\s*year\b/i, "dob_year"],
   [/\b(date\s*of\s*birth|birth\s*date|birthdate|dob)\b/i, "date_of_birth"],
-  [/\b(gender|sex)\b/i, "gender"],
   [/\b(user\s*(id|name)|login\s*(id|name)|choose a (user|login)|identifiant|nom d.utilisateur)\b/i, "username"],
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
@@ -252,7 +292,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(address|street)\b.*\b(2|two|line\s*2)\b/i, "address_line2"],
   [/\b(street|address)(\s*line\s*1)?\b/i, "address_line1"],
   [/\b(city|town)\b/i, "city"],
-  [/\b(state|province|region)\b/i, "state"],
+  [/^(?!.*\bcountry\b).*\b(state|province|region)\b/i, "state"],
   [/\b(zip|postal|post)\s*code\b/i, "postal_code"],
   [/^\s*country\s*\*?\s*$/i, "country"],
   [/linkedin/i, "linkedin"],

@@ -9,7 +9,7 @@ import { chromePage } from "./chrome-page";
 declare const chrome: any;
 
 const DEFAULT_API = "https://tryivyward.com";
-const RUN_MS = 4 * 60_000; // one engine run; the state is saved between runs
+const RUN_MS = 15 * 60_000; // one engine run in the applicant's own chrome (no server time limit); the state is saved between runs
 const VERSION = "0.3.1";
 
 type Task = { id: string; school: string; program: string; portal_url: string | null; runner_status: string; note: string | null; mode: string; reason: string | null; resume_at: number | null };
@@ -125,7 +125,7 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
     fillFromKey: async (field, key) => (await eng(taskId, "fill_key", { field: { id: field.id, label: field.label.slice(0, 400), type: field.type, name: field.name, options: field.options?.slice(0, 300), required: field.required }, key })).fill,
     loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : undefined,
     decide: async (fields, page) =>
-      (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 4000) } })).fills ?? [],
+      (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 4000), errors: (page.errors ?? []).slice(0, 20).map((e) => e.slice(0, 300)) } })).fills ?? [],
     resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : undefined,
     rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
     // screenshot steps: the picture goes to Ivyward, which picks the move (and the value to type, from the fill sheet)

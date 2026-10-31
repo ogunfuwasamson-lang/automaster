@@ -59,3 +59,33 @@ describe("profile details", () => {
     expect(detailsBrief(d, "eligibility")).not.toContain("+234");
   });
 });
+
+import { keyForLabel } from "@/lib/fillsheet";
+import { bestOption, keyForOptions } from "@/lib/runner-map";
+describe("words that mean the same thing on forms", () => {
+  it("maps synonyms to the same profile field", () => {
+    expect(keyForLabel("Sex *")).toBe("gender");
+    expect(keyForLabel("Mobile number")).toBe("phone");
+    expect(keyForLabel("Contact number")).toBe("phone");
+    expect(keyForLabel("I have no mobile")).toBe(null);
+    expect(keyForLabel("Forename(s)")).toBe("first_name");
+    expect(keyForLabel("Family name")).toBe("last_name");
+    expect(keyForLabel("Nationality")).toBe("citizenship");
+    expect(keyForLabel("Country/Region")).toBe("country");
+    expect(keyForLabel("Job title")).not.toBe("title");
+    expect(keyForLabel("Title")).toBe("title");
+    expect(keyForLabel("Is English your first language? *")).toBe("english_first_language");
+    expect(keyForLabel("Mother tongue")).toBe("first_language");
+    expect(keyForLabel("Country code")).toBe("phone_country_code");
+    expect(keyForLabel("Emergency contact phone")).toBe("emergency_contact_phone");
+  });
+  it("recognises a field by its options when the label says nothing", () => {
+    expect(keyForOptions(["Please select", "Male", "Female", "Prefer not to say"])).toBe("gender");
+    expect(keyForOptions(["Mr", "Mrs", "Ms", "Dr"])).toBe("title");
+  });
+  it("matches values worded differently", () => {
+    expect(bestOption("Male", ["M", "F"])).toBe("M");
+    expect(bestOption("Prefer not to say", ["Male", "Female", "I prefer not to say"])).toBe("I prefer not to say");
+    expect(bestOption("+234", ["United Kingdom (+44)", "Nigeria (+234)", "Niger (+227)"])).toBe("Nigeria (+234)");
+  });
+});

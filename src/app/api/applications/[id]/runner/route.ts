@@ -86,9 +86,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (parsed.data.action === "queue") {
     if (app.status !== "packet_approved") return NextResponse.json({ error: "approve the packet first" }, { status: 400 });
     if (parsed.data.portal_url && !/^https:\/\//.test(parsed.data.portal_url)) return NextResponse.json({ error: "portal link must start with https://" }, { status: 400 });
+    const { data: cur } = await db.from("applications").select("portal_url").eq("id", id).single();
+    const changed = (!!parsed.data.portal_url && parsed.data.portal_url !== cur?.portal_url) || !!parsed.data.find_portal_again;
     if (parsed.data.portal_url) await db.from("applications").update({ portal_url: parsed.data.portal_url }).eq("id", id);
     else if (parsed.data.find_portal_again) await db.from("applications").update({ portal_url: null }).eq("id", id);
-    await queueRunner(auth.user.id, id);
+    // same portal: carry on from where it stopped, signed in. a new portal link: start from that link
+    await queueRunner(auth.user.id, id, { fresh: changed });
     after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
   }
   await logEvent({ userId: auth.user.id, actor: "user", action: "runner.queued", applicationId: id });

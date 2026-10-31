@@ -2,8 +2,11 @@
 "use strict";
 (() => {
   // src/lib/labels.ts
+  function stripMarkers(label) {
+    return label.replace(/\(\s*(required|optional)\s*\)/gi, " ").replace(/\s[-–—]\s*(required|optional)\s*$/i, "").replace(/^\s*(required|optional)\s*[:*-]?\s+/i, "").replace(/\s+(required|optional)\s*\**\s*$/i, "").replace(/\s+/g, " ").trim();
+  }
   function cleanLabel(label, options = []) {
-    let l = label.replace(/\s+/g, " ").replace(/\(?(required|optional)\)?/gi, "").trim();
+    let l = stripMarkers(label.replace(/\s+/g, " "));
     const tails = [...options, "select", "select one", "choose", "choose one", "please select", "-- select --"].map((o) => o.trim().toLowerCase()).filter(Boolean).sort((a, b) => b.length - a.length);
     for (let guard = 0; guard < 60; guard++) {
       const low = l.toLowerCase();
@@ -159,7 +162,7 @@
     }
     return best && best.score >= 3 ? best.b : void 0;
   }
-  var VISION_BUDGET = 40;
+  var VISION_BUDGET = 60;
   var VISION_KEYS = /* @__PURE__ */ new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
   async function visionLoop(page, deps2, state, goal, empty, max = 10) {
     if (!deps2.see || !page.screenshot || !page.mouseClick) return { acted: false };
@@ -272,21 +275,22 @@
   async function decidePass(page, deps2, s, fields, state) {
     if (!deps2.decide) return 0;
     const key = (f) => cleanLabel(f.label, f.options).toLowerCase().slice(0, 80);
-    const seen = new Set(state.decided ?? []);
+    const seen = new Set((s.errors ?? []).length ? [] : state.decided ?? []);
     const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
     if (!todo.length) return 0;
     state.decided = [...seen, ...todo.map(key)].slice(-120);
-    const fills = await deps2.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2e3) }).catch(() => []);
+    const fills = await deps2.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2e3), errors: s.errors ?? [] }).catch(() => []);
     return applyList(page, deps2, todo, fills, state);
   }
   async function fillHard(page, deps2, state) {
     let filled = 0;
     let now = await snap(page);
-    let empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    const blank = (x) => x.fields.filter((f) => (f.required || (x.errors ?? []).length > 0 && f.type !== "checkbox" && f.type !== "file") && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    let empty = blank(now);
     if (empty.length) {
       filled += await decidePass(page, deps2, now, empty, state);
       now = await snap(page);
-      empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+      empty = blank(now);
     }
     if (empty.length && deps2.see && page.screenshot) {
       const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
@@ -306,8 +310,8 @@
       if (deps2.shouldStop?.()) return { outcome: { kind: "continue", note: "paused" }, state, filled };
       state.steps += 1;
       state.totalSteps = (state.totalSteps ?? 0) + 1;
-      if (state.steps > 60) return { outcome: { kind: "continue", note: "continuing on the next pages" }, state, filled };
-      if (state.totalSteps > 600) return { outcome: { kind: "needs_you", reason: "stuck", note: "the agents have been through this portal hundreds of pages without finishing; please check where it stands" }, state, filled };
+      if (state.steps > 150) return { outcome: { kind: "continue", note: "continuing on the next pages" }, state, filled };
+      if (state.totalSteps > 1500) return { outcome: { kind: "needs_you", reason: "stuck", note: "the agents have been through this portal hundreds of pages without finishing; please check where it stands" }, state, filled };
       await page.waitForLoadState("domcontentloaded").catch(() => {
       });
       await sleep(800);
@@ -332,8 +336,8 @@
         s = await snap(page);
       }
       if (state.samePageCount >= 3) {
-        const req = s.fields.map((f) => f.label.slice(0, 50));
-        const stillEmpty = s.fields.filter((x) => x.required && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+        const req = s.fields.filter((f) => f.required && f.type !== "checkbox").map((f) => cleanLabel(f.label, f.options).slice(0, 80));
+        const stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
         for (const f of stillEmpty) ask(state, f);
         const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
         const err = (s.errors ?? []).join("; ").slice(0, 160);
@@ -524,7 +528,7 @@
     const labels = [...new Set(keys.map((k) => DETAIL[k] ?? (k.startsWith("rec") ? "recommenders" : k.startsWith("edu") ? "education history" : k.startsWith("work") ? "work history" : k.replace(/_/g, " "))))];
     return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
   }
-  var NAV_BUDGET = 12;
+  var NAV_BUDGET = 30;
   var DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
   async function navStep(page, deps2, s, state, why, fallback) {
     if (!deps2.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
@@ -976,7 +980,7 @@
 
   // extension/src/background.ts
   var DEFAULT_API = "https://tryivyward.com";
-  var RUN_MS = 4 * 6e4;
+  var RUN_MS = 15 * 6e4;
   var VERSION = "0.3.1";
   var sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
   async function nap(ms) {
@@ -1071,7 +1075,7 @@
       navigate: async (input) => (await eng(taskId, "navigate", { host: await host(), input: { ...input, snapshot: { ...input.snapshot, body: input.snapshot.body.slice(0, 4e3) } } })).action,
       fillFromKey: async (field, key) => (await eng(taskId, "fill_key", { field: { id: field.id, label: field.label.slice(0, 400), type: field.type, name: field.name, options: field.options?.slice(0, 300), required: field.required }, key })).fill,
       loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : void 0,
-      decide: async (fields, page) => (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2e3), title: page.title.slice(0, 300), body: page.body.slice(0, 4e3) } })).fills ?? [],
+      decide: async (fields, page) => (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2e3), title: page.title.slice(0, 300), body: page.body.slice(0, 4e3), errors: (page.errors ?? []).slice(0, 20).map((e) => e.slice(0, 300)) } })).fills ?? [],
       resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : void 0,
       rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
       // screenshot steps: the picture goes to Ivyward, which picks the move (and the value to type, from the fill sheet)

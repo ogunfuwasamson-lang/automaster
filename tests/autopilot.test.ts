@@ -75,6 +75,24 @@ describe("fill sheet", () => {
     expect(s.fields.country_of_birth).toBe("Nigeria");
     expect(s.fields.gender).toBe("Male");
   });
+  it("splits the phone for forms with a separate dialling-code box, and fills a Sex field from gender", () => {
+    const s = sheet();
+    expect(s.fields.phone_country_code).toBe("+234");
+    expect(s.fields.phone_number).toBe("8000000000");
+    const { fills } = mapByRules(
+      [
+        { id: "a", label: "My details", type: "select", options: ["", "Male", "Female"], required: true },
+        { id: "b", label: "Country code", type: "select", options: ["United Kingdom (+44)", "Nigeria (+234)"] },
+        { id: "c", label: "Mobile", type: "tel" },
+        { id: "d", label: "I have no mobile", type: "checkbox" },
+      ] as never,
+      { ...s, fields: { ...s.fields, gender: "Male" } },
+    );
+    expect(fills.find((f) => f.id === "a")).toMatchObject({ action: "choose", option: "Male" });
+    expect(fills.find((f) => f.id === "b")).toMatchObject({ action: "choose", option: "Nigeria (+234)" });
+    expect(fills.find((f) => f.id === "c")).toMatchObject({ action: "fill", value: "8000000000" });
+    expect(fills.find((f) => f.id === "d" && f.action === "check")).toBeUndefined();
+  });
   it("lists what portals will ask for that's missing", () => {
     const s = sheet();
     expect(s.missing).toContain("transcript (upload it on documents)");

@@ -6,7 +6,7 @@ import { logEvent } from "@/lib/events";
 // reasons a submission stops that the applicant fixes in Ivyward itself (a missing profile detail, an
 // unanswered question, a missing document). when their profile or documents change, the agents pick these
 // up again on their own: nobody should have to press "try again" after filling in what was asked.
-const FIXABLE_IN_APP = new Set(["question", "missing"]);
+const FIXABLE_IN_APP = new Set(["question", "missing", "stuck"]);
 
 export async function resumeAfterProfileChange(userId: string, what: string): Promise<number> {
   const db = admin();

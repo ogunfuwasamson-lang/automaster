@@ -29,7 +29,9 @@ const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) 
 // the cloud runner: finds the portal, creates the applicant's account, fills, uploads and submits
 // the signed packet from our servers. nothing to install for the applicant.
 
-const RUN_BUDGET_MS = 200_000; // stay well inside the function's 300s
+// as long as the hosting plan lets one run go (300s), leaving time to save its place; when time runs out the next
+// run starts at once from the same page with the same browser session, so the work carries on until it's done
+const RUN_BUDGET_MS = 255_000;
 // every recurring check on the platform runs every 5 minutes
 export const RECHECK_MINUTES = 5;
 const RECHECKS = 16; // after a handoff (bot check, payment), look again this many times, 5 min apart (about 80 minutes)
@@ -422,7 +424,7 @@ export const runner: Record<string, Handler> = {
         },
         progress: async () => {},
       };
-      const { outcome, state: next } = await runEngine(fromPlaywright(page), deps, { ...st, steps: 0, navCalls: 0 }, 150_000);
+      const { outcome, state: next } = await runEngine(fromPlaywright(page), deps, { ...st, steps: 0, navCalls: 0, visionCalls: 0 }, 200_000);
       const saved = { ...next, runs: (st.runs ?? 0) + 1, last_url: page.url(), storage_enc: encrypt(JSON.stringify(await ob.storage())) };
       if (outcome.kind === "submitted") {
         await db.from("followups").update({ status: "done", result_note: f.kind === "register_event" ? "registered" : f.kind === "book_interview" ? "booked" : "sent", state: saved, updated_at: new Date().toISOString() }).eq("id", followupId);
@@ -589,6 +591,7 @@ export const runner: Record<string, Handler> = {
     // per-run counters start fresh each run; the engine keeps a lifetime total as a runaway guard
     state.steps = 0;
     state.navCalls = 0;
+    state.visionCalls = 0;
     const storage = state.storage_enc ? (JSON.parse(decrypt(state.storage_enc)) as StorageState) : null;
     const schoolId = (app.programs as unknown as { school_id: string }).school_id;
     const portalHost = hostOf(normalizeUrl(state.last_url) ?? portal);
@@ -750,7 +753,37 @@ export const runner: Record<string, Handler> = {
 };
 
 // called when a packet is signed (and from "send to runner")
-export async function queueRunner(userId: string, applicationId: string) {
-  await admin().from("applications").update({ runner_status: "ready", runner_mode: "cloud", runner_note: "queued", runner_state: {}, runner_live_url: null, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
-  await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId } });
+// queue the portal agent again. it keeps everything it learned on the portal (where it got to, its session
+// cookies, the account it made, the fields it matched), so "Try again" carries on instead of starting over.
+// only the per-run counters and the reason it last stopped are cleared. fresh: start from the portal link.
+export function carryOver(st: RunnerState, fresh = false): RunnerState {
+  return {
+    ...st,
+    ...(fresh ? { last_url: undefined, lastFingerprint: undefined, visited: [] } : {}),
+    steps: 0,
+    navCalls: 0,
+    visionCalls: 0,
+    samePageCount: 0,
+    rechecks: 0,
+    reason: null,
+    paused: false,
+    resume_at: undefined,
+    reset: undefined,
+    missing: [],
+    questions: [],
+    decided: [], // new answers in the profile: every field gets a fresh look
+    navHistory: (st.navHistory ?? []).slice(-8),
+  };
+}
+
+export async function queueRunner(userId: string, applicationId: string, opts: { fresh?: boolean; note?: string } = {}) {
+  const db = admin();
+  const { data } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
+  const st = carryOver((data?.runner_state ?? {}) as RunnerState, opts.fresh);
+  const extension = data?.runner_mode === "extension";
+  await db
+    .from("applications")
+    .update({ runner_status: "ready", runner_note: opts.note ?? (extension ? "queued for your Chrome" : st.last_url ? "carrying on where it stopped" : "queued"), runner_state: st, runner_live_url: null, runner_updated_at: new Date().toISOString() })
+    .eq("id", applicationId);
+  if (!extension) await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId } });
 }

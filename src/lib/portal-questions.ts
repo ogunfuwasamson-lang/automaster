@@ -117,12 +117,13 @@ export async function openQuestions(userId: string): Promise<OpenQuestion[]> {
 // keyed by the question, plus the matching form detail when there is one. saving it resumes stopped submissions.
 export async function answerQuestion(userId: string, id: string, answer: string | null) {
   const db = admin();
-  const { data: q } = await db.from("portal_questions").select("id, question, sheet_key, status").eq("id", id).eq("user_id", userId).maybeSingle();
+  const { data: q } = await db.from("portal_questions").select("id, question, sheet_key, status, application_id").eq("id", id).eq("user_id", userId).maybeSingle();
   if (!q || q.status !== "open") return false;
   const value = (answer ?? "").trim().slice(0, 2000);
   await db.from("portal_questions").update({ status: value ? "answered" : "dismissed", answer: value || null, answered_at: new Date().toISOString() }).eq("id", id);
   if (!value) {
     await clearNoticeIfDone(userId);
+    await carryOnIfAnswered(userId, q.application_id as string | null);
     return true;
   }
   // the matching profile detail, when there is one (by the form's key, or by what the question asks)
@@ -135,7 +136,21 @@ export async function answerQuestion(userId: string, id: string, answer: string 
   await updateProfile(userId, (p) => confirmFact(p, q.question, value));
   await logEvent({ userId, actor: "user", action: "profile.portal_answer", context: { question: q.question.slice(0, 120), detail: dk } });
   await clearNoticeIfDone(userId);
+  await carryOnIfAnswered(userId, q.application_id as string | null);
   return true;
+}
+
+// the last question an application was waiting on is answered: it carries on by itself, from where it stopped
+async function carryOnIfAnswered(userId: string, applicationId: string | null) {
+  if (!applicationId) return;
+  const db = admin();
+  const { count } = await db.from("portal_questions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("application_id", applicationId).eq("status", "open");
+  if (count) return;
+  const { data: app } = await db.from("applications").select("status, runner_status").eq("id", applicationId).maybeSingle();
+  if (app?.status !== "packet_approved" || !["needs_you", "failed"].includes(app.runner_status as string)) return;
+  const { queueRunner } = await import("@/agents/runner");
+  await queueRunner(userId, applicationId, { note: "got your answers: carrying on where it stopped" });
+  await logEvent({ userId, actor: "system", action: "runner.resumed", applicationId, context: { after: "answers" } });
 }
 
 async function clearNoticeIfDone(userId: string) {

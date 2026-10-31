@@ -174,18 +174,22 @@ const Decide = z.object({
   ),
 });
 
-const DECIDE_SYSTEM = `you complete required questions on a university application form for an applicant who has signed their application packet. the rules engine couldn't answer these; you get one careful look before the applicant is bothered.
-you have the applicant's whole fill sheet (key: value), the program, and the page.
+const DECIDE_SYSTEM = `you complete questions on a university application form for an applicant who has signed their application packet. the rules engine couldn't answer these; you get one careful look before the applicant is bothered.
+you have the applicant's whole fill sheet (key: value), the program, the page, and any error messages the portal is showing.
+think like a careful person filling in their own form:
+- words that mean the same thing are the same question: sex = gender, mobile = cell = telephone = phone = contact number, forename = given name = first name, surname = family name = last name, nationality = citizenship, domicile = country of residence, post code = zip = postal code, salutation = title, mother tongue = native language = first language.
+- a label can be unhelpful ("My details", "Answer", a section heading): judge the field by its options and by the portal's errors ("Sex is required" + options Male/Female -> gender).
+- yes/no questions that follow plainly from the sheet are answered from it, naming the key that settles it: "will you be ordinarily resident in the UK for three years before the course?" with lives_in Nigeria -> No (lives_in). "is English your first language?" with first_language English -> Yes. "do you require a visa?" from visa_required. "are you applying for yourself?" -> applying_as. "are you currently living at a different address?" -> No, unless the sheet has a separate mailing address.
 for each field choose:
-- "option": for a dropdown or radio, pick the ONE option (copied exactly from its list) that the sheet supports, and name the supporting key. examples: "Application type" with options "Fall / Automne 2027 / Winter 2028" and entry_term "fall-2027" -> the Fall 2027 option, key entry_term. "Program of study" -> the option naming the program. "Degree level" -> from level/degree. "Country" -> from country or citizenship.
+- "option": for a dropdown or radio, pick the ONE option (copied exactly from its list) that the sheet supports, and name the supporting key. examples: "Application type" with options "Fall / Automne 2027 / Winter 2028" and entry_term "fall-2027" -> the Fall 2027 option, key entry_term. "Program of study" -> the option naming the program. "Degree level" -> from level/degree. "Country" -> from country or citizenship. a dialling-code list -> the option for phone_country_code.
   administrative questions with no fact about the applicant at stake may use key "none": how did you hear about us (pick a neutral web/internet/online option if present, else "other"), preferred contact method (email), campus or delivery mode when only one fits the program, preferred language of correspondence (english, unless the sheet says otherwise).
-- "key": for a text box, the ONE sheet key whose value answers it exactly.
-- "ask": anything that is a fact about the applicant the sheet doesn't state (criminal record, disciplinary history, disability, health, visa or immigration history, finances, race or ethnicity, religion, family details, prior applications), any legal declaration, or anything you can't support. never guess facts.
+- "key": for a text box, the ONE sheet key whose value answers it exactly (phone_number when the form has a separate dialling-code box).
+- "ask": a fact about the applicant the sheet doesn't state and nothing in it settles (criminal record, disciplinary history, disability, health, visa or immigration history, finances, race or ethnicity, religion, family details, prior applications), any legal declaration, or anything you can't support. never guess a personal fact.
 never write a value of your own. explain each pick in a few words.`;
 
 // a second look at required fields the rules left empty. the model chooses from the field's own options or picks
 // a sheet key; values still come only from the sheet (or, for neutral admin questions, from the page's own list).
-export async function decideFields(userId: string, sheet: FillSheet, fields: PageField[], page: { url: string; title: string; body: string }, jobId?: string): Promise<Fill[]> {
+export async function decideFields(userId: string, sheet: FillSheet, fields: PageField[], page: { url: string; title: string; body: string; errors?: string[] }, jobId?: string): Promise<Fill[]> {
   if (!fields.length) return [];
   const values = Object.entries(sheet.fields)
     .map(([k, v]) => `${k}: ${v.length > 160 ? `${v.slice(0, 160)}…` : v}`)
@@ -196,11 +200,11 @@ export async function decideFields(userId: string, sheet: FillSheet, fields: Pag
       userId,
       agent: "runner",
       jobId,
-      promptVersion: "decide-v1",
+      promptVersion: "decide-v2",
       tier: "chat",
       system: DECIDE_SYSTEM,
       cachePrefix: `applying to: ${sheet.program} at ${sheet.school}\n\nfill sheet:\n${values}`,
-      prompt: `page: ${page.title} (${page.url})\npage text: ${page.body.slice(0, 1500)}\n\nrequired fields still empty:\n${fields
+      prompt: `page: ${page.title} (${page.url})\n${page.errors?.length ? `the portal is showing these errors: ${page.errors.join("; ").slice(0, 600)}\n` : ""}page text: ${page.body.slice(0, 1500)}\n\nfields still empty:\n${fields
         .map((f) => `${f.id} | ${f.type} | ${f.label.slice(0, 160)}${f.options?.length ? ` | options: ${f.options.filter((o) => o.trim()).slice(0, 60).join(" / ").slice(0, 1500)}` : ""}`)
         .join("\n")}`,
       schema: Decide,

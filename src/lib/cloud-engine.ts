@@ -96,7 +96,7 @@ export interface EngineDeps {
   shouldStop?(): boolean;
   // second opinion on required fields the rules left empty: the model reads the whole fill sheet and the page and
   // picks an option from the field's own list, or a sheet key. it can't type a value of its own.
-  decide?(fields: PageField[], page: { url: string; title: string; body: string }): Promise<Fill[]>;
+  decide?(fields: PageField[], page: { url: string; title: string; body: string; errors?: string[] }): Promise<Fill[]>;
   // look at a screenshot and pick one mouse or keyboard step (custom dropdowns, widgets the DOM can't explain)
   see?(input: SeeInput): Promise<SeeAction | null>;
   // the value behind a fill-sheet key, for typing what the screenshot step chose
@@ -323,7 +323,7 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
   return best && best.score >= 3 ? best.b : undefined;
 }
 
-const VISION_BUDGET = 40; // screenshot steps per run
+const VISION_BUDGET = 60; // screenshot steps per run
 const VISION_KEYS = new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
 type AM = { __am: { marks(draw: boolean): Mark[]; clearMarks(): void; sig(): string; at(x: number, y: number): { label: string } | null } };
 
@@ -441,11 +441,12 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
 async function decidePass(page: Page, deps: EngineDeps, s: Snapshot, fields: PageField[], state: EngineState): Promise<number> {
   if (!deps.decide) return 0;
   const key = (f: PageField) => cleanLabel(f.label, f.options).toLowerCase().slice(0, 80);
-  const seen = new Set(state.decided ?? []);
+  // the portal complaining is new information: everything gets another look
+  const seen = new Set((s.errors ?? []).length ? [] : (state.decided ?? []));
   const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
   if (!todo.length) return 0;
   state.decided = [...seen, ...todo.map(key)].slice(-120);
-  const fills = await deps.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2000) }).catch(() => [] as Fill[]);
+  const fills = await deps.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2000), errors: s.errors ?? [] }).catch(() => [] as Fill[]);
   return applyList(page, deps, todo, fills, state);
 }
 
@@ -453,11 +454,13 @@ async function decidePass(page: Page, deps: EngineDeps, s: Snapshot, fields: Pag
 async function fillHard(page: Page, deps: EngineDeps, state: EngineState): Promise<{ filled: number; empty: PageField[]; outcome?: Outcome }> {
   let filled = 0;
   let now = await snap(page);
-  let empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+  // with the portal showing errors, a field it complains about may not be marked required: look at every blank one
+  const blank = (x: Snapshot) => x.fields.filter((f) => (f.required || ((x.errors ?? []).length > 0 && f.type !== "checkbox" && f.type !== "file")) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+  let empty = blank(now);
   if (empty.length) {
     filled += await decidePass(page, deps, now, empty, state);
     now = await snap(page);
-    empty = now.fields.filter((f) => f.required && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
+    empty = blank(now);
   }
   if (empty.length && deps.see && page.screenshot) {
     const labels = empty.map((f) => cleanLabel(f.label, f.options).slice(0, 80));
@@ -478,9 +481,9 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     if (deps.shouldStop?.()) return { outcome: { kind: "continue", note: "paused" }, state, filled };
     state.steps += 1;
     state.totalSteps = (state.totalSteps ?? 0) + 1;
-    // one run ends at 60 steps and the next carries on; only a portal that never ends stops for good
-    if (state.steps > 60) return { outcome: { kind: "continue", note: "continuing on the next pages" }, state, filled };
-    if (state.totalSteps > 600) return { outcome: { kind: "needs_you", reason: "stuck", note: "the agents have been through this portal hundreds of pages without finishing; please check where it stands" }, state, filled };
+    // one run ends at 150 steps and the next carries on straight away; only a portal that never ends stops for good
+    if (state.steps > 150) return { outcome: { kind: "continue", note: "continuing on the next pages" }, state, filled };
+    if (state.totalSteps > 1500) return { outcome: { kind: "needs_you", reason: "stuck", note: "the agents have been through this portal hundreds of pages without finishing; please check where it stands" }, state, filled };
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await sleep(800);
     let s = await snap(page);
@@ -510,9 +513,9 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       s = await snap(page);
     }
     if (state.samePageCount >= 3) {
-      const req = s.fields.map((f) => f.label.slice(0, 50));
+      const req = s.fields.filter((f) => f.required && f.type !== "checkbox").map((f) => cleanLabel(f.label, f.options).slice(0, 80));
       // required boxes still empty after three tries: the profile doesn't answer them, so ask the applicant
-      const stillEmpty = s.fields.filter((x) => x.required && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
+      const stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
       for (const f of stillEmpty) ask(state, f);
       const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
@@ -725,7 +728,7 @@ export function missingNote(keys: string[]): string {
   return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
 }
 
-const NAV_BUDGET = 12; // model-driven steps per run
+const NAV_BUDGET = 30; // model-driven steps per run
 const DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
 
 // ask the navigator for one step and do it. returns null to keep looping, or an outcome to stop with.
