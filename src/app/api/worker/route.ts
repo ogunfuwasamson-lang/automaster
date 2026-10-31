@@ -6,6 +6,7 @@ import { scheduleDigests } from "@/lib/digest";
 import { scheduleInbox } from "@/lib/inbox";
 import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
+import { publicUrls, submitIndexNow } from "@/lib/indexnow";
 import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
@@ -36,6 +37,8 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 5) await refreshPrices().catch(() => null);
   if (tick) await sweepResumable().catch(() => 0);
   if (tick) await sweepOrphans().catch(() => 0);
+  // once a day: tell search engines about library pages that are new or re-checked since yesterday
+  if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) await submitIndexNow(publicUrls(new Date(Date.now() - 86400000).toISOString().slice(0, 10))).catch(() => null);
   // the nightly learning pass (02:00 UTC), run under a staff account
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);

@@ -23,6 +23,12 @@ const PUBLIC = [
   "/robots.txt",
   "/sitemap.xml",
   "/llms.txt",
+  "/llms-full.txt",
+  "/001a4b28caf4a499498bf53b8c331098.txt", // the IndexNow key file (src/lib/indexnow.ts)
+  // the public library: guides, scholarship profiles and the about page
+  "/guides",
+  "/scholarships",
+  "/about",
   "/opengraph-image",
   "/twitter-image",
   "/icon",

@@ -39,6 +39,14 @@ export const FAQ: [string, string][] = [
     "Yes. The agents find scholarships and funding that match your profile, and can apply for them the same way they apply to programs: drafts you approve, a packet you sign, then submission. After an admission they also ask for merit reconsideration and assistantships.",
   ],
   [
+    "Is there an AI that applies to universities for me?",
+    "Yes. Ivyward is an AI agent service that fills in and submits university applications for you: its agents create your account on each school's portal, fill every page, upload your documents and submit once you've signed the packet. It also asks schools for application fee waivers and finds scholarships and funding.",
+  ],
+  [
+    "Can Ivyward get my application fees waived?",
+    "It tries before you pay. The agents check each program's fee waiver rules, apply for any waiver you qualify for, and where there's no form they draft a short request for you to approve. The application waits for the answer, so you don't pay a fee that could have been waived.",
+  ],
+  [
     "Is my data safe?",
     "Portal passwords are encrypted, card details never reach Ivyward, and your data is never used to train AI models or sold. You can pause every agent at once, disconnect Gmail at any time, and ask for your account to be deleted.",
   ],

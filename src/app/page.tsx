@@ -12,6 +12,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
 import { SITE } from "@/lib/site";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { pricingFor } from "@/lib/geo-pricing";
 import { submissionAmounts } from "@/lib/fx";
 
@@ -29,6 +30,15 @@ const CONTROL = [
   { t: "You sign every packet", d: "Nothing goes to a school until you've read it and signed." },
   { t: "Emails you can take back", d: "Outgoing emails wait a few minutes so you can undo them." },
   { t: "One stop button", d: "Pause every agent at once. Passwords stay encrypted; card details never reach us." },
+];
+
+const LIBRARY: [string, string, string][] = [
+  ["/guides/how-to-get-application-fee-waivers", "How to get application fee waivers", "Who qualifies, how international applicants get them, and the email that works."],
+  ["/guides/fully-funded-masters-scholarships-international-students", "Fully funded master's scholarships", "Chevening, Commonwealth, Erasmus Mundus, DAAD and more, with deadlines."],
+  ["/guides/fully-funded-phd-how-funding-works", "Fully funded PhDs", "How PhD funding works in the US, UK, Canada and Europe."],
+  ["/guides/scholarships-for-nigerian-and-african-students", "Scholarships for Nigerian and African students", "What's open to you, and what changed in 2026."],
+  ["/guides/statement-of-purpose-guide", "Writing a statement of purpose", "A structure that works, and the mistakes that sink strong applicants."],
+  ["/guides/best-ai-tools-for-university-applications", "AI tools for applications", "Which tool does which job, and where each one stops."],
 ];
 
 export default async function Home() {
@@ -112,6 +122,27 @@ export default async function Home() {
               ))}
             </dl>
           </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-5 pb-24" aria-labelledby="lib-h">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
+            <h2 id="lib-h" className="font-serif text-[36px] leading-tight sm:text-[44px]">
+              Free guides to getting in, and getting it paid for.
+            </h2>
+            <Link href="/guides" className="text-[15px] font-medium text-brand underline decoration-current/30 underline-offset-4">
+              All guides
+            </Link>
+          </div>
+          <ul className="mt-2 grid gap-x-10 sm:grid-cols-2">
+            {LIBRARY.map(([href, t, d]) => (
+              <li key={href} className="border-b border-line">
+                <Link href={href} className="group block py-5">
+                  <span className="font-serif text-[20px] leading-snug group-hover:text-brand">{t}</span>
+                  <span className="mt-1 block text-[14.5px] leading-relaxed text-muted">{d}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section id="faq" className="mx-auto max-w-3xl scroll-mt-20 px-5 pb-24" aria-labelledby="faq-h">

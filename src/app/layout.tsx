@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   openGraph: { type: "website", siteName: SITE.name, url: SITE.url, title: SITE.title, description: SITE.short, locale: "en" },
   twitter: { card: "summary_large_image", title: SITE.title, description: SITE.short },
   formatDetection: { telephone: false },
+  // search console ownership checks: paste the codes into Vercel env vars, no code change needed
+  verification: {
+    ...(process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : {}),
+    ...(process.env.BING_SITE_VERIFICATION ? { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } } : {}),
+  },
+  alternates: { types: { "application/rss+xml": "/guides/feed.xml" } },
 };
 
 export const viewport: Viewport = {
