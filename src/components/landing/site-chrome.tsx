@@ -149,6 +149,12 @@ export function SiteFooter() {
             <Link href="/es" hrefLang="es" className="hover:text-foreground">
               Español
             </Link>
+            <Link href="/pt" hrefLang="pt" className="hover:text-foreground">
+              Português
+            </Link>
+            <Link href="/ar" hrefLang="ar" className="hover:text-foreground">
+              العربية
+            </Link>
           </p>
         </div>
       </div>

@@ -7,6 +7,8 @@ import { baseOrigin, localCountries, localCountry, localFits, localUsLine, the }
 import { COMMONWEALTH_ELIGIBLE } from "@/content/countries";
 import type { Lang } from "@/content/i18n/types";
 import { renderMarkdown, readMinutes } from "@/lib/markdown";
+import { LOCAL_SCHOLARSHIPS, localScholarship, localizeLinks, scholarshipHref, translationsOfScholarship } from "@/content/i18n/scholarships";
+import { scholarship as enScholarship } from "@/content";
 import { ArticleJsonLd, ItemListJsonLd } from "@/components/seo/json-ld";
 import { LocalAnswer, LocalCrumbs, LocalCta, LocalFaq, LocalRelated, LocalShell, LocalSources } from "./local";
 
@@ -20,7 +22,7 @@ export function localGuideMetadata(lang: Lang, slug: string): Metadata {
   if (g.en) {
     languages.en = `/guides/${g.en}`;
     languages["x-default"] = `/guides/${g.en}`;
-    for (const other of ["fr", "es"] as Lang[]) {
+    for (const other of ["fr", "es", "pt", "ar"] as Lang[]) {
       if (other === lang) continue;
       const o = LOCAL[other].find((x) => x.en === g.en);
       if (o) languages[other] = guideUrl(other, o.slug);
@@ -39,7 +41,7 @@ export function LocalGuidePage({ lang, slug }: { lang: Lang; slug: string }) {
   const g = localGuide(lang, slug);
   if (!g) notFound();
   const t = L[lang];
-  const { html } = renderMarkdown(g.body);
+  const { html } = renderMarkdown(localizeLinks(lang, g.body));
   const path = guideUrl(lang, g.slug);
   const related = (g.related ?? []).map((s) => localGuide(lang, s)).filter((x) => !!x).map((x) => ({ href: guideUrl(lang, x.slug), title: x.title }));
   return (
@@ -128,9 +130,78 @@ const COPY = {
     guidesH: "Guías",
     countriesH: "Por país",
   },
+  pt: {
+    title: (c: string) => `Estudar no exterior saindo ${c}: bolsas, admissões e vistos para 2027`,
+    seo: (adj: string, name: string) => `Bolsas para estudantes ${adj}: estudar no exterior (${name}, 2027)`,
+    desc: (adj: string) => `As bolsas totalmente financiadas abertas a estudantes ${adj} para graduação, mestrado e doutorado no exterior, isenção de taxas e as regras de visto de 2026-2027.`,
+    table: (adj: string) => `Bolsas totalmente financiadas para estudantes ${adj}`,
+    col: ["Bolsa", "Para você", "Por quê"],
+    visa: "Regras de visto 2026-2027",
+    uk: "Reino Unido: a partir de 30 de novembro de 2026, 1.570 £ por mês em Londres ou 1.203 £ fora (até nove meses); visto pós-estudo de 18 meses para pedidos a partir de 1º de janeiro de 2027.",
+    ca: "Canadá: mestrados e doutorados em instituições públicas isentos do teto; prova de fundos de 23.448 dólares canadenses fora de Quebec.",
+    fr: "Portugal e Europa: cursos em português em Portugal e muitos mestrados em inglês; Erasmus Mundus paga 1.400 € por mês.",
+    de: "Alemanha: conta bloqueada de 11.904 € por ano.",
+    levels: "Graduação, mestrado ou doutorado?",
+    levelText: [
+      ["Mestrado", "/pt/guias/bolsas-mestrado-totalmente-financiadas"],
+      ["Doutorado", "/pt/guias/doutorado-financiado"],
+      ["Alemanha sem anuidade", "/pt/guias/estudar-na-alemanha-de-graca"],
+    ],
+    fees: "Taxas de inscrição: muitas universidades dispensam a taxa por dificuldade financeira, participação em sessão informativa ou mediante pedido educado.",
+    feesLink: ["Como conseguir a isenção", "/pt/guias/isencao-taxa-de-inscricao"],
+    local: "No seu país:",
+    price: "Na África, cada envio custa cerca de 1,90 dólar em moeda local; nos demais países, os três primeiros envios são grátis.",
+    faqQ: [(adj: string) => `Quais bolsas totalmente financiadas estão abertas a estudantes ${adj}?`, (adj: string) => `Estudantes ${adj} podem estudar nos EUA em 2027?`, (n: string) => `${n} é elegível para as bolsas Commonwealth?`],
+    cwYes: (n: string) => `Sim. ${n} está na lista de países elegíveis de 2027/28.`,
+    cwNo: (n: string) => `Não. ${n} não está na lista de países elegíveis para as bolsas de mestrado Commonwealth de 2027/28.`,
+    hub: "Estudar no exterior: guias e bolsas em português",
+    hubDesc: "Guias verificados sobre bolsas totalmente financiadas, isenção de taxas de inscrição, doutorado financiado, Alemanha sem anuidade e páginas para Brasil e Moçambique.",
+    hubH1: "Estudar fora, e pagar por isso.",
+    hubLead: "Respostas verificadas sobre bolsas totalmente financiadas, isenção de taxas e candidaturas a mestrado e doutorado. Escolha um guia ou o seu país.",
+    guidesH: "Guias",
+    countriesH: "Por país",
+  },
+  ar: {
+    title: (c: string) => `الدراسة في الخارج من ${c}: المنح والقبول والتأشيرات لعام 2027`,
+    seo: (adj: string, name: string) => `منح دراسية للطلاب ${adj}: الدراسة في الخارج (${name}، 2027)`,
+    desc: (adj: string) => `المنح الممولة بالكامل المتاحة للطلاب ${adj} للبكالوريوس والماجستير والدكتوراه في الخارج، والإعفاء من رسوم التقديم، وقواعد التأشيرات لعامي 2026 و2027.`,
+    table: (adj: string) => `منح ممولة بالكامل للطلاب ${adj}`,
+    col: ["المنحة", "بالنسبة لك", "السبب"],
+    visa: "قواعد التأشيرات 2026-2027",
+    uk: "بريطانيا: من 30 نوفمبر 2026 يلزم 1570 جنيهًا شهريًا في لندن أو 1203 جنيهات خارجها (حتى تسعة أشهر)، وتُختصر تأشيرة ما بعد الدراسة إلى 18 شهرًا للطلبات من 1 يناير 2027.",
+    ca: "كندا: طلاب الماجستير والدكتوراه في المؤسسات الحكومية مستثنون من الحد الأقصى، وإثبات الأموال 23448 دولارًا كنديًا خارج كيبيك.",
+    fr: "فرنسا وكيبيك: خيارات واسعة للناطقين بالفرنسية، ومنحة إيفل للمتفوقين.",
+    de: "ألمانيا: حساب مغلق بقيمة 11904 يورو سنويًا.",
+    levels: "ماجستير أم دكتوراه؟",
+    levelText: [
+      ["منح الماجستير الممولة بالكامل", "/ar/guides/fully-funded-masters"],
+      ["الدكتوراه الممولة", "/ar/guides/funded-phd"],
+      ["الدراسة في ألمانيا مجانًا", "/ar/guides/study-in-germany"],
+    ],
+    fees: "رسوم التقديم: تعفي جامعات كثيرة منها عند وجود صعوبات مالية أو حضور جلسة تعريفية أو بطلب مهذب.",
+    feesLink: ["كيف تحصل على الإعفاء", "/ar/guides/application-fee-waivers"],
+    local: "في بلدك:",
+    price: "في أفريقيا، تكلفة كل طلب مُرسل نحو 1.90 دولار بالعملة المحلية؛ وفي غيرها، أول ثلاثة طلبات مجانية.",
+    faqQ: [(adj: string) => `ما المنح الممولة بالكامل المتاحة للطلاب ${adj}؟`, (adj: string) => `هل يمكن للطلاب ${adj} الدراسة في الولايات المتحدة في 2027؟`, (n: string) => `هل تشمل منح الكومنولث ${n}؟`],
+    cwYes: (n: string) => `نعم. تشمل قائمة الدول المؤهلة لعام 2027/2028 ${n}.`,
+    cwNo: (n: string) => `لا. لا تشمل قائمة الدول المؤهلة لمنح الكومنولث للماجستير 2027/2028 ${n}.`,
+    hub: "الدراسة في الخارج: أدلة ومنح بالعربية",
+    hubDesc: "أدلة موثّقة عن المنح الممولة بالكامل والإعفاء من رسوم التقديم والدكتوراه الممولة والدراسة في ألمانيا، وصفحات لمصر والمغرب وتونس والأردن.",
+    hubH1: "ادرس في الخارج، واحصل على التمويل.",
+    hubLead: "إجابات موثّقة عن المنح الممولة بالكامل والإعفاء من الرسوم والتقديم للماجستير والدكتوراه. اختر دليلًا أو بلدك.",
+    guidesH: "الأدلة",
+    countriesH: "حسب البلد",
+  },
 } as const;
 
 const UPDATED = "2026-11-01";
+
+// how the country reads inside the page title in each language
+function placeFor(lang: Lang, c: { slug: string; name: string; art?: "Le" | "La" }) {
+  if (lang === "fr") return `${c.art === "La" ? "la" : "le"} ${c.name}`;
+  if (lang === "pt") return c.slug === "brasil" ? "do Brasil" : `de ${c.name}`;
+  return c.name;
+}
 
 export function localCountryMetadata(lang: Lang, slug: string): Metadata {
   const c = localCountry(lang, slug);
@@ -141,7 +212,7 @@ export function localCountryMetadata(lang: Lang, slug: string): Metadata {
     title: k.seo(c.adj, c.name),
     description: k.desc(c.adj),
     alternates: { canonical: self, languages: { [lang]: self, en: `/study-abroad/${c.en}`, "x-default": `/study-abroad/${c.en}` } },
-    openGraph: { type: "article", title: k.title(lang === "fr" ? `${c.art === "La" ? "la" : "le"} ${c.name}` : c.name), description: k.desc(c.adj), url: self, locale: L[lang].locale },
+    openGraph: { type: "article", title: k.title(placeFor(lang, c)), description: k.desc(c.adj), url: self, locale: L[lang].locale },
   };
 }
 
@@ -154,7 +225,7 @@ export function LocalCountryPage({ lang, slug }: { lang: Lang; slug: string }) {
   const fits = localFits(lang, c);
   const open = fits.filter((f) => f.status === "open");
   const path = countryUrl(lang, c.slug);
-  const place = lang === "fr" ? `${c.art === "La" ? "la" : "le"} ${c.name}` : c.name;
+  const place = placeFor(lang, c);
   const pretty = k.title(place);
   const local = c.local ?? o.local;
   const answer =
@@ -182,7 +253,7 @@ export function LocalCountryPage({ lang, slug }: { lang: Lang; slug: string }) {
           <h2 className="font-serif text-[27px]">{k.table(c.adj)}</h2>
           <div className="mt-4 overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-[14.5px]">
-              <thead className="bg-surface text-left">
+              <thead className="bg-surface text-start">
                 <tr>
                   {k.col.map((h) => (
                     <th key={h} className="px-4 py-2.5 font-semibold">
@@ -195,7 +266,7 @@ export function LocalCountryPage({ lang, slug }: { lang: Lang; slug: string }) {
                 {fits.map((f) => (
                   <tr key={f.name} className="border-t border-line align-top">
                     <td className="px-4 py-2.5">
-                      <Link href={f.href} className="text-brand underline decoration-current/30 underline-offset-4">
+                      <Link href={f.href.startsWith("/scholarships/") ? scholarshipHref(lang, f.href.slice(14)) : f.href} className="text-brand underline decoration-current/30 underline-offset-4">
                         {f.name}
                       </Link>
                     </td>
@@ -248,7 +319,7 @@ export function localHubMetadata(lang: Lang): Metadata {
   return {
     title: k.hub,
     description: k.hubDesc,
-    alternates: { canonical: L[lang].home, languages: { [lang]: L[lang].home, en: "/guides", [lang === "fr" ? "es" : "fr"]: lang === "fr" ? "/es" : "/fr", "x-default": "/guides" } },
+    alternates: { canonical: L[lang].home, languages: { en: "/guides", fr: "/fr", es: "/es", pt: "/pt", ar: "/ar", "x-default": "/guides" } },
     openGraph: { title: k.hub, description: k.hubDesc, url: L[lang].home, locale: L[lang].locale },
   };
 }
@@ -281,6 +352,23 @@ export function LocalHub({ lang }: { lang: Lang }) {
             ))}
           </ul>
         </section>
+        {(LOCAL_SCHOLARSHIPS[lang] ?? []).length > 0 && (
+          <section className="mt-14" aria-labelledby="s-h">
+            <h2 id="s-h" className="border-b border-line pb-3 font-serif text-[30px]">
+              {lang === "fr" ? "Bourses" : "Becas"}
+            </h2>
+            <ul className="mt-3 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+              {(LOCAL_SCHOLARSHIPS[lang] ?? []).map((x) => (
+                <li key={x.slug}>
+                  <Link href={scholarshipHref(lang, x.slug)} className="flex items-baseline justify-between gap-3 border-b border-line py-3 hover:text-brand">
+                    <span className="font-serif text-[18px]">{enScholarship(x.slug)?.name ?? x.slug}</span>
+                    <span className="shrink-0 text-[13px] text-muted">{x.country}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <section id="pays" className="mt-14 scroll-mt-24" aria-labelledby="c-h">
           <h2 id="c-h" className="border-b border-line pb-3 font-serif text-[30px]">
             {k.countriesH}
@@ -298,6 +386,89 @@ export function LocalHub({ lang }: { lang: Lang }) {
         <div className="max-w-3xl">
           <LocalCta lang={lang} />
         </div>
+      </div>
+    </LocalShell>
+  );
+}
+
+// ---------- scholarship profiles (French and Spanish) ----------
+
+const SCH = {
+  fr: { root: "Bourses", title: (n: string) => `${n} : conditions, ce qu'elle couvre et comment postuler`, desc: "Qui peut postuler, ce que la bourse finance, la date limite habituelle et la procédure.", facts: ["Pays d'études", "Pour qui", "Date limite habituelle", "Financement"], covers: "Ce qu'elle couvre", elig: "Qui peut postuler", how: "Comment postuler", official: "Page officielle :", disclaimer: (f: string) => `Les règles, montants et dates changent à chaque cycle. Vérifiez sur la page officielle. Ivyward n'est pas affilié à ${f}.`, full: "Entièrement financée", partial: "Financement partiel", varies: "Variable", cta: (n: string) => `Postulez à ${n} avec Ivyward`, ctaBody: "Ivyward vérifie votre éligibilité, rédige vos essais à partir de votre parcours en signalant toute affirmation non justifiée, suit chaque date limite et dépose les candidatures universitaires nécessaires. Vous relisez et signez tout." },
+  es: { root: "Becas", title: (n: string) => `${n}: requisitos, qué cubre y cómo postular`, desc: "Quién puede postular, qué financia la beca, el plazo habitual y cómo postular.", facts: ["País de estudio", "Para quién", "Plazo habitual", "Financiación"], covers: "Qué cubre", elig: "Quién puede postular", how: "Cómo postular", official: "Página oficial:", disclaimer: (f: string) => `Las reglas, montos y fechas cambian en cada ciclo. Confirma en la página oficial. Ivyward no está afiliado a ${f}.`, full: "Totalmente financiada", partial: "Financiación parcial", varies: "Variable", cta: (n: string) => `Postula a ${n} con Ivyward`, ctaBody: "Ivyward revisa tu elegibilidad, redacta tus ensayos a partir de tu trayectoria señalando cualquier afirmación sin respaldo, sigue cada plazo y envía las postulaciones universitarias necesarias. Tú revisas y firmas todo." },
+} as const;
+
+type SchLang = keyof typeof SCH;
+
+export function localScholarshipMetadata(lang: SchLang, slug: string): Metadata {
+  const ls = localScholarship(lang, slug);
+  const en = enScholarship(slug);
+  if (!ls || !en) return {};
+  const self = `${lang === "fr" ? "/fr/bourses" : "/es/becas"}/${slug}`;
+  const languages: Record<string, string> = { en: `/scholarships/${slug}`, "x-default": `/scholarships/${slug}`, ...translationsOfScholarship(slug) };
+  return {
+    title: SCH[lang].title(en.name),
+    description: `${ls.summary.split(". ")[0]}. ${SCH[lang].desc}`.slice(0, 300),
+    alternates: { canonical: self, languages },
+    openGraph: { type: "article", title: SCH[lang].title(en.name), url: self, locale: L[lang].locale },
+  };
+}
+
+export function LocalScholarshipPage({ lang, slug }: { lang: SchLang; slug: string }) {
+  const ls = localScholarship(lang, slug);
+  const en = enScholarship(slug);
+  if (!ls || !en) notFound();
+  const k = SCH[lang];
+  const t = L[lang];
+  const path = `${lang === "fr" ? "/fr/bourses" : "/es/becas"}/${slug}`;
+  const funding = en.funding === "Fully funded" ? k.full : en.funding === "Partly funded" ? k.partial : k.varies;
+  const facts: [string, string][] = [
+    [k.facts[0], ls.country],
+    [k.facts[1], ls.forWhom],
+    [k.facts[2], ls.deadline],
+    [k.facts[3], funding],
+  ];
+  const others = (LOCAL_SCHOLARSHIPS[lang] ?? []).filter((x) => x.slug !== slug && x.country === ls.country).slice(0, 4);
+  const list = (title: string, items: string[]) => (
+    <section className="mt-10">
+      <h2 className="font-serif text-[26px] leading-tight">{title}</h2>
+      <ul className="prose-iv mt-3">
+        {items.map((i) => (
+          <li key={i}>{i}</li>
+        ))}
+      </ul>
+    </section>
+  );
+  return (
+    <LocalShell lang={lang} crumbs={[[k.root, t.home], [en.name, path]]} english={`/scholarships/${slug}`}>
+      <ArticleJsonLd path={path} title={k.title(en.name)} description={ls.summary} updated={en.updated} about={[en.name]} />
+      <div className="mx-auto max-w-[760px] px-5 pb-20 pt-10 sm:pt-14">
+        <LocalCrumbs items={[["Ivyward", t.home], [k.root, t.home]]} />
+        <h1 className="mt-5 text-[38px] leading-[1.08] sm:text-[50px]">{en.name}</h1>
+        <p className="mt-4 text-[13.5px] text-muted">
+          {t.checked} {localDate(en.updated, lang)}
+        </p>
+        <LocalAnswer lang={lang}>{ls.summary}</LocalAnswer>
+        <dl className="mt-8 grid overflow-hidden rounded-2xl border border-line sm:grid-cols-2">
+          {facts.map(([a, b]) => (
+            <div key={a} className="border-b border-line p-4 sm:[&:nth-child(odd)]:border-e">
+              <dt className="text-[12.5px] text-muted">{a}</dt>
+              <dd className="mt-0.5 text-[15px] font-medium leading-snug">{b}</dd>
+            </div>
+          ))}
+        </dl>
+        {list(k.covers, ls.covers)}
+        {list(k.elig, ls.eligibility)}
+        {list(k.how, ls.howToApply)}
+        <p className="mt-8 text-[15px]">
+          {k.official}{" "}
+          <a href={en.url} target="_blank" rel="noopener" className="break-all text-brand underline decoration-current/30 underline-offset-4">
+            {en.url.replace(/^https?:\/\//, "")}
+          </a>
+        </p>
+        <LocalCta lang={lang} title={k.cta(en.name)} body={k.ctaBody} />
+        <p className="mt-6 text-[13.5px] leading-relaxed text-muted">{k.disclaimer(en.funder)}</p>
+        <LocalRelated lang={lang} items={others.map((o) => ({ href: `${lang === "fr" ? "/fr/bourses" : "/es/becas"}/${o.slug}`, title: enScholarship(o.slug)?.name ?? o.slug }))} />
       </div>
     </LocalShell>
   );

@@ -1,4 +1,4 @@
-export type Lang = "fr" | "es";
+export type Lang = "fr" | "es" | "pt" | "ar";
 
 // a guide written natively in French or Spanish. `en` is the English guide it corresponds to (for hreflang), if any.
 export type LocalGuide = {

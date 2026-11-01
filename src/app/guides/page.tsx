@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "Admissions guides: fee waivers, scholarships, funding and applying abroad",
   description:
     "Plain, checked answers on getting into university abroad: application fee waivers, fully funded master's and PhD scholarships, assistantships, statements of purpose, student visas, and using AI on applications.",
-  alternates: { canonical: "/guides", types: { "application/rss+xml": "/guides/feed.xml" }, languages: { en: "/guides", fr: "/fr", es: "/es", "x-default": "/guides" } },
+  alternates: { canonical: "/guides", types: { "application/rss+xml": "/guides/feed.xml" }, languages: { en: "/guides", fr: "/fr", es: "/es", pt: "/pt", ar: "/ar", "x-default": "/guides" } },
 };
 
 export default function Guides() {
@@ -30,6 +30,18 @@ export default function Guides() {
             </span>
             <Link href="/es" hrefLang="es" className="text-brand underline decoration-current/30 underline-offset-4">
               Guías en español
+            </Link>
+            <span className="mx-2 text-muted" aria-hidden>
+              /
+            </span>
+            <Link href="/pt" hrefLang="pt" className="text-brand underline decoration-current/30 underline-offset-4">
+              Guias em português
+            </Link>
+            <span className="mx-2 text-muted" aria-hidden>
+              /
+            </span>
+            <Link href="/ar" hrefLang="ar" className="text-brand underline decoration-current/30 underline-offset-4">
+              أدلة بالعربية
             </Link>
           </p>
           <p className="mt-5 text-[15px]">

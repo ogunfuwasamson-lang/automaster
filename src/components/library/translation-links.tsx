@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 // "Lire en français / Leer en español" under an English page that has translations
-export function TranslationLinks({ links }: { links: Partial<Record<"fr" | "es", string>> }) {
+export function TranslationLinks({ links }: { links: Partial<Record<"fr" | "es" | "pt" | "ar", string>> }) {
   const items = [
     links.fr && { href: links.fr, label: "Lire en français", lang: "fr" },
     links.es && { href: links.es, label: "Leer en español", lang: "es" },
+    links.pt && { href: links.pt, label: "Ler em português", lang: "pt" },
+    links.ar && { href: links.ar, label: "اقرأ بالعربية", lang: "ar" },
   ].filter(Boolean) as { href: string; label: string; lang: string }[];
   if (!items.length) return null;
   return (

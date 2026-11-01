@@ -33,6 +33,8 @@ const PUBLIC = [
   "/study-abroad",
   "/fr",
   "/es",
+  "/pt",
+  "/ar",
   "/glossary",
   "/tools",
   "/md/",
@@ -85,7 +87,7 @@ export async function middleware(req: NextRequest) {
 function withAttribution(req: NextRequest, res: NextResponse) {
   if (req.method !== "GET" || req.nextUrl.pathname.startsWith("/api/")) return res;
   // the French and Spanish library: tell crawlers the page language in the response itself
-  const lang = /^\/(fr|es)(\/|$)/.exec(req.nextUrl.pathname)?.[1];
+  const lang = /^\/(fr|es|pt|ar)(\/|$)/.exec(req.nextUrl.pathname)?.[1];
   if (lang) res.headers.set("content-language", lang);
   const q = req.nextUrl.searchParams;
   const ref = q.get("ref");

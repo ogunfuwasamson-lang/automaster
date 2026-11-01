@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { SCHOLARSHIPS, scholarship } from "@/content";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
 import { AlertSignup } from "@/components/growth/alert-signup";
+import { translationsOfScholarship } from "@/content/i18n/scholarships";
+import { TranslationLinks } from "@/components/library/translation-links";
 import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 
@@ -21,7 +23,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: metaTitle(s),
     description,
     keywords: [s.name, `${s.name} eligibility`, `${s.name} deadline`, `${s.country} scholarship`, `${s.funding.toLowerCase()} scholarship ${s.country}`, ...s.levels.map((l) => `${l} scholarship ${s.country}`)],
-    alternates: { canonical: `/scholarships/${s.slug}`, types: { "text/markdown": `/md/scholarships/${s.slug}` } },
+    alternates: {
+      canonical: `/scholarships/${s.slug}`,
+      types: { "text/markdown": `/md/scholarships/${s.slug}` },
+      languages: { en: `/scholarships/${s.slug}`, "x-default": `/scholarships/${s.slug}`, ...translationsOfScholarship(s.slug) },
+    },
     openGraph: { type: "article", title: metaTitle(s), description, url: `/scholarships/${s.slug}` },
   };
 }
@@ -62,6 +68,7 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ sl
         <Crumbs items={[["Scholarships", "/scholarships"], [s.country, `/scholarships#${s.country.toLowerCase().replace(/\s+/g, "-")}`]]} />
         <h1 className="mt-5 text-[38px] leading-[1.08] sm:text-[52px]">{s.name}</h1>
         <p className="mt-4 text-[13.5px] text-muted">Checked against the official page on {longDate(s.updated)}</p>
+        <TranslationLinks links={translationsOfScholarship(s.slug)} />
         <ShortAnswer>{s.summary}</ShortAnswer>
 
         <dl className="mt-8 grid overflow-hidden rounded-2xl border border-line sm:grid-cols-2">

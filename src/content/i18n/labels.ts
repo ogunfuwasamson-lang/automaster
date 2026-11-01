@@ -54,8 +54,61 @@ export const L = {
     check: "Por verificar",
     no: "No abierta",
   },
+  pt: {
+    locale: "pt_BR",
+    home: "/pt",
+    guidesPath: "/pt/guias",
+    countriesPath: "/pt/estudar-no-exterior",
+    library: "Guias em português",
+    countries: "Por país",
+    shortAnswer: "Resposta curta",
+    faq: "Perguntas frequentes",
+    sources: "Fontes",
+    sourcesNote: "Datas, valores e regras mudam. Confirme sempre na página oficial antes de se candidatar.",
+    readNext: "Leia também",
+    checked: "Verificado em fontes oficiais em",
+    minutes: "min de leitura",
+    start: "Comece grátis",
+    signIn: "Entrar",
+    english: "English",
+    ctaTitle: "Deixe os agentes fazerem o trabalho",
+    ctaBody:
+      "A Ivyward monta sua lista de programas, redige e verifica seus ensaios a partir da sua própria trajetória, pede isenção da taxa de inscrição, encontra financiamento e preenche cada portal de candidatura. Você revisa e assina. Preparar é grátis. (Por enquanto a interface da Ivyward está em inglês; os agentes preenchem os portais no idioma de cada universidade.)",
+    footer: "Ivyward: agentes de IA que cuidam das suas candidaturas universitárias, da lista de programas ao envio. Você revisa e assina tudo.",
+    breadcrumbRoot: "Ivyward",
+    open: "Aberta",
+    check: "Verificar",
+    no: "Não aberta",
+  },
+  ar: {
+    locale: "ar_AR",
+    home: "/ar",
+    guidesPath: "/ar/guides",
+    countriesPath: "/ar/study-abroad",
+    library: "أدلة بالعربية",
+    countries: "حسب البلد",
+    shortAnswer: "الإجابة باختصار",
+    faq: "أسئلة شائعة",
+    sources: "المصادر",
+    sourcesNote: "تتغير المواعيد والمبالغ والقواعد. تحقق دائمًا من الصفحة الرسمية قبل التقديم.",
+    readNext: "اقرأ أيضًا",
+    checked: "تم التحقق من المصادر الرسمية في",
+    minutes: "دقائق قراءة",
+    start: "ابدأ مجانًا",
+    signIn: "تسجيل الدخول",
+    english: "English",
+    ctaTitle: "دع الوكلاء يقومون بالعمل",
+    ctaBody:
+      "يُعِدّ Ivyward قائمة البرامج المناسبة لك، ويكتب مسودات مقالاتك من سيرتك الحقيقية ويتحقق منها، ويطلب الإعفاء من رسوم التقديم، ويبحث عن التمويل، ويملأ كل بوابة تقديم. أنت تراجع وتوقّع. التحضير مجاني. (واجهة Ivyward باللغة الإنجليزية حاليًا؛ ويملأ الوكلاء البوابات بلغة كل جامعة.)",
+    footer: "Ivyward: وكلاء ذكاء اصطناعي يديرون طلباتك الجامعية من اختيار البرامج حتى الإرسال. أنت تراجع كل شيء وتوقّعه.",
+    breadcrumbRoot: "Ivyward",
+    open: "متاحة",
+    check: "تحقّق",
+    no: "غير متاحة",
+  },
 } satisfies Record<Lang, Record<string, string>>;
 
 export function localDate(iso: string, lang: Lang) {
-  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-FR" : "es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const loc = { fr: "fr-FR", es: "es-ES", pt: "pt-BR", ar: "ar-EG" }[lang];
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC", ...(lang === "ar" ? { numberingSystem: "latn" } : {}) });
 }

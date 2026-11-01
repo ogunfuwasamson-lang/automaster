@@ -61,6 +61,14 @@ ${LOCAL.fr.map((g) => `- [${g.title}](${SITE.url}${guideUrl("fr", g.slug)})`).jo
 
 ${LOCAL.es.map((g) => `- [${g.title}](${SITE.url}${guideUrl("es", g.slug)})`).join("\n")}
 
+## Em português
+
+${LOCAL.pt.map((g) => `- [${g.title}](${SITE.url}${guideUrl("pt", g.slug)})`).join("\n")}
+
+## بالعربية
+
+${LOCAL.ar.map((g) => `- [${g.title}](${SITE.url}${guideUrl("ar", g.slug)})`).join("\n")}
+
 ## Study abroad by home country
 
 ${ORIGINS.map((o) => `- [Scholarships for ${o.demonym} students](${SITE.url}/study-abroad/${o.slug})`).join("\n")}

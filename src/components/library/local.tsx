@@ -11,7 +11,7 @@ import type { Lang } from "@/content/i18n/types";
 export function LocalShell({ lang, crumbs, english, children }: { lang: Lang; crumbs: [string, string][]; english?: string; children: ReactNode }) {
   const t = L[lang];
   return (
-    <div lang={lang} className="relative min-h-dvh overflow-x-clip">
+    <div lang={lang} dir={lang === "ar" ? "rtl" : "ltr"} className="relative min-h-dvh overflow-x-clip">
       {/* the root layout is English; correct the document language for screen readers and translation prompts */}
       <script dangerouslySetInnerHTML={{ __html: `document.documentElement.lang=${JSON.stringify(lang)}` }} />
       <BreadcrumbJsonLd items={[["Ivyward", "/"], ...crumbs]} />
@@ -48,6 +48,12 @@ export function LocalShell({ lang, crumbs, english, children }: { lang: Lang; cr
             </Link>
             <Link href="/es" hrefLang="es" className="hover:text-foreground">
               Español
+            </Link>
+            <Link href="/pt" hrefLang="pt" className="hover:text-foreground">
+              Português
+            </Link>
+            <Link href="/ar" hrefLang="ar" className="hover:text-foreground">
+              العربية
             </Link>
             <Link href="/guides" hrefLang="en" className="hover:text-foreground">
               English
@@ -87,7 +93,7 @@ export function LocalCrumbs({ items }: { items: [string, string][] }) {
 
 export function LocalAnswer({ lang, children }: { lang: Lang; children: ReactNode }) {
   return (
-    <div className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-6" style={{ borderLeft: "4px solid var(--brand)" }}>
+    <div className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-6" style={{ borderInlineStart: "4px solid var(--brand)" }}>
       <p className="font-serif text-[19px] leading-snug">{L[lang].shortAnswer}</p>
       <div className="mt-2 text-[16px] leading-relaxed text-foreground/90">{children}</div>
     </div>
