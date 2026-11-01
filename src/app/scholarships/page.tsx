@@ -26,6 +26,10 @@ export default function Scholarships() {
             Not sure which you qualify for?{" "}
             <Link href="/tools/scholarship-finder" className="font-medium text-brand underline decoration-current/30 underline-offset-4">
               Try the scholarship finder
+            </Link>{" "}
+            or{" "}
+            <Link href="/study-abroad" className="font-medium text-brand underline decoration-current/30 underline-offset-4">
+              pick your home country
             </Link>
             .
           </p>

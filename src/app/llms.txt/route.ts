@@ -2,6 +2,7 @@ import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
 import { FAQ } from "@/lib/faq";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
+import { ORIGINS } from "@/content/countries";
 
 // /llms.txt: a plain summary of Ivyward for AI assistants and answer engines (the llmstxt.org format), built from
 // the same facts as the site so it never drifts.
@@ -34,6 +35,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students
 - [Universities](${SITE.url}/universities): how to apply to Harvard, MIT, Stanford, Oxford, Cambridge, Toronto, McGill, TUM, ETH and more
+- [Study abroad by home country](${SITE.url}/study-abroad): which fully funded scholarships are open to citizens of each country, and the 2026–27 visa rules for that nationality
 - [Scholarship finder](${SITE.url}/tools/scholarship-finder): screen the major fully funded scholarships by citizenship, level, work experience and age
 - [Glossary](${SITE.url}/glossary): admissions and funding terms defined
 - [Full library as plain text](${SITE.url}/llms-full.txt)
@@ -49,6 +51,10 @@ ${GUIDES.map((g) => `- [${g.title}](${SITE.url}/guides/${g.slug}): ${g.descripti
 ## Scholarship profiles
 
 ${SCHOLARSHIPS.map((s) => `- [${s.name}](${SITE.url}/scholarships/${s.slug}): ${s.levels.join(", ")} in ${s.country}. ${s.forWhom}.`).join("\n")}
+
+## Study abroad by home country
+
+${ORIGINS.map((o) => `- [Scholarships for ${o.demonym} students](${SITE.url}/study-abroad/${o.slug})`).join("\n")}
 
 ## How to apply to universities
 

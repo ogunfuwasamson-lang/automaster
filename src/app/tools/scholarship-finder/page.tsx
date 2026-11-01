@@ -49,7 +49,8 @@ export default function FinderPage() {
           <Faq items={FAQ} />
           <p className="mt-8 text-[15px]">
             Also see <Link href="/guides/fully-funded-masters-scholarships-international-students" className="text-brand underline decoration-current/30 underline-offset-4">fully funded master&apos;s scholarships</Link> and the{" "}
-            <Link href="/guides/application-deadlines-2027-intake" className="text-brand underline decoration-current/30 underline-offset-4">2027 deadline calendar</Link>.
+            <Link href="/guides/application-deadlines-2027-intake" className="text-brand underline decoration-current/30 underline-offset-4">2027 deadline calendar</Link>, or see{" "}
+            <Link href="/study-abroad" className="text-brand underline decoration-current/30 underline-offset-4">what&apos;s open to citizens of your country</Link>.
           </p>
           <Cta title="Get matched on your whole profile" body="Ivyward searches by every eligibility hook you have (field, gender, region, employer, background), not just these four, then drafts and submits the applications you approve." />
         </div>

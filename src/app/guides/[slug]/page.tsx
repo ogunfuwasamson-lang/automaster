@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GUIDES, guide, relatedCards } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
+import { ORIGINS } from "@/content/countries";
 
 // country guides also point at the university pages in that country
 const COUNTRY_OF: Record<string, string> = {
@@ -68,6 +69,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             <Related
               items={[
                 ...relatedCards(g.related, g.slug),
+                ...ORIGINS.filter((o) => o.guide === g.slug).map((o) => ({ href: `/study-abroad/${o.slug}`, title: `Every scholarship open to ${o.demonym} citizens`, kind: "By home country" })),
                 ...UNIVERSITIES.filter((u) => u.country === COUNTRY_OF[g.slug]).map((u) => ({ href: `/universities/${u.slug}`, title: `How to apply to ${u.short}`, kind: u.country })),
               ]}
             />

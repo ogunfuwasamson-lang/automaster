@@ -21,11 +21,13 @@ import { bestAiTools } from "./best-ai-tools";
 import { vsConsultant } from "./vs-consultant";
 import { vsChatgpt } from "./vs-chatgpt";
 import { ghana, kenya, india, pakistan } from "./origin";
+import { bachelors, undergradAid, france, sweden, japan, korea, china, hungaryTurkey, publicHealth, engineeringCs, businessLaw, agricultureEducation } from "./wave3";
 import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, academicCv, scams, mba, cheapest } from "./more";
 
 // order within a category is the order on /guides
 export const GUIDES: Guide[] = [
   feeWaivers,
+  undergradAid,
   fundedMasters,
   fundedPhd,
   africanScholarships,
@@ -35,9 +37,14 @@ export const GUIDES: Guide[] = [
   pakistan,
   scholarshipEssay,
   scams,
+  publicHealth,
+  engineeringCs,
+  businessLaw,
+  agricultureEducation,
   assistantships,
   moreAid,
   applyGradSchool,
+  bachelors,
   deadlines2027,
   shortlist,
   sop,
@@ -54,6 +61,12 @@ export const GUIDES: Guide[] = [
   netherlands,
   australia,
   cheapest,
+  france,
+  sweden,
+  japan,
+  korea,
+  china,
+  hungaryTurkey,
   proofOfFunds,
   bestAiTools,
   aiAllowed,
