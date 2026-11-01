@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { GUIDES, guide, relatedCards } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
+import { translationsOfGuide } from "@/content/i18n";
 
 // country guides also point at the university pages in that country
 const COUNTRY_OF: Record<string, string> = {
@@ -15,11 +16,18 @@ import { renderMarkdown, readMinutes } from "@/lib/markdown";
 import { AlertSignup } from "@/components/growth/alert-signup";
 import { ShareRow } from "@/components/growth/share-row";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
+import { TranslationLinks } from "@/components/library/translation-links";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, Sources, longDate } from "@/components/library/library";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
   return GUIDES.map((g) => ({ slug: g.slug }));
+}
+
+// hreflang: point to the French and Spanish versions when they exist
+function langs(slug: string) {
+  const t = translationsOfGuide(slug);
+  return Object.keys(t).length ? { en: `/guides/${slug}`, "x-default": `/guides/${slug}`, ...t } : undefined;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -29,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: g.seoTitle ?? g.title,
     description: g.description,
     keywords: g.keywords,
-    alternates: { canonical: `/guides/${g.slug}`, types: { "text/markdown": `/md/guides/${g.slug}` } },
+    alternates: { canonical: `/guides/${g.slug}`, types: { "text/markdown": `/md/guides/${g.slug}` }, languages: langs(g.slug) },
     openGraph: { type: "article", title: g.title, description: g.description, url: `/guides/${g.slug}`, modifiedTime: g.updated },
     twitter: { card: "summary_large_image", title: g.title, description: g.description },
   };
@@ -56,6 +64,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
               </span>
               <span>{readMinutes(g.body)} minute read</span>
             </p>
+            <TranslationLinks links={translationsOfGuide(g.slug)} />
             <ShortAnswer>{g.answer}</ShortAnswer>
             <div className="prose-iv mt-10" dangerouslySetInnerHTML={{ __html: html }} />
             <Cta

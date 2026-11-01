@@ -140,7 +140,17 @@ export function SiteFooter() {
         </nav>
       </div>
       <div className="border-t border-line">
-        <p className="mx-auto max-w-6xl px-5 py-5 text-xs text-muted">Application fees are paid to schools directly. Agents ask for waivers first.</p>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-xs text-muted">
+          <p>Application fees are paid to schools directly. Agents ask for waivers first.</p>
+          <p className="flex gap-3">
+            <Link href="/fr" hrefLang="fr" className="hover:text-foreground">
+              Français
+            </Link>
+            <Link href="/es" hrefLang="es" className="hover:text-foreground">
+              Español
+            </Link>
+          </p>
+        </div>
       </div>
     </footer>
   );

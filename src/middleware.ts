@@ -31,6 +31,8 @@ const PUBLIC = [
   "/about",
   "/universities",
   "/study-abroad",
+  "/fr",
+  "/es",
   "/glossary",
   "/tools",
   "/md/",

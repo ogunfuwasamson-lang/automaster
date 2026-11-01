@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ORIGINS, fitsFor, origin, usLine, COMMONWEALTH_ELIGIBLE } from "@/content/countries";
 import { guide } from "@/content";
+import { translationsOfCountry } from "@/content/i18n";
+import { TranslationLinks } from "@/components/library/translation-links";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
 import { AlertSignup } from "@/components/growth/alert-signup";
 import { ShareRow } from "@/components/growth/share-row";
@@ -24,7 +26,11 @@ export async function generateMetadata({ params }: { params: Promise<{ country: 
     title: `Scholarships for ${o.demonym} students: study abroad from ${o.name} (2027)`,
     description,
     keywords: [`scholarships for ${o.demonym} students`, `study abroad from ${o.name}`, `fully funded scholarships for ${o.demonym}s`, `masters scholarships ${o.name}`, `PhD scholarships for ${o.demonym} students`, `undergraduate scholarships for ${o.demonym} students`, `${o.name} student visa USA UK Canada`, `application fee waiver ${o.name}`],
-    alternates: { canonical: `/study-abroad/${o.slug}`, types: { "text/markdown": `/md/study-abroad/${o.slug}` } },
+    alternates: {
+      canonical: `/study-abroad/${o.slug}`,
+      types: { "text/markdown": `/md/study-abroad/${o.slug}` },
+      languages: Object.keys(translationsOfCountry(o.slug)).length ? { en: `/study-abroad/${o.slug}`, "x-default": `/study-abroad/${o.slug}`, ...translationsOfCountry(o.slug) } : undefined,
+    },
     openGraph: { type: "article", title: title(o), description, url: `/study-abroad/${o.slug}` },
   };
 }
@@ -59,6 +65,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
         <Crumbs items={[["Study abroad", "/study-abroad"], [o.region, `/study-abroad#${o.region.toLowerCase().replace(/\s+/g, "-")}`]]} />
         <h1 className="mt-5 text-[36px] leading-[1.08] sm:text-[50px]">{title(o)}</h1>
         <p className="mt-4 text-[13.5px] text-muted">Checked against official lists on {longDate(UPDATED)}</p>
+        <TranslationLinks links={translationsOfCountry(o.slug)} />
         <ShortAnswer>{answer}</ShortAnswer>
 
         <section className="mt-10">

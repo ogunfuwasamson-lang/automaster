@@ -2,6 +2,7 @@ import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { SITE } from "@/lib/site";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
+import { allLocalUrls } from "@/content/i18n";
 
 // IndexNow tells Bing (which feeds Copilot and ChatGPT search), Yandex, Seznam and Naver the moment a page is
 // new or changed, instead of waiting for a crawl. the key is public by design: it's served at /<key>.txt.
@@ -13,6 +14,7 @@ export function publicUrls(sinceIso?: string) {
     ...SCHOLARSHIPS.map((s) => ({ path: `/scholarships/${s.slug}`, updated: s.updated })),
     ...UNIVERSITIES.map((u) => ({ path: `/universities/${u.slug}`, updated: u.updated })),
     ...ORIGINS.map((o) => ({ path: `/study-abroad/${o.slug}`, updated: "2026-11-01" })),
+    ...allLocalUrls().map((path) => ({ path, updated: "2026-11-01" })),
   ];
   const fresh = sinceIso ? lib.filter((p) => p.updated >= sinceIso) : lib;
   const hubs = !sinceIso || fresh.length ? ["/", "/guides", "/scholarships", "/about", "/pricing", "/universities", "/study-abroad", "/glossary", "/tools/scholarship-finder", "/llms.txt", "/llms-full.txt"] : [];

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "Admissions guides: fee waivers, scholarships, funding and applying abroad",
   description:
     "Plain, checked answers on getting into university abroad: application fee waivers, fully funded master's and PhD scholarships, assistantships, statements of purpose, student visas, and using AI on applications.",
-  alternates: { canonical: "/guides", types: { "application/rss+xml": "/guides/feed.xml" } },
+  alternates: { canonical: "/guides", types: { "application/rss+xml": "/guides/feed.xml" }, languages: { en: "/guides", fr: "/fr", es: "/es", "x-default": "/guides" } },
 };
 
 export default function Guides() {
@@ -20,6 +20,17 @@ export default function Guides() {
           <h1 className="text-[42px] leading-[1.05] sm:text-[60px]">Getting in, and getting it paid for.</h1>
           <p className="mt-5 text-[18px] leading-relaxed text-muted">
             Straight answers on applying to universities abroad: how to have application fees waived, where fully funded places come from, what to write, and what changed in the visa rules this year. Each guide is checked against official sources and dated.
+          </p>
+          <p className="mt-3 text-[15px]">
+            <Link href="/fr" hrefLang="fr" className="text-brand underline decoration-current/30 underline-offset-4">
+              Guides en français
+            </Link>
+            <span className="mx-2 text-muted" aria-hidden>
+              /
+            </span>
+            <Link href="/es" hrefLang="es" className="text-brand underline decoration-current/30 underline-offset-4">
+              Guías en español
+            </Link>
           </p>
           <p className="mt-5 text-[15px]">
             Looking for money first?{" "}

@@ -3,6 +3,7 @@ import { SITE } from "@/lib/site";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
+import { allLocalUrls } from "@/content/i18n";
 
 // the public pages. everything behind sign-in stays out (see robots.ts).
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -21,6 +22,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.url}/glossary`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/tools/scholarship-finder`, lastModified: libDate, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE.url}/study-abroad`, lastModified: new Date("2026-11-01T12:00:00Z"), changeFrequency: "weekly", priority: 0.85 },
+    ...allLocalUrls().map((p) => ({ url: `${SITE.url}${p}`, lastModified: new Date("2026-11-01T12:00:00Z"), changeFrequency: "monthly" as const, priority: p.split("/").length <= 2 ? 0.85 : 0.75 })),
     ...ORIGINS.map((o) => ({ url: `${SITE.url}/study-abroad/${o.slug}`, lastModified: new Date("2026-11-01T12:00:00Z"), changeFrequency: "monthly" as const, priority: 0.75 })),
     ...UNIVERSITIES.map((u) => ({ url: `${SITE.url}/universities/${u.slug}`, lastModified: new Date(`${u.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.7 })),
     ...GUIDES.map((g) => ({ url: `${SITE.url}/guides/${g.slug}`, lastModified: new Date(`${g.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.8 })),

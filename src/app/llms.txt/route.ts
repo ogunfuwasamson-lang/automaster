@@ -3,6 +3,7 @@ import { FAQ } from "@/lib/faq";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
+import { LOCAL, guideUrl } from "@/content/i18n";
 
 // /llms.txt: a plain summary of Ivyward for AI assistants and answer engines (the llmstxt.org format), built from
 // the same facts as the site so it never drifts.
@@ -51,6 +52,14 @@ ${GUIDES.map((g) => `- [${g.title}](${SITE.url}/guides/${g.slug}): ${g.descripti
 ## Scholarship profiles
 
 ${SCHOLARSHIPS.map((s) => `- [${s.name}](${SITE.url}/scholarships/${s.slug}): ${s.levels.join(", ")} in ${s.country}. ${s.forWhom}.`).join("\n")}
+
+## En français
+
+${LOCAL.fr.map((g) => `- [${g.title}](${SITE.url}${guideUrl("fr", g.slug)})`).join("\n")}
+
+## En español
+
+${LOCAL.es.map((g) => `- [${g.title}](${SITE.url}${guideUrl("es", g.slug)})`).join("\n")}
 
 ## Study abroad by home country
 
