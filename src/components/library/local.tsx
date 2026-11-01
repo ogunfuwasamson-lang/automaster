@@ -12,6 +12,8 @@ export function LocalShell({ lang, crumbs, english, children }: { lang: Lang; cr
   const t = L[lang];
   return (
     <div lang={lang} className="relative min-h-dvh overflow-x-clip">
+      {/* the root layout is English; correct the document language for screen readers and translation prompts */}
+      <script dangerouslySetInnerHTML={{ __html: `document.documentElement.lang=${JSON.stringify(lang)}` }} />
       <BreadcrumbJsonLd items={[["Ivyward", "/"], ...crumbs]} />
       <header className="glass sticky top-0 z-30 border-b border-line">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5">

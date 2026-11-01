@@ -84,6 +84,9 @@ export async function middleware(req: NextRequest) {
 // so a signup can be credited to the right person and channel. first touch wins; nothing personal is stored.
 function withAttribution(req: NextRequest, res: NextResponse) {
   if (req.method !== "GET" || req.nextUrl.pathname.startsWith("/api/")) return res;
+  // the French and Spanish library: tell crawlers the page language in the response itself
+  const lang = /^\/(fr|es)(\/|$)/.exec(req.nextUrl.pathname)?.[1];
+  if (lang) res.headers.set("content-language", lang);
   const q = req.nextUrl.searchParams;
   const ref = q.get("ref");
   const opts = { path: "/", maxAge: 60 * 86400, sameSite: "lax" as const, secure: true };
