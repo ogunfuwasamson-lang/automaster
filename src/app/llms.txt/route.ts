@@ -1,3 +1,4 @@
+import { CHROME_STORE_URL } from "@/lib/chrome-store";
 import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
 import { FAQ } from "@/lib/faq";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
@@ -33,6 +34,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Home](${SITE.url}/): what Ivyward does, how a season runs, and how it compares with applying alone or with a consultant
 - [Pricing](${SITE.url}/pricing): free to prepare; pay per submission in Africa, or 3 free then $20 a month (10 submissions) elsewhere
 - [About](${SITE.url}/about): who Ivyward is for, what the agents do and don't do, and how it compares with consultants and chatbots
+- [Ivyward runner for Chrome](${CHROME_STORE_URL}): free extension that finishes applications in your own browser when a portal blocks cloud browsers
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students
 - [Universities](${SITE.url}/universities): how to apply to Harvard, MIT, Stanford, Oxford, Cambridge, Toronto, McGill, TUM, ETH and more

@@ -1,3 +1,4 @@
+import { CHROME_STORE_URL } from "@/lib/chrome-store";
 import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
 
 // structured data (schema.org JSON-LD): tells search engines and AI assistants what Ivyward is, what it costs,
@@ -13,6 +14,18 @@ export function SiteJsonLd({ faq }: { faq?: [string, string][] }) {
   const graph: unknown[] = [
     ORG,
     { "@type": "WebSite", "@id": `${SITE.url}/#site`, url: SITE.url, name: SITE.name, description: SITE.short, publisher: { "@id": `${SITE.url}/#org` }, inLanguage: "en" },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE.url}/#chrome-runner`,
+      name: "Ivyward runner",
+      url: CHROME_STORE_URL,
+      installUrl: CHROME_STORE_URL,
+      applicationCategory: "BrowserApplication",
+      operatingSystem: "Chrome, Edge, Brave",
+      description: "Free Chrome extension that lets Ivyward's agents finish university applications in your own browser when a portal blocks cloud browsers. Bot checks are always left to you.",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      publisher: { "@id": `${SITE.url}/#org` },
+    },
     {
       "@type": "SoftwareApplication",
       "@id": `${SITE.url}/#app`,
