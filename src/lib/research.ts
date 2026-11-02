@@ -4,6 +4,7 @@ import { admin } from "@/lib/supabase/admin";
 import { MODELS, llm, cachedSystem } from "@/lib/llm";
 import { assertBudget } from "@/lib/budget";
 import { lessonsFor } from "@/lib/lessons";
+import { assertAiAvailable, tripAi } from "@/lib/ai-health";
 import { costOf, type Usage } from "@/lib/pricing";
 
 // web research with claude's server-side search + fetch tools.
@@ -28,6 +29,7 @@ export async function research(args: {
   maxFetches?: number;
   topic?: string | null;
 }): Promise<ResearchResult> {
+  await assertAiAvailable();
   await assertBudget(args.userId, args.agent);
   // what's been learned about researching for this agent (and this applicant)
   const learned = await lessonsFor({ agent: args.agent, task: "research", topic: args.topic ?? null, userId: args.userId });
@@ -125,6 +127,7 @@ export async function research(args: {
       .from("agent_runs")
       .update({ status: "failed", error: String(e), input_tokens: inTok, output_tokens: outTok, cost_usd: cost, finished_at: new Date().toISOString() })
       .eq("id", run.id);
+    await tripAi(e).catch(() => {});
     throw e;
   }
 }

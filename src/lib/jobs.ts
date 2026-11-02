@@ -101,5 +101,5 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
 }
 
 export function isBillingError(msg: string): boolean {
-  return /credit balance is too low|billing|insufficient.?credit|payment required/i.test(msg);
+  return /credit balance is too low|billing|insufficient.?credit|payment required|AI is paused until/i.test(msg);
 }

@@ -12,6 +12,7 @@ import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
+import { aiPausedUntil } from "@/lib/ai-health";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -44,6 +45,12 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCDate() === 1 && new Date().getUTCHours() >= 8) await sendMonthlyAlerts(60).catch(() => null);
   // the nightly learning pass (02:00 UTC), run under a staff account
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
+  // the AI provider refused calls for an account reason (credit, key): hold the queue instead of failing it
+  const pausedUntil = await aiPausedUntil().catch(() => 0);
+  if (pausedUntil > Date.now()) {
+    const mail = await sendDue().catch(() => []);
+    return NextResponse.json({ ran: 0, aiPausedUntil: new Date(pausedUntil).toISOString(), mail: mail.length, digests });
+  }
   const [results, mail] = await Promise.all([drain(`vercel-${process.env.VERCEL_REGION ?? "local"}`, 5), sendDue().catch(() => [])]);
   // portal work runs in its own function (it ships chromium). poke it when some is due: up to 3 in parallel.
   const { count } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("agent", "runner").eq("status", "queued").lte("run_at", new Date().toISOString());

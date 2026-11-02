@@ -26,6 +26,7 @@ import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
 import { askToPay, paymentNeeded, spendBonusIfUsed } from "@/lib/billing";
 import { rewardInviter } from "@/lib/referrals";
+import { aiPausedNow, assertAiAvailable } from "@/lib/ai-health";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
@@ -185,7 +186,8 @@ export function serverDeps(c: DepsCtx): EngineDeps {
   return {
     shouldStop: () => {
       if (Date.now() - checkedAt > 6000) void check().catch(() => {});
-      return stopped;
+      // the AI provider refused a call for an account reason: stop now rather than step through pages blind
+      return stopped || aiPausedNow();
     },
     map: (fields) => mapFields(c.userId, c.sheet, fields, c.memory),
     file: (key) => sheetFile(c.userId, c.sheet, key),
@@ -643,6 +645,8 @@ export const runner: Record<string, Handler> = {
   },
 
   "runner.run": async (job) => {
+    // AI paused (credit or key): the job waits (jobs.ts parks it) instead of opening a browser it can't drive
+    await assertAiAvailable();
     const { applicationId } = job.payload as { applicationId: string };
     const db = admin();
     const app = await loadApp(job.user_id, applicationId);

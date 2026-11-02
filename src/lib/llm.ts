@@ -7,6 +7,7 @@ import type * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
 import { assertBudget } from "@/lib/budget";
 import { costOf } from "@/lib/pricing";
+import { assertAiAvailable, tripAi } from "@/lib/ai-health";
 
 // model tiers, chosen for a $25/user/month budget:
 // - write: essays, red team, strategy, profile cleanup. quality matters, volume is low.
@@ -63,6 +64,7 @@ interface RunArgs<S extends z.ZodType> {
 
 // one structured call: budget-checked, metered, logged to agent_runs.
 export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Promise<{ output: z.infer<S>; runId: string }> {
+  await assertAiAvailable();
   await assertBudget(args.userId, args.agent);
   const db = admin();
   const model = MODELS[args.tier ?? "write"];
@@ -111,7 +113,9 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
             messages: [{ role: "user", content }],
             // sonnet/opus 5.5 think by default (and it eats max_tokens): turn it off. haiku doesn't take the setting.
             ...(model.includes("haiku") ? {} : { thinking: { type: "between_tools" as const } }),
-            output_config: { format: zodOutputFormat(args.schema) },
+            // only the schema goes to the model; parsing is ours (below), so a label that comes back as "Reach" or
+            // "United States" is repaired instead of failing the whole call
+            output_config: { format: { type: "json_schema" as const, schema: zodOutputFormat(args.schema).schema } },
           })
           .finalMessage();
         if (msg.stop_reason === "max_tokens" && attempt === 0) throw new Error("Failed to parse structured output: cut off");
@@ -135,7 +139,8 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
     } catch (pe) {
       throw new Error(`unparseable output (${String(pe)}); tail: ${text.slice(-200)}`);
     }
-    const checked = args.schema.safeParse(json);
+    let checked = args.schema.safeParse(json);
+    if (!checked.success) checked = args.schema.safeParse(repairEnums(json, checked.error.issues));
     if (!checked.success) throw new Error(`output failed schema: ${checked.error.message.slice(0, 500)}`);
     const output = checked.data;
     await recordUsage(run.id, model, msg, { status: "done", output, finished_at: new Date().toISOString() });
@@ -144,6 +149,35 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
     // a failed call that reached the model was still billed: meter it
     if (msg) await recordUsage(run.id, model, msg, {});
     await db.from("agent_runs").update({ status: "failed", error: String(e), finished_at: new Date().toISOString() }).eq("id", run.id);
+    await tripAi(e).catch(() => {});
     throw e;
   }
+}
+
+// labels the model wrote slightly differently ("Reach", "United States", "not required"): map each one onto the
+// allowed value it clearly means. anything that doesn't clearly match is left alone and still fails.
+const SYNONYMS: Record<string, string> = {
+  usa: "us", "united_states": "us", "united_states_of_america": "us", america: "us",
+  united_kingdom: "uk", england: "uk", scotland: "uk", wales: "uk", britain: "uk", great_britain: "uk",
+  australia: "australia_nz", new_zealand: "australia_nz", oceania: "australia_nz",
+  mena: "middle_east", gulf: "middle_east", south_america: "latin_america", central_america: "latin_america", mexico: "latin_america",
+  stretch: "reach", ambitious: "reach", likely: "safety", safe: "safety", match: "target",
+};
+const norm = (v: string) => v.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+export function repairEnums(json: unknown, issues: readonly { code: string; path: PropertyKey[]; values?: readonly unknown[] }[]): unknown {
+  const copy = structuredClone(json) as Record<string, unknown>;
+  for (const issue of issues) {
+    if (issue.code !== "invalid_value" || !issue.values?.length) continue;
+    const allowed = issue.values.filter((x): x is string => typeof x === "string");
+    let parent: Record<string, unknown> | unknown[] = copy;
+    for (const k of issue.path.slice(0, -1)) parent = (parent as Record<PropertyKey, unknown>)[k as string] as Record<string, unknown>;
+    const key = issue.path[issue.path.length - 1] as string;
+    const got = (parent as Record<string, unknown>)?.[key];
+    if (typeof got !== "string") continue;
+    const n = norm(got);
+    const hit = allowed.find((a) => a === n) ?? allowed.find((a) => SYNONYMS[n] === a) ?? (allowed.filter((a) => n.startsWith(a) || a.startsWith(n)).length === 1 ? allowed.find((a) => n.startsWith(a) || a.startsWith(n)) : undefined);
+    if (hit) (parent as Record<string, unknown>)[key] = hit;
+  }
+  return copy;
 }
