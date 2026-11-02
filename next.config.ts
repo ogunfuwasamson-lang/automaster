@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/runner/work": ["./node_modules/@sparticuz/chromium/bin/**"],
     "/api/live": ["./node_modules/@sparticuz/chromium/bin/**"],
+    // share-card images read their font from disk; ship it with them in case one is ever rendered on demand
+    "/*/[slug]/opengraph-image": ["./node_modules/@fontsource/frank-ruhl-libre/files/frank-ruhl-libre-latin-*-normal.woff"],
   },
   outputFileTracingExcludes: {
     "/api/live/*": BROWSER,
