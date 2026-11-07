@@ -52,7 +52,7 @@ fi
 
 if [ -z "${AGENT37_INSTANCE_ID:-}" ]; then
   # 4a. first deploy: always on (no sleeping), 2 vCPU / 4 GB, one public port with a stable name
-  BODY=$(node -e 'const env=JSON.parse(process.argv[1]); process.stdout.write(JSON.stringify({template:"ivyward",name:"Ivyward production",resources:{cpu:2,memory:4,disk:10},region:process.env.REGION||"eu",env,auto_sleep:false,public_ports:[{port:3000,prefix:"ivyward",label:"Ivyward"}]}))' "$ENV_JSON")
+  BODY=$(node -e 'const env=JSON.parse(process.argv[1]); process.stdout.write(JSON.stringify({template:"ivyward",name:"Ivyward production",resources:{cpu:2,memory:4,disk:10},region:process.env.REGION||"us",env,auto_sleep:false,public_ports:[{port:3000,prefix:"ivyward",label:"Ivyward"}]}))' "$ENV_JSON")
   OUT=$(call POST "/instances" "$BODY")
   echo "$OUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log("instance:",j.id);console.log("set AGENT37_INSTANCE_ID="+j.id+" for later deploys");console.log(JSON.stringify(j.public_ports??j.urls??{},null,1))})'
 else
