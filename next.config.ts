@@ -26,4 +26,17 @@ const nextConfig: NextConfig = {
   },
 };
 
+// baseline security headers. pages can't be framed by other sites (clickjacking), except the embeddable
+// scholarship finder, which exists to be put in other sites' pages. the microphone is allowed for voice chat.
+const BASE_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=(), payment=(), usb=()" },
+];
+nextConfig.headers = async () => [
+  { source: "/((?!embed/).*)", headers: [...BASE_HEADERS, { key: "X-Frame-Options", value: "SAMEORIGIN" }, { key: "Content-Security-Policy", value: "frame-ancestors 'self'" }] },
+  { source: "/embed/:path*", headers: BASE_HEADERS },
+];
+
 export default nextConfig;

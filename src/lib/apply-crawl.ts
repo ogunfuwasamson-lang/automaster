@@ -2,6 +2,7 @@
 // follow "apply online" / "how to apply" / "application portal", and stop at the application site. plain http, no
 // browser and no model, so it's cheap enough to try before (and after) a web search.
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
+import { safeFetch } from "@/lib/net-guard";
 
 const STRONG = /\b(apply (now|online|here|today|directly)|start (your |an |my |a new )?application|begin (your |an )?application|online application|application (portal|form|system)|apply (via|through|using)|submit (an |your )?application|create (an )?account|apply for (this|the) (course|program(me)?))\b/i;
 const MEDIUM = /\b(how to apply|apply|applying|application process|admissions?|entry requirements)\b/i;
@@ -55,12 +56,12 @@ export function scoreLinks(html: string, base: string): ApplyLink[] {
 
 async function fetchPage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, {
+    // links come from school websites: never let one point the server at its own network
+    const res = await safeFetch(url, {
       headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36", accept: "text/html" },
-      redirect: "follow",
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return null;
+    if (!res || !res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return null;
     return (await res.text()).slice(0, 600_000);
   } catch {
     return null;

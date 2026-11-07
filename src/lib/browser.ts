@@ -1,5 +1,6 @@
 import "server-only";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { isPublicUrl } from "@/lib/net-guard";
 
 // browsers for the cloud runner, cheapest first:
 //   1. our own headless chromium inside the vercel function (default, no extra cost). each run restores the
@@ -77,6 +78,7 @@ export async function openBrowser(opts: { sessionId?: string | null; storage?: S
     browser = await chromium.launch({ executablePath: await Sparticuz.executablePath(), args: Sparticuz.args, headless: true });
   }
   const ctx = await browser.newContext({ storageState: opts.storage ?? undefined, userAgent: UA, viewport: { width: 1280, height: 900 }, locale: "en-US" });
+  await guardContext(ctx);
   const page = await ctx.newPage();
   return {
     page,
@@ -91,3 +93,14 @@ export async function openBrowser(opts: { sessionId?: string | null; storage?: S
 }
 
 export const hasLiveView = () => !!process.env.BROWSERBASE_API_KEY;
+
+// the browser follows links from school pages, emails and portals: it may never load anything on this machine or
+// its private network (cloud metadata, the app's own internal port). data:, blob: and about: pages are local.
+export async function guardContext(ctx: BrowserContext) {
+  await ctx.route("**/*", async (route) => {
+    const url = route.request().url();
+    if (/^(data|blob|about):/i.test(url)) return route.continue();
+    if (await isPublicUrl(url)) return route.continue();
+    return route.abort("blockedbyclient");
+  });
+}

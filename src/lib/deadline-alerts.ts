@@ -43,6 +43,8 @@ export async function subscribe(email: string, source: string | null): Promise<"
   const clean = email.trim().toLowerCase();
   const { data: cur } = await db.from("alert_subscribers").select("id, token, confirmed_at, unsubscribed_at, created_at").eq("email", clean).maybeSingle();
   if (cur?.confirmed_at && !cur.unsubscribed_at) return "already";
+  // a signup form anyone can post to must not become a way to flood someone's inbox: one confirmation a day
+  if (cur && !cur.confirmed_at && !cur.unsubscribed_at && Date.now() - Date.parse(cur.created_at as string) < 86_400_000) return "sent";
   let token = cur?.token as string | undefined;
   if (!cur) {
     const { data, error } = await db.from("alert_subscribers").insert({ email: clean, source: source?.slice(0, 120) ?? null }).select("token").single();

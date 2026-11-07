@@ -1,3 +1,4 @@
+import { safeNextPath } from "@/lib/safe-redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { serverClient } from "@/lib/supabase/server";
 import { recordSignup } from "@/lib/referrals";
@@ -6,7 +7,7 @@ import { recordSignup } from "@/lib/referrals";
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const next = req.nextUrl.searchParams.get("next") ?? "";
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  const safeNext = safeNextPath(next);
   if (!code) return NextResponse.redirect(new URL("/login?error=link", req.url));
   const sb = await serverClient();
   const { error } = await sb.auth.exchangeCodeForSession(code);
