@@ -1,34 +1,47 @@
-# official institution registries the build machines can download (the dev sandbox can't): each file is saved to
-# the `registry-data` branch with its source URL and download date, for the institutions importer
-# (scripts/hed). runs when this file changes, or by hand.
+# official institution registries, fetched by the build machine (the dev sandbox can't reach them), normalised by
+# scripts/hed, saved to the `registry-data` branch with source URLs and checksums, and loaded into Supabase's
+# hed_* tables when the SUPABASE_DB_URL secret is set (Supabase > Connect > Session pooler connection string).
+# idempotent: re-running updates the same rows. runs when this workflow or the importers change, or by hand.
 name: Fetch institution registries
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/fetch-registries.yml]
+    paths: [.github/workflows/fetch-registries.yml, scripts/hed/**]
   workflow_dispatch:
 permissions: { contents: write }
+concurrency: { group: registries, cancel-in-progress: false }
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
       - name: Download
         run: |
           set -euo pipefail
-          mkdir -p out && cd out
+          mkdir -p out/raw out/processed && cd out/raw
           get() { # NAME URL
-            curl -fsSL --retry 3 -A "ivyward-registry-fetch (+https://tryivyward.com)" -o "$1" "$2" && echo "$1	$2	$(date -u +%FT%TZ)	$(sha256sum "$1" | cut -c1-64)" >> SOURCES.tsv
+            curl -fsSL --retry 3 -A "ivyward-registry-fetch (+https://tryivyward.com)" -o "$1" "$2" && echo "$1	$2	$(date -u +%FT%TZ)	$(sha256sum "$1" | cut -c1-64)" >> ../SOURCES.tsv
           }
-          # US: IPEDS institutional characteristics (directory) and its dictionary
-          get ipeds-hd2024.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024.zip || get ipeds-hd2023.zip https://nces.ed.gov/ipeds/datacenter/data/HD2023.zip
-          get ipeds-hd2024-dict.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024_Dict.zip || true
+          # US: IPEDS institutional characteristics (directory)
+          get ipeds-hd2024.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024.zip
           for z in *.zip; do unzip -o -q "$z" -d "${z%.zip}"; done
           rm -f *.zip
-          ls -R | head -40
+      - name: Normalise
+        run: |
+          set -euo pipefail
+          python3 -I scripts/hed/ipeds.py out/raw/ipeds-hd2024/HD2024.csv out/processed/us-ipeds-2024.json
+          python3 -I scripts/hed/to_sql.py out/processed/us-ipeds-2024.json scripts/hed/us-source.json out/us.sql
+      - name: Load into Supabase
+        env: { DB: "${{ secrets.SUPABASE_DB_URL }}" }
+        run: |
+          if [ -z "$DB" ]; then echo "SUPABASE_DB_URL not set: files saved, nothing loaded"; exit 0; fi
+          psql "$DB" -q -v ON_ERROR_STOP=1 -f out/us.sql
+          psql "$DB" -Atc "select country, denominator, counts from public.hed_manifest order by country"
       - name: Save to the registry-data branch
         run: |
           set -euo pipefail
+          rm -f out/*.sql
           cd out
           git init -q -b registry-data
           git config user.name "registry-fetch"
