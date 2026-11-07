@@ -14,6 +14,7 @@ import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
 import { screen, targetDeadline } from "@/lib/fit";
 import { canTransition, type AppStatus } from "@/lib/app-state";
+import { findInstitution, isDefunct, linkSchool, registryBrief } from "@/lib/institutions";
 
 const today = () => new Date().toISOString().slice(0, 10);
 export const slugify = (s: string) =>
@@ -345,6 +346,19 @@ finish with honest strategy notes for this region: which of their constraints co
     const ug = profile.education.find((e) => /bach|b\.|bsc|ba|btech|b\.tech|hnd|licen/i.test(e.degree ?? "")) ?? profile.education[0];
     const undergrad = ug ? `${ug.institution}${ug.country ? ` (${ug.country})` : ""}` : "their undergraduate university";
 
+    // the official inventory first: confirms the school exists and is open, and hands the agent its official pages
+    const inst = await findInstitution({ name: p.school, url: p.url, country: p.country }).catch(() => null);
+    if (isDefunct(inst)) {
+      await logEvent({
+        userId: job.user_id,
+        actor: "agent:recon",
+        action: "program.skipped",
+        reasoning: `${inst!.name} is listed as ${inst!.status} in ${inst!.registry.toUpperCase()}`,
+        context: { school: p.school, program: p.program, registry: inst!.registry, registry_id: inst!.registry_id, status: inst!.status },
+      });
+      return { verdict: "skipped", reason: inst!.status };
+    }
+
     // the world model is shared: if this program was researched recently (by any run, any user),
     // reuse the facts and only judge fit for this applicant. no web calls.
     const cached = await cachedProgramNotes(p.school, p.program);
@@ -356,7 +370,7 @@ finish with honest strategy notes for this region: which of their constraints co
       prompt: `program: ${p.program} (${p.degree}) at ${p.school}${p.country ? `, ${p.country}` : ""}
 ranking context: ${p.ranking_note || "unknown"}
 starting url: ${p.url || "(find it)"}
-why it was picked: ${p.why}
+${inst ? `${registryBrief(inst)}\n` : ""}why it was picked: ${p.why}
 funding angle to verify: ${p.funding_angle}
 intake: ${row?.target_term ?? "fall-2027"}. today: ${today()}.
 
@@ -385,6 +399,7 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
     });
 
     const { schoolId, programId } = await upsertProgram(facts, found.sources);
+    if (inst) await linkSchool(schoolId, inst).catch(() => {});
     const { verdict, reasons } = screen(profile, facts, today());
     const appId = await placeApplication(job.user_id, programId, facts, verdict, reasons);
 
@@ -398,7 +413,7 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
       applicationId: appId,
       agentRunId: runId,
       reasoning: facts.fit_reasoning,
-      context: { tier: facts.tier, fit: facts.fit_score, funding: facts.full_funding_realistic, reasons, sources: found.sources.slice(0, 10), cached: !!cached },
+      context: { tier: facts.tier, fit: facts.fit_score, funding: facts.full_funding_realistic, reasons, sources: found.sources.slice(0, 10), cached: !!cached, registry: inst ? `${inst.registry}:${inst.registry_id}` : null },
     });
     return { verdict, tier: facts.tier };
   },
