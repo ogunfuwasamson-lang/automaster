@@ -27,6 +27,12 @@ jobs:
           get ipeds-hd2024.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024.zip
           # UK (England): the OfS Register of higher education providers, as published (spreadsheet)
           get ofs-register.download https://register-api.officeforstudents.org.uk/api/Download/ || echo "OfS register download failed"
+          # UK (all nations): HESA's current providers (UKPRN, nation, category), Medr's register (Wales), and the UK
+          # learning providers list (UKRLP: websites, addresses, postcode locations)
+          get hesa-providers-current.csv "https://www.hesa.ac.uk/support/providers/all-hesa-providers?ProviderAllCurrentHESA.csv" || echo "HESA download failed"
+          get hesa-providers-all.csv "https://www.hesa.ac.uk/support/providers/all-hesa-providers?ProviderAllHESAEnhanced.csv" || echo "HESA download failed"
+          get medr-register.xlsx https://www.medr.cymru/wp-content/uploads/2026/07/Register-Medr-31Jul2026-English.xlsx || echo "Medr download failed"
+          get learning-providers-plus.csv https://learning-provider.data.ac.uk/data/learning-providers-plus.csv || echo "learning providers download failed"
           if [ -f ofs-register.download ]; then
             kind=$(file -b ofs-register.download); echo "OfS register: $kind"
             case "$kind" in *Excel*|*Microsoft*OOXML*|*Zip*) mv ofs-register.download ofs-register.xlsx ;; *CSV*|*text*) mv ofs-register.download ofs-register.csv ;; esac
