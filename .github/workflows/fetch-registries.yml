@@ -25,7 +25,14 @@ jobs:
           }
           # US: IPEDS institutional characteristics (directory)
           get ipeds-hd2024.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024.zip
-          for z in *.zip; do unzip -o -q "$z" -d "${z%.zip}"; done
+          # UK (England): the OfS Register of higher education providers, as published (spreadsheet)
+          get ofs-register.download https://register-api.officeforstudents.org.uk/api/Download/ || echo "OfS register download failed"
+          if [ -f ofs-register.download ]; then
+            kind=$(file -b ofs-register.download); echo "OfS register: $kind"
+            case "$kind" in *Excel*|*Microsoft*OOXML*|*Zip*) mv ofs-register.download ofs-register.xlsx ;; *CSV*|*text*) mv ofs-register.download ofs-register.csv ;; esac
+            sed -i "s/ofs-register.download/$(ls ofs-register.* | head -1)/" ../SOURCES.tsv
+          fi
+          for z in ipeds-*.zip; do unzip -o -q "$z" -d "${z%.zip}"; done
           rm -f *.zip
       - name: Normalise
         run: |
