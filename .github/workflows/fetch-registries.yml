@@ -1,0 +1,38 @@
+# official institution registries the build machines can download (the dev sandbox can't): each file is saved to
+# the `registry-data` branch with its source URL and download date, for the institutions importer
+# (scripts/hed). runs when this file changes, or by hand.
+name: Fetch institution registries
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/fetch-registries.yml]
+  workflow_dispatch:
+permissions: { contents: write }
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download
+        run: |
+          set -euo pipefail
+          mkdir -p out && cd out
+          get() { # NAME URL
+            curl -fsSL --retry 3 -A "ivyward-registry-fetch (+https://tryivyward.com)" -o "$1" "$2" && echo "$1	$2	$(date -u +%FT%TZ)	$(sha256sum "$1" | cut -c1-64)" >> SOURCES.tsv
+          }
+          # US: IPEDS institutional characteristics (directory) and its dictionary
+          get ipeds-hd2024.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024.zip || get ipeds-hd2023.zip https://nces.ed.gov/ipeds/datacenter/data/HD2023.zip
+          get ipeds-hd2024-dict.zip https://nces.ed.gov/ipeds/datacenter/data/HD2024_Dict.zip || true
+          for z in *.zip; do unzip -o -q "$z" -d "${z%.zip}"; done
+          rm -f *.zip
+          ls -R | head -40
+      - name: Save to the registry-data branch
+        run: |
+          set -euo pipefail
+          cd out
+          git init -q -b registry-data
+          git config user.name "registry-fetch"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Registry files fetched $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" registry-data
