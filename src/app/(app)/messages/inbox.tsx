@@ -117,7 +117,7 @@ async function post(url: string, body: Record<string, unknown>) {
   return json;
 }
 
-type Payment = { kind: "request" | "pro" | "submission" | "limit"; label: string; note: string };
+type Payment = { kind: "pack" | "request" | "pro" | "submission" | "limit"; label: string; note: string };
 
 // a funding request waiting on payment: pay for it (or subscribe) and it sends straight after
 function PayToSend({ messageId, pay }: { messageId: string; pay: Payment }) {
@@ -125,7 +125,7 @@ function PayToSend({ messageId, pay }: { messageId: string; pay: Payment }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-brand/30 bg-brand/5 p-3.5">
       <p className="min-w-0 flex-1 text-[13.5px]">
-        {pay.kind === "request" ? `Funding requests are ${pay.label} each. Pay and it sends straight away.` : `Your free sends are used. Pro (${pay.label}) covers this request and every other one.`}
+        {pay.kind === "pack" ? `Your submissions are used. Buy ${pay.label} and this request sends straight away.` : pay.kind === "request" ? `Funding requests are ${pay.label} each. Pay and it sends straight away.` : `Your free sends are used. Pro (${pay.label}) covers this request and every other one.`}
       </p>
       <Button
         size="sm"
@@ -133,7 +133,7 @@ function PayToSend({ messageId, pay }: { messageId: string; pay: Payment }) {
         onClick={async () => {
           setBusy(true);
           try {
-            const j = await post("/api/billing/checkout", pay.kind === "request" ? { kind: "request", messageId } : { kind: "pro" });
+            const j = await post("/api/billing/checkout", pay.kind === "pack" ? { kind: "pack", messageId } : pay.kind === "request" ? { kind: "request", messageId } : { kind: "pro" });
             window.location.assign(j.url);
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
@@ -142,7 +142,7 @@ function PayToSend({ messageId, pay }: { messageId: string; pay: Payment }) {
         }}
       >
         {busy && <LoaderCircle className="size-3.5 animate-spin" />}
-        {pay.kind === "request" ? `Pay ${pay.label} and send` : "Subscribe"}
+        {pay.kind === "pack" ? "Buy a pack and send" : pay.kind === "request" ? `Pay ${pay.label} and send` : "Subscribe"}
       </Button>
     </div>
   );

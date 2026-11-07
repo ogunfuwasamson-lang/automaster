@@ -8,7 +8,7 @@ export const FAQ: [string, string][] = [
   ],
   [
     "How much does Ivyward cost?",
-    "Preparing is free: the shortlist, essays and portal work. In Africa you pay only when an application is ready to go: the local equivalent of ₦2,500 per submission, with no limit on how many. Everywhere else, your first 3 applications are free, then Pro is $20 a month for up to 10 submissions a month. Application fees go to schools directly, and the agents ask for fee waivers first.",
+    "Preparing is free: the shortlist, essays and portal work. In Africa you buy submissions in packs: ₦10,000 (or the local equivalent) for 5, with no subscription. Pay up front or when your first application is ready; buy another pack when they're used. Everywhere else, your first 3 applications are free, then Pro is $20 a month for up to 10 submissions a month. Application fees go to schools directly, and the agents ask for fee waivers first.",
   ],
   [
     "Which degrees and countries does it cover?",

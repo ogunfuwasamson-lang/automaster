@@ -2,6 +2,7 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { budgetCheck, categoryOf, monthStartUTC, type Category, type Spend } from "@/lib/pricing";
 import { BUDGET_PER_SUBMISSION_USD, planOf, type Plan } from "@/lib/plans";
+import { PACK_SIZE } from "@/lib/geo-pricing";
 
 const STAFF_BUDGET_USD = 500;
 
@@ -22,9 +23,13 @@ export async function userPlan(userId: string): Promise<{ plan: Plan; budget: nu
   if (own != null) return { plan, budget: own };
   // staff accounts (and the learning jobs that run under them) aren't capped by a plan
   if (data?.is_admin) return { plan, budget: STAFF_BUDGET_USD };
-  // pay-per-submission: every submission paid this month adds to the month's allowance of agent work
-  const { count } = await db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "submission").gte("created_at", monthStartUTC());
-  return { plan, budget: plan.aiBudgetUsd + (count ?? 0) * BUDGET_PER_SUBMISSION_USD };
+  // africa: every submission paid for this month (one-off, or 5 per pack) adds to the month's allowance of agent work
+  const since = monthStartUTC();
+  const [{ count: singles }, { count: packs }] = await Promise.all([
+    db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "submission").gte("created_at", since),
+    db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "pack").gte("created_at", since),
+  ]);
+  return { plan, budget: plan.aiBudgetUsd + ((singles ?? 0) + (packs ?? 0) * PACK_SIZE) * BUDGET_PER_SUBMISSION_USD };
 }
 
 export async function monthlyBudget(userId: string): Promise<number> {

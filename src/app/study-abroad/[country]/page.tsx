@@ -54,7 +54,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
     [`Can ${o.demonym} students study in the USA in 2027?`, usLine(o)],
     [`Is ${o.name} eligible for Commonwealth scholarships?`, cw ? `Yes. ${o.name} is on the 2027/28 eligible list for Commonwealth Master's Scholarships; apply through your national nominating agency.` : `No. ${o.name} is not on the 2027/28 eligible list for Commonwealth Master's Scholarships.`],
     [`Do ${o.demonym} students need IELTS to study abroad?`, o.exam ? `Not always. Many universities, especially in the UK, accept ${o.exam}, or a degree taught in English, instead of IELTS or TOEFL. Check each university and scholarship.` : `Usually you need IELTS, TOEFL, PTE or the Duolingo English Test unless your previous degree was taught in English and the university accepts a medium-of-instruction letter.`],
-    [`How much does Ivyward cost in ${o.name}?`, africa ? `Preparing applications is free. Each submitted application costs the local equivalent of ₦2,500, paid just before the agents submit.` : `Preparing applications is free. Your first three submissions are free; Pro is $20 a month for up to ten submissions.`],
+    [`How much does Ivyward cost in ${o.name}?`, africa ? `Preparing applications is free. Submissions come in packs: ₦10,000 (or the local equivalent) covers 5 applications, scholarship forms or funding requests, with no subscription.` : `Preparing applications is free. Your first three submissions are free; Pro is $20 a month for up to ten submissions.`],
   ];
   const dedicated = o.guide ? guide(o.guide) : undefined;
   const near = ORIGINS.filter((x) => x.slug !== o.slug && x.region === o.region).slice(0, 4);
@@ -156,7 +156,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
 
         <Cta
           title={`Applying from ${o.name}? Let the agents do the work`}
-          body={`Ivyward checks every scholarship against your ${o.demonym} citizenship, builds a shortlist you can get into, drafts and fact-checks your essays, asks for fee waivers and fills in every university portal. You review and sign. ${africa ? "In Africa, each submission costs the local equivalent of ₦2,500; preparing is free." : "Preparing is free and your first three submissions are free."}`}
+          body={`Ivyward checks every scholarship against your ${o.demonym} citizenship, builds a shortlist you can get into, drafts and fact-checks your essays, asks for fee waivers and fills in every university portal. You review and sign. ${africa ? "In Africa, preparing is free and ₦10,000 (or the local equivalent) covers 5 submissions." : "Preparing is free and your first three submissions are free."}`}
         />
         <Faq items={faq} />
         <AlertSignup source={`country:${o.slug}`} />

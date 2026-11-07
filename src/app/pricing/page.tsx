@@ -11,7 +11,7 @@ import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Preparing your university applications with Ivyward is free. In Africa you pay the local equivalent of ₦2,500 per submission; elsewhere your first 3 applications are free, then $20 a month for up to 10 submissions a month.",
+  description: "Preparing your university applications with Ivyward is free. In Africa you pay ₦10,000 (or the local equivalent) for a pack of 5 submissions; elsewhere your first 3 applications are free, then $20 a month for up to 10 submissions a month.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -60,21 +60,21 @@ export default async function Pricing() {
       <SiteHeader signedIn={signedIn} />
       <CampusInk className="absolute inset-x-0 top-16 h-[560px] w-full" />
       <main className="relative z-10 mx-auto max-w-6xl px-5 pb-24 pt-16 text-center">
-        {p.model === "per_submission" ? (
+        {p.model === "pack" ? (
           <>
             <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Free to prepare. {p.label} to submit.</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              The agents do all the work first: shortlist, essays, every page of the portal. You pay only when an application is ready to go, and there&apos;s no limit on how many you send.
+              The agents do all the work first: shortlist, essays, every page of the portal. When you&apos;re ready to send, one pack covers your next {p.size} submissions. No subscription: buy another pack when they&apos;re used.
             </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
               <Card title="Preparing" price="Free" per="" note="Everything up to the submit button." items={EVERYTHING} cta="Start free" />
               <Card
                 featured
-                title="Each submission"
-                price={p.label}
-                per="per application"
-                note="Paid just before the agents submit. Scholarship applications too."
-                items={["Pay only for what you send", "Apply to 5 schools or 25: no monthly fee, no cap", "Pay in your own currency: card, bank transfer or mobile money", "You sign every application before it's submitted"]}
+                title={`${p.size} submissions`}
+                price={p.label.replace(/ for \d+ submissions$/, "")}
+                per={`${p.each} each`}
+                note="Applications, scholarship forms and funding requests. Pay now or when your first one is ready."
+                items={[`${p.size} submissions in one payment, no subscription`, "Credits don't expire: use them this cycle or next", "Pay in your own currency: card, bank transfer or mobile money", "You sign every application before it's submitted"]}
                 cta="Start free"
               />
             </div>

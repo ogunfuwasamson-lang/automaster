@@ -44,7 +44,7 @@ const LIBRARY: [string, string, string][] = [
 export default async function Home() {
   // signed in already: the header takes you back into the app instead of offering sign-in
   const signedIn = !!(await requireUser().catch(() => null));
-  // prices by where the visitor is (Vercel's country header): pay per submission in Africa, a monthly plan elsewhere
+  // prices by where the visitor is (Vercel's country header): submission packs in Africa, a monthly plan elsewhere
   const price = pricingFor((await headers()).get("x-vercel-ip-country"), await submissionAmounts().catch(() => null));
   return (
     <div className="relative min-h-dvh overflow-x-clip">
@@ -79,7 +79,7 @@ export default async function Home() {
                   </button>
                 </div>
                 <p className="mt-2.5 text-[13px] text-muted">
-                  {price.model === "per_submission" ? `Free to prepare. ${price.label} only when an application is ready to submit.` : `Your first ${price.free} applications are free. No card needed.`} Nothing goes to a school until you sign.
+                  {price.model === "pack" ? `Free to prepare. Then ${price.label}, used as your applications go in.` : `Your first ${price.free} applications are free. No card needed.`} Nothing goes to a school until you sign.
                 </p>
               </form>
             </HeroIn>

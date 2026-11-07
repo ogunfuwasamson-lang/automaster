@@ -80,7 +80,7 @@ ${o.ivy} The agents shortlist programs and scholarships you're eligible for as a
   };
 }
 
-const AFRICA_PRICE = "In Africa, preparing applications with Ivyward is free and each submission costs the local equivalent of ₦2,500.";
+const AFRICA_PRICE = "In Africa, preparing applications with Ivyward is free and ₦10,000 (or the local equivalent) covers 5 submissions, with no subscription.";
 const ELSEWHERE_PRICE = "Preparing applications with Ivyward is free; your first three submissions are free, then Pro is $20 a month for up to ten.";
 
 export const ghana = build({

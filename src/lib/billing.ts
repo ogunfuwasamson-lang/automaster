@@ -4,7 +4,7 @@ import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
 import { bachs, type CheckoutSession } from "@/lib/bachs";
-import { FREE_APPLICATIONS, PRO_MONTHLY, PRO_MONTHLY_SUBMISSIONS, SUBMISSION_PRICE, pricingFor, type Pricing } from "@/lib/geo-pricing";
+import { FREE_APPLICATIONS, PACK_PRICE, PACK_SIZE, PRO_MONTHLY, PRO_MONTHLY_SUBMISSIONS, pricingFor, type Pricing } from "@/lib/geo-pricing";
 import { planOf } from "@/lib/plans";
 import { submissionAmounts } from "@/lib/fx";
 
@@ -19,11 +19,13 @@ export interface BillingState {
   cancelled: boolean;
   customer: string | null;
   exempt: boolean; // staff accounts
+  credits: number; // submissions left from packs (africa)
+  bonus: number; // free submissions earned by inviting friends
 }
 
 export async function billingState(userId: string): Promise<BillingState> {
-  const { data, error } = await admin().from("profiles").select("plan, plan_until, plan_cancelled_at, billing_country, bachs_customer, is_admin").eq("id", userId).maybeSingle();
-  if (error || !data) return { pricing: pricingFor(null), pro: false, planUntil: null, cancelled: false, customer: null, exempt: false };
+  const { data, error } = await admin().from("profiles").select("plan, plan_until, plan_cancelled_at, billing_country, bachs_customer, is_admin, submission_credits, bonus_submissions").eq("id", userId).maybeSingle();
+  if (error || !data) return { pricing: pricingFor(null), pro: false, planUntil: null, cancelled: false, customer: null, exempt: false, credits: 0, bonus: 0 };
   return {
     pricing: pricingFor(data.billing_country, await submissionAmounts().catch(() => null)),
     pro: planOf(data.plan, data.plan_until).id === "pro",
@@ -31,10 +33,14 @@ export async function billingState(userId: string): Promise<BillingState> {
     cancelled: !!data.plan_cancelled_at,
     customer: data.bachs_customer,
     exempt: !!data.is_admin,
+    credits: data.submission_credits ?? 0,
+    bonus: data.bonus_submissions ?? 0,
   };
 }
 
-export type PaymentNeed = { kind: "submission" | "pro" | "limit" | "request"; label: string; note: string; resumeAt?: string } | null;
+// "pack": buy a pack of submissions (africa). "submission"/"request" are the old one-off payments, still honoured
+// for checkouts started before packs.
+export type PaymentNeed = { kind: "pack" | "submission" | "pro" | "limit" | "request"; label: string; note: string; resumeAt?: string } | null;
 
 // outgoing emails that ask a school for money: charged like a submission
 export const FUNDING_PURPOSES = ["fee_waiver", "aid_reconsideration", "assistantship_inquiry", "scholarship_inquiry"];
@@ -47,7 +53,7 @@ export async function requestPaymentNeeded(userId: string, messageId: string): P
   if (!FUNDING_PURPOSES.includes(m.purpose as string) || m.paid_at) return null;
   const b = await billingState(userId);
   if (b.exempt || b.pro) return null;
-  if (b.pricing.model === "per_submission") return { kind: "request", label: b.pricing.label, note: `pay ${b.pricing.label} to send this request` };
+  if (b.pricing.model === "pack") return b.credits > 0 ? null : { kind: "pack", label: b.pricing.label, note: `your submissions are used. Buy ${b.pricing.label} to send this request` };
   const [{ count: apps }, { count: reqs }] = await Promise.all([
     db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).or(`status.in.(${SENT.join(",")}),paid_at.not.is.null`),
     db.from("messages").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("direction", "out").neq("id", messageId).in("purpose", FUNDING_PURPOSES).in("status", ["sent", "scheduled"]),
@@ -60,8 +66,42 @@ export async function requestPaymentNeeded(userId: string, messageId: string): P
 // that would otherwise need paying for; it's spent when the application is actually submitted (spendBonusIfUsed).
 export async function paymentNeeded(userId: string, applicationId: string): Promise<PaymentNeed> {
   const need = await needBeforeBonus(userId, applicationId);
-  if (need && need.kind !== "limit" && (await bonusLeft(userId)) > 0) return null;
+  if (need && need.kind !== "limit" && need.kind !== "pack" && (await bonusLeft(userId)) > 0) return null;
   return need;
+}
+
+// the submit gate: may the agents press submit on this application now? in pack countries this is where a
+// submission is used up (an invite bonus first, then a pack credit), once per application and atomically, so two
+// runners can't both spend the last credit. returns what's still needed, or null to go ahead.
+export async function settleBeforeSubmit(userId: string, applicationId: string): Promise<PaymentNeed> {
+  const need = await paymentNeeded(userId, applicationId);
+  const b = await billingState(userId);
+  if (b.pricing.model !== "pack" || b.exempt) return need;
+  const { data: got, error } = await admin().rpc("reserve_submission", { uid: userId, app: applicationId });
+  if (error) return need; // before the packs migration: fall back to the plain check
+  if (got === "none") return { kind: "pack", label: b.pricing.label, note: `ready to submit: your submissions are used. Buy ${b.pricing.label} and the agents submit it straight away` };
+  if (got === "credit") await lastCreditNotice(userId, b.credits - 1, b.pricing);
+  return null;
+}
+
+// a funding request is about to be sent: same as above for messages
+export async function settleBeforeRequest(userId: string, messageId: string): Promise<PaymentNeed> {
+  const need = await requestPaymentNeeded(userId, messageId);
+  const b = await billingState(userId);
+  if (b.pricing.model !== "pack" || b.exempt) return need;
+  const { data: m } = await admin().from("messages").select("purpose, paid_at").eq("id", messageId).eq("user_id", userId).maybeSingle();
+  if (!m || !FUNDING_PURPOSES.includes(m.purpose as string) || m.paid_at) return null;
+  const { data: got, error } = await admin().rpc("reserve_request", { uid: userId, msg: messageId });
+  if (error) return need;
+  if (got === "none") return { kind: "pack", label: b.pricing.label, note: `your submissions are used. Buy ${b.pricing.label} to send this request` };
+  if (got === "credit") await lastCreditNotice(userId, b.credits - 1, b.pricing);
+  return null;
+}
+
+// one heads-up when the pack runs out, so the next application doesn't sit waiting
+async function lastCreditNotice(userId: string, left: number, p: Pricing) {
+  if (left > 0 || p.model !== "pack") return;
+  await notify({ userId, key: "pack:empty", kind: "info", title: "That was the last submission in your pack", body: `Buy another pack (${p.label}) so your next application goes in as soon as it's ready.`, href: "/settings#plan", actionLabel: "Buy a pack" }).catch(() => null);
 }
 
 async function bonusLeft(userId: string): Promise<number> {
@@ -71,6 +111,11 @@ async function bonusLeft(userId: string): Promise<number> {
 
 // after a submission: if it went through on a free submission, use it up and mark the application paid
 export async function spendBonusIfUsed(userId: string, applicationId: string) {
+  // pack countries settle at the submit gate; this only catches a submission that went in without passing it
+  if ((await billingState(userId)).pricing.model === "pack") {
+    await admin().rpc("reserve_submission", { uid: userId, app: applicationId });
+    return;
+  }
   const need = await needBeforeBonus(userId, applicationId);
   if (!need || need.kind === "limit") return;
   const db = admin();
@@ -95,7 +140,7 @@ async function needBeforeBonus(userId: string, applicationId: string): Promise<P
   const { data: app, error } = await db.from("applications").select("id, paid_at").eq("id", applicationId).eq("user_id", userId).maybeSingle();
   if (error) return null; // before the billing migration: nothing is charged
   if (!app || app.paid_at) return null;
-  if (b.pricing.model === "per_submission") return { kind: "submission", label: b.pricing.label, note: `ready to submit: pay ${b.pricing.label} to send it` };
+  if (b.pricing.model === "pack") return b.credits > 0 || b.bonus > 0 ? null : { kind: "pack", label: b.pricing.label, note: `ready to submit: buy ${b.pricing.label} and the agents submit it straight away` };
   // outside africa: the first few applications are free
   const { count } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("id", applicationId).or(`status.in.(${SENT.join(",")}),paid_at.not.is.null`);
   if ((count ?? 0) < FREE_APPLICATIONS) return null;
@@ -118,17 +163,20 @@ async function proProduct(): Promise<string> {
 }
 
 // a Bachs checkout page for one submission or the monthly plan
-export async function checkout(userId: string, email: string, kind: "submission" | "pro" | "request", returnUrl: string, applicationId?: string, messageId?: string): Promise<string> {
+export async function checkout(userId: string, email: string, kind: "pack" | "submission" | "pro" | "request", returnUrl: string, applicationId?: string, messageId?: string): Promise<string> {
   const b = await billingState(userId);
+  // in pack countries every payment is a pack; the application or request it was bought from goes in straight after
+  if (b.pricing.model === "pack" && kind !== "pro") kind = "pack";
+  if (kind === "pack" && b.pricing.model !== "pack") throw new Error("packs are for applicants in Africa");
   const ref = `ivw_${kind}_${(messageId ?? applicationId ?? userId).slice(0, 8)}_${Date.now().toString(36)}`;
   const metadata = { user_id: userId, kind, ...(applicationId ? { application_id: applicationId } : {}), ...(messageId ? { message_id: messageId } : {}) };
   const success = `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}paid=${ref}`;
   const body =
     kind !== "pro"
       ? (() => {
-          const currency = b.pricing.model === "per_submission" ? b.pricing.currency : "USD";
-          const amount = b.pricing.model === "per_submission" ? b.pricing.amount : SUBMISSION_PRICE.USD.amount;
-          return { pricing: { currency, amount }, billing_currency: currency, customer: { email }, success_url: success, cancel_url: returnUrl, reference: ref, metadata };
+          const currency = b.pricing.model === "pack" ? b.pricing.currency : "USD";
+          const amount = b.pricing.model === "pack" ? b.pricing.amount : PACK_PRICE.USD.amount;
+          return { pricing: { currency, amount }, billing_currency: currency, customer: { email }, success_url: success, cancel_url: returnUrl, reference: ref, metadata: { ...metadata, credits: String(PACK_SIZE) } };
         })()
       : { product_cart: [{ product_id: await proProduct(), quantity: 1 }], billing_currency: "USD", customer: b.customer ? { customer_id: b.customer } : { email }, success_url: success, cancel_url: returnUrl, reference: ref, metadata };
   const s = await bachs<CheckoutSession>("/v1/checkout-sessions", { method: "POST", body, idempotencyKey: ref });
@@ -139,7 +187,7 @@ export async function checkout(userId: string, email: string, kind: "submission"
 
 // the applicant came back from checkout: confirm with Bachs and apply it now
 export async function confirmReturn(userId: string, ref: string): Promise<{ applied: boolean; kind?: string }> {
-  if (!/^ivw_(submission|pro|request)_[\w]+$/.test(ref)) return { applied: false };
+  if (!/^ivw_(pack|submission|pro|request)_[\w]+$/.test(ref)) return { applied: false };
   const db = admin();
   const { data } = await db.from("billing_settings").select("value").eq("key", `pending:${ref}`).maybeSingle();
   if (!data?.value) return { applied: false };
@@ -173,18 +221,37 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   if (c.status !== "completed" && c.payment_status !== "paid") return { applied: false };
   const meta = c.metadata ?? {};
   const userId = meta.user_id;
-  if (!userId || (meta.kind !== "submission" && meta.kind !== "pro" && meta.kind !== "request")) return { applied: false };
+  if (!userId || !["pack", "submission", "pro", "request"].includes(meta.kind ?? "")) return { applied: false };
   const db = admin();
   const reference = c.checkout_id ?? c.reference ?? "";
   if (!reference) return { applied: false };
   // the amount must be a real price, so an edited checkout can't buy a submission for less
   const amt = Number(c.amount ?? 0);
   const amounts = await submissionAmounts().catch(() => ({}) as Record<string, string>);
-  const floor = c.currency ? Number(amounts[c.currency] ?? SUBMISSION_PRICE[c.currency]?.amount ?? 0) * 0.9 : 0; // 10% slack for a refresh mid-checkout
-  if ((meta.kind === "submission" || meta.kind === "request") && c.currency && amt + 0.001 < floor) return { applied: false };
+  // a pack must be paid at (close to) the pack price; the old one-off submissions at a fifth of it
+  const packFloor = c.currency ? Number(amounts[c.currency] ?? PACK_PRICE[c.currency]?.amount ?? 0) * 0.9 : 0; // 10% slack for a refresh mid-checkout
+  const floor = meta.kind === "pack" ? packFloor : packFloor / PACK_SIZE;
+  if (meta.kind !== "pro" && (!c.currency || amt + 0.001 < floor)) return { applied: false };
   const { error: dup } = await db.from("billing_events").insert({ reference, user_id: userId, kind: meta.kind, application_id: meta.application_id ?? null, ...(meta.message_id ? { message_id: meta.message_id } : {}), amount: amt || null, currency: c.currency ?? null, raw: c as unknown as object });
   if (dup) return { applied: false, kind: meta.kind };
   const customer = typeof c.customer === "string" ? c.customer : (c.customer?.id ?? c.customer?.customer_id ?? null);
+
+  if (meta.kind === "pack") {
+    const { data: bal } = await db.rpc("grant_credits", { uid: userId, n: PACK_SIZE, ref: reference });
+    if (customer) await db.from("profiles").update({ bachs_customer: customer }).eq("id", userId);
+    await logEvent({ userId, actor: "user", action: "billing.pack_paid", applicationId: meta.application_id ?? undefined, context: { amount: amt, currency: c.currency, credits: PACK_SIZE, balance: bal } });
+    await resolve(userId, "pack:empty");
+    // whatever was waiting on payment goes now: the one it was bought from first, then the rest
+    if (meta.message_id) {
+      await resolve(userId, `payreq:${meta.message_id}`);
+      const { schedule } = await import("@/lib/outbox");
+      await schedule(userId, meta.message_id, "user").catch(() => null);
+    }
+    const { data: waiting } = await db.from("applications").select("id").eq("user_id", userId).eq("status", "packet_approved").is("paid_at", null).eq("runner_status", "needs_you");
+    const ids = [...new Set([meta.application_id, ...(waiting ?? []).map((a) => a.id as string)].filter(Boolean))] as string[];
+    for (const id of ids.slice(0, PACK_SIZE)) await resumeAfterPayment(userId, id);
+    return { applied: true, kind: "pack" };
+  }
 
   if (meta.kind === "request" && meta.message_id) {
     await db.from("messages").update({ paid_at: new Date().toISOString() }).eq("id", meta.message_id).eq("user_id", userId);
@@ -275,10 +342,15 @@ export async function askToPay(userId: string, applicationId: string, need: NonN
     key: `pay:${applicationId}`,
     kind: "setup",
     urgent: true,
-    title: need.kind === "submission" ? `${school} is ready to submit` : `${school} is ready: subscribe to submit`,
-    body: need.kind === "submission" ? `The agents filled every page. Pay ${need.label} and they submit it straight away.` : `You've used your ${FREE_APPLICATIONS} free applications. ${need.label} covers this one and every other submission.`,
+    title: need.kind === "pro" ? `${school} is ready: subscribe to submit` : `${school} is ready to submit`,
+    body:
+      need.kind === "pack"
+        ? `The agents filled every page. Your submissions are used: buy ${need.label} and they submit it straight away.`
+        : need.kind === "submission"
+          ? `The agents filled every page. Pay ${need.label} and they submit it straight away.`
+          : `You've used your ${FREE_APPLICATIONS} free applications. ${need.label} covers this one and every other submission.`,
     href: `/applications/${applicationId}?pay=1`,
-    actionLabel: need.kind === "submission" ? `Pay ${need.label}` : "Subscribe",
+    actionLabel: need.kind === "pack" ? "Buy a pack" : need.kind === "submission" ? `Pay ${need.label}` : "Subscribe",
     email: true,
   });
 }

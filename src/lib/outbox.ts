@@ -4,7 +4,7 @@ import { guard } from "@/lib/guard";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { MailAuthError, gmailConfigured, mailAccount, sendAs } from "@/lib/gmail";
 import { isEmail } from "@/lib/mime";
-import { requestPaymentNeeded, type PaymentNeed } from "@/lib/billing";
+import { settleBeforeRequest, type PaymentNeed } from "@/lib/billing";
 import { notify } from "@/lib/notify";
 import { learnSent } from "@/lib/school-memory";
 
@@ -46,10 +46,10 @@ export async function schedule(userId: string, messageId: string, by: "user" | "
   if (!gmailConfigured()) return { ok: false, reason: "email sending isn't set up on this server yet" };
   const acct = await mailAccount(userId);
   if (!acct || acct.status !== "active") return { ok: false, reason: "connect your gmail to send from here" };
-  const pay = await requestPaymentNeeded(userId, messageId).catch(() => null);
+  const pay = await settleBeforeRequest(userId, messageId).catch(() => null);
   if (pay) {
     if (by === "agent")
-      await notify({ userId, key: `payreq:${messageId}`, kind: "setup", title: pay.kind === "request" ? `A funding request is ready: pay ${pay.label} to send it` : "A funding request is ready: subscribe to send it", body: `"${m.subject ?? "Funding request"}" is drafted and checked. It goes out as soon as it's paid for.`, href: `/messages?m=${messageId}`, actionLabel: pay.kind === "request" ? `Pay ${pay.label}` : "Subscribe" }).catch(() => null);
+      await notify({ userId, key: `payreq:${messageId}`, kind: "setup", title: pay.kind === "pack" ? `A funding request is ready: buy ${pay.label} to send it` : pay.kind === "request" ? `A funding request is ready: pay ${pay.label} to send it` : "A funding request is ready: subscribe to send it", body: `"${m.subject ?? "Funding request"}" is drafted and checked. It goes out as soon as it's paid for.`, href: `/messages?m=${messageId}`, actionLabel: pay.kind === "pack" ? "Buy a pack" : pay.kind === "request" ? `Pay ${pay.label}` : "Subscribe" }).catch(() => null);
     return { ok: false, reason: pay.note, payment: pay };
   }
 

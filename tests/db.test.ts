@@ -167,6 +167,46 @@ d("database invariants", () => {
     expect(ids.size).toBe(3);
   });
 
+  it("submission packs: one grant per payment, one credit per application, bonus first, never below zero", async () => {
+    const school = (await db.query(`select id from schools limit 1`)).rows[0].id;
+    const progs = (await db.query(`insert into programs(school_id, name, degree) values ($1, 'P1', 'MS'), ($1, 'P2', 'MS'), ($1, 'P3', 'MS'), ($1, 'P4', 'MS') returning id`, [school])).rows.map((r) => r.id);
+    const apps = (await db.query(`insert into applications(user_id, program_id) select $1, unnest($2::uuid[]) returning id`, [ALICE, progs])).rows.map((r) => r.id);
+    expect((await db.query(`select grant_credits($1, 5, 'chk_1') as b`, [ALICE])).rows[0].b).toBe(5);
+    expect((await db.query(`select grant_credits($1, 5, 'chk_1') as b`, [ALICE])).rows[0].b).toBe(-1); // the webhook and the return page both apply it
+    expect((await db.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[0]])).rows[0].r).toBe("credit");
+    expect((await db.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[0]])).rows[0].r).toBe("already"); // a retry doesn't charge again
+    expect((await db.query(`select submission_credits as c from profiles where id = $1`, [ALICE])).rows[0].c).toBe(4);
+    // someone else's application can't be charged to (or paid by) this account
+    const bobApp = (await db.query(`select id from applications where user_id = $1 limit 1`, [BOB])).rows[0].id;
+    expect((await db.query(`select reserve_submission($1, $2) as r`, [ALICE, bobApp])).rows[0].r).toBe("none");
+    // an invite bonus is used before a paid credit
+    await db.query(`update profiles set bonus_submissions = 1 where id = $1`, [ALICE]);
+    expect((await db.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[1]])).rows[0].r).toBe("bonus");
+    expect((await db.query(`select submission_credits as c, bonus_submissions as b from profiles where id = $1`, [ALICE])).rows[0]).toEqual({ c: 4, b: 0 });
+    // the last credit, raced by two runners on two applications: exactly one gets it
+    await db.query(`update profiles set submission_credits = 1 where id = $1`, [ALICE]);
+    const a = new Client({ connectionString: url }), b = new Client({ connectionString: url });
+    await a.connect();
+    await b.connect();
+    const [ra, rb] = await Promise.all([a.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[2]]), b.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[3]])]);
+    await a.end();
+    await b.end();
+    expect([ra.rows[0].r, rb.rows[0].r].sort()).toEqual(["credit", "none"]);
+    expect((await db.query(`select submission_credits as c from profiles where id = $1`, [ALICE])).rows[0].c).toBe(0);
+    const ledger = (await db.query(`select sum(delta)::int as s from credit_ledger where user_id = $1`, [ALICE])).rows[0].s;
+    expect(ledger).toBe(5 - 2); // granted 5, two credits used (the bonus isn't a credit)
+  });
+
+  it("applicants can't grant or spend credits themselves", async () => {
+    await as(ALICE, async () => {
+      await expect(db.query(`select grant_credits($1, 5, 'free')`, [ALICE])).rejects.toThrow(/permission denied/);
+    });
+    await as(ALICE, async () => {
+      // the browser can't write its own profile row at all (0007), so it can't top up credits either
+      expect((await db.query(`update profiles set submission_credits = 99 where id = $1`, [ALICE])).rowCount).toBe(0);
+    });
+  });
+
   it("browser jobs only go to the runner function", async () => {
     await db.query(`insert into jobs(user_id, agent, task) values ($1, 'runner', 'run'), ($1, 'writer', 'draft')`, [ALICE]);
     const general = await db.query(`select agent from claim_jobs_for('w', 10, null)`);

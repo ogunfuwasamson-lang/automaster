@@ -1,11 +1,11 @@
 import "server-only";
 import { admin } from "@/lib/supabase/admin";
-import { SUBMISSION_PRICE, friendlyAmount } from "@/lib/geo-pricing";
+import { PACK_PRICE, friendlyAmount } from "@/lib/geo-pricing";
 
-// the per-submission price in each african currency is ₦2,500 at the current rate. refreshed monthly from a free
+// the submission-pack price in each african currency is ₦10,000 at the current rate. refreshed monthly from a free
 // exchange-rate feed, kept in billing_settings, and read (cached for an hour) wherever prices are shown or charged.
-const KEY = "submission_prices";
-const BASE_NGN = 2500;
+const KEY = "pack_prices";
+const BASE_NGN = 10000;
 
 type Stored = { amounts: Record<string, string>; updated: string };
 let cache: { at: number; amounts: Record<string, string> } | null = null;
@@ -37,14 +37,14 @@ export async function refreshPrices(force = false): Promise<{ updated: boolean; 
   const res = await fetch("https://open.er-api.com/v6/latest/NGN", { signal: AbortSignal.timeout(10_000) });
   const json = (await res.json().catch(() => ({}))) as { result?: string; rates?: Record<string, number> };
   if (json.result !== "success" || !json.rates) return { updated: false };
-  const amounts: Record<string, string> = { NGN: SUBMISSION_PRICE.NGN.amount };
-  for (const cur of Object.keys(SUBMISSION_PRICE)) {
+  const amounts: Record<string, string> = { NGN: PACK_PRICE.NGN.amount };
+  for (const cur of Object.keys(PACK_PRICE)) {
     if (cur === "NGN") continue;
     const rate = json.rates[cur];
     // a wild rate (a feed glitch) keeps the old price: more than 2x away from the fallback is refused
-    const fallback = Number(SUBMISSION_PRICE[cur].amount);
+    const fallback = Number(PACK_PRICE[cur].amount);
     const x = rate ? BASE_NGN * rate : 0;
-    amounts[cur] = x && x < fallback * 2 && x > fallback / 2 ? friendlyAmount(x) : SUBMISSION_PRICE[cur].amount;
+    amounts[cur] = x && x < fallback * 2 && x > fallback / 2 ? friendlyAmount(x) : PACK_PRICE[cur].amount;
   }
   await db.from("billing_settings").upsert({ key: KEY, value: JSON.stringify({ amounts, updated: new Date().toISOString() } satisfies Stored) });
   cache = null;

@@ -5,11 +5,13 @@ import { loadProfile, REGIONS } from "@/lib/profile";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { userPlan } from "@/lib/budget";
 import { Onboarding } from "./wizard";
+import { billingState, confirmReturn } from "@/lib/billing";
+import { bachsReady } from "@/lib/bachs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Get started", robots: { index: false, follow: false } };
 
-export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string }> }) {
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string; paid?: string }> }) {
   const auth = await requireUser();
   if (!auth) redirect("/login?mode=signup");
   const uid = auth.user.id;
@@ -22,6 +24,10 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   ]);
   const p = loadProfile(prof?.profile);
   const sp = await searchParams;
+  // back from paying for a pack: confirm it now rather than waiting for the webhook
+  const paid = sp.paid ? await confirmReturn(uid, sp.paid).catch(() => null) : null;
+  const bill = await billingState(uid);
+  const pack = bill.pricing.model === "pack" && !bill.exempt ? { label: bill.pricing.label, each: bill.pricing.each, size: bill.pricing.size, credits: bill.credits, bonus: bill.bonus, justPaid: !!paid?.applied || (!!sp.paid && bill.credits > 0), ready: bachsReady() } : null;
   return (
     <Onboarding
       userId={uid}
@@ -37,6 +43,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       mailAvailable={gmailConfigured()}
       mailVia={composioMail() ? "composio" : "google"}
       mailNotice={sp.mail ?? null}
+      pack={pack}
     />
   );
 }

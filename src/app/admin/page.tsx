@@ -45,7 +45,7 @@ export default async function Admin() {
     perAgent.set(key, a);
   }
   const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
-  // this month's payments in USD (local-currency submissions converted roughly from ₦2,500 ≈ $1.90)
+  // this month's payments in USD (local-currency packs converted roughly from ₦10,000 ≈ $7.60)
   const { data: pays } = await admin().from("billing_events").select("user_id, kind, amount, currency").gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString());
   const paying = [...new Set((pays ?? []).map((p) => p.user_id))];
   const revenue = (pays ?? []).reduce((s, p) => s + (p.currency === "USD" ? Number(p.amount) || 0 : p.kind === "submission" ? 1.9 : 0), 0);

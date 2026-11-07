@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical } from "lucide-react";
+import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Ticket } from "lucide-react";
 import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Wordmark } from "@/components/wordmark";
 import { chipClass } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
 import { DOC_KINDS, DOC_KIND_WHY } from "@/lib/doc-kinds";
+import { BuyPack } from "@/components/billing/pay";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -20,9 +21,11 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-const STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Meet Ivyward AI"];
-const STEP_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Your admissions assistant"];
+const BASE_STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Meet Ivyward AI"];
+const BASE_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
+const BASE_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Your admissions assistant"];
+
+export type PackOffer = { label: string; each: string; size: number; credits: number; bonus: number; justPaid: boolean; ready: boolean };
 
 async function save(body: Record<string, unknown>) {
   const res = await fetch("/api/profile/preferences", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -59,10 +62,16 @@ export function Onboarding(props: {
   mailAvailable: boolean;
   mailVia?: "composio" | "google";
   mailNotice: string | null;
+  pack: PackOffer | null;
 }) {
+  // in pack countries a "Your submissions" step sits before the interview; everywhere else there are five steps
+  const STEPS = props.pack ? [...BASE_STEPS.slice(0, 4), "Your submissions", BASE_STEPS[4]] : BASE_STEPS;
+  const STEP_ICON = props.pack ? [...BASE_ICON.slice(0, 4), Ticket, BASE_ICON[4]] : BASE_ICON;
+  const STEP_HINT = props.pack ? [...BASE_HINT.slice(0, 4), "Pay now or when you're ready", BASE_HINT[4]] : BASE_HINT;
+  const LAST = STEPS.length;
   const router = useRouter();
   const reduce = useReducedMotion();
-  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), 5));
+  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), props.pack ? 6 : 5));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
   const [fields, setFields] = useState<string[]>(props.fields);
@@ -91,7 +100,7 @@ export function Onboarding(props: {
       }
       setBusy(false);
     }
-    setStep((s) => Math.min(s + 1, 5));
+    setStep((s) => Math.min(s + 1, LAST));
   }
 
   // kind: what the applicant said the file is; null means work it out from the name (the intake agent checks it)
@@ -358,7 +367,52 @@ export function Onboarding(props: {
               </div>
             )}
 
-            {step === 5 && (
+            {props.pack && step === 5 && (
+              <div className="space-y-8">
+                {props.pack.justPaid || props.pack.credits > 0 ? (
+                  <div>
+                    <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">You have {props.pack.credits + props.pack.bonus} submissions ready</h1>
+                    <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">Each one is used only when an application, scholarship form or funding request actually goes in, after you&apos;ve signed it. They don&apos;t expire.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">{props.pack.size} submissions for {props.pack.label.replace(/ for \d+ submissions$/, "")}</h1>
+                    <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
+                      Preparing is free: your shortlist, essays and every page of each portal. A pack covers your next {props.pack.size} submissions ({props.pack.each} each). No subscription, nothing renews. Pay now so your first application goes in the moment it&apos;s ready, or skip and pay then.
+                    </p>
+                  </div>
+                )}
+                <ul className="grid gap-2 text-[14.5px] sm:grid-cols-2">
+                  {[`A submission is used only when something goes in`, "Applications, scholarship forms and funding requests", "Credits don't expire", "Card, bank transfer or mobile money"].map((t) => (
+                    <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />{t}</li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap gap-3">
+                  {props.pack.justPaid || props.pack.credits > 0 ? (
+                    <Button size="lg" onClick={() => next()}>Continue</Button>
+                  ) : (
+                    <>
+                      {props.pack.ready && <BuyPack label={props.pack.label} back="onboarding" size="lg">Pay {props.pack.label.replace(/ for \d+ submissions$/, "")}</BuyPack>}
+                      <Button
+                        size="lg"
+                        variant="secondary"
+                        onClick={() => {
+                          // a reminder they can come back to; the pay card also appears on any application that's ready
+                          void fetch("/api/billing/later", { method: "POST" }).catch(() => null);
+                          next();
+                        }}
+                      >
+                        Skip for now
+                      </Button>
+                    </>
+                  )}
+                  <Button size="lg" variant="ghost" onClick={() => setStep(4)}>Back</Button>
+                </div>
+                {!props.pack.justPaid && props.pack.credits === 0 && <p className="text-[13px] text-muted">You can buy a pack any time from Settings, or from an application when it&apos;s ready to submit.</p>}
+              </div>
+            )}
+
+            {step === LAST && (
               <div className="space-y-8">
                 <div>
                   <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: meet Ivyward AI</h1>

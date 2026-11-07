@@ -82,9 +82,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         </div>
       </Group>
 
-      <Group title="Plan" description={bill.pricing.model === "per_submission" ? "Pay only for what you submit." : "Free to start; Pro when you need more."}>
+      <Group title="Plan" description={bill.pricing.model === "pack" ? "Pay for submissions in packs. Preparing is free." : "Free to start; Pro when you need more."}>
         <div id="plan" className="scroll-mt-24">
-          <PlanCard model={bill.pricing.model} label={bill.pricing.label} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
+          <PlanCard model={bill.pricing.model} label={bill.pricing.label} each={bill.pricing.model === "pack" ? bill.pricing.each : undefined} credits={bill.credits} bonus={bill.bonus} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
         </div>
       </Group>
 

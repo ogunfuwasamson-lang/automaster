@@ -70,13 +70,13 @@ describe("prices by country", () => {
     expect(friendlyAmount(10917)).toBe("11000.00");
   });
   it("uses the refreshed amounts when they're passed in", () => {
-    expect(pricingFor("GH", { GHS: "23.00" })).toMatchObject({ amount: "23.00", label: "GH₵23" });
+    expect(pricingFor("GH", { GHS: "92.00" })).toMatchObject({ amount: "92.00", label: "GH₵92 for 5 submissions" });
   });
-  it("charges africa per submission in its own currency, the equivalent of ₦2,500", () => {
-    expect(pricingFor("NG")).toMatchObject({ model: "per_submission", currency: "NGN", amount: "2500.00", label: "₦2,500" });
-    expect(pricingFor("ke")).toMatchObject({ model: "per_submission", currency: "KES" });
-    expect(pricingFor("SN")).toMatchObject({ model: "per_submission", currency: "XOF" });
-    expect(pricingFor("ZA")).toMatchObject({ model: "per_submission", currency: "USD", amount: "1.90" });
+  it("sells africa a pack of 5 submissions for ₦10,000 or its equivalent", () => {
+    expect(pricingFor("NG")).toMatchObject({ model: "pack", currency: "NGN", amount: "10000.00", size: 5, label: "₦10,000 for 5 submissions", each: "₦2,000" });
+    expect(pricingFor("ke")).toMatchObject({ model: "pack", currency: "KES", label: "KSh 960 for 5 submissions" });
+    expect(pricingFor("SN")).toMatchObject({ model: "pack", currency: "XOF" });
+    expect(pricingFor("ZA")).toMatchObject({ model: "pack", currency: "USD", amount: "7.60", each: "$1.52" });
   });
   it("gives everyone else 3 free applications, then $20 a month", () => {
     expect(pricingFor("US")).toMatchObject({ model: "subscription", amount: "20.00", free: 3 });

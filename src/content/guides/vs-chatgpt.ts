@@ -24,7 +24,7 @@ export const vsChatgpt: Guide = {
 | Answer portal questions once, reuse everywhere | No | Yes |
 | Ask for fee waivers | Can draft an email | Drafts, sends after approval, and waits for the answer before any fee is paid |
 | Follow up on emails from schools | No | Yes, with your Gmail connected |
-| Cost | Free or subscription | Free to prepare; pay per submission |
+| Cost | Free or subscription | Free to prepare; pay for submissions |
 
 ## Where ChatGPT is great
 
