@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           python3 -I scripts/hed/ipeds.py out/raw/ipeds-hd2024/HD2024.csv out/processed/us-ipeds-2024.json
           python3 -I scripts/hed/to_sql.py out/processed/us-ipeds-2024.json scripts/hed/us-source.json out/us.sql
-          pip install -q openpyxl==3.1.5
+          sudo python3 -m pip install -q --break-system-packages openpyxl==3.1.5
           python3 -I scripts/hed/ofs.py out/raw/ofs-register.xlsx out/processed/gb-ofs.json
           python3 -I scripts/hed/to_sql.py out/processed/gb-ofs.json scripts/hed/gb-ofs-source.json out/gb.sql
       - name: Load into Supabase
