@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
+      # two tests drive a real browser
+      - run: npm i --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
       - run: npx tsc --noEmit -p .
       - run: npx eslint src --quiet
       - run: npx vitest run
