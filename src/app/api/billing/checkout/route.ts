@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (need.kind !== "submission" && need.kind !== "pack") return NextResponse.json({ error: need.kind === "pro" ? "this one needs the monthly plan" : "this one goes in on the 1st" }, { status: 400 });
   }
   const Back = z.enum(["onboarding", "settings"]).optional().safeParse(parsed.data.back).data;
-  const back = messageId ? `${appUrl()}/messages?m=${messageId}` : applicationId ? `${appUrl()}/applications/${applicationId}` : Back === "onboarding" ? `${appUrl()}/onboarding?step=5` : `${appUrl()}/settings#plan`;
+  const back = messageId ? `${appUrl()}/messages?m=${messageId}` : applicationId ? `${appUrl()}/applications/${applicationId}` : Back === "onboarding" ? `${appUrl()}/onboarding?step=6` : `${appUrl()}/settings#plan`;
   try {
     const url = await checkout(auth.user.id, auth.user.email ?? "", kind, back, kind === "request" ? undefined : applicationId, kind === "request" ? messageId : undefined);
     return NextResponse.json({ url });

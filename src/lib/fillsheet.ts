@@ -76,9 +76,11 @@ export function buildSheet(a: {
 
   // personal
   set("full_name", p.identity.full_name);
-  set("first_name", name.first);
-  set("middle_name", name.middle);
-  set("last_name", name.last);
+  // the legal name as the applicant gave it (exactly as on the passport) beats one split from the full name
+  const legal = !!(d.legal_first_name || d.legal_last_name);
+  set("first_name", legal ? d.legal_first_name : name.first);
+  set("middle_name", legal ? d.legal_middle_name : name.middle);
+  set("last_name", legal ? d.legal_last_name : name.last);
   set("preferred_name", d.preferred_name || name.first);
   set("email", d.email || a.accountEmail);
   // portals that want a user id as well as an email: the email's local part

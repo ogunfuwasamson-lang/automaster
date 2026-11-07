@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Ticket } from "lucide-react";
+import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Ticket, IdCard, Rows3, Rocket } from "lucide-react";
 import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -13,6 +13,9 @@ import { chipClass } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
 import { DOC_KINDS, DOC_KIND_WHY } from "@/lib/doc-kinds";
 import { BuyPack } from "@/components/billing/pay";
+import { QuestionDeck } from "@/components/profile/question-deck";
+import { CHAPTERS, chapterStates, type Level } from "@/lib/profile-chapters";
+import type { PortalDetails } from "@/lib/portal-fields";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -63,15 +66,19 @@ export function Onboarding(props: {
   mailVia?: "composio" | "google";
   mailNotice: string | null;
   pack: PackOffer | null;
+  details: PortalDetails;
 }) {
-  // in pack countries a "Your submissions" step sits before the interview; everywhere else there are five steps
-  const STEPS = props.pack ? [...BASE_STEPS.slice(0, 4), "Your submissions", BASE_STEPS[4]] : BASE_STEPS;
-  const STEP_ICON = props.pack ? [...BASE_ICON.slice(0, 4), Ticket, BASE_ICON[4]] : BASE_ICON;
-  const STEP_HINT = props.pack ? [...BASE_HINT.slice(0, 4), "Pay now or when you're ready", BASE_HINT[4]] : BASE_HINT;
+  // goals, where, documents, email, the basics, then (in pack countries) the submission pack, and last the
+  // application profile: the rest of what forms ask, by conversation or cards, now or later
+  const BASICS = 5;
+  const PACK = props.pack ? 6 : -1;
+  const STEPS = [...BASE_STEPS.slice(0, 4), "The basics", ...(props.pack ? ["Your submissions"] : []), "Your application profile"];
+  const STEP_ICON = [...BASE_ICON.slice(0, 4), IdCard, ...(props.pack ? [Ticket] : []), Rows3];
+  const STEP_HINT = [...BASE_HINT.slice(0, 4), "Your name as schools need it", ...(props.pack ? ["Pay now or when you're ready"] : []), "Ivyward AI or quick cards"];
   const LAST = STEPS.length;
   const router = useRouter();
   const reduce = useReducedMotion();
-  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), props.pack ? 6 : 5));
+  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), props.pack ? 7 : 6));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
   const [fields, setFields] = useState<string[]>(props.fields);
@@ -367,7 +374,21 @@ export function Onboarding(props: {
               </div>
             )}
 
-            {props.pack && step === 5 && (
+            {step === BASICS && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">The basics, the way schools need them</h1>
+                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">Your name exactly as on your passport, your birthday and a phone number. Ten taps or so; skip anything you&apos;d rather add later.</p>
+                </div>
+                <QuestionDeck initial={props.details} level={(level || null) as Level | null} chapterId="basics" only chatHref={false} onFinished={() => setStep((s) => s + 1)} />
+                <div className="flex gap-3">
+                  <Button size="lg" variant="ghost" onClick={() => setStep(4)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep((s) => s + 1)}>Do this later</Button>
+                </div>
+              </div>
+            )}
+
+            {props.pack && step === PACK && (
               <div className="space-y-8">
                 {props.pack.justPaid || props.pack.credits > 0 ? (
                   <div>
@@ -406,7 +427,7 @@ export function Onboarding(props: {
                       </Button>
                     </>
                   )}
-                  <Button size="lg" variant="ghost" onClick={() => setStep(4)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(BASICS)}>Back</Button>
                 </div>
                 {!props.pack.justPaid && props.pack.credits === 0 && <p className="text-[13px] text-muted">You can buy a pack any time from Settings, or from an application when it&apos;s ready to submit.</p>}
               </div>
@@ -415,28 +436,52 @@ export function Onboarding(props: {
             {step === LAST && (
               <div className="space-y-8">
                 <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: meet Ivyward AI</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: your application profile</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Ten minutes, by voice or typing. Ivyward AI asks about your goals, your best work and anything your documents
-                    didn&apos;t cover. Your essays are written from these answers. When you finish, your agents start building your shortlist straight away.
+                    Every application form asks the same things: your family, your school record, visas, funding, your story. Answer them once, in short chapters, and the agents fill every form without stopping to ask. Do it now or any time from your profile.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <ButtonLink href="/dashboard?chat=open&setup=1" size="lg" variant="accent"><Mic className="size-4" aria-hidden />Talk to Ivyward AI</ButtonLink>
-                  <Button
-                    size="lg"
-                    variant="secondary"
+                <ol className="grid gap-2 sm:grid-cols-2">
+                  {chapterStates(props.details, (level || null) as Level | null)
+                    .filter((c) => c.chapter.id !== "basics")
+                    .map((c, i) => (
+                      <li key={c.chapter.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
+                        <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-accent/10 text-[12px] font-bold text-accent tabular">{i + 1}</span>
+                        <span>
+                          <span className="block text-[14.5px] font-semibold">{c.chapter.title}</span>
+                          <span className="block text-[12.5px] text-muted">{c.chapter.style === "story" ? "A conversation" : `${c.total} quick questions`}</span>
+                        </span>
+                      </li>
+                    ))}
+                </ol>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <a href={`/dashboard?chat=open&setup=1&say=${encodeURIComponent(`Let's do my profile chapter: ${CHAPTERS[1].title}`)}`} className="group rounded-2xl border border-accent/40 bg-accent/5 p-4 transition-colors hover:bg-accent/10">
+                    <Mic className="size-5 text-accent" aria-hidden />
+                    <p className="mt-2 font-bold">Talk it through</p>
+                    <p className="mt-0.5 text-[13px] text-muted">Ivyward AI asks, by voice or text. Best for your story.</p>
+                  </a>
+                  <a href={`/profile/chapters/${CHAPTERS[1].id}`} className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-accent/40">
+                    <Rows3 className="size-5 text-accent" aria-hidden />
+                    <p className="mt-2 font-bold">Quick cards</p>
+                    <p className="mt-0.5 text-[13px] text-muted">One question at a time. Tap, next.</p>
+                  </a>
+                  <button
+                    type="button"
                     disabled={busy}
                     onClick={async () => {
-                      // skipping the interview still starts the agents; what's missing turns into notifications
+                      // skipping still starts the agents; what's missing turns into notifications
                       setBusy(true);
                       await fetch("/api/onboarding/kickoff", { method: "POST" }).catch(() => null);
                       router.push("/dashboard");
                     }}
+                    className="rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent/40"
                   >
-                    {busy ? "Starting your agents…" : "Skip it, start my agents"}
-                  </Button>
+                    {busy ? <LoaderCircle className="size-5 animate-spin text-accent" aria-hidden /> : <Rocket className="size-5 text-accent" aria-hidden />}
+                    <p className="mt-2 font-bold">{busy ? "Starting your agents…" : "Later: start my agents"}</p>
+                    <p className="mt-0.5 text-[13px] text-muted">They ask for anything they need as they go.</p>
+                  </button>
                 </div>
+                <Button size="lg" variant="ghost" onClick={() => setStep((s) => s - 1)}>Back</Button>
               </div>
             )}
           </motion.section>

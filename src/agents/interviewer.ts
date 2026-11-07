@@ -11,6 +11,8 @@ import { research } from "@/lib/research";
 import { runActions, seasonOverview } from "@/lib/assistant";
 import { toAsk, type Ask } from "@/lib/ask";
 import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
+import { CHAPTERS, detailAsk, fieldFor, nextQuestions, formReadiness, type Level } from "@/lib/profile-chapters";
+import { saveDetail } from "@/lib/detail-answers";
 
 export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link"] as const;
 
@@ -55,7 +57,7 @@ what you do, in order of priority:
    - follow_link: open a link from a school (url) and complete it for them: register for an event, request a fee waiver, fill a form, book a slot.
    say in the reply what you set in motion. never claim something is done that you didn't put in actions.
 3. be proactive in a sentence when it matters: a deadline close by, a webinar that unlocks a fee waiver, something that needs them.
-4. when nothing else is going on, close the profile gaps (list provided, highest priority first), then dig for essay and funding material (mode "stories"): concrete stories with numbers, a setback and what they learned, why this field, why now. and every hook that wins scholarships and fee waivers beyond nationality: sport, arts, music, hobbies pursued seriously, competitions and olympiads, awards, top grades, leadership, volunteering, community or faith work, a business or project they built, languages, being first in their family at university, other family or life circumstances they choose to share, a career milestone. one question at a time.
+4. when nothing else is going on, close the profile gaps (below), then work through the application-profile chapter in progress: the questions every application form asks. one at a time, in your own words, warm and quick; never read out a list or sound like a form. open a chapter with one light line (its name, that it's a couple of minutes), react briefly and specifically to answers (not "great!"), and every few answers say how far along they are. for story questions, be a curious interviewer: one follow-up for a concrete detail or number, then move on. record what they say in portal_answers with the question's id ("d:<key>"), and set asks_portal_question to the id of the question your reply asks so they can tap an answer. skip = true when they'd rather not say or it doesn't apply. once a chapter is done, offer the next one or a break. then (list provided, highest priority first), then dig for essay and funding material (mode "stories"): concrete stories with numbers, a setback and what they learned, why this field, why now. and every hook that wins scholarships and fee waivers beyond nationality: sport, arts, music, hobbies pursued seriously, competitions and olympiads, awards, top grades, leadership, volunteering, community or faith work, a business or project they built, languages, being first in their family at university, other family or life circumstances they choose to share, a career milestone. one question at a time.
 5. wrap up when they want to stop.
 
 how you sound:
@@ -102,6 +104,15 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
   ]);
   const transcript = (history ?? []).reverse() as Turn[];
   const gaps = profileGaps(profile);
+  // the application-profile chapter in progress: the one they asked for, else the one the last question came from
+  const details = (row?.portal_details as PortalDetails | null) ?? {};
+  const level = (profile.goals.study_level as Level | null) ?? null;
+  const asked = userText ? CHAPTERS.find((c) => userText.toLowerCase().includes(`chapter: ${c.title.toLowerCase()}`)) : undefined;
+  const { data: lastAgent } = await db.from("interview_turns").select("meta").eq("user_id", userId).eq("role", "agent").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const lastMeta = lastAgent?.meta as { ask?: { id?: string }; chapter?: string | null } | null;
+  const lastKey = (lastMeta?.ask?.id ?? "").replace(/^d:/, "");
+  const focus = asked?.id ?? lastMeta?.chapter ?? CHAPTERS.find((c) => c.keys.includes(lastKey))?.id ?? null;
+  const chapterNow = nextQuestions(details, level, 4, focus);
 
   const prompt = `profile:
 ${profileBrief(profile, row?.target_term)}
@@ -117,6 +128,9 @@ ${questions.map((q) => `- [${q.id}] ${q.school ?? "a school"} asks: "${q.questio
 ${overview}
 
 today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
+
+application profile (${formReadiness(details, level)}% ready for forms). chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done, ${chapterNow.chapter.chapter.style === "story" ? "a conversation" : "quick answers"})` : "(all chapters done)"}
+${chapterNow.questions.map((f) => `- [d:${f.key}] ${f.ask ?? f.label}${f.options?.length ? ` (options: ${f.options.join(" / ")})` : ""}${f.kind === "date" ? " (a date)" : ""}${f.hint ? ` (hint: ${f.hint})` : ""}`).join("\n") || "(nothing open)"}
 
 gaps, highest priority first:
 ${gaps.map((g, i) => `${i + 1}. [${g.key}] ${g.ask}`).join("\n") || "(none: move to stories, or wrap up)"}
@@ -161,10 +175,16 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
   }
   const done = await runActions(userId, output.actions ?? []);
 
-  // answers to portal questions go into the profile (and restart the stopped applications)
+  // answers to portal questions go into the profile (and restart the stopped applications); chapter answers
+  // ("d:<key>") go into the application profile
   const valid = new Set(questions.map((q) => q.id));
   let answered = 0;
+  let chapterAnswers = 0;
   for (const a of output.portal_answers ?? []) {
+    if (a.id.startsWith("d:") && fieldFor(a.id.slice(2))) {
+      if ((await saveDetail(userId, a.id.slice(2), a.skip ? null : a.answer).catch(() => ({ ok: false }))).ok) chapterAnswers++;
+      continue;
+    }
     if (!valid.has(a.id)) continue;
     if (await answerQuestion(userId, a.id, a.skip ? null : a.answer).catch(() => false)) answered++;
   }
@@ -180,12 +200,14 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
   const stillOpen = questions.filter((q) => !(output.portal_answers ?? []).some((a) => a.id === q.id));
   const portalQ = stillOpen.find((q) => q.id === output.asks_portal_question);
   const own = (output.choices ?? []).map((c) => c.trim()).filter(Boolean).slice(0, 8);
-  const ask: Ask | null = portalQ ? toAsk(portalQ) : own.length >= 2 ? { id: null, school: null, question: "", kind: "choice", options: own } : null;
+  const detailQ = output.asks_portal_question.startsWith("d:") && !(output.portal_answers ?? []).some((a) => a.id === output.asks_portal_question) ? fieldFor(output.asks_portal_question.slice(2)) : undefined;
+  const detailAskable = detailQ && detailQ.kind !== "long" ? detailQ : undefined;
+  const ask: Ask | null = portalQ ? toAsk(portalQ) : detailAskable ? detailAsk(detailAskable) : own.length >= 2 ? { id: null, school: null, question: "", kind: "choice", options: own } : null;
 
   const failed = done.filter((d) => !d.ok);
   const reply = failed.length ? `${output.reply} (${failed.map((d) => d.note).join("; ")})` : output.reply;
   const turn = { user_id: userId, session_id: sessionId, role: "agent", content: reply };
-  const { error: turnErr } = await db.from("interview_turns").insert({ ...turn, meta: ask ? { ask } : null });
+  const { error: turnErr } = await db.from("interview_turns").insert({ ...turn, meta: { ...(ask ? { ask } : {}), chapter: chapterNow.chapter?.chapter.id ?? null } });
   if (turnErr) await db.from("interview_turns").insert(turn); // before the meta column exists
   await logEvent({
     userId,
@@ -193,7 +215,7 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     action: "interview.turn",
     agentRunId: runId,
     channel: viaVoice ? "voice" : "text",
-    context: { sessionId, patched: patchKeys, mode: output.mode, portalAnswers: answered, lookup: output.lookup || null, actions: done },
+    context: { sessionId, patched: patchKeys, mode: output.mode, portalAnswers: answered, chapterAnswers, lookup: output.lookup || null, actions: done },
   });
 
   // the conversation is done: the agents start now, and whatever they still need becomes a notification

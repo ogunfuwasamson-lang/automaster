@@ -17,7 +17,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const uid = auth.user.id;
   const db = admin();
   const [{ data: prof }, { count: docs }, { data: mail }, { plan }] = await Promise.all([
-    db.from("profiles").select("profile, target_term").eq("id", uid).single(),
+    db.from("profiles").select("profile, target_term, portal_details").eq("id", uid).single(),
     db.from("documents").select("id", { count: "exact", head: true }).eq("user_id", uid),
     db.from("mail_accounts").select("email, status").eq("user_id", uid).maybeSingle(),
     userPlan(uid),
@@ -44,6 +44,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       mailVia={composioMail() ? "composio" : "google"}
       mailNotice={sp.mail ?? null}
       pack={pack}
+      details={(prof?.portal_details as Record<string, string | null>) ?? {}}
     />
   );
 }

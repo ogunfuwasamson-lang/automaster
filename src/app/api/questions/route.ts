@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { answerQuestion, openQuestions } from "@/lib/portal-questions";
 import { toAsk, type Ask } from "@/lib/ask";
+import { afterDetailAnswer, saveDetail } from "@/lib/detail-answers";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET() {
   );
 }
 
-const Body = z.object({ id: z.uuid(), answer: z.string().max(2000).nullable(), sessionId: z.uuid().nullable().optional() });
+const Body = z.object({ id: z.union([z.uuid(), z.string().regex(/^d:[a-z0-9_]{2,40}$/)]), answer: z.string().max(2000).nullable(), sessionId: z.uuid().nullable().optional() });
 
 const nextLine = (q: Ask, first: boolean) => `${first ? "" : "Next, "}${q.school ?? "A school"} asks: ${q.question}`;
 
@@ -30,11 +31,29 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
   const { id, answer, sessionId } = parsed.data;
   const uid = auth.user.id;
-  const ok = await answerQuestion(uid, id, answer?.trim() ? answer : null);
-  if (!ok) return NextResponse.json({ error: "that question was already answered" }, { status: 409 });
-  const left = await openQuestions(uid);
-  const next = left[0] ? toAsk(left[0]) : null;
-  const reply = next ? nextLine(next, false) : "That's everything. The agents are carrying on with your applications now.";
+  let next: Ask | null;
+  let reply: string;
+  let left: unknown[] = [];
+  if (id.startsWith("d:")) {
+    // a profile-chapter question: saved to the profile, then the next one (a school's waiting question first)
+    const saved = await saveDetail(uid, id.slice(2), answer?.trim() ? answer : null);
+    if (!saved.ok) return NextResponse.json({ error: saved.error ?? "couldn't save that" }, { status: 400 });
+    const waiting = await openQuestions(uid);
+    if (waiting[0]) {
+      next = toAsk(waiting[0]);
+      reply = `Saved. One a school is waiting on first: ${next.school ?? "a school"} asks: ${next.question}`;
+    } else {
+      const a = await afterDetailAnswer(uid, id.slice(2));
+      next = a.next;
+      reply = a.reply;
+    }
+  } else {
+    const ok = await answerQuestion(uid, id, answer?.trim() ? answer : null);
+    if (!ok) return NextResponse.json({ error: "that question was already answered" }, { status: 409 });
+    left = await openQuestions(uid);
+    next = left[0] ? toAsk(left[0] as Parameters<typeof toAsk>[0]) : null;
+    reply = next ? nextLine(next, false) : "That's everything. The agents are carrying on with your applications now.";
+  }
   // from the chat: keep the conversation in Ivyward AI's history so it knows what was answered
   if (sessionId) {
     const db = admin();

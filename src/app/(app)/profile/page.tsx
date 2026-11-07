@@ -10,6 +10,8 @@ import { Decisions, type Decision } from "@/components/decisions";
 import { CleanupButton } from "@/components/cleanup-button";
 import { PortalDetailsForm } from "./portal-details";
 import type { PortalDetails, RecommenderRow } from "@/lib/portal-fields";
+import { ChapterGrid } from "@/components/profile/chapter-grid";
+import { chapterStates, formReadiness, type Level } from "@/lib/profile-chapters";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Profile" };
@@ -40,7 +42,8 @@ const money = (n: number | null) => (n == null ? null : `$${n.toLocaleString()}`
 
 const TABS: [string, string][] = [
   ["overview", "Overview"],
-  ["details", "Form details"],
+  ["chapters", "Application profile"],
+  ["details", "All form details"],
   ["experience", "Experience"],
   ["stories", "Stories and skills"],
 ];
@@ -217,6 +220,15 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               </Card>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === "chapters" && (
+        <div className="rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-7">
+          <ChapterGrid
+            states={chapterStates((data?.portal_details ?? {}) as PortalDetails, (loadProfile(data?.profile).goals.study_level as Level | null) ?? null)}
+            readiness={formReadiness((data?.portal_details ?? {}) as PortalDetails, (loadProfile(data?.profile).goals.study_level as Level | null) ?? null)}
+          />
         </div>
       )}
 
