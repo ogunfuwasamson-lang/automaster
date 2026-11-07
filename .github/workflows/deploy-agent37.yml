@@ -1,0 +1,37 @@
+# deploy to Agent37 on every push to main, once the repository has these secrets
+# (Settings > Secrets and variables > Actions):
+#   AGENT37_API_KEY      Agent37 workspace API key
+#   AGENT37_ENV          the whole env.production file (KEY=value lines)
+#   AGENT37_INSTANCE_ID  set after the first deploy prints it (leave unset for the first run)
+name: Deploy to Agent37
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: { group: agent37-deploy, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check secrets
+        id: ready
+        env: { KEY: "${{ secrets.AGENT37_API_KEY }}" }
+        run: if [ -n "$KEY" ]; then echo "ok=1" >> "$GITHUB_OUTPUT"; else echo "AGENT37_API_KEY not set; skipping"; fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == '1'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == '1'
+        with: { node-version: 22 }
+      - name: Deploy
+        if: steps.ready.outputs.ok == '1'
+        env:
+          AGENT37_API_KEY: ${{ secrets.AGENT37_API_KEY }}
+          AGENT37_INSTANCE_ID: ${{ secrets.AGENT37_INSTANCE_ID }}
+          ENV_FILE: ${{ secrets.AGENT37_ENV }}
+        run: |
+          umask 077
+          printf '%s\n' "$ENV_FILE" > deploy/agent37/env.production
+          bash deploy/agent37/deploy.sh
+          rm -f deploy/agent37/env.production

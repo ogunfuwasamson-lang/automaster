@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const BROWSER = ["./node_modules/@sparticuz/chromium/**", "./node_modules/playwright-core/**"];
 
 const nextConfig: NextConfig = {
+  // a self-contained server for hosts other than vercel (deploy/agent37): node .next/standalone/server.js
+  ...(process.env.STANDALONE ? { output: "standalone" as const } : {}),
   // the UserJot project id is public; accept it under the names it tends to be saved as in vercel
   env: { NEXT_PUBLIC_USERJOT_PROJECT_ID: process.env.NEXT_PUBLIC_USERJOT_PROJECT_ID || process.env.USERJOT_PROJECT_ID || process.env.PROJECT_ID || "" },
   // the cloud runner launches chromium in /api/runner/work and the live browser in /api/live: keep these out of the bundle and ship the binary

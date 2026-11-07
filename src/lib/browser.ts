@@ -69,6 +69,9 @@ export async function openBrowser(opts: { sessionId?: string | null; storage?: S
   let browser: Browser;
   if (process.env.RUNNER_CDP_URL) {
     browser = await chromium.connectOverCDP(process.env.RUNNER_CDP_URL);
+  } else if (process.env.CHROMIUM_PATH) {
+    // a full chromium installed on the machine (deploy/agent37): no 70 MB unpack per run
+    browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"], headless: true });
   } else {
     const Sparticuz = (await import("@sparticuz/chromium")).default;
     browser = await chromium.launch({ executablePath: await Sparticuz.executablePath(), args: Sparticuz.args, headless: true });
