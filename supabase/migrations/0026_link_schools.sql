@@ -36,6 +36,7 @@ begin
   return n;
 end $$;
 revoke execute on function public.hed_link_schools() from public, anon, authenticated;
+grant execute on function public.hed_link_schools() to service_role;
 
 create index if not exists hed_institutions_school on public.hed_institutions(school_id);
 select public.hed_link_schools();

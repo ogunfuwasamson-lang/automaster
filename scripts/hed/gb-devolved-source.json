@@ -1,0 +1,13 @@
+{
+ "url": "https://www.medr.cymru/en/register-of-higher-education-providers/",
+ "title": "UK devolved nations: Scottish fundable bodies (Schedule 2) and SFC colleges, Medr Register of Higher Education Providers, DfE NI list of higher education providers",
+ "publisher": "legislation.gov.uk; Scottish Funding Council; Medr; Department for the Economy NI",
+ "source_type": "registry",
+ "license": "Open Government Licence v3.0",
+ "lineage": "Medr spreadsheet and UK learning providers list downloaded by the Fetch institution registries workflow; Scotland and NI lists transcribed from the official pages in scripts/hed/gb-devolved-seed.json",
+ "notes": "in scope: see the manifest scope for GB",
+ "country": "GB",
+ "region": "uk",
+ "scope": "United Kingdom. England: every provider on the Office for Students Register (universities, colleges with higher education, specialist and private providers). Scotland: higher education institutions that are fundable bodies under Schedule 2 of the Further and Higher Education (Scotland) Act 2005, and the 24 colleges the Scottish Funding Council funds. Wales: every provider on Medr's Register of Higher Education Providers. Northern Ireland: the Department for the Economy's recognised and listed bodies. Providers removed from the OfS Register are kept as excluded.",
+ "manifest_notes": "Sources: OfS Register (England), legislation.gov.uk Schedule 2 + SFC college list (Scotland), Medr register (Wales), DfE NI list as of July 2024 (Northern Ireland). UKPRN, address and location for Scotland, Wales and NI from the UK learning providers list (UKRLP) where matched. HESA's provider list refuses automated downloads (403)."
+}

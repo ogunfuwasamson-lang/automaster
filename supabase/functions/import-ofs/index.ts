@@ -8,6 +8,8 @@ import * as XLSX from "npm:xlsx@0.18.5";
 
 const SRC = "https://register-api.officeforstudents.org.uk/api/Download/";
 const POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i;
+const SCOPE = "United Kingdom. England: every provider on the Office for Students Register (universities, colleges with higher education, specialist and private providers). Scotland: higher education institutions that are fundable bodies under Schedule 2 of the Further and Higher Education (Scotland) Act 2005, and the 24 colleges the Scottish Funding Council funds. Wales: every provider on Medr's Register of Higher Education Providers. Northern Ireland: the Department for the Economy's recognised and listed bodies. Providers removed from the OfS Register are kept as excluded.";
+const NOTES = "Sources: OfS Register (England), legislation.gov.uk Schedule 2 + SFC college list (Scotland), Medr register (Wales), DfE NI list as of July 2024 (Northern Ireland). UKPRN, address and location for Scotland, Wales and NI from the UK learning providers list (UKRLP) where matched. HESA's provider list refuses automated downloads (403).";
 const NONE = new Set(["", "none", "not applicable", "n/a", "no"]);
 
 const clean = (v: unknown) =>
@@ -122,9 +124,10 @@ Deno.serve(async () => {
   const counts: Record<string, number> = { records: out.length };
   for (const r of out) counts[r.status as string] = (counts[r.status as string] ?? 0) + 1;
   await db.from("hed_manifest").upsert({
-    country: "GB", region: "uk", source_id: src.id, denominator: counts.active ?? 0, counts, phase: "inventory", updated_at: now,
-    scope: "England: every provider on the Office for Students Register of English higher education providers (universities, colleges with higher education, specialist and private providers). Scotland, Wales and Northern Ireland are not yet loaded. Providers removed from the Register are kept as excluded.",
-    notes: "England only so far (OfS Register). Next for the UK: Scotland (SFC), Wales (Medr) and Northern Ireland (DfE NI) funded and degree-awarding bodies.",
+    country: "GB", region: "uk", source_id: src.id, phase: "inventory", updated_at: now,
+    scope: SCOPE, notes: NOTES,
   });
-  return Response.json({ ok: true, counts });
+  // the UK inventory has several sources (OfS, SFC, Medr, DfE NI): count everything loaded for GB
+  const { data: total } = await db.rpc("hed_refresh_manifest", { c: "GB" });
+  return Response.json({ ok: true, england: counts, uk: total });
 });

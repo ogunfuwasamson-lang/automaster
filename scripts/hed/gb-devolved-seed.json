@@ -1,0 +1,59 @@
+{
+  "_about": "Official lists of higher education providers in Scotland and Northern Ireland, transcribed 2026-11-07 from the sources below (no downloadable register exists). Wales comes from Medr's register spreadsheet. The importer adds UKPRN, address and location from the UK learning providers list (UKRLP) where it matches.",
+  "sources": {
+    "sfc-he": {"url": "https://www.legislation.gov.uk/asp/2005/6/schedule/2", "title": "Further and Higher Education (Scotland) Act 2005, Schedule 2: fundable bodies (higher education institutions)", "publisher": "legislation.gov.uk (Scottish Parliament)"},
+    "sfc-colleges": {"url": "https://www.sfc.ac.uk/college-funding", "title": "Scottish Funding Council: colleges we fund (24 colleges in 13 regions)", "publisher": "Scottish Funding Council"},
+    "dfeni-list": {"url": "https://economy-ni.gov.uk/node/12779", "title": "Publishing and maintaining a list of higher education providers (as of July 2024)", "publisher": "Department for the Economy, Northern Ireland"},
+    "dfeni-who": {"url": "https://www.economy-ni.gov.uk/topics/who-delivers-higher-education-northern-ireland", "title": "Who delivers higher education in Northern Ireland", "publisher": "Department for the Economy, Northern Ireland"}
+  },
+  "formerly": {"Wrexham University": "Glyndwr University"},
+  "scotland_universities": [
+    "Abertay University", "Edinburgh Napier University", "Glasgow Caledonian University", "Glasgow School of Art", "Heriot-Watt University",
+    "Queen Margaret University, Edinburgh", "Royal Conservatoire of Scotland", "University of Aberdeen", "University of Dundee",
+    "University of Edinburgh", "University of Glasgow", "University of the Highlands and Islands", "University of St Andrews",
+    "University of Stirling", "University of Strathclyde", "University of the West of Scotland", "Robert Gordon University", "SRUC"
+  ],
+  "scotland_colleges": [
+    ["North East Scotland College", "http://www.nescol.ac.uk/", "Aberdeen and Aberdeenshire"],
+    ["Ayrshire College", "https://www1.ayrshire.ac.uk/", "Ayrshire"],
+    ["Borders College", "http://www.borderscollege.ac.uk/", "Borders"],
+    ["Dumfries & Galloway College", "http://www.dumgal.ac.uk/", "Dumfries & Galloway"],
+    ["Dundee and Angus College", "http://www.dundeeandangus.ac.uk/", "Dundee and Angus"],
+    ["Edinburgh College", "http://www.edinburghcollege.ac.uk", "Edinburgh"],
+    ["Fife College", "http://www.fife.ac.uk/", "Fife"],
+    ["Forth Valley College", "http://www.forthvalley.ac.uk/", "Forth Valley"],
+    ["City of Glasgow College", "http://www.cityofglasgowcollege.ac.uk/", "Glasgow"],
+    ["Glasgow Clyde College", "http://www.glasgowclyde.ac.uk/", "Glasgow"],
+    ["Glasgow Kelvin College", "http://www.glasgowkelvin.ac.uk", "Glasgow"],
+    ["UHI Argyll", "https://www.argyll.uhi.ac.uk/", "Highlands & Islands"],
+    ["UHI Inverness", "http://www.inverness.uhi.ac.uk/", "Highlands & Islands"],
+    ["UHI Moray", "https://www.moray.uhi.ac.uk/", "Highlands & Islands"],
+    ["UHI North, West and Hebrides", "https://nwh.uhi.ac.uk/", "Highlands & Islands"],
+    ["UHI Orkney", "http://www.orkney.uhi.ac.uk", "Highlands & Islands"],
+    ["UHI Perth", "https://www.perth.uhi.ac.uk/", "Highlands & Islands"],
+    ["UHI Shetland", "http://www.shetland.uhi.ac.uk", "Highlands & Islands"],
+    ["New College Lanarkshire", "http://www.nclanarkshire.ac.uk", "Lanarkshire"],
+    ["South Lanarkshire College", "http://www.south-lanarkshire-college.ac.uk/", "Lanarkshire"],
+    ["Newbattle Abbey College", "http://www.newbattleabbeycollege.ac.uk/", "Specialist colleges"],
+    ["Sabhal Mòr Ostaig", "http://www.smo.uhi.ac.uk", "Specialist colleges"],
+    ["West College Scotland", "http://www.westcollegescotland.ac.uk", "West Scotland"],
+    ["West Lothian College", "http://www.west-lothian.ac.uk/", "West Lothian"]
+  ],
+  "northern_ireland": [
+    ["Queen's University Belfast", "recognised", "university", "http://qub.ac.uk/"],
+    ["Ulster University", "recognised", "university", "https://www.ulster.ac.uk/"],
+    ["Presbyterian Theological Faculty, Ireland", "recognised", "specialised", null],
+    ["Stranmillis University College", "listed", "college", "http://www.stran.ac.uk/"],
+    ["St Mary's University College Belfast", "listed", "college", "https://www.stmarys-belfast.ac.uk/"],
+    ["Belfast Metropolitan College", "listed", "college", "https://www.belfastmet.ac.uk/"],
+    ["Northern Regional College", "listed", "college", "https://www.nrc.ac.uk/"],
+    ["North West Regional College", "listed", "college", "https://www.nwrc.ac.uk/"],
+    ["South Eastern Regional College", "listed", "college", "https://www.serc.ac.uk/"],
+    ["South West College", "listed", "college", "https://swc.ac.uk/"],
+    ["Southern Regional College", "listed", "college", "https://www.src.ac.uk/"],
+    ["College of Agriculture, Food and Rural Enterprise", "listed", "specialised", null],
+    ["Belfast School of Theology", "listed", "specialised", null],
+    ["Irish Baptist College", "listed", "specialised", null],
+    ["Union Theological College", "listed", "specialised", null]
+  ]
+}

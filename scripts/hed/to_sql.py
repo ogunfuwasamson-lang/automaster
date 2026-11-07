@@ -20,8 +20,8 @@ for i in range(0, len(rows), 1000):
     assert "$hed$" not in blob
     out.append(f"insert into public.hed_institutions ({names}, source_id, checked_at)\nselect {names}, {srcq}, now() from jsonb_to_recordset($hed${blob}$hed$::jsonb) as x({COLS})\non conflict (registry, registry_id) do update set {upd}, source_id = excluded.source_id, checked_at = now(), updated_at = now();")
 by = Counter(r["status"] for r in rows)
-counts = json.dumps({"records": len(rows), **by})
-out.append(f"insert into public.hed_manifest(country, region, scope, source_id, denominator, counts, phase, notes) values ({q(src['country'])}, {q(src['region'])}, {q(src['scope'])}, {srcq}, {by.get('active', 0)}, {q(counts)}::jsonb, 'inventory', {q(src.get('manifest_notes'))})\non conflict (country) do update set scope = excluded.scope, source_id = excluded.source_id, denominator = excluded.denominator, counts = excluded.counts, notes = excluded.notes, updated_at = now();")
+out.append(f"insert into public.hed_manifest(country, region, scope, source_id, phase, notes) values ({q(src['country'])}, {q(src['region'])}, {q(src['scope'])}, {srcq}, 'inventory', {q(src.get('manifest_notes'))})\non conflict (country) do update set scope = excluded.scope, source_id = excluded.source_id, notes = excluded.notes, updated_at = now();")
+out.append(f"select public.hed_refresh_manifest({q(src['country'])});")
 out.append("commit;")
 open(sys.argv[3], "w").write("\n".join(out))
 print(len(rows), "rows ->", sys.argv[3], dict(by))

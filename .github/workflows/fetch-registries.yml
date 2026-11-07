@@ -1,4 +1,4 @@
-# official institution registries (US: IPEDS; England: OfS Register), fetched by the build machine (the dev sandbox can't reach them), normalised by
+# official institution registries (US: IPEDS; UK: OfS Register, Scottish fundable bodies + SFC colleges, Medr, DfE NI), fetched by the build machine (the dev sandbox can't reach them), normalised by
 # scripts/hed, saved to the `registry-data` branch with source URLs and checksums, and loaded into Supabase's
 # hed_* tables when the SUPABASE_DB_URL secret is set (Supabase > Connect > Session pooler connection string).
 # idempotent: re-running updates the same rows. runs when this workflow or the importers change, or by hand.
@@ -48,11 +48,13 @@ jobs:
           sudo python3 -m pip install -q --break-system-packages openpyxl==3.1.5
           python3 -I scripts/hed/ofs.py out/raw/ofs-register.xlsx out/processed/gb-ofs.json
           python3 -I scripts/hed/to_sql.py out/processed/gb-ofs.json scripts/hed/gb-ofs-source.json out/gb.sql
+          python3 -I scripts/hed/uk_devolved.py scripts/hed/gb-devolved-seed.json out/raw/medr-register.xlsx out/raw/learning-providers-plus.csv out/processed/gb-devolved.json
+          python3 -I scripts/hed/to_sql.py out/processed/gb-devolved.json scripts/hed/gb-devolved-source.json out/gb-devolved.sql
       - name: Load into Supabase
         env: { DB: "${{ secrets.SUPABASE_DB_URL }}" }
         run: |
           if [ -z "$DB" ]; then echo "SUPABASE_DB_URL not set: files saved, nothing loaded"; exit 0; fi
-          for f in out/us.sql out/gb.sql; do psql "$DB" -q -v ON_ERROR_STOP=1 -f "$f"; done
+          for f in out/us.sql out/gb.sql out/gb-devolved.sql; do psql "$DB" -q -v ON_ERROR_STOP=1 -f "$f"; done
           psql "$DB" -Atc "select country, denominator, counts from public.hed_manifest order by country"
       - name: Save to the registry-data branch
         run: |
