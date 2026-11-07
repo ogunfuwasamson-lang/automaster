@@ -1,4 +1,4 @@
-# official institution registries, fetched by the build machine (the dev sandbox can't reach them), normalised by
+# official institution registries (US: IPEDS; England: OfS Register), fetched by the build machine (the dev sandbox can't reach them), normalised by
 # scripts/hed, saved to the `registry-data` branch with source URLs and checksums, and loaded into Supabase's
 # hed_* tables when the SUPABASE_DB_URL secret is set (Supabase > Connect > Session pooler connection string).
 # idempotent: re-running updates the same rows. runs when this workflow or the importers change, or by hand.
@@ -39,11 +39,14 @@ jobs:
           set -euo pipefail
           python3 -I scripts/hed/ipeds.py out/raw/ipeds-hd2024/HD2024.csv out/processed/us-ipeds-2024.json
           python3 -I scripts/hed/to_sql.py out/processed/us-ipeds-2024.json scripts/hed/us-source.json out/us.sql
+          pip install -q openpyxl==3.1.5
+          python3 -I scripts/hed/ofs.py out/raw/ofs-register.xlsx out/processed/gb-ofs.json
+          python3 -I scripts/hed/to_sql.py out/processed/gb-ofs.json scripts/hed/gb-ofs-source.json out/gb.sql
       - name: Load into Supabase
         env: { DB: "${{ secrets.SUPABASE_DB_URL }}" }
         run: |
           if [ -z "$DB" ]; then echo "SUPABASE_DB_URL not set: files saved, nothing loaded"; exit 0; fi
-          psql "$DB" -q -v ON_ERROR_STOP=1 -f out/us.sql
+          for f in out/us.sql out/gb.sql; do psql "$DB" -q -v ON_ERROR_STOP=1 -f "$f"; done
           psql "$DB" -Atc "select country, denominator, counts from public.hed_manifest order by country"
       - name: Save to the registry-data branch
         run: |
