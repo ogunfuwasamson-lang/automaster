@@ -264,6 +264,8 @@ async function snapMain(page: Page): Promise<Snapshot> {
   return { url, title: "", body: "", captcha: false, payment: false, confirmation: false, fingerprint: `blank:${url}`, fields: [], allFields: [], buttons: [] };
 }
 
+// the last alert-box messages per page, kept until the page moves on
+const recentDialogs = new WeakMap<Page, string[]>();
 async function snap(page: Page): Promise<Snapshot> {
   const main = await snapMain(page);
   let best: { f: Frame; s: Snapshot } = { f: page.mainFrame(), s: main };
@@ -279,8 +281,12 @@ async function snap(page: Page): Promise<Snapshot> {
     if ((s.allFields.length || s.buttons.length > main.buttons.length) && score(s) > score(best.s)) best = { f, s };
   }
   active.set(page, best.f);
+  // a message in an alert box is the portal saying what's wrong: treat it as an error on the page
+  const said = page.dialogs?.() ?? [];
+  if (said.length) recentDialogs.set(page, said);
+  const shown = recentDialogs.get(page) ?? [];
   // page-level signals (bot checks, confirmations) count from any frame
-  return { ...best.s, captcha, confirmation, title: main.title || best.s.title };
+  return { ...best.s, captcha, confirmation, title: main.title || best.s.title, ...(shown.length ? { errors: [...(best.s.errors ?? []), ...shown], body: `${shown.join(" ")} ${best.s.body}` } : {}) };
 }
 
 async function click(page: Page, id: string) {
@@ -697,6 +703,9 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     }
 
     // loop guard: the same page three times in a row means the portal won't take what we gave it
+    if (s.fingerprint !== state.lastFingerprint) recentDialogs.delete(page);
+    const alertText = (recentDialogs.get(page) ?? []).join(" | ");
+    if (alertText && !(state.navHistory ?? []).at(-1)?.startsWith("the page said:")) state.navHistory = [...(state.navHistory ?? []), `the page said: ${alertText.slice(0, 200)}`].slice(-12);
     state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
     state.lastFingerprint = s.fingerprint;
     // a sign-up form that won't move even though everything is filled: the portal blocks automated sign-ups.

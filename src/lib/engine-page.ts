@@ -41,6 +41,8 @@ export interface EnginePage {
   goBack?(): Promise<void>;
   // click something that opens a file picker (or a file box) and give it this file
   uploadAt?(x: number, y: number, file: EngineFile): Promise<boolean>;
+  // messages the page showed in alert/confirm boxes since the last call (accepted, so the page carries on)
+  dialogs?(): string[];
 }
 
 const wrapped = new WeakMap<Frame, EngineFrame>();
@@ -66,7 +68,17 @@ function frame(f: Frame, page: Page): EngineFrame {
 }
 
 export function fromPlaywright(page: Page): EnginePage {
+  // alert boxes ("The system does not understand the date you entered") carry the portal's error: keep the text
+  const said: string[] = [];
+  if (!(page as unknown as { __amDialogs?: boolean }).__amDialogs) {
+    (page as unknown as { __amDialogs?: boolean }).__amDialogs = true;
+    page.on("dialog", (d) => {
+      said.push(d.message().slice(0, 300));
+      d.accept().catch(() => {});
+    });
+  }
   return {
+    dialogs: () => said.splice(0, said.length),
     url: () => page.url(),
     mainFrame: () => frame(page.mainFrame(), page),
     frames: () => page.frames().map((f) => frame(f, page)),

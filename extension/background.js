@@ -105,6 +105,7 @@
     const url = await page.url();
     return { url, title: "", body: "", captcha: false, payment: false, confirmation: false, fingerprint: `blank:${url}`, fields: [], allFields: [], buttons: [] };
   }
+  var recentDialogs = /* @__PURE__ */ new WeakMap();
   async function snap(page) {
     const main = await snapMain(page);
     let best = { f: page.mainFrame(), s: main };
@@ -120,7 +121,10 @@
       if ((s.allFields.length || s.buttons.length > main.buttons.length) && score(s) > score(best.s)) best = { f, s };
     }
     active.set(page, best.f);
-    return { ...best.s, captcha, confirmation, title: main.title || best.s.title };
+    const said = page.dialogs?.() ?? [];
+    if (said.length) recentDialogs.set(page, said);
+    const shown = recentDialogs.get(page) ?? [];
+    return { ...best.s, captcha, confirmation, title: main.title || best.s.title, ...shown.length ? { errors: [...best.s.errors ?? [], ...shown], body: `${shown.join(" ")} ${best.s.body}` } : {} };
   }
   async function click(page, id) {
     const sel = `[data-am-id="${id}"]`;
@@ -481,6 +485,9 @@
         s = await snap(page);
         if (isBlockPage(s)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
       }
+      if (s.fingerprint !== state.lastFingerprint) recentDialogs.delete(page);
+      const alertText = (recentDialogs.get(page) ?? []).join(" | ");
+      if (alertText && !(state.navHistory ?? []).at(-1)?.startsWith("the page said:")) state.navHistory = [...state.navHistory ?? [], `the page said: ${alertText.slice(0, 200)}`].slice(-12);
       state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
       state.lastFingerprint = s.fingerprint;
       if (REGISTER_PAGE.test(s.url) && /^(forbidden|access denied|403|request blocked)/i.test(s.title.trim() || s.body.trim().slice(0, 40))) {
