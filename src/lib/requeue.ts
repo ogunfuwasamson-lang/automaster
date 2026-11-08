@@ -135,3 +135,29 @@ export async function requeueAfterPause(userId: string, since: string): Promise<
   }
   return n;
 }
+
+// gmail just got connected: the submissions waiting on an email (a verification code, a sign-up PIN, a password
+// reset) can go on by themselves now. picked up once, whatever the daily restart count.
+export async function resumeAfterMailConnected(userId: string): Promise<number> {
+  const db = admin();
+  const { data } = await db
+    .from("applications")
+    .select("id, runner_state, runner_note")
+    .eq("user_id", userId)
+    .eq("status", "packet_approved")
+    .in("runner_status", ["needs_you", "failed"]);
+  let n = 0;
+  for (const a of data ?? []) {
+    const st = (a.runner_state ?? {}) as Record<string, unknown> & { reason?: string };
+    const waiting = ["verification", "login", "account"].includes(st.reason ?? "") || /gmail|verification|password|email/i.test(a.runner_note ?? "");
+    if (!waiting) continue;
+    await db
+      .from("applications")
+      .update({ runner_status: "ready", runner_mode: "cloud", runner_note: "Gmail connected: carrying on", runner_state: { ...st, reason: null, samePageCount: 0, stuckRepeats: 0, reset: undefined, lookedForReset: false }, runner_updated_at: new Date().toISOString() })
+      .eq("id", a.id);
+    await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId: a.id } });
+    await logEvent({ userId, actor: "system", action: "runner.resumed", applicationId: a.id, context: { after: "gmail connected" } });
+    n++;
+  }
+  return n;
+}
