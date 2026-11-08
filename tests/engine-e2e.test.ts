@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import type { Browser, Page } from "playwright-core";
 import { runEngine, type EngineDeps, type EngineState, type Login } from "@/lib/cloud-engine";
 import { fromPlaywright } from "@/lib/engine-page";
+import { DOM_HELPER } from "@/lib/runner-dom";
 import { mapByRules, resolve, type Fill, type PageField } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 
@@ -342,6 +343,17 @@ d("portal engine: failures seen in production", () => {
     expect(r.outcome.kind).toBe("submitted");
     await page.close();
   }, 60_000);
+
+  it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);
+    await page.evaluate(DOM_HELPER);
+    const labels = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { buttons: { label: string }[] } } }).__am.snapshot().buttons.map((b) => b.label));
+    expect(labels).toContain("submit");
+    expect(labels).toContain("Next page");
+    expect(labels).toHaveLength(2);
+    await page.close();
+  }, 30_000);
 
   it("never presses 'Start a new application' twice (ut dallas)", async () => {
     const page = await browser.newPage();

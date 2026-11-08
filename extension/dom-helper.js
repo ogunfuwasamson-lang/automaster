@@ -119,11 +119,22 @@
   // anything a person would click: real buttons and links, tabs, and the clickable divs some portals use
   // ("Create account" as a <div onclick> or a tab). a generic clickable that wraps a real button is skipped.
   const CLICKABLE = 'button, input[type="submit"], input[type="button"], a, [role="button"], [role="tab"], [role="link"], [role="menuitem"], summary';
+  // a button with no text (an icon, or a peoplesoft button whose words are in its id): name it from the picture's alt
+  // text, or from words in its id or name ("CIBAA_REG_WRK_SUBMIT_PB" -> "submit"), so the agents can press it
+  const ACTION_WORDS = /(submit|register|create|sign_?up|save|next|continue|proceed|apply|login|log_?in|sign_?in)/i;
+  function unnamed(b) {
+    const img = b.querySelector && b.querySelector("img[alt], svg title, [aria-label]");
+    const alt = img ? (img.getAttribute("alt") || img.getAttribute("aria-label") || img.textContent || "").trim() : "";
+    if (alt) return alt;
+    const key = (b.id || "") + " " + (b.getAttribute("name") || "") + " " + (typeof b.className === "string" ? b.className : "");
+    const m = key.match(ACTION_WORDS);
+    return m ? m[1].replace(/_/g, " ").toLowerCase().replace(/^(log|sign) ?(in|up)$/, "$1 $2") : "";
+  }
   function buttons() {
     const real = [...all(CLICKABLE)];
     const generic = [...all('[onclick], [tabindex="0"]')].filter((e) => !e.matches(CLICKABLE) && !e.querySelector(CLICKABLE) && textOf(e).length <= 60 && !e.closest(CLICKABLE));
     return [...real, ...generic].filter(visible)
-      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || "").trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
+      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || unnamed(b)).trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
       .filter((b) => b.label);
   }
   // after typing into a search-as-you-type box, the list of matches: click the one that fits the value
