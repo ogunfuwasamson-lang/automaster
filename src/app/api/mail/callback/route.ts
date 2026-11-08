@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.redirect(`${appUrl()}/login`);
   const q = req.nextUrl.searchParams;
   const back = (r: string) => {
-    const dest = req.cookies.get("am_mail_next")?.value === "/onboarding" ? "/onboarding" : "/settings";
+    const to = req.cookies.get("am_mail_next")?.value ?? "";
+    const dest = to === "/onboarding" || /^\/applications\/[0-9a-f-]{36}$/.test(to) ? to : "/settings";
     const res = NextResponse.redirect(`${appUrl()}${dest}?mail=${encodeURIComponent(r)}`);
     res.cookies.delete({ name: "am_mail_state", path: "/api/mail" });
     res.cookies.delete({ name: "am_mail_next", path: "/api/mail" });

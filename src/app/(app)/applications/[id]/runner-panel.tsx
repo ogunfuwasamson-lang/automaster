@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Laptop, CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, MonitorPlay, Pause, Play, Send, TriangleAlert, X } from "lucide-react";
+import { Laptop, Mail, CircleCheck, Copy, ExternalLink, Eye, KeyRound, LoaderCircle, MonitorPlay, Pause, Play, Send, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -27,8 +27,9 @@ export function RunnerPanel(props: {
   school: string;
   paused?: boolean;
   questions?: string[];
+  mailConnected?: boolean;
 }) {
-  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [] } = props;
+  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [], mailConnected = true } = props;
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const { ext, checked } = useExtension(runnerStatus === "running" || runnerStatus === "ready" ? 8000 : 0);
@@ -145,6 +146,18 @@ export function RunnerPanel(props: {
 
   return (
     <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
+      {!mailConnected && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-signal/30 bg-[color-mix(in_oklab,var(--signal)_8%,var(--surface))] p-3">
+          <Mail className="size-4 shrink-0 text-signal" aria-hidden />
+          <p className="min-w-0 flex-1 text-sm">
+            <span className="font-semibold">Connect Gmail so the agents don&apos;t stop at your inbox.</span>{" "}
+            <span className="text-muted">Portals email a code or link when the agents create your account or reset a password. Without Gmail, each one waits for you.</span>
+          </p>
+          <ButtonLink href={`/api/mail/connect?next=/applications/${id}`} size="sm" variant="accent">
+            Connect Gmail
+          </ButtonLink>
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${stuck ? "bg-signal text-white" : "bg-accent/10 text-accent"}`}>
           {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : paused ? <Pause className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}

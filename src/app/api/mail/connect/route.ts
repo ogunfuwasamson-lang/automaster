@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
   res.cookies.set("am_mail_state", state, COOKIE);
   // where to come back to: only our own pages
-  const next = req.nextUrl.searchParams.get("next");
-  if (next === "/onboarding") res.cookies.set("am_mail_next", next, COOKIE);
+  const next = req.nextUrl.searchParams.get("next") ?? "";
+  if (next === "/onboarding" || /^\/applications\/[0-9a-f-]{36}$/.test(next)) res.cookies.set("am_mail_next", next, COOKIE);
   return res;
 }

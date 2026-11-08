@@ -52,7 +52,9 @@ const Body = z.discriminatedUnion("op", [
 function chromeNote(reason: string | undefined, note: string) {
   if (reason === "captcha") return "a bot check is showing in the Ivyward tab in Chrome. Complete it there; the agents carry on by themselves";
   if (reason === "payment") return "payment page: pay the application fee in the Ivyward tab in Chrome. The agents confirm the submission after";
-  if (reason === "blocked" || reason === "account") return "this portal blocked the agents even in your Chrome. Open the tab they left and finish that step; they pick up again after";
+  if (reason === "blocked") return "this portal blocked the agents even in your Chrome. Open the tab they left and finish that step; they pick up again after";
+  // the sign-up page wouldn't take the agents' account: the applicant makes it once with the login Ivyward generated
+  if (reason === "account") return "the portal didn't let the agents create your account. Create it yourself in the Chrome tab with the email and password under \"Your portal login\" on this application; the agents sign in with it and carry on";
   if (reason === "verification") return note.replace(/open the live view and /g, "");
   return note.replace(/open the live view and /g, "open the portal tab in Chrome and ").replace(/open the live view/g, "open the portal tab in Chrome");
 }

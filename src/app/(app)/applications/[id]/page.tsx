@@ -1,3 +1,4 @@
+import { canReadMail } from "@/lib/gmail";
 import { QuestionsCard } from "@/components/questions/questions-card";
 import { toAsk } from "@/lib/ask";
 import Link from "next/link";
@@ -76,6 +77,8 @@ export default async function ApplicationPage({ params, searchParams }: { params
   if (!app) notFound();
   const sheet = app.status === "packet_approved" ? await loadSheet(auth.user.id, id).catch(() => null) : null;
   const pay = app.status === "packet_approved" ? await paymentNeeded(auth.user.id, id).catch(() => null) : null;
+  // portals email codes and reset links: without gmail, every new portal account waits for the applicant
+  const mailOk = app.status === "packet_approved" ? await canReadMail(auth.user.id).catch(() => true) : true;
   const p = app.programs as unknown as { name: string; degree: string; url: string | null; app_fee_usd: number | null; schools: { name: string; country: string | null } };
   const arts = (app.artifacts ?? []) as unknown as Art[];
   const brief = arts.find((a) => a.kind === "strategy");
@@ -237,6 +240,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
           paused={app.runner_status === "idle" && !!((app as { runner_state?: { paused?: boolean } }).runner_state ?? {}).paused}
           school={p.schools.name}
           questions={(asked ?? []).map((q) => q.question as string)}
+          mailConnected={mailOk}
         />
       )}
 
