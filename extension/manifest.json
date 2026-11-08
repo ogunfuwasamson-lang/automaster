@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ivyward runner",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "Finishes your approved university applications in your own Chrome when a school's portal won't let Ivyward's cloud browser in.",
   "permissions": [
     "storage",

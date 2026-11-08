@@ -881,6 +881,15 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         const create = find(s, CREATE) ?? findCreate(s);
         if (create && !state.triedCreate) {
           await deps.progress("creating your portal account");
+      // the address goes in through its own "Add Address" page on some sign-ups (manchester): open it first, once
+      const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
+      const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
+      if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
+        state.pressedAsked = [...(state.pressedAsked ?? []), addrKey].slice(-30);
+        state.navHistory = [...(state.navHistory ?? []), `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
+        await click(page, addAddr.id);
+        continue;
+      }
           state.accountAt = Date.now();
           state.triedCreate = true;
           await click(page, create.id);
@@ -1071,6 +1080,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       find(now, START) ??
       find(now, CREATE) ??
       (s.fields.length ? find(now, CREATE_SUBMIT) : undefined) ??
+      // a small sub-page (an address, a qualification) closes with OK / Done
+      (s.fields.length ? find(now, /^(ok|okay|done|update)$/i) : undefined) ??
       apply;
     // "Start a new application" a second time makes a second application: let the navigator choose instead
     if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = undefined;

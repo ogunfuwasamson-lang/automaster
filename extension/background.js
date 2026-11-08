@@ -629,6 +629,14 @@
           const create = find(s, CREATE) ?? findCreate(s);
           if (create && !state.triedCreate) {
             await deps2.progress("creating your portal account");
+            const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
+            const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
+            if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
+              state.pressedAsked = [...state.pressedAsked ?? [], addrKey].slice(-30);
+              state.navHistory = [...state.navHistory ?? [], `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
+              await click(page, addAddr.id);
+              continue;
+            }
             state.accountAt = Date.now();
             state.triedCreate = true;
             await click(page, create.id);
@@ -788,7 +796,8 @@
       }
       const haveLogin = !s.fields.length && !!await deps2.existingLogin();
       const apply = !s.fields.length ? bestApply(now, state.visited) : void 0;
-      let next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? apply;
+      let next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? // a small sub-page (an address, a qualification) closes with OK / Done
+      (s.fields.length ? find(now, /^(ok|okay|done|update)$/i) : void 0) ?? apply;
       if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = void 0;
       if (next) {
         if (next.href && next === apply) state.visited = [...state.visited ?? [], here(next.href)].slice(-30);
