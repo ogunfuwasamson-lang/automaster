@@ -308,8 +308,20 @@ async function click(page: Page, id: string) {
   await sleep(1200);
 }
 
+// a box the page redrew away while typing (peoplesoft, salesforce re-render on every change) isn't a failed run:
+// the next pass finds it again. anything else is still an error
 async function fillText(page: Page, id: string, value: string) {
-  await frameOf(page).fill(`[data-am-id="${id}"]`, value, { timeout: 10_000 });
+  try {
+    await frameOf(page).fill(`[data-am-id="${id}"]`, value, { timeout: 10_000 });
+  } catch (e) {
+    if (/detached|Timeout \d+ms exceeded|not attached|not visible/i.test(String((e as Error)?.message ?? e))) throw new Redrawn();
+    throw e;
+  }
+}
+class Redrawn extends Error {
+  constructor() {
+    super("the page redrew the box while it was being filled");
+  }
 }
 
 // bilingual portals label buttons "Log in / Ouvrez une session": match on the first language
@@ -369,12 +381,18 @@ export async function securityQuestions(page: Page, fields: PageField[], login: 
     used.add(pick);
     if (await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
   }
+  // choosing a question reloads the form on some portals (peoplesoft): find the answer boxes again once it settles
+  if (done.length) {
+    await sleep(2500);
+    const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+    as.splice(0, as.length, ...again);
+  }
   for (const [i, a] of as.entries()) {
     // "Answer 3" gets the third answer whichever boxes are still empty, so the list under Your portal login matches
     const n = Number((a.label.match(/\d+/) ?? [])[0]);
     const k = Number.isFinite(n) && n > 0 ? n - 1 : i;
-    await fillText(page, a.id, login.answers[k % login.answers.length]);
-    done.push(a.id);
+    // a box that disappears mid-fill (the page redrew again) is picked up on the next pass, not a failed run
+    if (await fillText(page, a.id, login.answers[k % login.answers.length]).then(() => true, () => false)) done.push(a.id);
   }
   return done;
 }
@@ -618,6 +636,21 @@ async function fillHard(page: Page, deps: EngineDeps, state: EngineState): Promi
 const SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
+  const end = Date.now() + budgetMs;
+  // a page that redraws a box mid-fill starts the pass again from a fresh look, a few times at most
+  for (let i = 0; i < 8; i++) {
+    try {
+      return await runPass(page, deps, state, Math.max(0, end - Date.now()));
+    } catch (e) {
+      if (!(e instanceof Redrawn) || Date.now() >= end) throw e;
+      state.navHistory = [...(state.navHistory ?? []), "the page redrew while filling; looking again"].slice(-12);
+      await sleep(1500);
+    }
+  }
+  return { outcome: { kind: "continue", note: "continuing" }, state, filled: 0 };
+}
+
+async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
   let filled = 0;
   while (Date.now() < end) {

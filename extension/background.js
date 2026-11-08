@@ -146,8 +146,18 @@
     await sleep(1200);
   }
   async function fillText(page, id, value) {
-    await frameOf(page).fill(`[data-am-id="${id}"]`, value, { timeout: 1e4 });
+    try {
+      await frameOf(page).fill(`[data-am-id="${id}"]`, value, { timeout: 1e4 });
+    } catch (e) {
+      if (/detached|Timeout \d+ms exceeded|not attached|not visible/i.test(String(e?.message ?? e))) throw new Redrawn();
+      throw e;
+    }
   }
+  var Redrawn = class extends Error {
+    constructor() {
+      super("the page redrew the box while it was being filled");
+    }
+  };
   var clean = (l) => l.replace(/[\u2190-\u21ff\u2794-\u27bf›»<>←→]+/g, " ").split(/\s+\/\s+|\s+\|\s+/)[0].replace(/\s+/g, " ").trim();
   var here = (u) => u.replace(/#.*$/, "").replace(/\/$/, "");
   var goesSomewhere = (s, b) => !b.href || /^javascript:/i.test(b.href) ? true : here(b.href) !== here(s.url);
@@ -192,11 +202,15 @@
       used.add(pick);
       if (await frameOf(page).evaluate((x) => window.__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
     }
+    if (done.length) {
+      await sleep(2500);
+      const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+      as.splice(0, as.length, ...again);
+    }
     for (const [i, a] of as.entries()) {
       const n = Number((a.label.match(/\d+/) ?? [])[0]);
       const k = Number.isFinite(n) && n > 0 ? n - 1 : i;
-      await fillText(page, a.id, login.answers[k % login.answers.length]);
-      done.push(a.id);
+      if (await fillText(page, a.id, login.answers[k % login.answers.length]).then(() => true, () => false)) done.push(a.id);
     }
     return done;
   }
@@ -416,6 +430,19 @@
   }
   var SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
   async function runEngine(page, deps2, state, budgetMs) {
+    const end = Date.now() + budgetMs;
+    for (let i = 0; i < 8; i++) {
+      try {
+        return await runPass(page, deps2, state, Math.max(0, end - Date.now()));
+      } catch (e) {
+        if (!(e instanceof Redrawn) || Date.now() >= end) throw e;
+        state.navHistory = [...state.navHistory ?? [], "the page redrew while filling; looking again"].slice(-12);
+        await sleep(1500);
+      }
+    }
+    return { outcome: { kind: "continue", note: "continuing" }, state, filled: 0 };
+  }
+  async function runPass(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
     let filled = 0;
     while (Date.now() < end) {
