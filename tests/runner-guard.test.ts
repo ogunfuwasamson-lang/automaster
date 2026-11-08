@@ -43,3 +43,16 @@ describe("inside a form", () => {
     expect(insideForm({ fields: [f("First name"), f("Last name"), f("Date of birth")] })).toBe(true);
   });
 });
+
+describe("security questions", () => {
+  it("answers are made up per site and login, and stable", async () => {
+    process.env.TOKEN_ENCRYPTION_KEY ??= "0".repeat(64);
+    const { securityAnswers } = await import("@/lib/vault");
+    const a = securityAnswers("pgapplication.manchester.ac.uk", "x@y.com");
+    expect(a).toHaveLength(3);
+    expect(new Set(a).size).toBe(3);
+    expect(a.every((x) => /^[a-z0-9]{8,10}$/.test(x))).toBe(true);
+    expect(securityAnswers("pgapplication.manchester.ac.uk", "X@y.com")).toEqual(a);
+    expect(securityAnswers("apply.other.edu", "x@y.com")).not.toEqual(a);
+  });
+});

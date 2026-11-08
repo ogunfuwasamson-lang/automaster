@@ -377,6 +377,29 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("answers sign-up security questions with the login's made-up answers (manchester)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/register": () => `<h1>Create your account</h1><p>Register as a new user. Already have an account? Sign in.</p><form action="/made">
+        <label for="e">Email *</label><input id="e" name="e" type="email" required>
+        <label for="p1">Password *</label><input id="p1" name="p1" type="password" required>
+        <label for="p2">Confirm password *</label><input id="p2" name="p2" type="password" required>
+        <label for="q2">*Question 2</label><select id="q2" name="q2"><option value=""></option><option>Your Pet's name</option><option>Your favourite city</option></select>
+        <label for="a2">*Answer 2</label><input id="a2" name="a2" required>
+        <label for="q3">*Question 3</label><select id="q3" name="q3"><option value=""></option><option>Your Pet's name</option><option>Your favourite city</option></select>
+        <label for="a3">*Answer 3</label><input id="a3" name="a3" required>
+        <button type="submit">Create account</button></form>`,
+      "/made": (q) => ((got = [q.get("q2"), q.get("a2"), q.get("q3"), q.get("a3")].join("|")), `<h1>Account created</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/register");
+    const d0 = deps();
+    const r = await runEngine(fromPlaywright(page), deps({ createLogin: async (email) => { const l = { login_email: email, password: "Pw-first-1A", answers: ["alpha1", "bravo2", "charl3"] }; d0.logins.push(l); return l; }, existingLogin: async () => d0.logins.at(-1) ?? null }), { steps: 0, submitClicked: true }, 30_000);
+    expect(got).toBe("Your Pet's name|alpha1|Your favourite city|bravo2");
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+
   it("never presses 'Start a new application' twice (ut dallas)", async () => {
     const page = await browser.newPage();
     let started = 0;

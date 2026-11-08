@@ -37,6 +37,7 @@ const ALIASES: Record<string, string[]> = {
   french: ["francais", "frances"],
   "full time": ["full-time", "fulltime", "ft"],
   "part time": ["part-time", "parttime", "pt"],
+  myself: ["self", "applicant", "i am the applicant", "the applicant", "student", "individual", "me", "for myself", "on my own behalf"],
 };
 
 // words that mean the same thing on forms, often bilingual ("Fall / Automne 2027"): mapped to one spelling

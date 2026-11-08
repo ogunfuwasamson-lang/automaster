@@ -1,5 +1,5 @@
 import "server-only";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 
 // AES-256-GCM for secrets we must keep (gmail refresh tokens). key: TOKEN_ENCRYPTION_KEY, 64 hex chars.
 function key(): Buffer {
@@ -29,4 +29,9 @@ export function sha256(s: string): string {
 
 export function newToken(prefix: string): string {
   return `${prefix}_${randomBytes(24).toString("base64url")}`;
+}
+
+// a keyed hash: the same input always gives the same output, and nobody without the key can work it out
+export function keyedHash(s: string): string {
+  return createHmac("sha256", key()).update(s).digest("base64url");
 }

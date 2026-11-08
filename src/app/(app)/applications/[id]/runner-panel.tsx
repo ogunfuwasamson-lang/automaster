@@ -36,7 +36,7 @@ export function RunnerPanel(props: {
   const inChrome = mode === "extension";
   const [url, setUrl] = useState(portalUrl ?? "");
   const [busy, setBusy] = useState(false);
-  const [login, setLogin] = useState<{ host: string; email: string; password: string } | null>(null);
+  const [login, setLogin] = useState<{ host: string; email: string; password: string; answers?: string[] } | null>(null);
   const router = useRouter();
 
   // hand this application to the applicant's own chrome
@@ -104,6 +104,14 @@ export function RunnerPanel(props: {
               <Copy className="size-3.5" />
             </button>
           </dd>
+          {login.answers?.length ? (
+            <>
+              <dt className="text-muted">Security answers</dt>
+              <dd className="text-xs text-muted">
+                If the portal asked security questions, the agents answered them in order with <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-800">{login.answers.join(", ")}</code>. They&apos;re made up, not about you.
+              </dd>
+            </>
+          ) : null}
           <dd className="col-span-2 pt-1 text-xs text-muted">
             <Link href="/logins" className="mr-1 font-semibold text-brand hover:underline">All portal logins.</Link>The agents made this account for you. Change the password on the portal once you&apos;ve submitted, if you like.</dd>
         </dl>

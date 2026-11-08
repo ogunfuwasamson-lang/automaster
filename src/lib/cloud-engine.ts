@@ -80,6 +80,7 @@ export interface Login {
   login_email: string;
   password: string;
   status?: string; // "created" until a sign-in has worked once
+  answers?: string[]; // made-up answers for the account's security questions
 }
 
 export interface EngineDeps {
@@ -349,6 +350,29 @@ export function namedButton(s: Snapshot, state: EngineState): Snapshot["buttons"
   const b = s.buttons.find((x) => asked.includes(clean(x.label).toLowerCase()) && !done.has(`${key}|${clean(x.label).toLowerCase()}`) && !DANGEROUS.test(x.label) && !FINAL.test(clean(x.label)));
   if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
   return b;
+}
+
+const SEC_Q = /\b(security|secret|memorable|challenge)?\s*question\b/i;
+const SEC_A = /\b(security|secret|memorable|challenge)?\s*answer\b/i;
+// fill a sign-up form's security questions: pick a different question in each list, type the made-up answers.
+// returns the ids it filled
+export async function securityQuestions(page: Page, fields: PageField[], login: Login): Promise<string[]> {
+  const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
+  const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+  if (!as.length || !login.answers?.length) return [];
+  const done: string[] = [];
+  const used = new Set<string>();
+  for (const q of qs) {
+    const pick = (q.options ?? []).find((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()) && !used.has(o));
+    if (!pick) continue;
+    used.add(pick);
+    if (await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
+  }
+  for (const [i, a] of as.entries()) {
+    await fillText(page, a.id, login.answers[i % login.answers.length]);
+    done.push(a.id);
+  }
+  return done;
 }
 
 // true (and noted) the first time an application is started in this portal; false after that
@@ -770,7 +794,12 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       // email (and confirm email) get the applicant's login email; everything else from the fill sheet
       const others = s.fields.filter((f) => f.type !== "password");
       for (const f of others.filter((f) => f.type === "email" || /e-?mail/i.test(f.label))) await fillText(page, f.id, login.login_email);
-      const rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+      let rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+      // security questions ("Question 2" / "Answer 2"): a different question each, answered with the login's own
+      // made-up answers, never anything about the applicant
+      const sec = await securityQuestions(page, rest, login);
+      filled += sec.length;
+      rest = rest.filter((f) => !sec.includes(f.id));
       filled += await applyFills(page, deps, rest, state);
       await acceptTerms(page, s);
       // the button is called many things ("Create eID", "Register now", "Submit registration", "Sign up >")

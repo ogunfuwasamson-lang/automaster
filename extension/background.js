@@ -178,6 +178,26 @@
     if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
     return b;
   }
+  var SEC_Q = /\b(security|secret|memorable|challenge)?\s*question\b/i;
+  var SEC_A = /\b(security|secret|memorable|challenge)?\s*answer\b/i;
+  async function securityQuestions(page, fields, login) {
+    const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
+    const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+    if (!as.length || !login.answers?.length) return [];
+    const done = [];
+    const used = /* @__PURE__ */ new Set();
+    for (const q of qs) {
+      const pick = (q.options ?? []).find((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()) && !used.has(o));
+      if (!pick) continue;
+      used.add(pick);
+      if (await frameOf(page).evaluate((x) => window.__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
+    }
+    for (const [i, a] of as.entries()) {
+      await fillText(page, a.id, login.answers[i % login.answers.length]);
+      done.push(a.id);
+    }
+    return done;
+  }
   function markNewApp(state, label) {
     if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
     state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
@@ -541,7 +561,10 @@
         for (const p of pws) await fillText(page, p.id, login.password);
         const others = s.fields.filter((f) => f.type !== "password");
         for (const f of others.filter((f2) => f2.type === "email" || /e-?mail/i.test(f2.label))) await fillText(page, f.id, login.login_email);
-        const rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+        let rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+        const sec = await securityQuestions(page, rest, login);
+        filled += sec.length;
+        rest = rest.filter((f) => !sec.includes(f.id));
         filled += await applyFills(page, deps2, rest, state);
         await acceptTerms(page, s);
         const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));

@@ -1,7 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { admin } from "@/lib/supabase/admin";
-import { decrypt, encrypt } from "@/lib/crypto";
+import { decrypt, encrypt, keyedHash } from "@/lib/crypto";
 import { hostRoot } from "@/lib/verify-mail";
 
 // portal logins the agents create for the applicant. their email, a generated password, encrypted at rest.
@@ -25,6 +25,14 @@ export interface PortalLogin {
   login_email: string;
   password: string;
   status: string;
+  answers?: string[]; // answers for the account's security questions, in the order the questions appear
+}
+
+// answers to a portal's security questions ("Your pet's name"): made up, never the applicant's real ones, and
+// worked out again from the site and the login whenever needed, so they're never stored and never change when
+// the password does. shown with the password under "Your portal login".
+export function securityAnswers(host: string, email: string, n = 3): string[] {
+  return Array.from({ length: n }, (_, i) => keyedHash(`security-answer|${hostRoot(host)}|${email.toLowerCase()}|${i}`).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10).toLowerCase());
 }
 
 // the login for a portal. portals often move sign-in to another subdomain (apply.x.edu -> login.x.edu) or an
@@ -36,7 +44,7 @@ export async function getLogin(userId: string, host: string, applicationId?: str
     rows.find((r) => r.portal_host === host) ??
     (applicationId ? rows.filter((r) => r.application_id === applicationId).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] : undefined) ??
     rows.find((r) => hostRoot(r.portal_host) === hostRoot(host));
-  return pick ? { id: pick.id, login_email: pick.login_email, password: decrypt(pick.password_enc), status: pick.status } : null;
+  return pick ? { id: pick.id, login_email: pick.login_email, password: decrypt(pick.password_enc), status: pick.status, answers: securityAnswers(pick.portal_host, pick.login_email) } : null;
 }
 
 export async function createLogin(userId: string, applicationId: string, host: string, email: string): Promise<PortalLogin> {
@@ -49,7 +57,7 @@ export async function createLogin(userId: string, applicationId: string, host: s
     .select("id")
     .single();
   if (error) throw new Error(`vault: ${error.message}`);
-  return { id: data.id as string, login_email: email, password, status: "created" };
+  return { id: data.id as string, login_email: email, password, status: "created", answers: securityAnswers(host, email) };
 }
 
 export async function markLogin(id: string, status: "verified" | "failed") {
