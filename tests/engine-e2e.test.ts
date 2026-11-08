@@ -395,7 +395,7 @@ d("portal engine: failures seen in production", () => {
     await page.goto("https://portal.test/register");
     const d0 = deps();
     const r = await runEngine(fromPlaywright(page), deps({ createLogin: async (email) => { const l = { login_email: email, password: "Pw-first-1A", answers: ["alpha1", "bravo2", "charl3"] }; d0.logins.push(l); return l; }, existingLogin: async () => d0.logins.at(-1) ?? null }), { steps: 0, submitClicked: true }, 30_000);
-    expect(got).toBe("Your Pet's name|bravo2|Your favourite city|charl3");
+    expect(got).toBe("Your favourite city|bravo2|Your Pet's name|charl3");
     expect(r.outcome.kind).toBe("submitted");
     await page.close();
   }, 60_000);

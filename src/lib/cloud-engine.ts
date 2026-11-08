@@ -372,11 +372,16 @@ const SEC_A = /\b(security|secret|memorable|challenge)?\s*answer\b/i;
 export async function securityQuestions(page: Page, fields: PageField[], login: Login): Promise<string[]> {
   const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
   const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
-  if (!as.length || !login.answers?.length) return [];
+  if ((!as.length && !qs.length) || !login.answers?.length) return [];
   const done: string[] = [];
   const used = new Set<string>();
-  for (const q of qs) {
-    const pick = (q.options ?? []).find((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()) && !used.has(o));
+  for (const [i, q] of qs.entries()) {
+    // "Question 3" takes the third real option, so questions chosen on different passes (the form reloads after
+    // each choice) never repeat one another
+    const real = (q.options ?? []).filter((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()));
+    const n = Number((q.label.match(/\d+/) ?? [])[0]);
+    const want = Number.isFinite(n) && n > 0 ? n - 1 : i;
+    const pick = [...real.slice(want % Math.max(real.length, 1)), ...real].find((o) => !used.has(o));
     if (!pick) continue;
     used.add(pick);
     if (await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);

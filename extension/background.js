@@ -193,11 +193,14 @@
   async function securityQuestions(page, fields, login) {
     const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
     const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
-    if (!as.length || !login.answers?.length) return [];
+    if (!as.length && !qs.length || !login.answers?.length) return [];
     const done = [];
     const used = /* @__PURE__ */ new Set();
-    for (const q of qs) {
-      const pick = (q.options ?? []).find((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()) && !used.has(o));
+    for (const [i, q] of qs.entries()) {
+      const real = (q.options ?? []).filter((o) => o.trim() && !/^(select|choose|please|--|-)/i.test(o.trim()));
+      const n = Number((q.label.match(/\d+/) ?? [])[0]);
+      const want = Number.isFinite(n) && n > 0 ? n - 1 : i;
+      const pick = [...real.slice(want % Math.max(real.length, 1)), ...real].find((o) => !used.has(o));
       if (!pick) continue;
       used.add(pick);
       if (await frameOf(page).evaluate((x) => window.__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
