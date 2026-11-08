@@ -269,7 +269,10 @@ export function serverDeps(c: DepsCtx): EngineDeps {
 // the password reset email a portal sent after `since`: the first link on the school's site that looks like a reset
 export async function findResetLink(userId: string, host: string, since: number): Promise<string | null> {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:1d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
+  // look back to when the account was made: a portal account created days ago still has its activation email
+  // waiting (mcgill's was 2 weeks old when the agents went looking with a 1-day window and gave up)
+  const days = Math.min(30, Math.max(1, Math.ceil((Date.now() - since) / 86_400_000) + 1));
+  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:${days}d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
   for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
     const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
     const hit = links.find((l) => {

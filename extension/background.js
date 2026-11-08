@@ -365,7 +365,9 @@
       if (REGISTER_PAGE.test(s.url) && /^(forbidden|access denied|403|request blocked)/i.test(s.title.trim() || s.body.trim().slice(0, 40))) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
-      if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !/(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error)/i.test(s.body)) {
+      const formComplains = /(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error|please (enter|select|provide|choose|complete)|is required|required field|must (be|contain|match|include)|do(es)? not match|too (short|long))/i.test(s.body);
+      const blankRequired = s.fields.some((f) => f.required && f.type !== "checkbox");
+      if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
       if (state.samePageCount >= 3 && s.fields.some((f) => f.required)) {
@@ -522,7 +524,7 @@
         continue;
       }
       if (kind === "verify_code" || kind === "check_email") {
-        const since = state.accountAt ?? state.verifyWaitSince ?? Date.now() - 30 * 6e4;
+        const since = state.accountAt ?? Date.now() - 14 * 864e5;
         state.verifyWaitSince ??= Date.now();
         if (!deps2.canReadMail) {
           return { outcome: { kind: "needs_you", reason: "verification", note: `the portal sent a verification ${kind === "verify_code" ? "code" : "link"} to your email. open the live view and enter it (connect gmail so the agents can do this for you)` }, state, filled };
