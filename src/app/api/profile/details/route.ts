@@ -10,6 +10,8 @@ import { kickoff } from "@/lib/kickoff";
 
 export const runtime = "nodejs";
 
+const NAME_KEYS = ["legal_first_name", "legal_middle_name", "legal_last_name", "preferred_name"];
+
 const str = (max = 200) => z.string().trim().max(max).nullable().optional();
 const Body = z.object({
   details: DetailsSchema,
@@ -37,6 +39,9 @@ export async function POST(req: NextRequest) {
   const db = admin();
   const details = Object.fromEntries(Object.entries(parsed.data.details).map(([k, v]) => [k, v || null]));
   if (Object.values(details).some((v) => typeof v === "string" && /\b\d{9,}\b/.test(v) && NEVER_FILL.test(v))) return NextResponse.json({ error: "don't put id numbers here" }, { status: 400 });
+  // a digit in a legal name is always a typo ("Sams9lon"), and portals reject it after the account is half made
+  const badName = NAME_KEYS.find((k) => typeof details[k] === "string" && /\d/.test(details[k] as string));
+  if (badName) return NextResponse.json({ error: `your ${badName.replace(/_/g, " ")} has a number in it: check the spelling (exactly as on your passport)` }, { status: 400 });
   const { data: cur } = await db.from("profiles").select("portal_details").eq("id", uid).single();
   await db.from("profiles").update({ portal_details: { ...((cur?.portal_details as Record<string, unknown>) ?? {}), ...details } }).eq("id", uid);
   await db.from("recommenders").delete().eq("user_id", uid);

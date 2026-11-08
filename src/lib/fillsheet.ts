@@ -78,9 +78,11 @@ export function buildSheet(a: {
   set("full_name", p.identity.full_name);
   // the legal name as the applicant gave it (exactly as on the passport) beats one split from the full name
   const legal = !!(d.legal_first_name || d.legal_last_name);
-  set("first_name", legal ? d.legal_first_name : name.first);
-  set("middle_name", legal ? d.legal_middle_name : name.middle);
-  set("last_name", legal ? d.legal_last_name : name.last);
+  // a name with a digit in it is a typo: left blank, so the agents ask instead of typing it into an account
+  const okName = (v: string | null | undefined) => (v && /\d/.test(v) ? null : v);
+  set("first_name", okName(legal ? d.legal_first_name : name.first));
+  set("middle_name", okName(legal ? d.legal_middle_name : name.middle));
+  set("last_name", okName(legal ? d.legal_last_name : name.last));
   set("preferred_name", d.preferred_name || name.first);
   set("email", d.email || a.accountEmail);
   // portals that want a user id as well as an email: the email's local part
@@ -122,7 +124,7 @@ export function buildSheet(a: {
   if (firstLang) set("english_first_language", /^english\b/i.test(firstLang.trim()) ? "Yes" : "No");
   // everything else on the profile details (languages, background, family, activities, the yes/no questions):
   // offered under its own key, so a form question about it is filled without asking
-  for (const fd of PORTAL_DETAIL_FIELDS) if (!(fd.key in f)) set(fd.key, d[fd.key]);
+  for (const fd of PORTAL_DETAIL_FIELDS) if (!(fd.key in f)) set(fd.key, /^(legal_.*_name|preferred_name)$/.test(fd.key) ? okName(d[fd.key]) : d[fd.key]);
 
   // the application itself
   set("program", a.program);
