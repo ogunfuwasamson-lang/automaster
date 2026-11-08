@@ -728,6 +728,14 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
+    // a message box over the form ("Message: The system does not understand the date… [OK]", peoplesoft's
+    // modal): close it so the form underneath works again, once per page
+    const okBox = find(s, /^(ok|okay)$/i);
+    if (okBox && /\b(message|error|warning|alert)\b/i.test(s.body.slice(0, 300)) && !(state.pressedAsked ?? []).includes(`${(s.fingerprint ?? "").slice(0, 60)}|ok`)) {
+      state.pressedAsked = [...(state.pressedAsked ?? []), `${(s.fingerprint ?? "").slice(0, 60)}|ok`].slice(-30);
+      await click(page, okBox.id);
+      continue;
+    }
     // the page names the button it's waiting for ('Remember to "Save Education" below'): press it, once per page
     if (state.samePageCount >= 2) {
       const named = namedButton(s, state);
