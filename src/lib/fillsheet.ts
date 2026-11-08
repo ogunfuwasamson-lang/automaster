@@ -87,6 +87,12 @@ export function buildSheet(a: {
   set("email", d.email || a.accountEmail);
   // portals that want a user id as well as an email: the email's local part
   set("username", (d.email || a.accountEmail || "").split("@")[0].replace(/[^a-z0-9._-]/gi, "").slice(0, 30));
+  // portals that want the user id built from the name ("eID: first.last", "firstname.lastname")
+  const ascii = (v?: string | null) => (v ?? "").normalize("NFKD").replace(/[^a-zA-Z]/g, "").toLowerCase();
+  if (f.first_name && f.last_name) {
+    set("username_first_last", `${ascii(f.first_name)}.${ascii(f.last_name)}`.slice(0, 30));
+    set("username_firstlast", `${ascii(f.first_name)}${ascii(f.last_name)}`.slice(0, 30));
+  }
   const phone = d.phone || fact(/\b(phone|mobile)\b/i);
   set("phone", phone);
   // split for portals with a separate dialling-code box: "+234 803 123 4567" -> "+234" and "8031234567"

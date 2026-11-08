@@ -916,8 +916,6 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     if (kind === "signup") {
       const login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail));
       await deps.progress("creating your portal account");
-      const pws = s.allFields.filter((f) => f.type === "password");
-      for (const p of pws) await fillText(page, p.id, login.password);
       // email (and confirm email) get the applicant's login email; everything else from the fill sheet
       const others = s.fields.filter((f) => f.type !== "password");
       for (const f of others.filter((f) => f.type === "email" || /e-?mail/i.test(f.label))) await fillText(page, f.id, login.login_email);
@@ -929,8 +927,13 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       rest = rest.filter((f) => !sec.includes(f.id));
       filled += await applyFills(page, deps, rest, state);
       await acceptTerms(page, s);
+      // passwords last: portals that reload the form on every choice (peoplesoft) wipe password boxes each time
+      await sleep(1500);
+      const ready = await snap(page);
+      for (const p of ready.allFields.filter((f) => f.type === "password")) await fillText(page, p.id, login.password);
+      state.navHistory = [...(state.navHistory ?? []), "filled the sign-up form"].slice(-12);
       // the button is called many things ("Create eID", "Register now", "Submit registration", "Sign up >")
-      const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
+      const go = find(ready, CREATE_SUBMIT) ?? find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
       if (!go) {
         // no recognisable button: look at the page (and the screenshot) before handing it over
         const o = await stuckStep(page, deps, s, state, "the sign-up form is filled in; find and press the button that creates the account (it may be at the bottom, below the terms, or be an image or link)", { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the button that creates the account" });
@@ -939,6 +942,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         continue;
       }
       state.accountAt = Date.now();
+      state.navHistory = [...(state.navHistory ?? []), `pressed "${clean(go.label)}" to create the account`].slice(-12);
       await click(page, go.id);
       continue;
     }
@@ -1226,6 +1230,20 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
 // put a list of decisions on the page. search-as-you-type boxes get typed into, then the match is picked.
 async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills: Fill[], state?: EngineState): Promise<number> {
   let n = 0;
+  // a user id the page wants as first.last (calgary's eID): the name-built one instead of the email's first half
+  if (fills.some((f) => f.action === "fill" && f.source === "username")) {
+    const hint = await frameOf(page)
+      .evaluate((n: number) => (document.body?.innerText ?? "").slice(0, n), 20000)
+      .catch(() => "");
+    if (/\bfirst(name)?\s*\.\s*last(name)?\b|first name\s*\.\s*last name|firstname\.lastname/i.test(hint)) {
+      for (const f of fills) {
+        const field = safe.find((x) => x.id === f.id);
+        if (f.action !== "fill" || f.source !== "username" || !field) continue;
+        const alt = deps.fillFromKey ? await deps.fillFromKey(field, "username_first_last") : null;
+        if (alt && alt.action === "fill") f.value = alt.value;
+      }
+    }
+  }
   // dates are kept as 2000-12-31; a text box on a page that shows its own format gets that format instead
   if (fills.some((f) => f.action === "fill" && ISO_DATE.test(f.value) && safe.find((x) => x.id === f.id)?.type !== "date")) {
     const hint = await frameOf(page)

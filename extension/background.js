@@ -664,8 +664,6 @@
       if (kind === "signup") {
         const login = await deps2.existingLogin() ?? await deps2.createLogin(deps2.accountEmail);
         await deps2.progress("creating your portal account");
-        const pws = s.allFields.filter((f) => f.type === "password");
-        for (const p of pws) await fillText(page, p.id, login.password);
         const others = s.fields.filter((f) => f.type !== "password");
         for (const f of others.filter((f2) => f2.type === "email" || /e-?mail/i.test(f2.label))) await fillText(page, f.id, login.login_email);
         let rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
@@ -674,7 +672,11 @@
         rest = rest.filter((f) => !sec.includes(f.id));
         filled += await applyFills(page, deps2, rest, state);
         await acceptTerms(page, s);
-        const go = find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
+        await sleep(1500);
+        const ready = await snap(page);
+        for (const p of ready.allFields.filter((f) => f.type === "password")) await fillText(page, p.id, login.password);
+        state.navHistory = [...state.navHistory ?? [], "filled the sign-up form"].slice(-12);
+        const go = find(ready, CREATE_SUBMIT) ?? find(s, CREATE_SUBMIT) ?? s.buttons.find((b) => CREATE_LOOSE.test(clean(b.label)) && !/(sign ?in|log ?in|cancel|back|clear|reset|forgot)/i.test(b.label));
         if (!go) {
           const o2 = await stuckStep(page, deps2, s, state, "the sign-up form is filled in; find and press the button that creates the account (it may be at the bottom, below the terms, or be an image or link)", { kind: "needs_you", reason: "stuck", note: "filled the sign-up form but couldn't find the button that creates the account" });
           if (o2) return { outcome: o2, state, filled };
@@ -682,6 +684,7 @@
           continue;
         }
         state.accountAt = Date.now();
+        state.navHistory = [...state.navHistory ?? [], `pressed "${clean(go.label)}" to create the account`].slice(-12);
         await click(page, go.id);
         continue;
       }
@@ -944,6 +947,17 @@
   }
   async function applyList(page, deps2, safe, fills, state) {
     let n = 0;
+    if (fills.some((f) => f.action === "fill" && f.source === "username")) {
+      const hint = await frameOf(page).evaluate((n2) => (document.body?.innerText ?? "").slice(0, n2), 2e4).catch(() => "");
+      if (/\bfirst(name)?\s*\.\s*last(name)?\b|first name\s*\.\s*last name|firstname\.lastname/i.test(hint)) {
+        for (const f of fills) {
+          const field = safe.find((x) => x.id === f.id);
+          if (f.action !== "fill" || f.source !== "username" || !field) continue;
+          const alt = deps2.fillFromKey ? await deps2.fillFromKey(field, "username_first_last") : null;
+          if (alt && alt.action === "fill") f.value = alt.value;
+        }
+      }
+    }
     if (fills.some((f) => f.action === "fill" && ISO_DATE.test(f.value) && safe.find((x) => x.id === f.id)?.type !== "date")) {
       const hint = await frameOf(page).evaluate((n2) => (document.body?.innerText ?? "").slice(0, n2), 2e4).catch(() => "");
       for (const f of fills) {
