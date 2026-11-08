@@ -1337,11 +1337,40 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
       }
       const ok = await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
       if (ok) n++;
+      // a list or tick box that sends the form to the server as soon as it changes (peoplesoft's
+      // submitAction): wait for the reply, or it redraws the form over what gets typed next
+      if (ok && (f.action === "choose" || f.action === "check")) await settle(page);
     } catch {
       /* a field we couldn't set stays empty and is reported as a question */
     }
   }
   return n;
+}
+
+// wait until the page stops changing: no DOM changes for 700ms (5s at most). a form that posts back on every
+// choice redraws itself a moment later, and typing before that is lost
+async function settle(page: Page) {
+  await sleep(300);
+  await frameOf(page)
+    .evaluate(
+      (max: number) =>
+        new Promise<boolean>((done) => {
+          let last = Date.now();
+          const start = last;
+          const mo = new MutationObserver(() => (last = Date.now()));
+          mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+          const t = setInterval(() => {
+            if (Date.now() - last > 700 || Date.now() - start > max) {
+              clearInterval(t);
+              mo.disconnect();
+              done(true);
+            }
+          }, 100);
+        }),
+      5000,
+    )
+    .catch(() => {});
+  await page.waitForLoadState("domcontentloaded").catch(() => {});
 }
 
 // account terms: covered by the applicant's signed authorization to create the account

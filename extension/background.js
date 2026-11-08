@@ -1035,10 +1035,33 @@
         }
         const ok = await frameOf(page).evaluate((x) => window.__am.apply(x), f);
         if (ok) n++;
+        if (ok && (f.action === "choose" || f.action === "check")) await settle(page);
       } catch {
       }
     }
     return n;
+  }
+  async function settle(page) {
+    await sleep(300);
+    await frameOf(page).evaluate(
+      (max) => new Promise((done) => {
+        let last = Date.now();
+        const start = last;
+        const mo = new MutationObserver(() => last = Date.now());
+        mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+        const t = setInterval(() => {
+          if (Date.now() - last > 700 || Date.now() - start > max) {
+            clearInterval(t);
+            mo.disconnect();
+            done(true);
+          }
+        }, 100);
+      }),
+      5e3
+    ).catch(() => {
+    });
+    await page.waitForLoadState("domcontentloaded").catch(() => {
+    });
   }
   async function acceptTerms(page, s) {
     for (const f of s.fields.filter((x) => x.type === "checkbox" && TERMS.test(x.label))) {
@@ -1289,7 +1312,7 @@
         await run(tabId, frameId, pageFiles, { sel, b64: b64(file.buffer), name: file.name, mime: file.mime });
       }
     });
-    const waitLoad = async (timeout, settle) => {
+    const waitLoad = async (timeout, settle2) => {
       const end = Date.now() + timeout;
       await sleep2(250);
       while (Date.now() < end) {
@@ -1298,7 +1321,7 @@
         if (t.status === "complete") break;
         await sleep2(300);
       }
-      if (settle) await sleep2(settle);
+      if (settle2) await sleep2(settle2);
     };
     return {
       url: async () => {
