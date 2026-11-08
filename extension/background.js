@@ -193,7 +193,9 @@
       if (await frameOf(page).evaluate((x) => window.__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
     }
     for (const [i, a] of as.entries()) {
-      await fillText(page, a.id, login.answers[i % login.answers.length]);
+      const n = Number((a.label.match(/\d+/) ?? [])[0]);
+      const k = Number.isFinite(n) && n > 0 ? n - 1 : i;
+      await fillText(page, a.id, login.answers[k % login.answers.length]);
       done.push(a.id);
     }
     return done;
@@ -430,6 +432,15 @@
             s = await snap(page);
             stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
             if (!stillEmpty.length) continue;
+          }
+        }
+        if (stillEmpty.some((f) => SEC_A.test(f.label) || SEC_Q.test(f.label))) {
+          const login = await deps2.existingLogin();
+          const sec = login ? await securityQuestions(page, stillEmpty, login) : [];
+          if (sec.length) {
+            filled += sec.length;
+            state.samePageCount = 0;
+            continue;
           }
         }
         const notTaken = stillEmpty.filter((f) => deps2.hasValue?.(f.label));

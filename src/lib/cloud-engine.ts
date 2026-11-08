@@ -369,7 +369,10 @@ export async function securityQuestions(page: Page, fields: PageField[], login: 
     if (await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), { id: q.id, action: "choose", option: pick, source: "security" }).catch(() => false)) done.push(q.id);
   }
   for (const [i, a] of as.entries()) {
-    await fillText(page, a.id, login.answers[i % login.answers.length]);
+    // "Answer 3" gets the third answer whichever boxes are still empty, so the list under Your portal login matches
+    const n = Number((a.label.match(/\d+/) ?? [])[0]);
+    const k = Number.isFinite(n) && n > 0 ? n - 1 : i;
+    await fillText(page, a.id, login.answers[k % login.answers.length]);
     done.push(a.id);
   }
   return done;
@@ -637,6 +640,16 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
           s = await snap(page);
           stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
           if (!stillEmpty.length) continue;
+        }
+      }
+      // security questions on an account page are never the applicant's to answer: the login's made-up answers go in
+      if (stillEmpty.some((f) => SEC_A.test(f.label) || SEC_Q.test(f.label))) {
+        const login = await deps.existingLogin();
+        const sec = login ? await securityQuestions(page, stillEmpty, login) : [];
+        if (sec.length) {
+          filled += sec.length;
+          state.samePageCount = 0;
+          continue;
         }
       }
       // a field the profile has a value for isn't a question for the applicant: the portal just didn't take it

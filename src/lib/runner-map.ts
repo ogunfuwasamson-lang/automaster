@@ -37,6 +37,12 @@ const ALIASES: Record<string, string[]> = {
   french: ["francais", "frances"],
   "full time": ["full-time", "fulltime", "ft"],
   "part time": ["part-time", "parttime", "pt"],
+  "search engine": ["internet search", "internet", "google", "web search", "online search", "search engine google", "online"],
+  "school website": ["university website", "website", "university web site", "the university website", "institution website", "web site"],
+  "social media": ["facebook", "instagram", "linkedin", "twitter", "x", "tiktok", "youtube"],
+  "friend or family": ["friend", "family", "friends or family", "word of mouth", "recommendation"],
+  "education fair": ["fair", "exhibition", "recruitment fair", "education exhibition", "event"],
+  rankings: ["league tables", "league table", "ranking", "university rankings"],
   myself: ["self", "applicant", "i am the applicant", "the applicant", "student", "individual", "me", "for myself", "on my own behalf"],
 };
 
