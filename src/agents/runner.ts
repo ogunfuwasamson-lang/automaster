@@ -768,6 +768,8 @@ export const runner: Record<string, Handler> = {
               errors: [...document.querySelectorAll(".error, .errors, [role=alert], .invalid, .validation, .form_error, .message, .notification, .alert")].map(t).filter(Boolean).slice(0, 8),
               captcha: !!document.querySelector("iframe[src*=recaptcha], iframe[src*=hcaptcha], iframe[src*=turnstile], [data-sitekey], .grecaptcha-badge"),
               body: (document.body?.innerText ?? "").replace(/\s+/g, " ").slice(0, 700),
+              // sentences anywhere on the page that say what's wrong (inline errors sit far below the top)
+              complaints: ((document.body?.innerText ?? "").replace(/\s+/g, " ").match(/[^.!?]{0,120}\b(required|invalid|already|error|must|not valid|does not|cannot|can't|incorrect|mismatch|too short|too long)\b[^.!?]{0,120}[.!?]?/gi) ?? []).slice(0, 12),
             };
           })
           .catch(() => null);
