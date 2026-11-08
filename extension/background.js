@@ -278,6 +278,7 @@
       if (second > 12) return [m, d, y].join(ex[2]);
       if (first > 12) return [d, m, y].join(ex[2]);
     }
+    if (/\/ps[cp]\//i.test(context)) return [m, d, y].join("/");
     return iso;
   }
   var DATE_COMPLAINT = /(does not understand the date|invalid date|not a valid date|enter a valid date|date (is )?(invalid|in the wrong format)|date format)/i;
@@ -975,7 +976,7 @@
       const hint = await frameOf(page).evaluate((n2) => (document.body?.innerText ?? "").slice(0, n2), 2e4).catch(() => "");
       for (const f of fills) {
         const field = safe.find((x) => x.id === f.id);
-        if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint}`);
+        if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint} ${await page.url()}`);
       }
     }
     for (const f of fills) {

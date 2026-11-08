@@ -67,3 +67,10 @@ describe("dates in the page's format", () => {
     expect(dateAs("1990-05-14", "Date of birth")).toBe("1990-05-14");
   });
 });
+
+describe("peoplesoft dates", () => {
+  it("are month first by default", async () => {
+    const { dateAs } = await import("@/lib/cloud-engine");
+    expect(dateAs("1993-06-11", "Date of Birth https://pgapplication.manchester.ac.uk/psc/apply/EMPLOYEE/SA/c/X.GBL")).toBe("06/11/1993");
+  });
+});

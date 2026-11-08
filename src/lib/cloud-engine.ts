@@ -471,6 +471,9 @@ export function dateAs(iso: string, context: string): string {
     if (second > 12) return [m, d, y].join(ex[2]);
     if (first > 12) return [d, m, y].join(ex[2]);
   }
+  // peoplesoft (urls with /psc/ or /psp/) reads dates as 12/31/2000 unless the page says otherwise, and checks
+  // every box on each of its reloads, so a date in another format errors before the form is even sent
+  if (/\/ps[cp]\//i.test(context)) return [m, d, y].join("/");
   return iso;
 }
 
@@ -1269,7 +1272,7 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
       .catch(() => "");
     for (const f of fills) {
       const field = safe.find((x) => x.id === f.id);
-      if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint}`);
+      if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint} ${await page.url()}`);
     }
   }
   for (const f of fills) {

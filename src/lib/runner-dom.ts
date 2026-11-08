@@ -116,6 +116,7 @@ export const DOM_HELPER = String.raw`
       const combo = type === "text" && (role === "combobox" || /^(list|both)$/i.test(el.getAttribute("aria-autocomplete") || "") || !!el.getAttribute("list") || !!el.closest('[class*="select2" i], [class*="react-select" i], [class*="combobox" i], [class*="autocomplete" i], [class*="typeahead" i]'));
       out.push({ id: idOf(el), label, type, combo: combo || undefined, name: el.name || undefined, autocomplete: el.autocomplete || undefined,
         options: type === "select" ? [...el.options].map((o) => o.text.trim()) : undefined,
+        maxLength: el.maxLength > 0 && el.maxLength < 1000 ? el.maxLength : undefined,
         required: el.required || el.getAttribute("aria-required") === "true" || /\*\s*$|\*\s*\(/.test(label) || (type !== "checkbox" && /\*/.test(label) && label.length < 200) });
     }
     return out.slice(0, 150);

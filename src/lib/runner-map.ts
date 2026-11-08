@@ -1,3 +1,4 @@
+import { countryCode } from "@/lib/country-codes";
 // turns a portal page's fields into values from the fill sheet. pure; the model only ever picks a sheet KEY,
 // never writes a value, so it can't invent facts about the applicant.
 import { CERTIFY, NEVER_FILL, keyForLabel, type FillSheet } from "@/lib/fillsheet";
@@ -11,6 +12,7 @@ export interface PageField {
   options?: string[]; // select / radio choices, as shown
   required?: boolean;
   combo?: boolean; // a search-as-you-type box: type the value, then pick it from the list that appears
+  maxLength?: number; // the most characters the box takes
 }
 
 export type Fill =
@@ -275,6 +277,11 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
   }
   // yes/no boxes are the applicant's call: only ticked when they answered yes to this question
   if (f.type === "checkbox") return key.startsWith("answer:") && /^(yes|y|true|i agree|agree|i do|correct)\b/i.test(value) ? { id: f.id, action: "check", source: key } : null;
+  // a country box that takes 2 or 3 characters wants the code ("NGA"), not the name
+  if ((f.maxLength === 2 || f.maxLength === 3) && /country|citizenship|nationality/i.test(`${key} ${f.label} ${f.name ?? ""}`)) {
+    const code = countryCode(value, f.maxLength);
+    if (code) return { id: f.id, action: "fill", value: code, source: key };
+  }
   if (f.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   if (f.type === "number" && !/^-?\d+(\.\d+)?$/.test(value)) return null;
   if (f.type === "email" && !/@/.test(value)) return null;
