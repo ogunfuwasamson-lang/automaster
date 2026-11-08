@@ -70,7 +70,7 @@
   var BLOCK_TITLE = /^(access denied|forbidden|403\b|request (blocked|rejected)|attention required|just a moment|pardon our interruption|are you a (robot|human)|you have been blocked|blocked)/i;
   var BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue)/i;
   var isBlockPage = (s) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
-  var TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
+  var TERMS = /(i (have read and )?(agree|accept)|i confirm (that )?i have read|accept to continue|terms (of use|and conditions|of service)|privacy (policy|notice)|data protection (statement|policy|notice))/i;
   function classify(s) {
     if (s.confirmation) return "confirmation";
     if (s.captcha) return "captcha";
@@ -703,7 +703,8 @@
         filled += sec.length;
         rest = rest.filter((f) => !sec.includes(f.id));
         filled += await applyFills(page, deps2, rest, state);
-        await acceptTerms(page, s);
+        await sleep(1e3);
+        await acceptTerms(page, await snap(page));
         await sleep(1500);
         const ready = await snap(page);
         for (const p of ready.allFields.filter((f) => f.type === "password")) await fillText(page, p.id, login.password);
@@ -728,7 +729,7 @@
         }
         const v = await deps2.verification(since);
         if (!v || !v.code && !v.link) {
-          if (Date.now() - state.verifyWaitSince > 20 * 6e4) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal's verification email hasn't arrived after 20 minutes" }, state, filled };
+          if (Date.now() - state.verifyWaitSince > 20 * 6e4) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal's verification email hasn't reached the agents after 20 minutes. Connect Gmail, or paste the email under Messages \u2192 Paste an email, and they carry on" }, state, filled };
           return { outcome: { kind: "wait", note: "waiting for the portal's verification email", seconds: 60 }, state, filled };
         }
         state.verifyWaitSince = void 0;

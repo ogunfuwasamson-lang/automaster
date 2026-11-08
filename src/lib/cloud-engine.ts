@@ -221,7 +221,7 @@ const findBy = (s: Snapshot, ok: (label: string) => boolean) => s.buttons.find((
 const BLOCK_TITLE = /^(access denied|forbidden|403\b|request (blocked|rejected)|attention required|just a moment|pardon our interruption|are you a (robot|human)|you have been blocked|blocked)/i;
 const BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue)/i;
 export const isBlockPage = (s: Pick<Snapshot, "title" | "body">) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
-const TERMS = /(i (have read and )?(agree|accept)|terms (of use|and conditions|of service)|privacy (policy|notice))/i;
+const TERMS = /(i (have read and )?(agree|accept)|i confirm (that )?i have read|accept to continue|terms (of use|and conditions|of service)|privacy (policy|notice)|data protection (statement|policy|notice))/i;
 
 // pure: what kind of page is this?
 export function classify(s: Snapshot): "confirmation" | "captcha" | "payment" | "login" | "signup" | "verify_code" | "check_email" | "form" {
@@ -967,7 +967,10 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       filled += sec.length;
       rest = rest.filter((f) => !sec.includes(f.id));
       filled += await applyFills(page, deps, rest, state);
-      await acceptTerms(page, s);
+      // the terms box from a fresh look: earlier choices may have reloaded the form, and on some portals
+      // (manchester) ticking it is what makes the create button appear
+      await sleep(1000);
+      await acceptTerms(page, await snap(page));
       // passwords last: portals that reload the form on every choice (peoplesoft) wipe password boxes each time
       await sleep(1500);
       const ready = await snap(page);
