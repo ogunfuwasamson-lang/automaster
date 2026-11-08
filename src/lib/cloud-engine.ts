@@ -474,6 +474,15 @@ export function dateAs(iso: string, context: string): string {
   return iso;
 }
 
+// the page says it couldn't read a date ("does not understand the date you entered. Example date: 12/31/2000"):
+// the date boxes that already hold one get typed again, now that the page shows its format
+const DATE_COMPLAINT = /(does not understand the date|invalid date|not a valid date|enter a valid date|date (is )?(invalid|in the wrong format)|date format)/i;
+function dateRedo(s: Snapshot, already: PageField[]): PageField[] {
+  if (!DATE_COMPLAINT.test(`${s.body.slice(0, 4000)} ${(s.errors ?? []).join(" ")}`)) return [];
+  const have = new Set(already.map((f) => f.id));
+  return s.allFields.filter((f) => f.type === "text" && /\b(date|birth|dob)\b/i.test(f.label) && !have.has(f.id)) as PageField[];
+}
+
 // true (and noted) the first time an application is started in this portal; false after that
 function markNewApp(state: EngineState, label: string): boolean {
   if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
@@ -919,7 +928,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       // email (and confirm email) get the applicant's login email; everything else from the fill sheet
       const others = s.fields.filter((f) => f.type !== "password");
       for (const f of others.filter((f) => f.type === "email" || /e-?mail/i.test(f.label))) await fillText(page, f.id, login.login_email);
-      let rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+      let rest = [...others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label))), ...dateRedo(s, others)];
       // security questions ("Question 2" / "Answer 2"): a different question each, answered with the login's own
       // made-up answers, never anything about the applicant
       const sec = await securityQuestions(page, rest, login);
@@ -985,9 +994,10 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         continue;
       }
     }
-    if (s.fields.length) {
-      await deps.progress(`filling ${s.fields.length} field${s.fields.length > 1 ? "s" : ""}`);
-      filled += await applyFills(page, deps, s.fields, state);
+    const redo = dateRedo(s, s.fields);
+    if (s.fields.length || redo.length) {
+      await deps.progress(`filling ${s.fields.length + redo.length} field${s.fields.length + redo.length > 1 ? "s" : ""}`);
+      filled += await applyFills(page, deps, [...s.fields, ...redo], state);
       await acceptTerms(page, s);
       await sleep(1500);
       const tried = new Set(s.fields.map((f) => f.id));

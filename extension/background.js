@@ -280,6 +280,12 @@
     }
     return iso;
   }
+  var DATE_COMPLAINT = /(does not understand the date|invalid date|not a valid date|enter a valid date|date (is )?(invalid|in the wrong format)|date format)/i;
+  function dateRedo(s, already) {
+    if (!DATE_COMPLAINT.test(`${s.body.slice(0, 4e3)} ${(s.errors ?? []).join(" ")}`)) return [];
+    const have = new Set(already.map((f) => f.id));
+    return s.allFields.filter((f) => f.type === "text" && /\b(date|birth|dob)\b/i.test(f.label) && !have.has(f.id));
+  }
   function markNewApp(state, label) {
     if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
     state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
@@ -666,7 +672,7 @@
         await deps2.progress("creating your portal account");
         const others = s.fields.filter((f) => f.type !== "password");
         for (const f of others.filter((f2) => f2.type === "email" || /e-?mail/i.test(f2.label))) await fillText(page, f.id, login.login_email);
-        let rest = others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label)));
+        let rest = [...others.filter((f) => !(f.type === "email" || /e-?mail/i.test(f.label))), ...dateRedo(s, others)];
         const sec = await securityQuestions(page, rest, login);
         filled += sec.length;
         rest = rest.filter((f) => !sec.includes(f.id));
@@ -722,9 +728,10 @@
           continue;
         }
       }
-      if (s.fields.length) {
-        await deps2.progress(`filling ${s.fields.length} field${s.fields.length > 1 ? "s" : ""}`);
-        filled += await applyFills(page, deps2, s.fields, state);
+      const redo = dateRedo(s, s.fields);
+      if (s.fields.length || redo.length) {
+        await deps2.progress(`filling ${s.fields.length + redo.length} field${s.fields.length + redo.length > 1 ? "s" : ""}`);
+        filled += await applyFills(page, deps2, [...s.fields, ...redo], state);
         await acceptTerms(page, s);
         await sleep(1500);
         const tried = new Set(s.fields.map((f) => f.id));

@@ -25,7 +25,7 @@ const sheet: FillSheet = {
   program: "MSc Finance",
   portal_url: null,
   attested: true,
-  fields: { first_name: "Ada", last_name: "Okafor", email: "ada@example.com", entry_term: "fall-2027", entry_season: "Fall", entry_year: "2027", application_type: "Graduate", country: "Nigeria", level: "Master's" },
+  fields: { first_name: "Ada", last_name: "Okafor", email: "ada@example.com", date_of_birth: "1990-05-14", entry_term: "fall-2027", entry_season: "Fall", entry_year: "2027", application_type: "Graduate", country: "Nigeria", level: "Master's" },
   essays: [],
   files: [],
   missing: [],
@@ -416,6 +416,24 @@ d("portal engine: failures seen in production", () => {
     await page.goto("https://portal.test/docs");
     await runEngine(fromPlaywright(page), deps({ files: () => ["cv", "transcript", "degree_cert"] }), { steps: 0 }, 20_000);
     expect(got).toEqual(["CV", "Transcript", "Degree certificate"]);
+    await page.close();
+  }, 60_000);
+
+  it("types the date again in the page's format after the page complains (manchester)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/dob": (q) => {
+        const v = q.get("dob");
+        if (v === "05/14/1990") return ((got = v), `<h1>Review</h1><p>Thank you for submitting your application.</p>`);
+        const msg = v ? `<p>Message The system does not understand the date you entered. Example date: 12/31/2000</p>` : "";
+        return `<h1>Your details</h1>${msg}<form action="/dob"><label for="d">Date of Birth *</label><input id="d" name="dob" required value="${v ?? ""}"><button type="submit">Save and continue</button></form>`;
+      },
+    });
+    await page.goto("https://portal.test/dob");
+    const r = await runEngine(fromPlaywright(page), deps(), { steps: 0, submitClicked: true }, 30_000);
+    expect(got).toBe("05/14/1990");
+    expect(r.outcome.kind).toBe("submitted");
     await page.close();
   }, 60_000);
 
