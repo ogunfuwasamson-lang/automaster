@@ -1,3 +1,4 @@
+import { resumeAfterMailConnected } from "@/lib/requeue";
 import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
@@ -23,6 +24,10 @@ export async function POST(req: NextRequest) {
     school = (data?.programs as unknown as { schools: { name: string } } | null)?.schools.name ?? null;
   }
   const subject = text.split("\n").find((l) => l.trim())?.slice(0, 160) ?? "Pasted email";
+  // the portal agents read pasted emails too (verification codes, sign-up PINs, password resets): keep it, and
+  // pick up the submissions that were waiting on an email
+  await admin().from("pasted_mail").insert({ user_id: auth.user.id, application_id: applicationId ?? null, from_addr: (text.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/) ?? [])[0] ?? null, subject, body: text });
+  await resumeAfterMailConnected(auth.user.id).catch(() => 0);
   try {
     const n = await findFollowups(auth.user.id, { from: school ?? "a school (pasted)", subject, text, html: "", at: Date.now() }, { applicationId: applicationId ?? null, school, messageId: null });
     return NextResponse.json({ found: n });

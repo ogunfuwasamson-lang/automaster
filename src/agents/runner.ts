@@ -200,7 +200,8 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       return l;
     },
     accountEmail: c.sheet.fields.email ?? "",
-    canReadMail: c.readMail,
+    // gmail, or emails the applicant pastes into Ivyward (read the same way): the agents wait for either
+    canReadMail: true,
     navigate: async (n) => {
       const { output } = await runStructured({
         userId: c.userId,
@@ -247,7 +248,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       return output;
     },
     files: () => c.sheet.files.map((f) => f.key),
-    resetLink: c.readMail ? (since) => findResetLink(c.userId, c.host(), since) : undefined,
+    resetLink: (since) => findResetLink(c.userId, c.host(), since),
     resumeLink: c.readMail ? () => findResumeLink(c.userId, c.host()) : undefined,
     portalUrl: c.goal ? null : normalizeUrl(c.sheet.portal_url),
     rotatePassword: async () => {
@@ -272,7 +273,7 @@ export async function findResetLink(userId: string, host: string, since: number)
   // look back to when the account was made: a portal account created days ago still has its activation email
   // waiting (mcgill's was 2 weeks old when the agents went looking with a 1-day window and gave up)
   const days = Math.min(30, Math.max(1, Math.ceil((Date.now() - since) / 86_400_000) + 1));
-  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:${days}d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8);
+  const mails = [...(await recentMail(userId, `in:anywhere -in:trash newer_than:${days}d (from:${root} OR subject:(password OR reset OR "mot de passe"))`, 8).catch(() => [])), ...(await pastedMail(userId, root, since))];
   for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
     const links = [...`${m.html} ${m.text}`.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map((x) => x[0].replace(/&amp;/g, "&").replace(/[.,;]+$/, ""));
     const hit = links.find((l) => {
@@ -335,9 +336,26 @@ async function findProgramPage(userId: string, jobId: string | undefined, p: { n
   return found.text.includes(u.replace(/^https:\/\//, "").slice(0, 30)) || found.sources.some((x) => x.startsWith(new URL(u).origin)) ? u : null;
 }
 
+// school emails pasted into Ivyward for this applicant, shaped like gmail messages: from this school's site (or
+// mentioning it), since a time. how applicants without Gmail connected get codes and reset links to the agents
+export async function pastedMail(userId: string, root: string, since: number) {
+  const { data } = await admin()
+    .from("pasted_mail")
+    .select("id, from_addr, subject, body, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", new Date(since - 60_000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const site = root.split(".")[0];
+  return (data ?? [])
+    .filter((m) => `${m.from_addr ?? ""} ${m.subject ?? ""} ${m.body}`.toLowerCase().includes(site.toLowerCase()))
+    .map((m) => ({ id: m.id as string, threadId: null, from: (m.from_addr as string) ?? `pasted@${root}`, subject: (m.subject as string) ?? "", text: m.body as string, html: "", at: Date.parse(m.created_at as string) }));
+}
+
 export async function findVerification(userId: string, host: string, since: number) {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:1d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8);
+  const days = Math.min(30, Math.max(1, Math.ceil((Date.now() - since) / 86_400_000) + 1));
+  const mails = [...(await recentMail(userId, `in:anywhere -in:trash newer_than:${days}d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8).catch(() => [])), ...(await pastedMail(userId, root, since))];
   for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
     const v = extractVerification(m, host);
     if (v.code || v.link) return v;

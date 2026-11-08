@@ -153,7 +153,7 @@ export async function resumeAfterMailConnected(userId: string): Promise<number> 
     if (!waiting) continue;
     await db
       .from("applications")
-      .update({ runner_status: "ready", runner_mode: "cloud", runner_note: "Gmail connected: carrying on", runner_state: { ...st, reason: null, samePageCount: 0, stuckRepeats: 0, reset: undefined, lookedForReset: false }, runner_updated_at: new Date().toISOString() })
+      .update({ runner_status: "ready", runner_mode: "cloud", runner_note: "the school's email is in: carrying on", runner_state: { ...st, reason: null, samePageCount: 0, stuckRepeats: 0, reset: undefined, lookedForReset: false }, runner_updated_at: new Date().toISOString() })
       .eq("id", a.id);
     await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId: a.id } });
     await logEvent({ userId, actor: "system", action: "runner.resumed", applicationId: a.id, context: { after: "gmail connected" } });

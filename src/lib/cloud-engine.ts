@@ -997,7 +997,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       }
       const v = await deps.verification(since);
       if (!v || (!v.code && !v.link)) {
-        if (Date.now() - state.verifyWaitSince > 20 * 60_000) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal's verification email hasn't arrived after 20 minutes" }, state, filled };
+        if (Date.now() - state.verifyWaitSince > 20 * 60_000) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal's verification email hasn't reached the agents after 20 minutes. Connect Gmail, or paste the email under Messages → Paste an email, and they carry on" }, state, filled };
         return { outcome: { kind: "wait", note: "waiting for the portal's verification email", seconds: 60 }, state, filled };
       }
       state.verifyWaitSince = undefined;
