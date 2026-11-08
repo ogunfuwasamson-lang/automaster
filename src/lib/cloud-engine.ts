@@ -43,9 +43,11 @@ export interface EngineState {
   triedCreate?: boolean;
   // buttons that start or create something (an application, an account), pressed once: never pressed twice
   createClicks?: string[];
-  resumeLinkAt?: number;
+  resumeLinkAt?: number; // when the emailed continue-link was last followed
   resumeLinkTries?: number; // emailed continue-links followed on this application (a few at most)
-  leadBacks?: number; // times this run came back from an enquiry form // when the emailed continue-link was last followed
+  lookedForReset?: boolean; // looked at the page for a password reset link once
+  pressedAsked?: string[]; // buttons pressed because the page's text asked for them, by page
+  leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
 }
@@ -336,6 +338,19 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
   return best && best.score >= 3 ? best.b : undefined;
 }
 
+// a button the page's own text tells the applicant to press ('Remember to "Save Education"', 'click "Add"'),
+// visible and not pressed yet on this page
+const ASKED_BUTTON = /\b(?:remember to|please|you must|make sure (?:you|to)|click|press|select|use)\s+(?:the\s+)?["“'‘]([^"”'’]{3,40})["”'’]/gi;
+export function namedButton(s: Snapshot, state: EngineState): Snapshot["buttons"][number] | undefined {
+  const asked = [...(s.body.slice(0, 8000) + " " + (s.errors ?? []).join(" ")).matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+  if (!asked.length) return undefined;
+  const key = (state.lastFingerprint ?? "").slice(0, 60);
+  const done = new Set(state.pressedAsked ?? []);
+  const b = s.buttons.find((x) => asked.includes(clean(x.label).toLowerCase()) && !done.has(`${key}|${clean(x.label).toLowerCase()}`) && !DANGEROUS.test(x.label) && !FINAL.test(clean(x.label)));
+  if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
+  return b;
+}
+
 // true (and noted) the first time an application is started in this portal; false after that
 function markNewApp(state: EngineState, label: string): boolean {
   if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
@@ -563,6 +578,19 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
+    // the page names the button it's waiting for ('Remember to "Save Education" below'): press it, once per page
+    if (state.samePageCount >= 2) {
+      const named = namedButton(s, state);
+      if (named) {
+        state.navHistory = [...(state.navHistory ?? []), `pressed "${clean(named.label)}", which the page asked for`].slice(-12);
+        await deps.progress(`pressing "${clean(named.label)}", which the portal asks for`);
+        await click(page, named.id);
+        // a new move on this page: give the usual steps (fill, next) a fresh try after it
+        state.samePageCount = 0;
+        state.lastFingerprint = undefined;
+        continue;
+      }
+    }
     if (state.samePageCount >= 3 && s.fields.some((f) => f.required)) {
       // the same page won't move: take a harder look at what's still blank before asking anyone
       const h = await fillHard(page, deps, state);
@@ -708,11 +736,23 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
         }
         // reset the password through the portal's own "forgot password", read the email, set a new one, save it
         const forgot = findForgot(after);
-        if (forgot && deps.canReadMail && deps.resetLink && deps.rotatePassword && (state.reset?.tries ?? 0) < 2) {
+        const canReset = deps.canReadMail && deps.resetLink && deps.rotatePassword && (state.reset?.tries ?? 0) < 2;
+        if (forgot && canReset) {
           state.reset = { stage: "requested", at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
           await deps.progress("the portal rejected the saved password, so the agents are resetting it");
           await click(page, forgot.id);
           continue;
+        }
+        // no link the rules recognise ("Need help?", an icon, a link in a menu): look at the page for one
+        if (!forgot && canReset && !state.lookedForReset) {
+          state.lookedForReset = true;
+          const reset = { stage: "requested" as const, at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
+          const o = await stuckStep(page, deps, after, state, "the portal rejected the saved password. find and press the link to reset or recover the password (it may be called forgot password, reset password, need help signing in, or trouble logging in). do not type anything", { kind: "needs_you", reason: "login", note: "" });
+          if (!o) {
+            state.reset = reset;
+            await deps.progress("the portal rejected the saved password, so the agents are resetting it");
+            continue;
+          }
         }
         if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
         return { outcome: { kind: "needs_you", reason: "login", note: deps.canReadMail ? "the portal rejected the saved password and has no reset link the agents could use. Reset it on the portal, save the new one under Portal logins, and the agents sign in again by themselves" : "the portal rejected the saved password. Connect Gmail so the agents can reset it themselves, or reset it on the portal and save the new one under Portal logins" }, state, filled };

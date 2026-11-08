@@ -355,6 +355,28 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 30_000);
 
+  it("presses the button the page names when it won't move on (stirling 'Save Education')", async () => {
+    const page = await browser.newPage();
+    let saved = false;
+    let done = false;
+    await portal(page, {
+      "/edu": (q) => {
+        if (q.get("save") === "1") saved = true;
+        if (q.get("go") === "1" && saved) return ((done = true), `<h1>Review</h1><p>Thank you for submitting your application.</p>`);
+        return `<h1>My education</h1><p>Remember to "Save Education" below once you have completed this section.</p>
+          <form action="/edu"><input type="hidden" name="go" value="1"><label for="fn">First name *</label><input id="fn" name="fn" required value="Ada"><button type="submit">Save and continue</button></form>
+          <form action="/edu"><input type="hidden" name="save" value="1"><button type="submit">Save Education</button></form>`;
+      },
+    });
+    await page.goto("https://portal.test/edu");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const r = await runEngine(fromPlaywright(page), deps(), st, 30_000);
+    expect(saved).toBe(true);
+    expect(done).toBe(true);
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+
   it("never presses 'Start a new application' twice (ut dallas)", async () => {
     const page = await browser.newPage();
     let started = 0;

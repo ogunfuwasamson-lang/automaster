@@ -168,6 +168,16 @@
     }
     return best && best.score >= 3 ? best.b : void 0;
   }
+  var ASKED_BUTTON = /\b(?:remember to|please|you must|make sure (?:you|to)|click|press|select|use)\s+(?:the\s+)?["“'‘]([^"”'’]{3,40})["”'’]/gi;
+  function namedButton(s, state) {
+    const asked = [...(s.body.slice(0, 8e3) + " " + (s.errors ?? []).join(" ")).matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+    if (!asked.length) return void 0;
+    const key = (state.lastFingerprint ?? "").slice(0, 60);
+    const done = new Set(state.pressedAsked ?? []);
+    const b = s.buttons.find((x) => asked.includes(clean(x.label).toLowerCase()) && !done.has(`${key}|${clean(x.label).toLowerCase()}`) && !DANGEROUS.test(x.label) && !FINAL.test(clean(x.label)));
+    if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
+    return b;
+  }
   function markNewApp(state, label) {
     if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
     state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
@@ -370,6 +380,17 @@
       if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
+      if (state.samePageCount >= 2) {
+        const named = namedButton(s, state);
+        if (named) {
+          state.navHistory = [...state.navHistory ?? [], `pressed "${clean(named.label)}", which the page asked for`].slice(-12);
+          await deps2.progress(`pressing "${clean(named.label)}", which the portal asks for`);
+          await click(page, named.id);
+          state.samePageCount = 0;
+          state.lastFingerprint = void 0;
+          continue;
+        }
+      }
       if (state.samePageCount >= 3 && s.fields.some((f) => f.required)) {
         const h = await fillHard(page, deps2, state);
         filled += h.filled;
@@ -490,11 +511,22 @@
             }
           }
           const forgot = findForgot(after);
-          if (forgot && deps2.canReadMail && deps2.resetLink && deps2.rotatePassword && (state.reset?.tries ?? 0) < 2) {
+          const canReset = deps2.canReadMail && deps2.resetLink && deps2.rotatePassword && (state.reset?.tries ?? 0) < 2;
+          if (forgot && canReset) {
             state.reset = { stage: "requested", at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
             await deps2.progress("the portal rejected the saved password, so the agents are resetting it");
             await click(page, forgot.id);
             continue;
+          }
+          if (!forgot && canReset && !state.lookedForReset) {
+            state.lookedForReset = true;
+            const reset = { stage: "requested", at: Date.now(), tries: (state.reset?.tries ?? 0) + 1 };
+            const o2 = await stuckStep(page, deps2, after, state, "the portal rejected the saved password. find and press the link to reset or recover the password (it may be called forgot password, reset password, need help signing in, or trouble logging in). do not type anything", { kind: "needs_you", reason: "login", note: "" });
+            if (!o2) {
+              state.reset = reset;
+              await deps2.progress("the portal rejected the saved password, so the agents are resetting it");
+              continue;
+            }
           }
           if (!state.signedIn) return { outcome: { kind: "needs_you", reason: "account", note: "waiting for you to create the portal account" }, state, filled };
           return { outcome: { kind: "needs_you", reason: "login", note: deps2.canReadMail ? "the portal rejected the saved password and has no reset link the agents could use. Reset it on the portal, save the new one under Portal logins, and the agents sign in again by themselves" : "the portal rejected the saved password. Connect Gmail so the agents can reset it themselves, or reset it on the portal and save the new one under Portal logins" }, state, filled };
