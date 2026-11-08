@@ -56,3 +56,14 @@ describe("security questions", () => {
     expect(securityAnswers("apply.other.edu", "x@y.com")).not.toEqual(a);
   });
 });
+
+describe("dates in the page's format", () => {
+  it("follows a spelled format or an example date", async () => {
+    const { dateAs } = await import("@/lib/cloud-engine");
+    expect(dateAs("1990-05-14", "Example date: 12/31/2000")).toBe("05/14/1990");
+    expect(dateAs("1990-05-14", "e.g. 31/12/2000")).toBe("14/05/1990");
+    expect(dateAs("1990-05-14", "Date of birth (DD-MM-YYYY)")).toBe("14-05-1990");
+    expect(dateAs("1990-05-14", "mm/dd/yyyy")).toBe("05/14/1990");
+    expect(dateAs("1990-05-14", "Date of birth")).toBe("1990-05-14");
+  });
+});

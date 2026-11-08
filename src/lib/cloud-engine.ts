@@ -447,6 +447,27 @@ export async function uploadByType(page: Page, deps: EngineDeps, s: Snapshot, st
   return 0;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// "2000-12-31" in the format the page asks for: a format written out (dd/mm/yyyy, MM-DD-YYYY), or an example date
+// whose first number can't be a month ("Example date: 12/31/2000" is month first; "31/12/2000" is day first)
+export function dateAs(iso: string, context: string): string {
+  const [y, m, d] = iso.split("-");
+  const spelled = context.match(/\b(dd|mm|yyyy)([\/.\- ])(dd|mm)\2(yyyy|yy|dd)\b/i);
+  if (spelled) {
+    const parts = [spelled[1], spelled[3], spelled[4]].map((p) => p.toLowerCase());
+    const val = (p: string) => (p === "dd" ? d : p === "mm" ? m : p === "yy" ? y.slice(2) : y);
+    return parts.map(val).join(spelled[2]);
+  }
+  const ex = context.match(/\b(?:example|e\.g\.|eg|format|for example)[^0-9]{0,20}(\d{1,2})([\/.\-])(\d{1,2})\2(\d{4})\b/i);
+  if (ex) {
+    const first = Number(ex[1]);
+    const second = Number(ex[3]);
+    if (second > 12) return [m, d, y].join(ex[2]);
+    if (first > 12) return [d, m, y].join(ex[2]);
+  }
+  return iso;
+}
+
 // true (and noted) the first time an application is started in this portal; false after that
 function markNewApp(state: EngineState, label: string): boolean {
   if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
@@ -1196,6 +1217,16 @@ async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], sta
 // put a list of decisions on the page. search-as-you-type boxes get typed into, then the match is picked.
 async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills: Fill[], state?: EngineState): Promise<number> {
   let n = 0;
+  // dates are kept as 2000-12-31; a text box on a page that shows its own format gets that format instead
+  if (fills.some((f) => f.action === "fill" && ISO_DATE.test(f.value) && safe.find((x) => x.id === f.id)?.type !== "date")) {
+    const hint = await frameOf(page)
+      .evaluate((n: number) => (document.body?.innerText ?? "").slice(0, n), 20000)
+      .catch(() => "");
+    for (const f of fills) {
+      const field = safe.find((x) => x.id === f.id);
+      if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint}`);
+    }
+  }
   for (const f of fills) {
     try {
       if (f.action === "skip") {

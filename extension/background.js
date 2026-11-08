@@ -258,6 +258,24 @@
     }
     return 0;
   }
+  var ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  function dateAs(iso, context) {
+    const [y, m, d] = iso.split("-");
+    const spelled = context.match(/\b(dd|mm|yyyy)([\/.\- ])(dd|mm)\2(yyyy|yy|dd)\b/i);
+    if (spelled) {
+      const parts = [spelled[1], spelled[3], spelled[4]].map((p) => p.toLowerCase());
+      const val = (p) => p === "dd" ? d : p === "mm" ? m : p === "yy" ? y.slice(2) : y;
+      return parts.map(val).join(spelled[2]);
+    }
+    const ex = context.match(/\b(?:example|e\.g\.|eg|format|for example)[^0-9]{0,20}(\d{1,2})([\/.\-])(\d{1,2})\2(\d{4})\b/i);
+    if (ex) {
+      const first = Number(ex[1]);
+      const second = Number(ex[3]);
+      if (second > 12) return [m, d, y].join(ex[2]);
+      if (first > 12) return [d, m, y].join(ex[2]);
+    }
+    return iso;
+  }
   function markNewApp(state, label) {
     if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
     state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
@@ -919,6 +937,13 @@
   }
   async function applyList(page, deps2, safe, fills, state) {
     let n = 0;
+    if (fills.some((f) => f.action === "fill" && ISO_DATE.test(f.value) && safe.find((x) => x.id === f.id)?.type !== "date")) {
+      const hint = await frameOf(page).evaluate((n2) => (document.body?.innerText ?? "").slice(0, n2), 2e4).catch(() => "");
+      for (const f of fills) {
+        const field = safe.find((x) => x.id === f.id);
+        if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint}`);
+      }
+    }
     for (const f of fills) {
       try {
         if (f.action === "skip") {

@@ -256,6 +256,12 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
   if (f.type === "file") return sheet.files.some((x) => x.key === key) ? { id: f.id, action: "upload", file: key, source: key } : null;
   const value = sheet.fields[key];
   if (!value) return null;
+  // "are you registering on behalf of someone / through an agent?" with Yes / No: applying for oneself is No
+  if (key === "applying_as" && /^myself$/i.test(value) && (f.type === "select" || f.type === "radio")) {
+    const opts = f.options ?? [];
+    const no = opts.find((o) => /^\s*no\b/i.test(o));
+    if (no && opts.some((o) => /^\s*yes\b/i.test(o)) && !opts.some((o) => /self|applicant|myself/i.test(o))) return { id: f.id, action: "choose", option: no, source: key };
+  }
   if (f.type === "select" || f.type === "radio") {
     const opt = bestOption(value, f.options ?? []);
     if (opt) return { id: f.id, action: "choose", option: opt, source: key };
