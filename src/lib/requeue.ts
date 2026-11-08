@@ -6,7 +6,20 @@ import { logEvent } from "@/lib/events";
 // reasons a submission stops that the applicant fixes in Ivyward itself (a missing profile detail, an
 // unanswered question, a missing document). when their profile or documents change, the agents pick these
 // up again on their own: nobody should have to press "try again" after filling in what was asked.
-const FIXABLE_IN_APP = new Set(["question", "missing", "stuck"]);
+// "stuck" (the agents couldn't find their way on a page) is not one of them: no profile change moves a page the
+// agents can't navigate, and restarting those on every profile save looped one portal 475 times in nine days
+const FIXABLE_IN_APP = new Set(["question", "missing"]);
+// automatic restarts per application per day, whatever triggers them
+export const AUTO_RESUMES_PER_DAY = 3;
+
+export function autoResumeAllowed(st: { autoResumes?: { day: string; n: number } }, now = new Date()): boolean {
+  const day = now.toISOString().slice(0, 10);
+  return !st.autoResumes || st.autoResumes.day !== day || st.autoResumes.n < AUTO_RESUMES_PER_DAY;
+}
+export function countAutoResume(st: { autoResumes?: { day: string; n: number } }, now = new Date()) {
+  const day = now.toISOString().slice(0, 10);
+  return { day, n: st.autoResumes?.day === day ? st.autoResumes.n + 1 : 1 };
+}
 
 export async function resumeAfterProfileChange(userId: string, what: string): Promise<number> {
   const db = admin();
@@ -18,16 +31,16 @@ export async function resumeAfterProfileChange(userId: string, what: string): Pr
     .in("runner_status", ["needs_you", "failed"]);
   let n = 0;
   for (const a of data ?? []) {
-    const st = (a.runner_state ?? {}) as { reason?: string; missing?: string[]; last_url?: string };
+    const st = (a.runner_state ?? {}) as { reason?: string; missing?: string[]; last_url?: string; autoResumes?: { day: string; n: number } };
     const fixable = FIXABLE_IN_APP.has(st.reason ?? "") || (st.missing?.length ?? 0) > 0 || /in profile|your profile|upload it|add your|doesn't cover/i.test(a.runner_note ?? "");
-    if (!fixable) continue;
+    if (!fixable || !autoResumeAllowed(st)) continue;
     // keep where the portal was and the session cookies; forget what was missing so it's checked fresh
     await db
       .from("applications")
       .update({
         runner_status: "ready",
         runner_note: "picking up your profile update",
-        runner_state: { ...st, missing: [], questions: [], samePageCount: 0, reason: null, rechecks: 0 },
+        runner_state: { ...st, missing: [], questions: [], samePageCount: 0, reason: null, rechecks: 0, autoResumes: countAutoResume(st) },
         runner_updated_at: new Date().toISOString(),
       })
       .eq("id", a.id);

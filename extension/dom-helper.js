@@ -3,15 +3,27 @@
   const textOf = (el) => (el ? (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim() : "");
   // portals built from web components (salesforce experience sites, many modern forms) keep their fields inside
   // shadow roots, where document.querySelectorAll can't see. these look through every open shadow root too.
+  // a salesforce application page nests thousands of components: the form sits far below the first few hundred
+  // roots, so the walk goes deep (bounded by count and time) and is cached briefly, since one scan asks many times
+  let rootCache = null, rootAt = 0;
   const roots = () => {
+    const now = Date.now();
+    if (rootCache && now - rootAt < 250) return rootCache;
     const out = [document];
-    for (let i = 0; i < out.length && out.length < 400; i++) for (const el of out[i].querySelectorAll("*")) if (el.shadowRoot) out.push(el.shadowRoot);
+    for (let i = 0; i < out.length && out.length < 20000 && Date.now() - now < 1500; i++) for (const el of out[i].querySelectorAll("*")) if (el.shadowRoot) out.push(el.shadowRoot);
+    rootCache = out; rootAt = Date.now();
     return out;
   };
   const all = (sel) => { const out = []; for (const r of roots()) out.push(...r.querySelectorAll(sel)); return out; };
   const one = (sel) => { for (const r of roots()) { const e = r.querySelector(sel); if (e) return e; } return null; };
   const rootOf = (el) => (el && el.getRootNode ? el.getRootNode() : document);
-  const deepText = () => { const rs = roots(); return [document.body ? document.body.innerText : "", ...rs.slice(1).map((r) => (r.textContent || ""))].join(" ").replace(/\s+/g, " "); };
+  const deepText = () => {
+    const rs = roots();
+    const parts = [document.body ? document.body.innerText : ""];
+    let n = parts[0].length;
+    for (const r of rs.slice(1)) { if (n > 40000) break; const t = r.textContent || ""; parts.push(t); n += t.length; }
+    return parts.join(" ").replace(/\s+/g, " ");
+  };
   const visible = (el) => {
     if (!el || el.disabled || el.readOnly || el.type === "hidden") return false;
     const s = getComputedStyle(el);

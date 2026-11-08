@@ -7,6 +7,7 @@ import { getLogin, markLogin } from "@/lib/vault";
 import { logEvent } from "@/lib/events";
 import { normalizeUrl } from "@/lib/portal-url";
 import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
+import { REPEAT_NOTE, stuckBudget, stuckMark } from "@/lib/runner-guard";
 import { recordQuestions } from "@/lib/portal-questions";
 import { askToPay, paymentNeeded } from "@/lib/billing";
 import { learn } from "@/lib/school-memory";
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest) {
     if (row?.runner_mode !== "extension" && !b.claim) return NextResponse.json({ stop: "the cloud runner has this application" });
     if (!["ready", "running", "needs_you", "failed"].includes(row?.runner_status ?? "")) return NextResponse.json({ stop: "this application is no longer queued" });
     const st = (row?.runner_state ?? {}) as RunnerState;
+    // stopped on the same page twice already: don't spend another run's model calls on it
+    const budget = { navCalls: 0, visionCalls: 0 } as RunnerState;
+    budget.stuckRepeats = st.stuckRepeats;
+    if (stuckBudget(budget) === "stop") {
+      await db.from("applications").update({ runner_status: "needs_you", runner_note: REPEAT_NOTE, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
+      return NextResponse.json({ stop: REPEAT_NOTE });
+    }
     const portal = normalizeUrl(app.portal_url) ?? normalizeUrl((app.programs as unknown as { url: string | null }).url);
     if (!portal && !st.last_url) return NextResponse.json({ stop: "no portal link yet: add it on the application page" });
     await db
@@ -104,7 +112,7 @@ export async function POST(req: NextRequest) {
     const { storage_enc: _drop, ...state } = st;
     void _drop;
     return NextResponse.json({
-      state: { ...state, steps: 0, samePageCount: 0, navCalls: 0, visionCalls: 0, decided: [] },
+      state: { ...state, steps: 0, samePageCount: 0, navCalls: budget.navCalls ?? 0, visionCalls: budget.visionCalls ?? 0, decided: [] },
       url: normalizeUrl(st.last_url) ?? portal,
       canReadMail: await canReadMail(uid).catch(() => false),
       accountEmail: sheet.fields.email ?? "",
@@ -162,7 +170,7 @@ export async function POST(req: NextRequest) {
   if (o.kind === "needs_you") {
     const note = chromeNote(o.reason, o.note).slice(0, 300);
     if (o.reason === "question") await recordQuestions(uid, b.application, state.questions).catch(() => 0);
-    await db.from("applications").update({ runner_state: { ...state, reason: o.reason ?? null }, runner_status: "needs_you", runner_note: note, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
+    await db.from("applications").update({ runner_state: { ...state, ...stuckMark(prev, state, o.reason), reason: o.reason ?? null }, runner_status: "needs_you", runner_note: note, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
     if (row?.runner_status !== "needs_you") await logEvent({ userId: uid, actor: "agent:runner", action: "runner.needs_you", applicationId: b.application, channel: "portal", context: { reason: o.reason ?? null, note, via: "chrome" } });
     return NextResponse.json({ ok: true, note });
   }

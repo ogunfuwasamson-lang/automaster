@@ -168,6 +168,11 @@
     }
     return best && best.score >= 3 ? best.b : void 0;
   }
+  function markNewApp(state, label) {
+    if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
+    state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
+    return true;
+  }
   var VISION_BUDGET = 60;
   var VISION_KEYS = /* @__PURE__ */ new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
   async function visionLoop(page, deps2, state, goal, empty, max = 10) {
@@ -407,8 +412,9 @@
         state.samePageCount = 0;
         continue;
       }
-      if (EMAILED_LINK.test(s.body.slice(0, 6e3)) && deps2.resumeLink && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 6e4) {
+      if (EMAILED_LINK.test(s.body.slice(0, 6e3)) && !insideForm(s) && deps2.resumeLink && (state.resumeLinkTries ?? 0) < 3 && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 6e4) {
         state.resumeLinkAt = Date.now();
+        state.resumeLinkTries = (state.resumeLinkTries ?? 0) + 1;
         const link = await deps2.resumeLink().catch(() => null);
         if (link) {
           await deps2.progress("opening the link the school emailed to continue the application");
@@ -574,7 +580,8 @@
       }
       const haveLogin = !s.fields.length && !!await deps2.existingLogin();
       const apply = !s.fields.length ? bestApply(now, state.visited) : void 0;
-      const next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? apply;
+      let next = find(now, NEXT) ?? (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? apply;
+      if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = void 0;
       if (next) {
         if (next.href && next === apply) state.visited = [...state.visited ?? [], here(next.href)].slice(-30);
         await click(page, next.id);
@@ -606,7 +613,9 @@
     return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
   }
   var EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
+  var insideForm = (s) => s.fields.filter((f) => f.type !== "search" && !/\bsearch\b/i.test(f.label)).length >= 3;
   var NAV_BUDGET = 30;
+  var NEW_APP = /\b(start|create|begin) (a )?new application\b|\bnew application\b/i;
   var DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
   async function navStep(page, deps2, s, state, why, fallback) {
     if (!deps2.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
@@ -684,6 +693,10 @@
       const d = await deps2.canSubmit();
       if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
       state.submitClicked = true;
+    }
+    if (NEW_APP.test(label) && !markNewApp(state, label)) {
+      log(`didn't press "${label}": an application was started already`);
+      return null;
     }
     log(`click "${label}"`);
     await deps2.progress(a.note ? a.note.slice(0, 80) : `pressing "${label}"`);

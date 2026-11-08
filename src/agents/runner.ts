@@ -18,6 +18,7 @@ import type { StorageState } from "@/lib/browser";
 import { runEngine, type EngineDeps, type EngineState, type NavInput } from "@/lib/cloud-engine";
 import { fromPlaywright } from "@/lib/engine-page";
 import { recordQuestions } from "@/lib/portal-questions";
+import { REPEAT_NOTE, stuckBudget, stuckMark, type GuardState } from "@/lib/runner-guard";
 import { resolve, keyMenu } from "@/lib/runner-map";
 import type { FillSheet } from "@/lib/fillsheet";
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
@@ -155,7 +156,7 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string 
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
-export type RunnerState = EngineState & { storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean; picks?: Record<string, string> };
+export type RunnerState = EngineState & GuardState & { autoResumes?: { day: string; n: number }; storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean; picks?: Record<string, string> };
 
 export async function setRunner(applicationId: string, patch: Record<string, unknown>) {
   await admin().from("applications").update({ ...patch, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
@@ -671,6 +672,13 @@ export const runner: Record<string, Handler> = {
     state.steps = 0;
     state.navCalls = 0;
     state.visionCalls = 0;
+    // the last run already stopped stuck on this very page: a small look this time, and after two such stops the
+    // page goes to the applicant instead of burning another hundred model calls on it
+    const repeat = stuckBudget(state);
+    if (repeat === "stop") {
+      await setRunner(applicationId, { runner_status: "needs_you", runner_note: REPEAT_NOTE });
+      return { outcome: "needs_you", reason: "stuck_repeat" };
+    }
     const storage = state.storage_enc ? (JSON.parse(decrypt(state.storage_enc)) as StorageState) : null;
     const schoolId = (app.programs as unknown as { school_id: string }).school_id;
     const portalHost = hostOf(normalizeUrl(state.last_url) ?? portal);
@@ -807,7 +815,7 @@ export const runner: Record<string, Handler> = {
         await db
           .from("applications")
           .update({
-            runner_state: { ...saved, reason: outcome.reason, rechecks: recheck ? (state.rechecks ?? 0) + 1 : 0, samePageCount: 0 },
+            runner_state: { ...saved, ...stuckMark(state, saved, outcome.reason), reason: outcome.reason, rechecks: recheck ? (state.rechecks ?? 0) + 1 : 0, samePageCount: 0 },
             runner_session_id: recheck ? ob.sessionId : null,
             runner_status: "needs_you",
             runner_note: outcome.note,
@@ -851,6 +859,8 @@ export function carryOver(st: RunnerState, fresh = false): RunnerState {
     reset: undefined,
     missing: [],
     questions: [],
+    // "Try again" earns one more full look at a page the agents stopped on before
+    stuckRepeats: Math.min(st.stuckRepeats ?? 0, 1),
     decided: [], // new answers in the profile: every field gets a fresh look
     navHistory: (st.navHistory ?? []).slice(-8),
   };

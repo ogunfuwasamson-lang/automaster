@@ -44,6 +44,7 @@ export interface EngineState {
   // buttons that start or create something (an application, an account), pressed once: never pressed twice
   createClicks?: string[];
   resumeLinkAt?: number;
+  resumeLinkTries?: number; // emailed continue-links followed on this application (a few at most)
   leadBacks?: number; // times this run came back from an enquiry form // when the emailed continue-link was last followed
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -335,7 +336,14 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
   return best && best.score >= 3 ? best.b : undefined;
 }
 
-const VISION_BUDGET = 60; // screenshot steps per run
+// true (and noted) the first time an application is started in this portal; false after that
+function markNewApp(state: EngineState, label: string): boolean {
+  if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
+  state.createClicks = [...(state.createClicks ?? []), `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
+  return true;
+}
+
+export const VISION_BUDGET = 60; // screenshot steps per run
 const VISION_KEYS = new Set(["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "PageDown", "PageUp", "Home", "End"]);
 type AM = { __am: { marks(draw: boolean): Mark[]; clearMarks(): void; sig(): string; at(x: number, y: number): { label: string; tag?: string } | null; selectAt(x: number, y: number, v: string): { chose?: string; options?: string[] } | null } };
 
@@ -604,9 +612,12 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       continue;
     }
 
-    // the portal has started the application and emailed a link to carry on with it: that link is the way back in
-    if (EMAILED_LINK.test(s.body.slice(0, 6000)) && deps.resumeLink && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 60_000) {
+    // the portal has started the application and emailed a link to carry on with it: that link is the way back in.
+    // only from outside the form: stirling prints "you should have received an email containing a link" above every
+    // page of the application itself, and leaving a half-filled page for that link threw the work away each time
+    if (EMAILED_LINK.test(s.body.slice(0, 6000)) && !insideForm(s) && deps.resumeLink && (state.resumeLinkTries ?? 0) < 3 && Date.now() - (state.resumeLinkAt ?? 0) > 10 * 60_000) {
       state.resumeLinkAt = Date.now();
+      state.resumeLinkTries = (state.resumeLinkTries ?? 0) + 1;
       const link = await deps.resumeLink().catch(() => null);
       if (link) {
         await deps.progress("opening the link the school emailed to continue the application");
@@ -796,7 +807,7 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
     const apply = !s.fields.length ? bestApply(now, state.visited) : undefined;
-    const next =
+    let next =
       find(now, NEXT) ??
       (!s.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : undefined) ??
       (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : undefined) ??
@@ -804,6 +815,8 @@ export async function runEngine(page: Page, deps: EngineDeps, state: EngineState
       find(now, CREATE) ??
       (s.fields.length ? find(now, CREATE_SUBMIT) : undefined) ??
       apply;
+    // "Start a new application" a second time makes a second application: let the navigator choose instead
+    if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = undefined;
     if (next) {
       if (next.href && next === apply) state.visited = [...(state.visited ?? []), here(next.href)].slice(-30);
       await click(page, next.id);
@@ -827,7 +840,10 @@ export function missingNote(keys: string[]): string {
 }
 
 const EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
-const NAV_BUDGET = 30; // model-driven steps per run
+// a page of the application itself (several real questions), not a landing or "resend my link" page
+export const insideForm = (s: Pick<Snapshot, "fields">) => s.fields.filter((f) => f.type !== "search" && !/\bsearch\b/i.test(f.label)).length >= 3;
+export const NAV_BUDGET = 30; // model-driven steps per run
+const NEW_APP = /\b(start|create|begin) (a )?new application\b|\bnew application\b/i;
 const DANGEROUS = /\b(pay|payment|checkout|delete|remove|withdraw|cancel (my |the )?application|deactivate|unsubscribe|sign out|log ?out)\b/i;
 
 // ask the navigator for one step and do it. returns null to keep looping, or an outcome to stop with.
@@ -912,6 +928,11 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     const d = await deps.canSubmit();
     if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
     state.submitClicked = true;
+  }
+  // "Start a new application" pressed again makes a second application (seen on ut dallas): once per portal
+  if (NEW_APP.test(label) && !markNewApp(state, label)) {
+    log(`didn't press "${label}": an application was started already`);
+    return null;
   }
   log(`click "${label}"`);
   await deps.progress(a.note ? a.note.slice(0, 80) : `pressing "${label}"`);

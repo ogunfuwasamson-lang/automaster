@@ -289,6 +289,79 @@ d("screenshot uploads", () => {
   }, 60_000);
 });
 
+d("portal engine: failures seen in production", () => {
+  let browser: Browser;
+  beforeAll(async () => {
+    browser = await chromium!.launch();
+  });
+  afterAll(async () => {
+    await browser?.close();
+  });
+
+  it("stays on a form page that mentions an emailed link instead of leaving it (stirling)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    let followed = 0;
+    await portal(page, {
+      "/app": () => `<p>If you have already started an application you should have received an email containing a link to allow you to complete the form.</p>
+        <form action="/done"><label for="fn">First name *</label><input id="fn" name="fn" required>
+        <label for="ln">Last name *</label><input id="ln" name="ln" required>
+        <label for="c">Country *</label><input id="c" name="c" required>
+        <button type="submit">Save and continue</button></form>`,
+      "/done": (q) => ((got = `${q.get("fn")}|${q.get("ln")}|${q.get("c")}`), `<h1>Review</h1><p>Thank you for submitting your application.</p>`),
+      "/elsewhere": () => `<h1>Resume</h1>`,
+    });
+    await page.goto("https://portal.test/app");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const r = await runEngine(fromPlaywright(page), deps({ resumeLink: async () => ((followed += 1), "https://portal.test/elsewhere") }), st, 30_000);
+    expect(followed).toBe(0);
+    expect(got).toBe("Ada|Okafor|Nigeria");
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+
+  it("finds a form nested below hundreds of shadow roots (salesforce experience sites)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/sf": () => `<div id="host"></div><script>
+        // 600 components, each in its own shadow root, before the one that holds the form
+        let parent = document.getElementById("host");
+        for (let i = 0; i < 600; i++) { const el = document.createElement("div"); parent.appendChild(el); const sr = el.attachShadow({ mode: "open" }); const inner = document.createElement("span"); inner.textContent = ""; sr.appendChild(inner); if (i % 50 === 49) { parent = inner; } }
+        const last = document.createElement("div"); parent.appendChild(last);
+        const sr = last.attachShadow({ mode: "open" });
+        sr.innerHTML = '<form action="/sfdone"><label for="fn">First name *</label><input id="fn" name="fn" required><button type="submit">Save and continue</button></form>';
+        sr.querySelector("form").addEventListener("submit", (e) => { e.preventDefault(); location.href = "/sfdone?fn=" + encodeURIComponent(sr.getElementById("fn").value); });
+      </script>`,
+      "/sfdone": (q) => ((got = q.get("fn") ?? ""), `<h1>Review</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/sf");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const r = await runEngine(fromPlaywright(page), deps(), st, 30_000);
+    expect(got).toBe("Ada");
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+
+  it("never presses 'Start a new application' twice (ut dallas)", async () => {
+    const page = await browser.newPage();
+    let started = 0;
+    await portal(page, {
+      "/home": () => `<h1>Applicant portal</h1><a href="/new">Start a new Application</a><a href="/home">Applications</a>`,
+      "/new": () => ((started += 1), `<h1>Applicant portal</h1><p>Your application was created.</p><a href="/new">Start a new Application</a><a href="/home">Applications</a>`),
+    });
+    await page.goto("https://portal.test/home");
+    // a navigator that always wants to start a new application
+    const nav = async (input: { snapshot: { buttons: { id: string; label: string }[] } }) => {
+      const b = input.snapshot.buttons.find((x) => /start a new application/i.test(x.label));
+      return b ? { action: "click" as const, target_id: b.id, note: "start" } : { action: "handoff" as const, note: "no" };
+    };
+    await runEngine(fromPlaywright(page), deps({ navigate: nav as unknown as EngineDeps["navigate"] }), { steps: 0 }, 20_000);
+    expect(started).toBeLessThanOrEqual(1);
+    await page.close();
+  }, 60_000);
+});
+
 describe("dropdown answers from related keys", () => {
   it("answers 'Application type' with the term when its options are terms", () => {
     const f: PageField = { id: "t", label: "Application type", type: "select", options: ["Select", "Fall / Automne 2027", "Winter / Hiver 2028"] };
