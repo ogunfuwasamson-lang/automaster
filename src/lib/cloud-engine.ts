@@ -362,7 +362,15 @@ export function bestApply(s: Snapshot, visited: string[] = []): Snapshot["button
 // visible and not pressed yet on this page
 const ASKED_BUTTON = /\b(?:remember to|please|you must|make sure (?:you|to)|click|press|select|use)\s+(?:the\s+)?["“'‘]([^"”'’]{3,40})["”'’]/gi;
 export function namedButton(s: Snapshot, state: EngineState): Snapshot["buttons"][number] | undefined {
-  const asked = [...(s.body.slice(0, 8000) + " " + (s.errors ?? []).join(" ")).matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+  const text = s.body.slice(0, 8000) + " " + (s.errors ?? []).join(" ");
+  const asked = [...text.matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+  // "ADDRESS1 is required" with an "Add Address" link on the page: the address is entered through that link
+  for (const m of text.matchAll(/\b([a-z]+?)\d*\s+(?:is|are)\s+required\b/gi)) {
+    const word = m[1].toLowerCase();
+    if (word.length < 4) continue;
+    const add = s.buttons.find((b) => new RegExp(`^(add|enter|update|edit)( an?| your| new)? ${word}`, "i").test(clean(b.label)));
+    if (add) asked.push(clean(add.label).toLowerCase());
+  }
   if (!asked.length) return undefined;
   const key = (state.lastFingerprint ?? "").slice(0, 60);
   const done = new Set(state.pressedAsked ?? []);
@@ -774,6 +782,19 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
           s = await snap(page);
           stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
           if (!stillEmpty.length) continue;
+        }
+      }
+      // password boxes a reload wiped (peoplesoft): the login's password goes back in, never a question
+      const pwBoxes = s.allFields.filter((f) => f.type === "password");
+      const pwKey = `${(s.fingerprint ?? "").slice(0, 60)}|pw`;
+      if (s.fields.some((f) => f.type === "password") && pwBoxes.length && !(state.pressedAsked ?? []).includes(pwKey)) {
+        const login = await deps.existingLogin();
+        if (login) {
+          state.pressedAsked = [...(state.pressedAsked ?? []), pwKey].slice(-30);
+          for (const p of pwBoxes) await fillText(page, p.id, login.password);
+          filled += pwBoxes.length;
+          state.samePageCount = 0;
+          continue;
         }
       }
       // security questions on an account page are never the applicant's to answer: the login's made-up answers go in

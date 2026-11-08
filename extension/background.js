@@ -184,7 +184,14 @@
   }
   var ASKED_BUTTON = /\b(?:remember to|please|you must|make sure (?:you|to)|click|press|select|use)\s+(?:the\s+)?["“'‘]([^"”'’]{3,40})["”'’]/gi;
   function namedButton(s, state) {
-    const asked = [...(s.body.slice(0, 8e3) + " " + (s.errors ?? []).join(" ")).matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+    const text = s.body.slice(0, 8e3) + " " + (s.errors ?? []).join(" ");
+    const asked = [...text.matchAll(ASKED_BUTTON)].map((m) => m[1].trim().toLowerCase());
+    for (const m of text.matchAll(/\b([a-z]+?)\d*\s+(?:is|are)\s+required\b/gi)) {
+      const word = m[1].toLowerCase();
+      if (word.length < 4) continue;
+      const add = s.buttons.find((b2) => new RegExp(`^(add|enter|update|edit)( an?| your| new)? ${word}`, "i").test(clean(b2.label)));
+      if (add) asked.push(clean(add.label).toLowerCase());
+    }
     if (!asked.length) return void 0;
     const key = (state.lastFingerprint ?? "").slice(0, 60);
     const done = new Set(state.pressedAsked ?? []);
@@ -541,6 +548,18 @@
             s = await snap(page);
             stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
             if (!stillEmpty.length) continue;
+          }
+        }
+        const pwBoxes = s.allFields.filter((f) => f.type === "password");
+        const pwKey = `${(s.fingerprint ?? "").slice(0, 60)}|pw`;
+        if (s.fields.some((f) => f.type === "password") && pwBoxes.length && !(state.pressedAsked ?? []).includes(pwKey)) {
+          const login = await deps2.existingLogin();
+          if (login) {
+            state.pressedAsked = [...state.pressedAsked ?? [], pwKey].slice(-30);
+            for (const p of pwBoxes) await fillText(page, p.id, login.password);
+            filled += pwBoxes.length;
+            state.samePageCount = 0;
+            continue;
           }
         }
         if (stillEmpty.some((f) => SEC_A.test(f.label) || SEC_Q.test(f.label))) {
