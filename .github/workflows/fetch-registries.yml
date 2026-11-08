@@ -33,6 +33,12 @@ jobs:
           get hesa-providers-all.csv "https://www.hesa.ac.uk/support/providers/all-hesa-providers?ProviderAllHESAEnhanced.csv" || echo "HESA download failed"
           get medr-register.xlsx https://www.medr.cymru/wp-content/uploads/2026/07/Register-Medr-31Jul2026-English.xlsx || echo "Medr download failed"
           get learning-providers-plus.csv https://learning-provider.data.ac.uk/data/learning-providers-plus.csv || echo "learning providers download failed"
+          # Canada: IRCC's designated learning institutions list (the institutions that may enrol study-permit holders)
+          get ca-dli-list.html https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/prepare/designated-learning-institutions-list.html || echo "DLI page download failed"
+          for u in $(grep -oE '(https://www\.canada\.ca)?/[^"'"'"' ]+\.(json|csv)' ca-dli-list.html 2>/dev/null | sort -u | head -5); do
+            case "$u" in http*) ;; *) u="https://www.canada.ca$u" ;; esac
+            get "ca-dli-$(basename "$u")" "$u" || echo "DLI data download failed: $u"
+          done
           if [ -f ofs-register.download ]; then
             kind=$(file -b ofs-register.download); echo "OfS register: $kind"
             case "$kind" in *Excel*|*Microsoft*OOXML*|*Zip*) mv ofs-register.download ofs-register.xlsx ;; *CSV*|*text*) mv ofs-register.download ofs-register.csv ;; esac
