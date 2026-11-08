@@ -200,6 +200,47 @@
     }
     return done;
   }
+  var DOC_TYPES = [
+    [/\b(cv|curriculum vitae|r[eé]sum[eé])\b/i, (k) => k === "cv"],
+    [/\btranscript|academic record|marks? sheet/i, (k) => k === "transcript"],
+    [/\bdegree (certificate|award)|\bcertificate\b|\bdiploma\b/i, (k) => k === "degree_cert"],
+    [/\b(english|ielts|toefl|pte|duolingo|test (score|result))/i, (k) => k === "test_score"],
+    [/\b(personal statement|statement of purpose|supporting statement|motivation|research proposal)/i, (k) => k.startsWith("essay:")]
+  ];
+  var UPLOAD_GO = /^(go|upload|add|attach|upload (file|document)|add (file|document)|save document)$/i;
+  async function uploadByType(page, deps2, s, state) {
+    const box = s.allFields.find((f) => f.type === "file");
+    const go = s.buttons.find((b) => UPLOAD_GO.test(clean(b.label)));
+    const list = s.fields.find((f) => f.type === "select" && (f.options ?? []).filter((o) => DOC_TYPES.some(([re]) => re.test(o))).length >= 2);
+    const keys = deps2.files?.() ?? [];
+    if (!box || !go || !list || !keys.length) return 0;
+    const host = (() => {
+      try {
+        return new URL(s.url).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    const done = new Set(state.typedUploads ?? []);
+    for (const [re, fits] of DOC_TYPES) {
+      const key = keys.find((k) => fits(k) && !done.has(`${host}|${k}`));
+      const option = (list.options ?? []).find((o) => re.test(o));
+      if (!key || !option) continue;
+      state.typedUploads = [...done, `${host}|${key}`].slice(-40);
+      await deps2.progress(`uploading your ${option.toLowerCase()}`);
+      await frameOf(page).evaluate((x) => window.__am.apply(x), { id: list.id, action: "choose", option, source: key }).catch(() => false);
+      await sleep(800);
+      const after = await snap(page);
+      const box2 = after.allFields.find((f) => f.type === "file") ?? box;
+      const go2 = after.buttons.find((b) => UPLOAD_GO.test(clean(b.label))) ?? go;
+      await frameOf(page).setInputFiles(`[data-am-id="${box2.id}"]`, await deps2.file(key));
+      await sleep(500);
+      await click(page, go2.id);
+      await sleep(2500);
+      return 1;
+    }
+    return 0;
+  }
   function markNewApp(state, label) {
     if ((state.createClicks ?? []).some((c) => NEW_APP.test(c.split("|").pop() ?? ""))) return false;
     state.createClicks = [...state.createClicks ?? [], `${(state.lastFingerprint ?? "").slice(0, 60)}|${label}`].slice(-30);
@@ -615,6 +656,13 @@
           continue;
         }
         return { outcome: { kind: "needs_you", reason: "verification", note: "found the verification email but couldn't use it; open the live view" }, state, filled };
+      }
+      if (s.fields.length) {
+        const up = await uploadByType(page, deps2, s, state);
+        if (up) {
+          filled += up;
+          continue;
+        }
       }
       if (s.fields.length) {
         await deps2.progress(`filling ${s.fields.length} field${s.fields.length > 1 ? "s" : ""}`);

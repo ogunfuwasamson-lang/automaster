@@ -400,6 +400,25 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("uploads each document through a choose-type, pick-file, Go area (stirling)", async () => {
+    const page = await browser.newPage();
+    const got: string[] = [];
+    await page.route("https://portal.test/up", (route) => {
+      const body = route.request().postData() ?? "";
+      const t = (body.match(/name="dtype"\r\n\r\n([^\r]*)/) ?? [])[1];
+      if (t) got.push(t);
+      return route.fulfill({ status: 200, contentType: "text/html", body: docs() });
+    });
+    const docs = () => `<!doctype html><html><head><title>Portal</title></head><body><h1>6. My documents</h1><p>Uploaded: ${got.join(", ") || "none"}</p>
+      <form action="/up" method="post" enctype="multipart/form-data"><label for="dt">Document type *</label><select id="dt" name="dtype" required><option value="">Select</option><option>CV</option><option>Transcript</option><option>Degree certificate</option><option>Passport</option></select>
+      <label for="f">Upload document</label><input id="f" name="f" type="file"><button type="submit">Go</button></form></body></html>`;
+    await page.route("https://portal.test/docs", (route) => route.fulfill({ status: 200, contentType: "text/html", body: docs() }));
+    await page.goto("https://portal.test/docs");
+    await runEngine(fromPlaywright(page), deps({ files: () => ["cv", "transcript", "degree_cert"] }), { steps: 0 }, 20_000);
+    expect(got).toEqual(["CV", "Transcript", "Degree certificate"]);
+    await page.close();
+  }, 60_000);
+
   it("never presses 'Start a new application' twice (ut dallas)", async () => {
     const page = await browser.newPage();
     let started = 0;

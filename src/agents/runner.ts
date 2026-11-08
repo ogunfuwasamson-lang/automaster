@@ -835,7 +835,9 @@ export const runner: Record<string, Handler> = {
       return { outcome: "failed" };
     } catch (e) {
       if (await userHalted(applicationId).catch(() => null)) return { halted: true };
-      await setRunner(applicationId, { runner_status: "failed", runner_note: "something went wrong while working on the portal. Choose Try again; if it keeps happening, open the portal and finish that step yourself." }); // the raw error stays on the job for the operator view
+      await setRunner(applicationId, { runner_status: "failed", runner_note: "something went wrong while working on the portal. Choose Try again; if it keeps happening, open the portal and finish that step yourself." });
+      // the raw error, for the operator: a retry of the job overwrites its last_error
+      await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.error", applicationId, channel: "portal", context: { error: String((e as Error)?.stack ?? e).slice(0, 1500) } }).catch(() => {});
       throw e;
     } finally {
       await ob.close(keep);
