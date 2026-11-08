@@ -1,7 +1,7 @@
 import { resumeAfterMailConnected } from "@/lib/requeue";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/server";
-import { appUrl, connect, connectComposio } from "@/lib/gmail";
+import { appUrl, connect, connectComposio, dropComposio } from "@/lib/gmail";
 import { resolve } from "@/lib/notify";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
@@ -35,6 +35,11 @@ export async function GET(req: NextRequest) {
     return back("connected");
   } catch (e) {
     console.error("gmail connect failed", e);
-    return back(e instanceof Error && /permission|offline/.test(e.message) ? "scope" : "error");
+    const msg = e instanceof Error ? e.message : String(e);
+    // kept for the operator view: the applicant only sees "try again"
+    await logEvent({ userId: auth.user.id, actor: "system", action: "mail.connect_failed", channel: "email", context: { error: msg.slice(0, 500), via: ca ? "composio" : "google" } }).catch(() => {});
+    // a half-made composio connection would be reused next time and fail the same way: start clean
+    if (ca && !/belongs to someone else/.test(msg)) await dropComposio(ca);
+    return back(/permission|offline|scope|insufficient/i.test(msg) ? "scope" : "error");
   }
 }

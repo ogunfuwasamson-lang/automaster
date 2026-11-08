@@ -42,10 +42,20 @@ export type CxAccount = { id: string; status: string; user_id?: string; auth_con
 export async function composioConnectUrl(userId: string, callbackUrl: string): Promise<{ url: string; accountId: string } | { accountId: string; ready: true }> {
   const cfg = process.env.COMPOSIO_GMAIL_AUTH_CONFIG!;
   const existing = await cx<{ items?: CxAccount[] }>(`/connected_accounts?user_ids=${encodeURIComponent(userId)}&auth_config_ids=${encodeURIComponent(cfg)}&statuses=ACTIVE&limit=5`);
-  const live = existing.items?.find((a) => a.status === "ACTIVE");
-  if (live) return { accountId: live.id, ready: true };
+  // reuse a live connection only if it can actually read the mailbox: one made with too few permissions (a box
+  // unticked on google's screen) would otherwise be reused on every try, and connecting could never succeed
+  for (const live of (existing.items ?? []).filter((a) => a.status === "ACTIVE")) {
+    const ok = await proxy(userId, live.id, "https://gmail.googleapis.com/gmail/v1/users/me/profile", "GET").then((r) => r.status < 300, () => false);
+    if (ok) return { accountId: live.id, ready: true };
+    await dropComposio(live.id);
+  }
   const link = await cx<{ redirect_url: string; connected_account_id: string }>("/connected_accounts/link", { method: "POST", body: { auth_config_id: cfg, user_id: userId, callback_url: callbackUrl } });
   return { url: link.redirect_url, accountId: link.connected_account_id };
+}
+
+// forget a composio connection that didn't work, so the next try goes back through google's screen
+export async function dropComposio(accountId: string) {
+  await cx(`/connected_accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }).catch(() => {});
 }
 
 export async function connectComposio(userId: string, accountId: string) {
