@@ -6,6 +6,7 @@ import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/
 import { planOf } from "@/lib/plans";
 import { LessonsAdmin } from "@/components/learning/lessons-admin";
 import { GrowthAdmin } from "@/components/growth/growth-admin";
+import { MILESTONES, MILESTONE_ACTIONS, duration, journeys, summarize } from "@/lib/first-submission";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operator", robots: { index: false, follow: false } };
@@ -25,6 +26,11 @@ export default async function Admin() {
     db.from("agent_runs").select("agent, error, started_at").eq("status", "failed").gte("started_at", since).order("started_at", { ascending: false }).limit(15),
     db.from("applications").select("id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name))").neq("runner_status", "idle").order("runner_updated_at", { ascending: false }).limit(40),
   ]);
+
+  // every step from sign-up to the first submission, for everyone (not just this month)
+  const { data: steps } = await db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).limit(50000);
+  const trips = journeys(users ?? [], steps ?? []).sort((a, b) => b.signedUp.localeCompare(a.signedUp));
+  const funnel = summarize(trips);
 
   type Row = { cost: number; cat: Record<Category, number>; calls: number };
   const perUser = new Map<string, Row>();
@@ -83,6 +89,83 @@ export default async function Admin() {
           </div>
         ))}
       </dl>
+
+      <section id="first-submission" className="scroll-mt-24 space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Time to first submission</h2>
+          <p className="text-sm text-muted">From sign-up to the first application the agents submitted, for every user since launch.</p>
+        </div>
+        <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {(
+            [
+              ["Submitted", `${funnel.submitted} of ${funnel.users}`],
+              ["Median time", duration(funnel.medianToSubmitMs)],
+              ["Within 15 min", `${funnel.within15m}`],
+              ["Within 24 h / 7 d", `${funnel.within24h} / ${funnel.within7d}`],
+            ] as [string, string][]
+          ).map(([label, value]) => (
+            <div key={label} className="rounded-3xl border border-line bg-surface shadow-card p-4">
+              <dt className="text-xs text-muted">{label}</dt>
+              <dd className="mt-1 font-display text-3xl font-bold tabular">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="overflow-x-auto rounded-3xl border border-line bg-surface shadow-card px-4">
+          <table className="w-full min-w-[40rem] text-sm">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={th}>Step</th>
+                <th className={th}>Users who reached it</th>
+                <th className={th}>Median from sign-up</th>
+                <th className={th}>Median from the step before</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {funnel.steps.map((x) => (
+                <tr key={x.key}>
+                  <td className="py-2.5 pr-4">{x.label}</td>
+                  <td className={td}>
+                    {x.users}
+                    <span className="mt-1 block h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+                      <span className="block h-full bg-bar-gradient" style={{ width: `${funnel.users ? (x.users / funnel.users) * 100 : 0}%` }} />
+                    </span>
+                  </td>
+                  <td className={td}>{duration(x.medianFromSignupMs)}</td>
+                  <td className={td}>{duration(x.medianFromPreviousMs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="overflow-x-auto rounded-3xl border border-line bg-surface shadow-card px-4">
+          <table className="w-full min-w-[56rem] text-sm">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={th}>User</th>
+                <th className={th}>Signed up</th>
+                {MILESTONES.map((m) => (
+                  <th key={m.key} className={th}>
+                    {m.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {trips.map((j) => (
+                <tr key={j.userId}>
+                  <td className="max-w-[14rem] truncate py-2.5 pr-4">{j.email}</td>
+                  <td className={td}>{new Date(j.signedUp).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</td>
+                  {MILESTONES.map((m) => (
+                    <td key={m.key} className={`${td} ${m.key === "submitted" && j.at.submitted ? "font-medium text-go" : ""}`}>
+                      {j.at[m.key] ? duration(Date.parse(j.at[m.key]!) - Date.parse(j.signedUp)) : <span className="text-muted">not yet</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Per user</h2>
