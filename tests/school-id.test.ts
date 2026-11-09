@@ -32,3 +32,11 @@ describe("address parts named at the end of the label (ut dallas)", () => {
     expect(keyForLabel("Address line 2")).toBe("address_line2");
   });
 });
+
+describe("name-built user ids", () => {
+  it("calgary's eID box asks for first.last, not the last name", () => {
+    expect(keyForLabel("eID first.last Must be in the pattern first.last name. Numbers can be used before the period but not after. Ex: Jane123.Smith *")).toBe("username_first_last");
+    expect(keyForLabel("Last Name Enter your last name. *")).toBe("last_name");
+    expect(keyForLabel("eID")).toBe("username");
+  });
+});

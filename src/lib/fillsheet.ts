@@ -259,6 +259,8 @@ export function buildSheet(a: {
 const DIAL = ["1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98", "211", "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", "266", "267", "268", "269", "290", "291", "297", "298", "299", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "380", "381", "382", "383", "385", "386", "387", "389", "420", "421", "423", "852", "853", "855", "856", "880", "886", "960", "961", "962", "963", "964", "965", "966", "967", "968", "970", "971", "972", "973", "974", "975", "976", "977", "992", "993", "994", "995", "996", "998"].sort((a, b) => b.length - a.length);
 
 export const LABEL_RULES: [RegExp, string][] = [
+  // first, before the name rules: its label says "last name". a user id the portal wants built from the name: calgary's "eID first.last"
+  [/\bfirst(\s*name)?\s*\.\s*last(\s*name)?\b|\bfirstname\.lastname\b/i, "username_first_last"],
   // words forms use for the same thing: tried before the general rules below. most specific first.
   [/\bemergency\s*contact.*\b(phone|number|tel|mobile)\b/i, "emergency_contact_phone"],
   [/\bemergency\s*contact.*\be-?mail\b/i, "emergency_contact_email"],
@@ -294,7 +296,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(birth|dob)\w*\b.*\b(day|dd|d)\s*\*?$|\bbirth\s*day\b/i, "dob_day"],
   [/\b(birth|dob)\w*\b.*\b(year|yyyy|y)\s*\*?$|\bbirth\s*year\b/i, "dob_year"],
   [/\b(date\s*of\s*birth|birth\s*date|birthdate|dob)\b/i, "date_of_birth"],
-  [/\b(user\s*(id|name)|login\s*(id|name)|choose a (user|login)|identifiant|nom d.utilisateur)\b/i, "username"],
+  [/\b(user\s*(id|name)|login\s*(id|name)|choose a (user|login)|identifiant|nom d.utilisateur|e-?id)\b/i, "username"],
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
