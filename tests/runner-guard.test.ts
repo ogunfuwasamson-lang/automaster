@@ -90,3 +90,17 @@ describe("a taken username on a sign-up form", () => {
     expect(withNumber("samsono", 2)).toBe("samsono2");
   });
 });
+
+import { isBlockPage, DEAD_END } from "@/lib/cloud-engine";
+describe("pages the agents can't work on", () => {
+  it("knows cloudflare's security check (leicester)", () => {
+    expect(isBlockPage({ title: "Just a moment...", body: "" })).toBe(true);
+    expect(isBlockPage({ title: "le.ac.uk", body: "le.ac.uk Performing security verification This website uses a security service to protect against malicious bots." })).toBe(true);
+    expect(isBlockPage({ title: "Management MSc | University of Leicester", body: "Apply now. Entry requirements." })).toBe(false);
+  });
+  it("knows a page that ended the session (manchester peoplesoft)", () => {
+    expect(DEAD_END.test("New Window Personalize Page An error has occurred that has stopped this transaction from continuing.")).toBe(true);
+    expect(DEAD_END.test("Your session has expired. Please sign in again.")).toBe(true);
+    expect(DEAD_END.test("Personal details. Date of birth.")).toBe(false);
+  });
+});

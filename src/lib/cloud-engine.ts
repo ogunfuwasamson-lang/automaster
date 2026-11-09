@@ -222,7 +222,7 @@ const findBy = (s: Snapshot, ok: (label: string) => boolean) => s.buttons.find((
 // bot walls that stand in front of the whole site (cloudflare, imperva, akamai): a real browser usually gets
 // through in a few seconds, a cloud browser often never does
 const BLOCK_TITLE = /^(access denied|forbidden|403\b|request (blocked|rejected)|attention required|just a moment|pardon our interruption|are you a (robot|human)|you have been blocked|blocked)/i;
-const BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue)/i;
+const BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue|performing security verification|verif(y|ies) (that )?you are not a bot|security service to protect against malicious bots)/i;
 export const isBlockPage = (s: Pick<Snapshot, "title" | "body">) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
 const TERMS = /(i (have read and )?(agree|accept)|i confirm (that )?i have read|accept to continue|terms (of use|and conditions|of service)|privacy (policy|notice)|data protection (statement|policy|notice))/i;
 
@@ -555,7 +555,7 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
     if (!a || a.action === "done") break;
     if (a.action === "handoff") {
       log(`handoff: ${a.note}`);
-      const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+      const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
       return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
     }
     const m = a.mark ? marks.find((x) => x.n === a.mark) : undefined;
@@ -1266,12 +1266,19 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
 async function stuckStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineState, why: string, fallback: Outcome): Promise<Outcome | null> {
   const look = (x: Snapshot) => `${x.fingerprint}|${x.url}|${x.fields.length}|${x.buttons.map((b) => b.label).join("/")}`;
   const before = look(s);
+  // a bot wall reached by a step (le.ac.uk's course search): that's the portal blocking the cloud browser, not a
+  // page to work out, so it goes to the applicant's chrome instead of round in circles
+  const walled = async (): Promise<Outcome | null> => (isBlockPage(await snap(page)) ? { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" } : null);
   const o = await navStep(page, deps, s, state, why, fallback);
-  if (!o) return null;
+  if (!o) return await walled();
+  if (o.kind === "needs_you" && o.reason === "stuck") {
+    const w = await walled();
+    if (w) return w;
+  }
   // a real stop (payment, a button the agents never press, submit not allowed, waiting for mail) stands
   if (o.kind !== "needs_you" || (o.reason !== "stuck" && o.reason !== "login")) return o;
   const v = await visionLoop(page, deps, state, why, []);
-  if (v.outcome) return v.outcome;
+  if (v.outcome) return (await walled()) ?? v.outcome;
   if (!v.acted) return o;
   // the screen changed (a new button appeared, a list closed, a page loaded): carry on from there
   return look(await snap(page)) !== before ? null : o;
