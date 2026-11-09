@@ -18,8 +18,39 @@ export const DOM_HELPER = String.raw`
     rootCache = out; rootAt = Date.now();
     return out;
   };
-  const all = (sel) => { const out = []; for (const r of roots()) out.push(...r.querySelectorAll(sel)); return out; };
-  const one = (sel) => { for (const r of roots()) { const e = r.querySelector(sel); if (e) return e; } return null; };
+  // salesforce's lightning sites (and other lwc pages) fake shadow dom in javascript: they rewrite the page's own
+  // querySelectorAll so components' insides are hidden from it, though the fields are ordinary elements on the page.
+  // a tree walker reads the real document, so walk it (and every real shadow root) and match selectors ourselves
+  let elCache = null, elAt = 0;
+  const elements = () => {
+    const now = Date.now();
+    if (elCache && now - elAt < 250) return elCache;
+    const out = [], seen = new Set(), queued = new Set();
+    const queue = [document];
+    for (let i = 0; i < queue.length && out.length < 150000 && Date.now() - now < 2500; i++) {
+      let w;
+      try { w = document.createTreeWalker(queue[i], 1); } catch (e) { continue; } // a faked shadow root isn't a real node
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!seen.has(n)) { seen.add(n); out.push(n); }
+        const sr = n.shadowRoot;
+        if (sr && !queued.has(sr)) { queued.add(sr); queue.push(sr); }
+      }
+    }
+    // belt and braces: anything the ordinary search finds that the walk missed
+    for (const r of roots()) for (const n of r.querySelectorAll("*")) if (!seen.has(n)) { seen.add(n); out.push(n); }
+    elCache = out; elAt = Date.now();
+    return out;
+  };
+  const matches = (el, sel) => { try { return el.matches(sel); } catch (e) { return false; } };
+  const all = (sel) => elements().filter((el) => matches(el, sel));
+  const one = (sel) => { for (const el of elements()) if (matches(el, sel)) return el; return null; };
+  // the radio buttons that answer the same question as this one
+  const radioGroup = (el) => {
+    const q = 'input[type="radio"][name="' + CSS.escape(el.name) + '"]';
+    let g = [];
+    try { g = [...rootOf(el).querySelectorAll(q)]; } catch (e) {}
+    return g.includes(el) ? g : all(q).filter((x) => x.form === el.form);
+  };
   const rootOf = (el) => (el && el.getRootNode ? el.getRootNode() : document);
   const deepText = () => {
     const rs = roots();
@@ -41,7 +72,7 @@ export const DOM_HELPER = String.raw`
   const stripErr = (t) => (t || "").replace(/\b[\w ]{0,40}\b(is|are) (required|mandatory|missing|invalid)\b\.?/gi, " ").replace(/\bthis (field|question) is required\b\.?|\bplease (enter|select|choose|complete|provide)\b[^.]{0,40}\.?|\brequired field\b\.?|\binvalid (entry|value|format)\b\.?/gi, " ").replace(/\s+/g, " ").trim();
   const labelFor = (el) => {
     const parts = [];
-    if (el.id) { const l = rootOf(el).querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) parts.push(textOf(l)); }
+    if (el.id) { const q = 'label[for="' + CSS.escape(el.id) + '"]'; const l = rootOf(el).querySelector(q) || one(q); if (l) parts.push(textOf(l)); }
     const wrap = el.closest("label"); if (wrap) parts.push(textOf(wrap));
     const by = el.getAttribute("aria-labelledby");
     if (by) parts.push(by.split(/\s+/).map((i) => textOf(rootOf(el).getElementById ? rootOf(el).getElementById(i) : document.getElementById(i))).join(" "));
@@ -73,7 +104,7 @@ export const DOM_HELPER = String.raw`
   // a radio group's question: the nearest ancestor text once the option labels are taken out
   // (stirling puts several questions in one block; the first ancestor with its own short text is the question)
   const groupLabel = (radio) => {
-    const group = [...rootOf(radio).querySelectorAll('input[type="radio"][name="' + CSS.escape(radio.name) + '"]')];
+    const group = radioGroup(radio);
     const opts = group.map((g) => labelFor(g) || g.value).filter(Boolean);
     const fs = radio.closest("fieldset");
     let p = radio.parentElement;
@@ -103,7 +134,7 @@ export const DOM_HELPER = String.raw`
       if (el.closest('#onetrust-consent-sdk, #onetrust-banner-sdk, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent" i], [class*="consent" i], form[role="search"], [role="search"]')) continue;
       if (type === "radio") {
         if (!el.name || seen.has(el.name)) continue; seen.add(el.name);
-        const group = [...rootOf(el).querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')];
+        const group = radioGroup(el);
         if (!includeFilled && group.some((g) => g.checked)) continue;
         const gl = groupLabel(el);
         // "Will you be resident in the UK...? *": an asterisk anywhere in the question marks it required
@@ -194,7 +225,7 @@ export const DOM_HELPER = String.raw`
     if (f.action === "fill") { if (el.maxLength > 0 && f.value.length > el.maxLength) return false; setValue(el, f.value); return true; }
     if (f.action === "choose") {
       if (el.tagName === "SELECT") { const o = [...el.options].find((x) => x.text.trim() === f.option); if (!o) return false; el.value = o.value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return true; }
-      const hit = [...rootOf(el).querySelectorAll('input[type="radio"][name="' + CSS.escape(el.name) + '"]')].find((g) => (labelFor(g) || g.value) === f.option);
+      const hit = radioGroup(el).find((g) => (labelFor(g) || g.value) === f.option);
       if (!hit) return false; hit.click(); return true;
     }
     if (f.action === "check") { if (!el.checked) el.click(); return el.checked; }
@@ -278,6 +309,7 @@ export const DOM_HELPER = String.raw`
     for (let i = 0; i < vals.length; i++) h = (h * 31 + vals.charCodeAt(i)) | 0;
     return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + all("input,select,textarea").length + "|" + h + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
   }
-  window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig };
+  const byId = (id) => one('[data-am-id="' + id + '"]');
+  window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig, byId };
 })();
 `;

@@ -294,7 +294,8 @@ async function click(page: Page, id: string) {
   // "start your application" links often open a new tab: follow them here instead
   const href = await frameOf(page)
     .evaluate((q) => {
-      const a = document.querySelector(q) as HTMLAnchorElement | null;
+      const id = q.match(/data-am-id="([^"]+)"/)?.[1] ?? "";
+      const a = ((window as unknown as { __am?: { byId?(i: string): Element | null } }).__am?.byId?.(id) ?? document.querySelector(q)) as HTMLAnchorElement | null;
       return a && a.tagName === "A" && a.target && a.target !== "_self" && /^https?:/.test(a.href) ? a.href : null;
     }, sel)
     .catch(() => null);
@@ -308,7 +309,7 @@ async function click(page: Page, id: string) {
     await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), frameOf(page).click(sel, { timeout: 8_000 })]);
   } catch {
     // something overlaps the button (peoplesoft's invisible layers, cookie bars): press it directly
-    await frameOf(page).evaluate((s) => (document.querySelector(s) as HTMLElement | null)?.click(), sel);
+    await frameOf(page).evaluate((i) => (((window as unknown as { __am?: { byId?(x: string): Element | null } }).__am?.byId?.(i) ?? document.querySelector(`[data-am-id="${i}"]`)) as HTMLElement | null)?.click(), id);
   }
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
   await sleep(1200);

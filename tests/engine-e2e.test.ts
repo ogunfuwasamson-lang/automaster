@@ -344,6 +344,45 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  // lightning web components fake shadow dom: the page's own querySelectorAll is rewritten to hide what's inside
+  // a component, though the elements are ordinary children (ut dallas's salesforce portal)
+  const FAKE_SHADOW = `<script>
+    const inside = (el) => { for (let p = el.parentElement; p; p = p.parentElement) if (p.hasAttribute("data-lwc")) return true; return false; };
+    for (const proto of [Document.prototype, Element.prototype, DocumentFragment.prototype]) {
+      const qsa = proto.querySelectorAll, qs = proto.querySelector;
+      proto.querySelectorAll = function (s) { const r = [...qsa.call(this, s)].filter((e) => this instanceof Element && this.hasAttribute("data-lwc") ? true : !inside(e)); return r; };
+      proto.querySelector = function (s) { return this.querySelectorAll(s)[0] || null; };
+    }
+  </script>`;
+
+  it("sees fields and step buttons inside salesforce lightning components (ut dallas)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/gradapp": () => `${FAKE_SHADOW}<header><button>Home</button><button>Applications</button></header>
+        <c-steps data-lwc><nav><a href="/profile">Profile You've not yet viewed this step.</a><a href="/edu">Education Information You've not yet viewed this step.</a></nav></c-steps>`,
+      "/profile": () => `${FAKE_SHADOW}<header><button>Home</button></header>
+        <c-form data-lwc><form action="/done"><label for="fn">First name *</label><input id="fn" name="fn" required>
+        <fieldset><legend>Do you have a preferred first name?</legend><label><input type="radio" name="pf" value="y">Yes</label><label><input type="radio" name="pf" value="n">No</label></fieldset>
+        <button type="submit">Save and continue</button></form></c-form>`,
+      "/done": (q) => ((got = q.get("fn") ?? ""), `<h1>Review</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/gradapp");
+    await page.evaluate(DOM_HELPER);
+    const labels = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { buttons: { label: string }[] } } }).__am.snapshot().buttons.map((b) => b.label));
+    expect(labels.some((l) => l.startsWith("Profile"))).toBe(true);
+    await page.goto("https://portal.test/profile");
+    await page.evaluate(DOM_HELPER);
+    const fields = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { fields: { label: string; type: string; options?: string[] }[] } } }).__am.snapshot().fields);
+    expect(fields.map((f) => f.type)).toEqual(["text", "radio"]);
+    expect(fields[1].options).toEqual(["Yes", "No"]);
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const r = await runEngine(fromPlaywright(page), deps(), st, 30_000);
+    expect(got).toBe("Ada");
+    expect(r.outcome.kind).toBe("submitted");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

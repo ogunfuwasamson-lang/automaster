@@ -1,6 +1,6 @@
 // the small slice of a browser the portal engine needs. the cloud runner backs it with playwright; the chrome
 // extension backs it with chrome.scripting in the applicant's own browser. same engine, same decisions.
-import type { Frame, Page } from "playwright-core";
+import type { FileChooser, Frame, Page } from "playwright-core";
 import { DOM_HELPER } from "@/lib/runner-dom";
 
 export interface EngineFile {
@@ -77,6 +77,16 @@ export function fromPlaywright(page: Page): EnginePage {
       d.accept().catch(() => {});
     });
   }
+  // file pickers are caught from the start: switching the catch on is asynchronous, so waiting for a picker only
+  // after deciding to click lost the race now and then, and the picker opened unseen
+  const pickers: FileChooser[] = [];
+  if (!(page as unknown as { __amPickers?: FileChooser[] }).__amPickers) {
+    (page as unknown as { __amPickers?: FileChooser[] }).__amPickers = pickers;
+    page.on("filechooser", (fc) => {
+      pickers.push(fc);
+    });
+  }
+  const caught = (page as unknown as { __amPickers: FileChooser[] }).__amPickers;
   return {
     dialogs: () => said.splice(0, said.length),
     url: () => page.url(),
@@ -119,9 +129,13 @@ export function fromPlaywright(page: Page): EnginePage {
         await (input as import("playwright-core").ElementHandle<HTMLInputElement>).setInputFiles(payload).catch(() => null);
         return true;
       }
-      const chooser = page.waitForEvent("filechooser", { timeout: 6000 }).catch(() => null);
+      caught.splice(0, caught.length);
       await page.mouse.click(x, y);
-      const fc = await chooser;
+      let fc: FileChooser | undefined;
+      for (let i = 0; i < 30 && !fc; i++) {
+        fc = caught.shift();
+        if (!fc) await new Promise((r) => setTimeout(r, 200));
+      }
       if (!fc) return false;
       await fc.setFiles(payload);
       return true;
