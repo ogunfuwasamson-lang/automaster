@@ -741,12 +741,32 @@ export const runner: Record<string, Handler> = {
       if (!page.url() || page.url() === "about:blank") await page.goto(normalizeUrl(state.last_url) ?? portal, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const host = () => new URL(page.url()).hostname;
       const readMail = await canReadMail(job.user_id).catch(() => false);
-      const { outcome, state: next, filled } = await runEngine(
-        fromPlaywright(page),
-        serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host, memory }),
-        state,
-        RUN_BUDGET_MS,
-      );
+      // a browser step that never returns (mcgill hung 15 minutes on one page) would hold the job until its lock
+      // expired: past the budget plus two minutes, stop, keep the state, and try again shortly (three times at most)
+      let lastProgress = "";
+      let timedOut = false;
+      const engineDeps = serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host, memory });
+      const progress = engineDeps.progress;
+      engineDeps.progress = async (n: string) => {
+        lastProgress = n;
+        return progress(n);
+      };
+      const { outcome, state: next, filled } = await Promise.race([
+        runEngine(fromPlaywright(page), engineDeps, state, RUN_BUDGET_MS),
+        new Promise<Awaited<ReturnType<typeof runEngine>>>((done) =>
+          setTimeout(() => {
+            timedOut = true;
+            state.hangs = (state.hangs ?? 0) + 1;
+            void logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.error", applicationId, channel: "portal", context: { error: `a step didn't finish within ${Math.round((RUN_BUDGET_MS + 120_000) / 60_000)} minutes`, last: lastProgress, url: page.url() } }).catch(() => {});
+            done(
+              (state.hangs ?? 0) >= 3
+                ? { outcome: { kind: "needs_you", reason: "stuck", note: `the portal stopped responding on the same step three times (${lastProgress || "while filling a page"}). Open the portal and do that step yourself; the agents carry on after` }, state, filled: 0 }
+                : { outcome: { kind: "wait", note: "a step stopped responding; trying again shortly", seconds: 60 }, state, filled: 0 },
+            );
+          }, RUN_BUDGET_MS + 120_000),
+        ),
+      ]);
+      if (!timedOut) next.hangs = 0;
       (next as RunnerState).picks = memory.picks;
       // what this run showed about the portal itself (not about the applicant)
       if (outcome.kind === "needs_you" && outcome.reason === "account") await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:signup_blocked`, {}).catch(() => {});

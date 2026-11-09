@@ -62,6 +62,7 @@ export interface EngineState {
   restarts?: number; // times this run started again from the portal after the portal ended the session
   passwordChanges?: number; // times this run changed the portal password because the portal asked
   idpBacks?: number; // times this run was sent to a third party's sign-in page and turned back
+  hangs?: number; // runs that hit a step which never returned (reset when a run finishes normally)
   createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
   wentBackToCreate?: boolean; // went back for that once already
   leadBacks?: number; // times this run came back from an enquiry form
@@ -800,7 +801,10 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     const blankRequired = s.fields.some((f) => f.required && f.type !== "checkbox"); // s.fields holds the boxes still empty
     // a password change isn't a sign-up (hec montréal's "Change Password" page)
     const changingPassword = s.allFields.some((f) => f.type === "password" && /\b(current|old|existing|temporary)\b/i.test(`${f.label} ${f.name ?? ""}`)) || CHANGE_PW.test(s.body.slice(0, 1500));
-    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired && !changingPassword) {
+    // only after the sign-up was really sent three times with nothing said (the sign-up step counts its sends): a
+    // page that merely looked the same twice (manchester's address page, hec's password change) isn't a block, and
+    // calling it one moved those portals to chrome for nothing
+    if ((state.signupTries ?? 0) >= 3 && state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired && !changingPassword) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
     // a message box over the form ("Message: The system does not understand the date… [OK]", peoplesoft's
