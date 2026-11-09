@@ -33,5 +33,8 @@ export function Button({ variant = "primary", size = "md", className = "", ...re
 
 export function ButtonLink({ href, variant = "primary", size = "md", className = "", children, external }: { href: string; variant?: Variant; size?: Size; className?: string; children: ReactNode; external?: boolean }) {
   if (external) return <a href={href} target="_blank" rel="noreferrer" className={buttonClass(variant, size, className)}>{children}</a>;
+  // api routes do things when requested (start a gmail connection, set cookies, redirect to google): a plain link,
+  // so next's <Link> never prefetches them as the button scrolls into view
+  if (href.startsWith("/api/")) return <a href={href} className={buttonClass(variant, size, className)}>{children}</a>;
   return <Link href={href} className={buttonClass(variant, size, className)}>{children}</Link>;
 }
