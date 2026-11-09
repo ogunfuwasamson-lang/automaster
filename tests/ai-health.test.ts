@@ -31,3 +31,20 @@ describe("account errors", () => {
     expect(isBillingError("timeout")).toBe(false);
   });
 });
+
+describe("enum answers that are close but not exact", () => {
+  const issue = (key: string, values: string[]) => [{ code: "invalid_value", path: [key], values }];
+  const tiers = ["reach", "target", "safety"];
+  it("takes the first allowed value named in a longer answer", () => {
+    expect(repairEnums({ tier: "reach/target" }, issue("tier", tiers))).toEqual({ tier: "reach" });
+    expect(repairEnums({ tier: "Target to reach" }, issue("tier", tiers))).toEqual({ tier: "target" });
+    expect(repairEnums({ tier: "Safety (likely admit)" }, issue("tier", tiers))).toEqual({ tier: "safety" });
+  });
+  it("falls back to a cautious tier rather than failing the research", () => {
+    expect(repairEnums({ tier: "unknown" }, issue("tier", tiers))).toEqual({ tier: "reach" });
+    expect(repairEnums({ tier: "n/a" }, issue("tier", tiers))).toEqual({ tier: "reach" });
+  });
+  it("leaves fields with no safe default alone", () => {
+    expect(repairEnums({ kind: "banana" }, issue("kind", ["merit_scholarship", "fellowship"]))).toEqual({ kind: "banana" });
+  });
+});

@@ -184,6 +184,8 @@ const SYNONYMS: Record<string, string> = {
   stretch: "reach", ambitious: "reach", likely: "safety", safe: "safety", match: "target",
 };
 const norm = (v: string) => v.trim().toLowerCase().replace(/[\s-]+/g, "_");
+// fields where a cautious value beats throwing the whole answer away (a program's research failed on its tier)
+const SAFE_DEFAULT: Record<string, string> = { tier: "reach", intl_eligible: "unknown", full_funding_realistic: "unknown" };
 
 export function repairEnums(json: unknown, issues: readonly { code: string; path: PropertyKey[]; values?: readonly unknown[] }[]): unknown {
   const copy = structuredClone(json) as Record<string, unknown>;
@@ -196,7 +198,17 @@ export function repairEnums(json: unknown, issues: readonly { code: string; path
     const got = (parent as Record<string, unknown>)?.[key];
     if (typeof got !== "string") continue;
     const n = norm(got);
-    const hit = allowed.find((a) => a === n) ?? allowed.find((a) => SYNONYMS[n] === a) ?? (allowed.filter((a) => n.startsWith(a) || a.startsWith(n)).length === 1 ? allowed.find((a) => n.startsWith(a) || a.startsWith(n)) : undefined);
+    // an answer naming an allowed value inside more words ("reach/target", "Reach (competitive)"): the first one named
+    const named = allowed
+      .map((a) => ({ a, at: n.search(new RegExp(`(^|_|/|\\b)${a}(_|/|\\b|$)`)) }))
+      .filter((x) => x.at >= 0)
+      .sort((x, y) => x.at - y.at)[0]?.a;
+    const hit =
+      allowed.find((a) => a === n) ??
+      allowed.find((a) => SYNONYMS[n] === a) ??
+      (allowed.filter((a) => n.startsWith(a) || a.startsWith(n)).length === 1 ? allowed.find((a) => n.startsWith(a) || a.startsWith(n)) : undefined) ??
+      named ??
+      (allowed.includes(SAFE_DEFAULT[key]) ? SAFE_DEFAULT[key] : undefined);
     if (hit) (parent as Record<string, unknown>)[key] = hit;
   }
   return copy;
