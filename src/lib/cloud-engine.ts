@@ -988,6 +988,19 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
           }
           // the error page has no way to create one (hec montréal sends a refused sign-in to a bare peoplesoft
           // page): go back to the portal's front page, which has "Create account", and press that instead
+          // slate (bu, auburn, brandeis, rochester…) sends a refused sign-in to /account/login, which has no way to
+          // register: its registration page is /account/register on the same site. slate turns away a second account
+          // for the same email itself, so this is safe even if one was started before
+          const here = await page.url();
+          if (/\/account\/login\b/i.test(here) && login.status !== "verified" && !state.wentBackToCreate) {
+            state.wentBackToCreate = true;
+            state.createNext = false;
+            const u = new URL(here);
+            const back = u.searchParams.get("r");
+            state.navHistory = [...(state.navHistory ?? []), "the saved login has never worked here: opened the portal's account registration"].slice(-12);
+            await page.goto(`${u.origin}/account/register${back ? `?r=${encodeURIComponent(back)}` : ""}`, { timeout: 45_000 }).catch(() => null);
+            continue;
+          }
           // never when an account may exist already: the login worked once, or the agents created one here before
           // (hec montréal emails its own user id and password on creation: that's a login to find, not a second account)
           if (deps.portalUrl && !state.wentBackToCreate && login.status !== "verified" && !state.accountAt && (await page.url()) !== deps.portalUrl) {

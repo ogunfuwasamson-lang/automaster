@@ -447,6 +447,23 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("opens slate's registration page when a saved login never worked (bu, auburn)", async () => {
+    const page = await browser.newPage();
+    let registered = "";
+    await portal(page, {
+      "/account/login": () => `<p>You have entered an invalid email address or password.</p><form action="/account/login"><label for="e">Email Address</label><input id="e" name="email" type="email"><label for="p">Password</label><input id="p" name="password" type="password"><button type="submit">Login</button><a href="/account/forgot">Forgot Your Password?</a></form>`,
+      "/account/register": (q) => `<h1>Register</h1><p>${q.get("r") ?? ""}</p><form action="/made"><label for="e">Email Address</label><input id="e" name="email" type="email" required><label for="f">First Name</label><input id="f" name="first" required><label for="l">Last Name</label><input id="l" name="last" required><button type="submit">Continue</button></form>`,
+      "/made": (q) => ((registered = q.get("email") ?? ""), `<h1>A temporary PIN has been sent to your email address.</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/account/login?r=https%3a%2f%2fportal.test%2fapply%2f");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const d = deps();
+    d.logins.push({ login_email: "ada@example.com", password: "Pw-first-1A", status: "created" });
+    await runEngine(fromPlaywright(page), d, st, 40_000);
+    expect(registered).toBe("ada@example.com");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);
