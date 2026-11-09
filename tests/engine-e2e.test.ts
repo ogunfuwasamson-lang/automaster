@@ -427,6 +427,26 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("goes back to the front page to create the account when a saved login was never valid (hec montréal)", async () => {
+    const page = await browser.newPage();
+    let created = false;
+    await portal(page, {
+      "/front": () => `<p>First connection? Click on Create account.</p><form action="/signin"><label for="u">User ID</label><input id="u" name="u"><label for="p">Password</label><input id="p" name="p" type="password">
+        <input type="button" value="Create account" onclick="location.href='/register'"> <input type="submit" value="Sign in"></form>`,
+      "/signin": () => `<p>Your HEC ID and/or Password are invalid.</p><form action="/signin"><label for="u">User ID</label><input id="u" name="u"><label for="p">Password</label><input id="p" name="p" type="password"><input type="submit" value="Sign in"></form>`,
+      "/register": () => `<h1>Create your account</h1><form action="/made"><label for="e">Email</label><input id="e" name="e" type="email"><label for="p1">Password</label><input id="p1" name="p1" type="password"><label for="p2">Confirm password</label><input id="p2" name="p2" type="password"><input type="submit" value="Create account"></form>`,
+      "/made": () => ((created = true), `<h1>Your account was created</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/front");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const d = deps({ portalUrl: "https://portal.test/front" });
+    d.logins.push({ login_email: "ada@example.com", password: "Pw-first-1A" });
+    await runEngine(fromPlaywright(page), d, st, 40_000);
+    expect(created).toBe(true);
+    expect(st.wentBackToCreate).toBe(true);
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

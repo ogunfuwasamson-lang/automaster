@@ -51,6 +51,8 @@ export interface EngineState {
   usernameTries?: number; // usernames the portal said were taken (calgary's eID): the next try adds a number
   signupTries?: number; // times the sign-up form was sent on this run
   restarts?: number; // times this run started again from the portal after the portal ended the session
+  createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
+  wentBackToCreate?: boolean; // went back for that once already
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -912,6 +914,18 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     }
 
     if (kind === "login") {
+      // sent back here to create the account: press "Create account" rather than signing in again
+      if (state.createNext && !state.triedCreate) {
+        const create = find(s, CREATE) ?? findCreate(s);
+        state.createNext = false;
+        if (create) {
+          state.triedCreate = true;
+          state.accountAt = Date.now();
+          await deps.progress("creating your portal account");
+          await click(page, create.id);
+          continue;
+        }
+      }
       let login = await deps.existingLogin();
       // never create a second account: first look for a login this portal already emailed
       if (!login && deps.loginFromMail) login = await deps.loginFromMail(Date.now() - 60 * 86_400_000);
@@ -970,6 +984,15 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
             state.accountAt = Date.now();
             await deps.progress("creating your portal account");
             await click(page, create.id);
+            continue;
+          }
+          // the error page has no way to create one (hec montréal sends a refused sign-in to a bare peoplesoft
+          // page): go back to the portal's front page, which has "Create account", and press that instead
+          if (deps.portalUrl && !state.wentBackToCreate && (await page.url()) !== deps.portalUrl) {
+            state.createNext = true;
+            state.wentBackToCreate = true;
+            state.navHistory = [...(state.navHistory ?? []), "the saved login has never worked here: back to the portal's front page to create the account"].slice(-12);
+            await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => null);
             continue;
           }
         }
