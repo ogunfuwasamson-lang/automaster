@@ -18,6 +18,11 @@ export class AiUnavailable extends Error {
   }
 }
 
+// the AI can't be used right now (no credit, bad key, paused): work should wait, not treat it as "no answer"
+export function isOutage(e: unknown): boolean {
+  return (e as { name?: string })?.name === "AiUnavailable" || /AI is paused until/i.test(String((e as { message?: string })?.message ?? e)) || isAccountError(e);
+}
+
 // is this provider error one that every other call will hit too?
 export function isAccountError(e: unknown) {
   const s = String((e as { message?: string })?.message ?? e);

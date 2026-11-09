@@ -464,6 +464,16 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("stops and waits when the AI is out of credit, instead of calling the page stuck", async () => {
+    const page = await browser.newPage();
+    await portal(page, { "/odd": () => `<h1>Application</h1><p>Choose a section to continue.</p><a href="#a">Section A</a>` });
+    await page.goto("https://portal.test/odd");
+    const credit = new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}');
+    const d = deps({ navigate: async () => { throw credit; }, see: async () => { throw credit; } });
+    await expect(runEngine(fromPlaywright(page), d, { steps: 0 }, 30_000)).rejects.toThrow(/credit balance is too low/);
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

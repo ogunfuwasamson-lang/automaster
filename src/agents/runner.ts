@@ -27,7 +27,7 @@ import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
 import { askToPay, paymentNeeded, spendBonusIfUsed } from "@/lib/billing";
 import { rewardInviter } from "@/lib/referrals";
-import { aiPausedNow, ensureAiWorks } from "@/lib/ai-health";
+import { aiPausedNow, ensureAiWorks, isOutage, tripAi } from "@/lib/ai-health";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
@@ -864,6 +864,13 @@ export const runner: Record<string, Handler> = {
       return { outcome: "failed" };
     } catch (e) {
       if (await userHalted(applicationId).catch(() => null)) return { halted: true };
+      // the AI went away mid-run (credit, key): not the portal's fault and not the applicant's. the job waits for it
+      // and this application carries on from where it was, by itself
+      if (isOutage(e)) {
+        await tripAi(e).catch(() => {});
+        await setRunner(applicationId, { runner_status: "ready", runner_note: "paused: the agents' AI service is unavailable. They carry on from here by themselves when it's back" });
+        throw e;
+      }
       await setRunner(applicationId, { runner_status: "failed", runner_note: "something went wrong while working on the portal. Choose Try again; if it keeps happening, open the portal and finish that step yourself." });
       // the raw error, for the operator: a retry of the job overwrites its last_error
       await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.error", applicationId, channel: "portal", context: { error: String((e as Error)?.stack ?? e).slice(0, 1500) } }).catch(() => {});

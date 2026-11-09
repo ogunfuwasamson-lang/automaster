@@ -20,6 +20,15 @@ export interface Snapshot {
   errors?: string[];
 }
 
+// an AI call that failed because the AI can't be used (no credit, bad key) ends the run so the job waits for it;
+// any other failure falls back as before. without this an outage read as "no answer": runs ended "stuck" (using up
+// the page's retry budget) or went on without the AI's choices
+const orOutage = <T>(fallback: T) => (e: unknown): T => {
+  const msg = String((e as { message?: string })?.message ?? e);
+  if ((e as { name?: string })?.name === "AiUnavailable" || /AI is paused until|credit balance is too low|insufficient.?credit|invalid x-api-key|authentication_error/i.test(msg)) throw e;
+  return fallback;
+};
+
 export interface EngineState {
   steps: number;
   navCalls?: number;
@@ -553,7 +562,7 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
     const image = await page.screenshot().catch(() => null);
     await main.evaluate(() => (window as unknown as AM).__am.clearMarks(), undefined).catch(() => {});
     if (!image) break;
-    const a = await deps.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps.files?.() ?? [] }).catch(() => null);
+    const a = await deps.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps.files?.() ?? [] }).catch(orOutage(null));
     if (!a || a.action === "done") break;
     if (a.action === "handoff") {
       log(`handoff: ${a.note}`);
@@ -675,7 +684,7 @@ async function decidePass(page: Page, deps: EngineDeps, s: Snapshot, fields: Pag
   const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
   if (!todo.length) return 0;
   state.decided = [...seen, ...todo.map(key)].slice(-120);
-  const fills = await deps.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2000), errors: s.errors ?? [] }).catch(() => [] as Fill[]);
+  const fills = await deps.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2000), errors: s.errors ?? [] }).catch(orOutage([] as Fill[]));
   return applyList(page, deps, todo, fills, state);
 }
 
@@ -803,7 +812,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       let stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
       // the hard look may have opened a new section: fill what the profile answers there before asking anything
       if (stillEmpty.length) {
-        const fills = await deps.map(stillEmpty).catch(() => [] as Fill[]);
+        const fills = await deps.map(stillEmpty).catch(orOutage([] as Fill[]));
         const n = await applyList(page, deps, stillEmpty, fills, state);
         if (n) {
           filled += n;
@@ -1211,7 +1220,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   if (!deps.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
   state.navCalls = (state.navCalls ?? 0) + 1;
   const history = state.navHistory ?? [];
-  const a = await deps.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!(await deps.existingLogin()) }).catch(() => null);
+  const a = await deps.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!(await deps.existingLogin()) }).catch(orOutage(null));
   if (!a) return fallback;
   const log = (t: string) => (state.navHistory = [...history, t].slice(-12));
   const root = (u: string) => {

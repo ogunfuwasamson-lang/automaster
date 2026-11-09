@@ -1,4 +1,5 @@
 import "server-only";
+import { isOutage } from "@/lib/ai-health";
 import { labelKey } from "@/lib/school-memory";
 import * as z from "zod/v4";
 import type { NextRequest } from "next/server";
@@ -150,7 +151,9 @@ export async function mapFields(userId: string, sheet: FillSheet, fields: PageFi
       maxTokens: 1500,
     });
     picks = output.picks;
-  } catch {
+  } catch (e) {
+    // no AI right now: stop and wait, rather than call every field "not in your profile" and ask the applicant
+    if (isOutage(e)) throw e;
     picks = [];
   }
   for (const f of unresolved) {
@@ -211,7 +214,8 @@ export async function decideFields(userId: string, sheet: FillSheet, fields: Pag
       maxTokens: 2000,
     });
     picks = output.picks;
-  } catch {
+  } catch (e) {
+    if (isOutage(e)) throw e;
     return [];
   }
   const out: Fill[] = [];
