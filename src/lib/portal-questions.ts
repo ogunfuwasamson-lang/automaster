@@ -7,7 +7,17 @@ import { confirmFact } from "@/lib/profile";
 import { PORTAL_DETAIL_FIELDS, detailFor } from "@/lib/portal-fields";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
-import type { PortalQuestion } from "@/lib/cloud-engine";
+import { isSecAnswer, type PortalQuestion } from "@/lib/cloud-engine";
+
+// never the applicant's to answer here: security answers and passwords are made up and saved with the login by the
+// agents, and a label that's only a placeholder ("Your answer", "Type here") isn't a question anyone can answer.
+// calgary's recovery answers once reached the applicant as "Your answer Enter your answer to question 3"
+export function notForApplicant(label: string, type?: string) {
+  const l = label.replace(/\s+/g, " ").trim();
+  if (type === "password" || /\b(password|passcode|pin)\b/i.test(l)) return true;
+  if (isSecAnswer(l) || /\b(security|secret|recovery|memorable|challenge) (question|answer)/i.test(l)) return true;
+  return !l || /^(your answer|answer|type (your answer|here)|enter (your )?(answer|text|value)( here)?|select|choose|please select)[\s.:*]*$/i.test(l);
+}
 
 // questions a portal asked that the profile can't answer. the interviewer pops up and asks them; answers are
 // kept in the profile, so no school asks twice.
@@ -55,6 +65,7 @@ export async function recordQuestions(userId: string, applicationId: string, que
   const rows: Record<string, unknown>[] = [];
   const reused: { question: string; value: string }[] = [];
   for (const q of questions) {
+    if (notForApplicant(q.label, q.type)) continue;
     const qkey = qkeyOf(q.label);
     if (!qkey || have.has(qkey)) continue;
     have.add(qkey);

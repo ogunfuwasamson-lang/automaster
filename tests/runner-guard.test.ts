@@ -116,3 +116,19 @@ it("knows other companies' sign-in and recovery hosts (hec montréal → microso
   for (const h of ["login.microsoftonline.com", "account.live.com", "accounts.google.com", "appleid.apple.com", "dev-123.okta.com"]) expect(IDP_HOST.test(h)).toBe(true);
   for (const h of ["enligne.hec.ca", "future.mcgill.ca", "grad.bu.edu", "utdcomet.my.site.com"]) expect(IDP_HOST.test(h)).toBe(false);
 });
+
+import { isSecAnswer } from "@/lib/cloud-engine";
+import { notForApplicant } from "@/lib/portal-questions";
+describe("security answers (calgary eID)", () => {
+  it("are answer boxes even when they name the question", () => {
+    expect(isSecAnswer("Your answer Enter your answer to question 3")).toBe(true);
+    expect(isSecAnswer("Answer 1 *")).toBe(true);
+    expect(isSecAnswer("Security question 1")).toBe(false);
+  });
+  it("never reach the applicant as questions, nor do placeholders", () => {
+    expect(notForApplicant("Your answer Enter your answer to question 2")).toBe(true);
+    expect(notForApplicant("Type your answer")).toBe(true);
+    expect(notForApplicant("Password recovery question 1")).toBe(true);
+    expect(notForApplicant("Have you previously applied to this university?")).toBe(false);
+  });
+});

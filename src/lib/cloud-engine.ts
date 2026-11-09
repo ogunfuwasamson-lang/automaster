@@ -448,9 +448,13 @@ const SEC_Q = /\b(security|secret|memorable|challenge)?\s*question\b/i;
 const SEC_A = /\b(security|secret|memorable|challenge)?\s*answer\b/i;
 // fill a sign-up form's security questions: pick a different question in each list, type the made-up answers.
 // returns the ids it filled
+// a box for a security answer. "Your answer: Enter your answer to question 3" (calgary) names a question too: it's
+// still an answer box, as long as "answer" comes before "question"
+export const isSecAnswer = (label: string) => SEC_A.test(label) && (!SEC_Q.test(label) || /\banswer\b[\s\S]*\bquestion\b/i.test(label));
+
 export async function securityQuestions(page: Page, fields: PageField[], login: Login): Promise<string[]> {
   const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
-  const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+  const as = fields.filter((f) => (f.type === "text" || f.type === "password") && isSecAnswer(f.label));
   if ((!as.length && !qs.length) || !login.answers?.length) return [];
   const done: string[] = [];
   const used = new Set<string>();
@@ -468,7 +472,7 @@ export async function securityQuestions(page: Page, fields: PageField[], login: 
   // choosing a question reloads the form on some portals (peoplesoft): find the answer boxes again once it settles
   if (done.length) {
     await sleep(2500);
-    const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+    const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && isSecAnswer(f.label));
     as.splice(0, as.length, ...again);
   }
   for (const [i, a] of as.entries()) {
