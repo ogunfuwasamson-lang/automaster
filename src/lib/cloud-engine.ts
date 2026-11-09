@@ -62,7 +62,8 @@ export interface EngineState {
   restarts?: number; // times this run started again from the portal after the portal ended the session
   passwordChanges?: number; // times this run changed the portal password because the portal asked
   idpBacks?: number; // times this run was sent to a third party's sign-in page and turned back
-  hangs?: number; // runs that hit a step which never returned (reset when a run finishes normally)
+  hangs?: number;
+  navClicks?: number; // clicks the navigator made this run // runs that hit a step which never returned (reset when a run finishes normally)
   createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
   wentBackToCreate?: boolean; // went back for that once already
   leadBacks?: number; // times this run came back from an enquiry form
@@ -434,7 +435,9 @@ export function namedButton(s: Snapshot, state: EngineState): Snapshot["buttons"
     if (add) asked.push(clean(add.label).toLowerCase());
   }
   if (!asked.length) return undefined;
-  const key = (state.lastFingerprint ?? "").slice(0, 60);
+  // once per page, and again after something else was chosen on it: ut dallas asks for "Next" once an existing
+  // application is picked, and "Next" pressed before the pick had used up the one press
+  const key = `${(state.lastFingerprint ?? "").slice(0, 60)}#${state.navClicks ?? 0}`;
   const done = new Set(state.pressedAsked ?? []);
   const b = s.buttons.find((x) => asked.includes(clean(x.label).toLowerCase()) && !done.has(`${key}|${clean(x.label).toLowerCase()}`) && !DANGEROUS.test(x.label) && !FINAL.test(clean(x.label)));
   if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
@@ -1370,6 +1373,8 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     return null;
   }
   log(`click "${label}"`);
+  // a choice made on the page (ut dallas: the existing application's tile) can unlock the button it asks for again
+  state.navClicks = (state.navClicks ?? 0) + 1;
   await deps.progress(a.note ? a.note.slice(0, 80) : `pressing "${label}"`);
   await click(page, b.id);
   return null;

@@ -730,6 +730,7 @@ export const runner: Record<string, Handler> = {
     state.pressedAsked = [];
     state.passwordChanges = 0;
     state.idpBacks = 0;
+    state.navClicks = 0;
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     // loaded only here, so the many routes that share this file don't carry the browser library
