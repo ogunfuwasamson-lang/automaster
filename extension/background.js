@@ -1610,6 +1610,8 @@
     await chrome.action.setBadgeBackgroundColor({ color: n ? "#ea580c" : "#4f46e5" }).catch(() => {
     });
   }
+  chrome.storage.session.set({ pending: [], runs: [] }).catch(() => {
+  });
   async function setPhase(taskId, phase, st) {
     const r = runs.get(taskId);
     if (!r) return;

@@ -89,6 +89,9 @@ async function publish() {
   await chrome.action.setBadgeText({ text: n ? String(n) : runs.size ? "•" : "" }).catch(() => {});
   await chrome.action.setBadgeBackgroundColor({ color: n ? "#ea580c" : "#4f46e5" }).catch(() => {});
 }
+// a fresh worker has no runs in memory: asks and runs left in session storage by the last one can't be answered
+chrome.storage.session.set({ pending: [], runs: [] }).catch(() => {});
+
 async function setPhase(taskId: string, phase: string, st?: RunView["state"]) {
   const r = runs.get(taskId);
   if (!r) return;
