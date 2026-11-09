@@ -250,7 +250,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
       )}
 
       {["packet_approved", "submitted"].includes(app.status) && (
-        <RunHistory userId={auth.user.id} applicationId={id} checkin={((app as { runner_state?: { checkin?: { summary?: string; missing?: string[]; at?: number; signedOut?: boolean } } }).runner_state ?? {}).checkin ?? null} />
+        <RunHistory userId={auth.user.id} applicationId={id} checkin={((app as { runner_state?: { checkin?: { summary?: string; missing?: string[]; references?: string; at?: number; signedOut?: boolean } } }).runner_state ?? {}).checkin ?? null} />
       )}
 
       {(asked ?? []).length > 0 && (

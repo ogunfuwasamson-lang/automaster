@@ -6,6 +6,8 @@ import { getProfile } from "@/lib/profile-store";
 import { profileGaps } from "@/lib/profile";
 import { PORTAL_DETAIL_FIELDS, type PortalDetails } from "@/lib/portal-fields";
 import { notify, resolve } from "@/lib/notify";
+import { checkLimit } from "@/lib/limits";
+import { canReadMail } from "@/lib/gmail";
 
 // after setup (the interview wraps up, the form details are saved, or the applicant leaves setup), the agents start
 // on their own: the shortlist begins if it hasn't, and anything the agents still need from the applicant becomes a
@@ -79,14 +81,49 @@ export async function shortlistFinished(userId: string): Promise<void> {
   const { data: run } = await db.from("jobs").select("id").eq("user_id", userId).eq("agent", "recon").eq("task", "discover").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!run) return;
   const { count } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "shortlisted");
+  // don't wait for the applicant to pick: start preparing the nearest deadlines (up to 3 in progress at once, within
+  // their plan). they can drop any of them; the rest stay on the shortlist
+  const started = await autoPrepare(userId).catch(() => 0);
   await notify({
     userId,
     key: `shortlist-ready:${run.id}`,
     kind: "shortlist",
     title: count ? `Your shortlist is ready: ${count} program${count === 1 ? "" : "s"}` : "Your shortlist run finished",
-    body: count ? "Agents checked each program's official pages against your profile. Pick the ones you want and the agents start preparing them." : "No programs passed the checks this time. Open the shortlist to see why and widen your search.",
+    body: count
+      ? `Agents checked each program's official pages against your profile.${started ? ` They've started preparing the ${started} with the nearest deadlines; drop any you don't want.` : " Pick the ones you want and the agents start preparing them."}`
+      : "No programs passed the checks this time. Open the shortlist to see why and widen your search.",
     href: "/shortlist",
     actionLabel: "Open shortlist",
     email: true,
   });
+}
+
+// the shortlist's nearest deadlines go straight into preparation, so nobody waits on a click to start. at most 3 in
+// progress at once (preparing or approved), and never past the plan's application limit
+export async function autoPrepare(userId: string): Promise<number> {
+  const db = admin();
+  const { count: active } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]);
+  const room = 3 - (active ?? 0);
+  if (room <= 0) return 0;
+  const { data: picks } = await db
+    .from("applications")
+    .select("id, program_id")
+    .eq("user_id", userId)
+    .eq("status", "shortlisted")
+    .order("target_deadline", { ascending: true, nullsFirst: false })
+    .limit(room);
+  let n = 0;
+  for (const a of picks ?? []) {
+    if (await checkLimit(userId, "application")) break;
+    const { error } = await db.from("applications").update({ status: "preparing" }).eq("id", a.id).eq("status", "shortlisted");
+    if (error) continue;
+    await enqueue({ userId, agent: "strategist", task: "plan", payload: { applicationId: a.id }, idempotencyKey: `auto-prepare:${a.id}` });
+    await logEvent({ userId, actor: "system", action: "application.prepare_requested", applicationId: a.id, programId: a.program_id, context: { auto: true } });
+    n++;
+  }
+  // every portal emails a code or a link on the way: without gmail, each one waits for the applicant
+  if (n && !(await canReadMail(userId).catch(() => true))) {
+    await notify({ userId, key: "connect-gmail", kind: "setup", urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on; without it, each one waits for you.", href: "/settings", actionLabel: "Connect Gmail" }).catch(() => {});
+  }
+  return n;
 }

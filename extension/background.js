@@ -7734,6 +7734,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         }
         const ok = await fr.evaluate((x) => window.__am.apply(x), f);
         if (ok) n2++;
+        if (ok && f.action === "fill" && fr.typeKeys && field && ["text", "email", "tel"].includes(field.type) && !field.combo) {
+          const want = f.value.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const got = (await valueOf(page, f.id)).toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (want && got && got !== want && !want.startsWith(got) && /[0-9]/.test(got) !== /[0-9]/.test(want)) {
+            await fr.typeKeys(`[data-am-id="${f.id}"]`, f.value).catch(() => {
+            });
+          }
+        }
         if (ok && (f.action === "choose" || f.action === "check")) await settle2(page);
       } catch {
       } finally {

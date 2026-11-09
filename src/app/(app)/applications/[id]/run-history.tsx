@@ -7,7 +7,7 @@ type Ev = { action: string; created_at: string; context: Record<string, unknown>
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-export async function RunHistory({ userId, applicationId, checkin }: { userId: string; applicationId: string; checkin?: { summary?: string; missing?: string[]; at?: number; signedOut?: boolean } | null }) {
+export async function RunHistory({ userId, applicationId, checkin }: { userId: string; applicationId: string; checkin?: { summary?: string; missing?: string[]; references?: string; at?: number; signedOut?: boolean } | null }) {
   const db = admin();
   const { data } = await db
     .from("events")
@@ -49,6 +49,7 @@ export async function RunHistory({ userId, applicationId, checkin }: { userId: s
             ) : (
               <>
                 <p className="text-muted">{checkin.summary}</p>
+                {checkin.references ? <p className="text-muted">References: {checkin.references}</p> : null}
                 {checkin.missing?.length ? (
                   <ul className="mt-2 list-disc pl-5">
                     {checkin.missing.map((m) => (

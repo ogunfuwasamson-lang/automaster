@@ -44,3 +44,14 @@ describe("documents as PDF for PDF-only upload boxes", () => {
     expect(await asPdf(pdf)).toBe(pdf);
   });
 });
+
+describe("pictures as PDF", () => {
+  it("puts a PNG scan on one PDF page", async () => {
+    const { asPdf } = await import("@/lib/doc-pdf");
+    // a 1x1 png
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const out = await asPdf({ name: "passport.png", mime: "image/png", buffer: png });
+    expect(out.name).toBe("passport.pdf");
+    expect(out.buffer.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});

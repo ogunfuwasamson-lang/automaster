@@ -14,6 +14,7 @@ import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
 import { SITE } from "@/lib/site";
 import { aiPausedUntil, ensureAiWorks } from "@/lib/ai-health";
+import { autoPrepare } from "@/lib/kickoff";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -43,6 +44,8 @@ async function handle(req: NextRequest) {
   // once a day: tell search engines about library pages that are new or re-checked since yesterday
   // the school directory's first announcement to IndexNow: once, then only new or re-checked pages daily
   if (tick) await announceSchoolsOnce().catch(() => null);
+  // once: applicants whose shortlist finished before auto-prepare existed get their nearest deadlines started too
+  if (tick) await autoPrepareBackfillOnce().catch(() => null);
   if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) {
     const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     await submitIndexNow(publicUrls(since)).catch(() => null);
@@ -84,6 +87,16 @@ async function announceSchoolsOnce() {
   const urls = await schoolUrls("2000-01-01");
   const hubs = ["/schools", "/schools/us", "/schools/uk"].map((p) => `${SITE.url}${p}`);
   await submitIndexNow([...hubs, ...urls]);
+}
+
+async function autoPrepareBackfillOnce() {
+  const db = admin();
+  const KEY = "autoprepare_backfill_v1";
+  const { data } = await db.from("billing_settings").select("value").eq("key", KEY).maybeSingle();
+  if (data?.value) return;
+  await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
+  const { data: rows } = await db.from("applications").select("user_id").eq("status", "shortlisted").limit(2000);
+  for (const u of [...new Set((rows ?? []).map((r) => r.user_id as string))]) await autoPrepare(u).catch(() => 0);
 }
 
 async function scheduleLearning() {

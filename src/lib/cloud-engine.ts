@@ -1820,6 +1820,15 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
       }
       const ok = await fr.evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
       if (ok) n++;
+      // a box that scrambled what went in ("Sams9lon" for Samson: an input mask or a script fighting the value):
+      // read it back and, once, type it key by key instead
+      if (ok && f.action === "fill" && fr.typeKeys && field && ["text", "email", "tel"].includes(field.type) && !field.combo) {
+        const want = f.value.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const got = (await valueOf(page, f.id)).toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (want && got && got !== want && !want.startsWith(got) && /[0-9]/.test(got) !== /[0-9]/.test(want)) {
+          await fr.typeKeys(`[data-am-id="${f.id}"]`, f.value).catch(() => {});
+        }
+      }
       // a list or tick box that sends the form to the server as soon as it changes (peoplesoft's
       // submitAction): wait for the reply, or it redraws the form over what gets typed next
       if (ok && (f.action === "choose" || f.action === "check")) await settle(page);
