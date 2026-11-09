@@ -110,3 +110,9 @@ it("treats slate's 'Error generating captcha token' as a bot check (bu, brandeis
   const snap = { confirmation: false, captcha: false, payment: false, allFields: [{ id: "a", type: "email", label: "Email" }], fields: [], buttons: [], body: "Register. Error generating captcha token.", errors: [] } as unknown as Parameters<typeof classify>[0];
   expect(classify(snap)).toBe("captcha");
 });
+
+import { IDP_HOST } from "@/lib/cloud-engine";
+it("knows other companies' sign-in and recovery hosts (hec montréal → microsoft)", () => {
+  for (const h of ["login.microsoftonline.com", "account.live.com", "accounts.google.com", "appleid.apple.com", "dev-123.okta.com"]) expect(IDP_HOST.test(h)).toBe(true);
+  for (const h of ["enligne.hec.ca", "future.mcgill.ca", "grad.bu.edu", "utdcomet.my.site.com"]) expect(IDP_HOST.test(h)).toBe(false);
+});

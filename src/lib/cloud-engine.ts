@@ -61,6 +61,7 @@ export interface EngineState {
   signupTries?: number; // times the sign-up form was sent on this run
   restarts?: number; // times this run started again from the portal after the portal ended the session
   passwordChanges?: number; // times this run changed the portal password because the portal asked
+  idpBacks?: number; // times this run was sent to a third party's sign-in page and turned back
   createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
   wentBackToCreate?: boolean; // went back for that once already
   leadBacks?: number; // times this run came back from an enquiry form
@@ -350,6 +351,16 @@ async function fillText(page: Page, id: string, value: string) {
     throw e;
   }
 }
+// identity providers: their sign-in and recovery pages are never part of a school application here
+export const IDP_HOST = /(^|\.)(login\.microsoftonline\.com|login\.live\.com|account\.live\.com|account\.microsoft\.com|accounts\.google\.com|myaccount\.google\.com|appleid\.apple\.com|idmsa\.apple\.com|login\.yahoo\.com|facebook\.com|linkedin\.com|okta\.com|auth0\.com)$/i;
+const hostOf = (u: string) => {
+  try {
+    return new URL(u).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
 // the portal ended the session: the page is a dead end, not a step to work on
 export const DEAD_END = /an error has occurred that has stopped this transaction|(your |the )?session (has )?(timed out|expired)|has timed out due to inactivity|this page has expired|page (is )?no longer (valid|available)/i;
 
@@ -876,6 +887,17 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       // the usual moves aren't working on this page: let the navigator look at it
       const o = await stuckStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
       if (o) return { outcome: o, state, filled };
+      continue;
+    }
+
+    // a third party's own sign-in or account recovery (microsoft, google, apple…): never the applicant's way into a
+    // school portal here. hec montréal's "LOG IN" for hec email holders led to microsoft's account recovery, where
+    // the agents were about to type the email. turn back to the school's portal; stop if it keeps happening
+    if (IDP_HOST.test(hostOf(s.url)) && !(deps.portalUrl && hostOf(deps.portalUrl) === hostOf(s.url))) {
+      state.idpBacks = (state.idpBacks ?? 0) + 1;
+      state.navHistory = [...(state.navHistory ?? []), `left ${hostOf(s.url)} (another company's sign-in): back to the school's portal`].slice(-20);
+      if (state.idpBacks > 2 || !deps.portalUrl) return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal kept sending the agents to another company's sign-in page (Microsoft, Google or similar). Open the portal and sign in with the school's own account option" }, state, filled };
+      await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => null);
       continue;
     }
 
