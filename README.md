@@ -4,6 +4,9 @@ agents that run a bachelor's, master's or PhD application cycle for anyone, in a
 (US, Canada, UK, Europe, Asia, Australia/NZ, Middle East, Africa, Latin America): intake, shortlist,
 drafts, funding, submission prep. you review, they run.
 
+**Finding your way around the code:** see the [codebase map](docs/CODEBASE_MAP.md) for what each folder and module
+does, and which files to open for the portal runner, AI costs, email, billing and the operator console.
+
 ## strategy: admissions first
 
 1. **get as many good admits as possible.** recon searches each region you pick from its top-ranked
@@ -27,7 +30,8 @@ drafts, funding, submission prep. you review, they run.
 
 ## how it's wired
 
-- **next.js 15** on vercel. server routes only; the service-role key never touches the browser.
+- **next.js 15** on agent37 (`deploy/agent37/`, deployed by GitHub Actions on every push to `main`). server routes
+  only; the service-role key never touches the browser. module-by-module guide: [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md).
 - **supabase**: auth (magic link), postgres, storage (private `documents` bucket).
 - **job queue in postgres** (`jobs` table + `claim_jobs()` with `skip locked`). no extra service.
   supabase `pg_cron` hits `/api/worker` every minute; new jobs also get kicked inline with `after()`.
