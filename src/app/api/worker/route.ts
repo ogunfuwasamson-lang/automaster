@@ -6,7 +6,7 @@ import { scheduleDigests } from "@/lib/digest";
 import { scheduleInbox } from "@/lib/inbox";
 import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
-import { publicUrls, submitIndexNow } from "@/lib/indexnow";
+import { publicUrls, schoolUrls, submitIndexNow } from "@/lib/indexnow";
 import { sendMonthlyAlerts } from "@/lib/deadline-alerts";
 import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
@@ -40,7 +40,11 @@ async function handle(req: NextRequest) {
   if (tick) await sweepResumable().catch(() => 0);
   if (tick) await sweepOrphans().catch(() => 0);
   // once a day: tell search engines about library pages that are new or re-checked since yesterday
-  if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) await submitIndexNow(publicUrls(new Date(Date.now() - 86400000).toISOString().slice(0, 10))).catch(() => null);
+  if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) {
+    const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    await submitIndexNow(publicUrls(since)).catch(() => null);
+    await submitIndexNow(await schoolUrls(since).catch(() => [])).catch(() => null);
+  }
   // scholarship deadline alerts: the 1st of each month from 08:00 UTC, in batches until everyone has theirs
   if (tick && new Date().getUTCDate() === 1 && new Date().getUTCHours() >= 8) await sendMonthlyAlerts(60).catch(() => null);
   // the nightly learning pass (02:00 UTC), run under a staff account

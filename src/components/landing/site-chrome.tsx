@@ -113,6 +113,9 @@ export function SiteFooter() {
           <Link href="/universities" className="block text-muted hover:text-foreground">
             How to apply, by university
           </Link>
+          <Link href="/schools" className="block text-muted hover:text-foreground">
+            School directory (US and UK)
+          </Link>
           <Link href="/alerts" className="block text-muted hover:text-foreground">
             Deadline alerts
           </Link>

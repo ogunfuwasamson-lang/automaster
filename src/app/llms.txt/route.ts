@@ -38,6 +38,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students
 - [Universities](${SITE.url}/universities): how to apply to Harvard, MIT, Stanford, Oxford, Cambridge, Toronto, McGill, TUM, ETH and more
+- [School directory](${SITE.url}/schools): every degree-granting university and college in the United States (IPEDS) and the United Kingdom (OfS, SFC, Medr, DfENI), by state or region, each with its official admissions and application links and how to apply from abroad. URL pattern: ${SITE.url}/schools/<us|uk>/<state-or-region>/<school>. Sitemap: ${SITE.url}/schools/sitemap.xml
 - [Study abroad by home country](${SITE.url}/study-abroad): which fully funded scholarships are open to citizens of each country, and the 2026–27 visa rules for that nationality
 - [Scholarship finder](${SITE.url}/tools/scholarship-finder): screen the major fully funded scholarships by citizenship, level, work experience and age
 - [Glossary](${SITE.url}/glossary): admissions and funding terms defined

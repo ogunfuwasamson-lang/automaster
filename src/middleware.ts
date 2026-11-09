@@ -30,6 +30,7 @@ const PUBLIC = [
   "/scholarships",
   "/about",
   "/universities",
+  "/schools",
   "/study-abroad",
   "/fr",
   "/es",

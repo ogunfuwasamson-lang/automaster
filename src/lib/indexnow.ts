@@ -17,7 +17,7 @@ export function publicUrls(sinceIso?: string) {
     ...allLocalUrls().map((path) => ({ path, updated: "2026-11-01" })),
   ];
   const fresh = sinceIso ? lib.filter((p) => p.updated >= sinceIso) : lib;
-  const hubs = !sinceIso || fresh.length ? ["/", "/guides", "/scholarships", "/about", "/pricing", "/universities", "/study-abroad", "/glossary", "/tools/scholarship-finder", "/llms.txt", "/llms-full.txt"] : [];
+  const hubs = !sinceIso || fresh.length ? ["/", "/guides", "/scholarships", "/about", "/pricing", "/universities", "/schools", "/schools/us", "/schools/uk", "/study-abroad", "/glossary", "/tools/scholarship-finder", "/llms.txt", "/llms-full.txt"] : [];
   return [...hubs, ...fresh.map((p) => p.path)].map((p) => `${SITE.url}${p}`);
 }
 
@@ -30,4 +30,10 @@ export async function submitIndexNow(urls: string[]) {
     signal: AbortSignal.timeout(10000),
   });
   return { ok: res.ok, status: res.status, count: urls.length };
+}
+
+// school directory pages new or re-checked since a date (the registries are re-read a few times a year)
+export async function schoolUrls(sinceIso: string) {
+  const { directory, schoolPath, worthIndexing } = await import("@/lib/directory");
+  return (await directory()).filter((d) => worthIndexing(d) && d.checked >= sinceIso).map((d) => `${SITE.url}${schoolPath(d)}`);
 }
