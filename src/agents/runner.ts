@@ -12,7 +12,7 @@ import { decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, sub
 import { bareLink, fieldHints, host as hostOf, knownApplyUrl, learn, learnWaiver, portalNeedsChrome } from "@/lib/school-memory";
 import { createLogin, getLogin, markLogin, rotatePassword, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
-import { extractCredentials, extractVerification, hostRoot } from "@/lib/verify-mail";
+import { extractCredentials, extractVerification, fromPortal, hostRoot } from "@/lib/verify-mail";
 import { decrypt, encrypt } from "@/lib/crypto";
 import type { StorageState } from "@/lib/browser";
 import { runEngine, type EngineDeps, type EngineState, type NavInput } from "@/lib/cloud-engine";
@@ -357,7 +357,9 @@ export async function findVerification(userId: string, host: string, since: numb
   const root = hostRoot(host);
   const days = Math.min(30, Math.max(1, Math.ceil((Date.now() - since) / 86_400_000) + 1));
   const mails = [...(await recentMail(userId, `in:anywhere -in:trash newer_than:${days}d (from:${root} OR subject:(verify OR verification OR code OR confirm OR activate OR account OR pin))`, 8).catch(() => [])), ...(await pastedMail(userId, root, since))];
-  for (const m of mails.filter((x) => x.at >= since - 60_000).sort((a, b) => b.at - a.at)) {
+  // the inbox search is broad (any subject with "code"): only the portal's own emails count. a pasted email was
+  // chosen for this school by the applicant
+  for (const m of mails.filter((x) => x.at >= since - 60_000 && (x.from.startsWith("pasted@") || fromPortal(x, host))).sort((a, b) => b.at - a.at)) {
     const v = extractVerification(m, host);
     if (v.code || v.link) return v;
   }

@@ -237,13 +237,20 @@ const BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|acces
 export const isBlockPage = (s: Pick<Snapshot, "title" | "body">) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
 const TERMS = /(i (have read and )?(agree|accept)|i confirm (that )?i have read|accept to continue|terms (of use|and conditions|of service)|privacy (policy|notice)|data protection (statement|policy|notice))/i;
 
+// a box to type an emailed code into: a text box labelled as one. not a yes/no question ("do you have a quebec
+// permanent code?" made mcgill's identification page look like a code page, and a code was nearly typed into it),
+// and not the other codes forms ask for
+export function isCodeBox(f: { type: string; label: string }) {
+  return /^(text|tel|number|search|)$/.test(f.type) && CODE_LABEL.test(f.label) && !/zip|postal|area|country|permanent|course|program|programme|subject|school|institution|promo|discount|coupon|referral|invite|tax|sort|swift|bank|do you have|have you/i.test(f.label);
+}
+
 // pure: what kind of page is this?
 export function classify(s: Snapshot): "confirmation" | "captcha" | "payment" | "login" | "signup" | "verify_code" | "check_email" | "form" {
   if (s.confirmation) return "confirmation";
   if (s.captcha) return "captcha";
   if (s.payment) return "payment";
   const pw = s.allFields.filter((f) => f.type === "password");
-  const code = s.allFields.find((f) => f.type !== "password" && CODE_LABEL.test(f.label) && !/zip|postal|area|country/i.test(f.label));
+  const code = s.allFields.find((f) => isCodeBox(f));
   if (pw.length >= 2 || (pw.length === 1 && SIGNUP_WORDS.test(s.body.slice(0, 3000)) && s.allFields.length >= 4)) return "signup";
   if (pw.length === 1) return "login";
   if (code && s.allFields.length <= 3) return "verify_code";
@@ -1115,7 +1122,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       }
       state.verifyWaitSince = undefined;
       if (kind === "verify_code" && v.code) {
-        const box = s.allFields.find((f) => CODE_LABEL.test(f.label))!;
+        const box = s.allFields.find((f) => isCodeBox(f));
+        if (!box) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal asked for an emailed code but the agents couldn't find where to type it; open the live view" }, state, filled };
         await fillText(page, box.id, v.code);
         const go = find(s, VERIFY_BTN);
         if (go) await click(page, go.id);

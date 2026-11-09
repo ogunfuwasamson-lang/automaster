@@ -9,6 +9,16 @@ export function hostRoot(host: string): string {
   return parts.slice(cc ? -3 : -2).join(".");
 }
 
+// is this email from the portal? its sender's domain is the portal's (mcgill.ca for future.mcgill.ca), or it links to
+// the portal's own address (a portal hosted elsewhere: ut dallas's applicant portal on salesforce). a code from any
+// other sender (a github sign-in code was once picked up for mcgill) must never be typed into a school's form
+export function fromPortal(mail: { from: string; text: string; html: string }, host: string): boolean {
+  const sender = (mail.from.match(/@([a-z0-9.-]+)/i)?.[1] ?? "").toLowerCase();
+  if (sender && hostRoot(sender) === hostRoot(host)) return true;
+  const h = host.toLowerCase().replace(/^www\./, "");
+  return `${mail.html} ${mail.text}`.toLowerCase().includes(h);
+}
+
 export function extractVerification(mail: { subject: string; text: string; html: string }, host: string): { code: string | null; link: string | null } {
   const text = `${mail.subject}\n${mail.text}\n${mail.html.replace(/<[^>]+>/g, " ")}`.replace(/&nbsp;/g, " ");
   // codes: "your code is 482913", "PIN: 7X3KQ9", "verification code 1234-5678"

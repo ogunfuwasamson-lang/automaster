@@ -147,6 +147,11 @@ export function buildSheet(a: {
   set("field_of_interest", p.goals.fields?.join(", "));
   // answers most portals ask up front. applying through an agent is never the case here: the applicant applies.
   set("applying_as", "myself");
+  // "do you have a mcgill id number / student number?": only if they studied there before
+  const studiedHere = (p.education ?? []).some((e) => e.institution && a.school && norm(e.institution).includes(norm(a.school).split(" ").filter((w) => w.length > 3)[0] ?? "\u0000"));
+  set("has_school_id", studiedHere ? "" : "No");
+  // quebec's permanent code (code permanent) is issued to people who studied in quebec
+  set("has_quebec_code", /quebec|québec/i.test(`${(p.education ?? []).map((e) => `${e.institution ?? ""} ${e.country ?? ""}`).join(" ")} ${p.identity.country_of_residence ?? ""}`) ? "" : "No");
   // "application type" / "admit type": graduate or undergraduate, from the level they're applying at
   set("application_type", levelOf(p) === "undergraduate" ? "Undergraduate" : "Graduate");
   set("study_mode", /part.?time|online|executive/i.test(`${a.program} ${a.degree ?? ""}`) ? (/online/i.test(a.program) ? "Online" : "Part-time") : "Full-time");
@@ -295,6 +300,8 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
   [/\b(application|applicant|admission|admit)\s+type\b|type of (application|applicant|admission)/i, "application_type"],
   [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent|who are you applying for/i, "applying_as"],
+  [/\b(permanent code|code permanent)\b/i, "has_quebec_code"],
+  [/\bdo you (have|hold) (a|an|your)?\s*[\w .'&-]{0,40}\b(student|id|identification|matriculation)\s*(number|no\.?|#)/i, "has_school_id"],
   [/\b(mode of study|study mode|attendance mode|full.?time or part.?time|part.?time or full.?time)\b|^\s*full.?time\s+part.?time\s*$|^\s*part.?time\s+full.?time\s*$/i, "study_mode"],
   [/\b(do you|will you) (require|need) a (student )?visa|\bvisa (required|needed)|require a visa/i, "visa_required"],
   [/\b(start date|intake|entry (date|point|month)|course start|commenc|when (do|would) you (like|want|intend) to start)/i, "entry_start"],
