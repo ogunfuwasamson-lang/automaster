@@ -956,15 +956,6 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         const create = find(s, CREATE) ?? findCreate(s);
         if (create && !state.triedCreate) {
           await deps.progress("creating your portal account");
-      // the address goes in through its own "Add Address" page on some sign-ups (manchester): open it first, once
-      const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
-      const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
-      if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
-        state.pressedAsked = [...(state.pressedAsked ?? []), addrKey].slice(-30);
-        state.navHistory = [...(state.navHistory ?? []), `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
-        await click(page, addAddr.id);
-        continue;
-      }
           state.accountAt = Date.now();
           state.triedCreate = true;
           await click(page, create.id);
@@ -1087,6 +1078,16 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     }
 
     if (kind === "signup") {
+      // the address goes in through its own "Add Address" page on some sign-ups (manchester): open it first, once
+      // a run (it was in the sign-in branch by mistake, so manchester's sign-ups always went without an address)
+      const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
+      const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
+      if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
+        state.pressedAsked = [...(state.pressedAsked ?? []), addrKey].slice(-30);
+        state.navHistory = [...(state.navHistory ?? []), `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
+        await click(page, addAddr.id);
+        continue;
+      }
       const login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail));
       const said = (s.errors ?? []).join(" ").trim();
       // the portal said why it didn't create the account. a username someone else has: try it with a number

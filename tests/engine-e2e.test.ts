@@ -539,6 +539,33 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("opens Add Address before sending a sign-up (manchester peoplesoft)", async () => {
+    const page = await browser.newPage();
+    let address = "";
+    let created = false;
+    await portal(page, {
+      "/register": () => `<h1>Create Application Account</h1><form action="/made"><label for="f">First Name *</label><input id="f" name="f" required>
+        <label for="e">Email *</label><input id="e" name="e" type="email" required><label for="p1">Password *</label><input id="p1" name="p1" type="password" required>
+        <label for="p2">Confirm Password *</label><input id="p2" name="p2" type="password" required>
+        <p>Address *</p><a id="ADDR_LINK" href="/address"><img src="x.png" alt="Add Address"></a>
+        <input type="submit" value="Submit"></form>`,
+      "/address": () => `<h1>Home Address</h1><form action="/saved"><label for="a1">Address 1 *</label><input id="a1" name="a1" required><label for="c">City *</label><input id="c" name="c" required><input type="submit" value="OK"></form>`,
+      "/saved": (q) => ((address = q.get("a1") ?? ""), `<script>location.href = "/register2"</script>`),
+      "/register2": () => `<h1>Create Application Account</h1><form action="/made"><label for="f">First Name *</label><input id="f" name="f" required>
+        <label for="e">Email *</label><input id="e" name="e" type="email" required><label for="p1">Password *</label><input id="p1" name="p1" type="password" required>
+        <label for="p2">Confirm Password *</label><input id="p2" name="p2" type="password" required><p>Address: 1 Ada Way</p><input type="submit" value="Submit"></form>`,
+      "/made": () => ((created = true), `<h1>Your account was created</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/register");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const d = deps();
+    d.map = async (fields: PageField[]) => fields.map((f) => /address 1/i.test(f.label) ? { id: f.id, action: "fill" as const, value: "1 Ada Way", source: "address_line1" } : /city/i.test(f.label) ? { id: f.id, action: "fill" as const, value: "Lagos", source: "city" } : /first/i.test(f.label) ? { id: f.id, action: "fill" as const, value: "Ada", source: "first_name" } : /email/i.test(f.label) ? { id: f.id, action: "fill" as const, value: "ada@example.com", source: "email" } : { id: f.id, action: "skip" as const, reason: "n/a" });
+    await runEngine(fromPlaywright(page), d, st, 40_000);
+    expect(address).toBe("1 Ada Way");
+    expect(created).toBe(true);
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);
