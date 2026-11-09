@@ -81,6 +81,7 @@ const runs = new Map<string, RunView>();
 const control = new Map<string, Control>();
 let lastTasks: { paused: boolean; tasks: Task[] } | null = null;
 
+let publishTimer: ReturnType<typeof setTimeout> | undefined;
 async function publish() {
   const pending: Pending[] = (await chrome.storage.session.get({ pending: [] })).pending;
   await chrome.storage.session.set({ runs: [...runs.values()] });
@@ -368,7 +369,9 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       if (!r) return;
       if (!r.current) r.current = { title: "", url: "", fills: [] };
       r.current.fills = [...r.current.fills.filter((x) => x.id !== f.id), { id: f.id, label: f.label.replace(/\s+/g, " ").trim().slice(0, 160), action: f.action, value: f.value.slice(0, 300) }].slice(-120);
-      publish();
+      // one write for a burst of answers, not one per box (each write carries the page pictures)
+      clearTimeout(publishTimer);
+      publishTimer = setTimeout(publish, 250);
     },
     beforeNext: async (p) => {
       await finishPage(taskId);

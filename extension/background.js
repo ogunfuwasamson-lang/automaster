@@ -1600,6 +1600,7 @@
   var runs = /* @__PURE__ */ new Map();
   var control = /* @__PURE__ */ new Map();
   var lastTasks = null;
+  var publishTimer;
   async function publish() {
     const pending = (await chrome.storage.session.get({ pending: [] })).pending;
     await chrome.storage.session.set({ runs: [...runs.values()] });
@@ -1864,7 +1865,8 @@
         if (!r) return;
         if (!r.current) r.current = { title: "", url: "", fills: [] };
         r.current.fills = [...r.current.fills.filter((x) => x.id !== f.id), { id: f.id, label: f.label.replace(/\s+/g, " ").trim().slice(0, 160), action: f.action, value: f.value.slice(0, 300) }].slice(-120);
-        publish();
+        clearTimeout(publishTimer);
+        publishTimer = setTimeout(publish, 250);
       },
       beforeNext: async (p) => {
         await finishPage(taskId);
