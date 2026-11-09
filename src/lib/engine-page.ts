@@ -20,6 +20,9 @@ export interface EngineFrame {
   fill(selector: string, value: string, opts: { timeout: number }): Promise<void>;
   press(selector: string, key: "Enter"): Promise<void>;
   setInputFiles(selector: string, file: EngineFile): Promise<void>;
+  // type into a box with real key presses, then Tab out: for widgets that ignore a value set by script
+  // (salesforce lightning's date box only commits what was typed)
+  typeKeys?(selector: string, text: string): Promise<void>;
 }
 
 export interface EnginePage {
@@ -61,6 +64,13 @@ function frame(f: Frame, page: Page): EngineFrame {
     click: (sel, o) => f.click(sel, o),
     fill: (sel, v, o) => f.fill(sel, v, o),
     press: (sel, key) => f.press(sel, key),
+    typeKeys: async (sel, text) => {
+      const box = f.locator(sel);
+      await box.click({ timeout: 8_000 });
+      await box.fill("", { timeout: 8_000 });
+      await box.pressSequentially(text, { delay: 25, timeout: 15_000 });
+      await box.press("Tab");
+    },
     setInputFiles: (sel, file) => f.setInputFiles(sel, { name: file.name, mimeType: file.mime, buffer: Buffer.from(file.buffer) }),
   };
   wrapped.set(f, ef);

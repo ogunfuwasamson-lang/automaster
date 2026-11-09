@@ -261,6 +261,12 @@ export function chromePage(tabId: number): EnginePage {
     press: async (sel) => {
       await run(tabId, frameId, pageEnter as (a: never) => boolean, sel);
     },
+    typeKeys: async (sel, text) => {
+      await run(tabId, frameId, pageClick as (a: never) => boolean, sel);
+      await run(tabId, frameId, pageFill as (a: never) => boolean, { sel, value: "" });
+      await run(tabId, frameId, ptType as (a: never) => boolean, text);
+      await run(tabId, frameId, ptKey as (a: never) => boolean, "Tab");
+    },
     setInputFiles: async (sel, file: EngineFile) => {
       await run(tabId, frameId, pageFiles as (a: never) => boolean, { sel, b64: b64(file.buffer), name: file.name, mime: file.mime });
     },

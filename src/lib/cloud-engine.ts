@@ -5,6 +5,7 @@ import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib
 import type { Fill, PageField } from "@/lib/runner-map";
 import { cleanLabel } from "@/lib/labels";
 import { NEVER_FILL } from "@/lib/never-fill";
+import { keyForLabel } from "@/lib/fillsheet";
 
 export interface Snapshot {
   url: string;
@@ -66,6 +67,8 @@ export interface EngineState {
   navClicks?: number; // clicks the navigator made this run // runs that hit a step which never returned (reset when a run finishes normally)
   createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
   wentBackToCreate?: boolean; // went back for that once already
+  accountExists?: boolean; // the sign-up page said this email already has an account
+  lookups?: number; // peoplesoft "Look Up …" searches done on this run
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -323,6 +326,36 @@ async function snap(page: Page): Promise<Snapshot> {
   return { ...best.s, captcha, confirmation, title: main.title || best.s.title, ...(shown.length ? { errors: [...(best.s.errors ?? []), ...shown], body: `${shown.join(" ")} ${best.s.body}` } : {}) };
 }
 
+// a peoplesoft lookup ("Look Up Country"): its own frame holds a search box and a Look Up button. type the profile's
+// value for what's being looked up, search, and press the matching result. false when it can't
+async function lookUp(page: Page, deps: EngineDeps, title: string): Promise<boolean> {
+  const what = title.replace(/^\s*look ?up\s*/i, "").trim();
+  const key = keyForLabel(what) ?? keyForLabel(`${what} *`);
+  if (!what || !key) return false;
+  for (const f of await page.frames()) {
+    const s = await snapFrame(f);
+    if (!s) continue;
+    const box = s.allFields.find((x) => x.type === "text" && /\b(description|descr|search|name)\b/i.test(`${x.label} ${x.name ?? ""}`));
+    const go = s.buttons.find((b) => /^(look ?up|search|find)$/i.test(clean(b.label)));
+    if (!box || !go) continue;
+    const fill = await deps.fillFromKey!({ ...box, label: what }, key);
+    if (!fill || fill.action !== "fill") return false;
+    active.set(page, f);
+    await fillText(page, box.id, fill.value);
+    await click(page, go.id);
+    await settle(page);
+    const after = await snapFrame(f);
+    const want = fill.value.toLowerCase().replace(/\s+/g, " ").trim();
+    const label = (b: { label: string }) => clean(b.label).toLowerCase();
+    const hit = after?.buttons.find((b) => label(b) === want) ?? after?.buttons.find((b) => label(b).startsWith(want) && label(b).length <= want.length + 20);
+    if (!hit) return false;
+    await click(page, hit.id);
+    await settle(page);
+    return true;
+  }
+  return false;
+}
+
 async function click(page: Page, id: string) {
   const sel = `[data-am-id="${id}"]`;
   // "start your application" links often open a new tab: follow them here instead
@@ -375,6 +408,9 @@ export const DEAD_END = /an error has occurred that has stopped this transaction
 // "this eID is already taken", "username not available" (not an email that's registered already: that account exists)
 // a refused sign-in, in the words portals use ("Unknown user ID or password": hec montréal's peoplesoft)
 export const LOGIN_REFUSED = /\b(invalid|incorrect|wrong|not recogni[sz]ed|unrecogni[sz]ed|unknown (user|login|e-?mail|account|username|id)|failed|does not exist|doesn't exist|no account|not match|identifiant (inconnu|invalide)|mot de passe (invalide|incorrect))/i;
+
+// the sign-up said the email has an account already (not "Already have an account? Sign in", which every sign-up shows)
+export const EMAIL_EXISTS = /\b(e-?mail|email address|courriel)\b[^.!?]{0,80}\b(is |has )?(already )(been )?(registered|in use|used|taken|assigned|associated|linked|on file|exists?)\b|\b(an )?account (with|for|using) (this|that|the) e-?mail( address)? (already )?exists|\b(e-?mail|courriel)\b[^.!?]{0,60}\bdéjà (utilisé|associé|enregistré)/i;
 
 export const USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
 
@@ -800,6 +836,16 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       if (isBlockPage(s)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
     }
 
+    // peoplesoft's "Look Up Country" search over the form (manchester, hec): search for the profile's value and pick it
+    const lookTitle = [s.title, (s.fingerprint ?? "").split("|")[0]].find((t) => /^\s*look ?up\s+\S/i.test(t ?? "")) ?? "";
+    if (lookTitle && (state.lookups ?? 0) < 6 && deps.fillFromKey) {
+      state.lookups = (state.lookups ?? 0) + 1;
+      if (await lookUp(page, deps, lookTitle)) {
+        state.samePageCount = 0;
+        continue;
+      }
+    }
+
     // loop guard: the same page three times in a row means the portal won't take what we gave it
     if (s.fingerprint !== state.lastFingerprint) recentDialogs.delete(page);
     const alertText = (recentDialogs.get(page) ?? []).join(" | ");
@@ -822,6 +868,26 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     // calling it one moved those portals to chrome for nothing
     if ((state.signupTries ?? 0) >= 3 && state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired && !changingPassword) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
+    }
+    // "this email is already registered / assigned to a user": the applicant has an account here already. never a
+    // second one: sign in instead (the saved login, the one the portal emailed, or a reset from their inbox).
+    // hec montréal kept creating accounts and looping on "already assigned to user ID 25000282"
+    if (!state.accountExists && ["signup", "form", "login"].includes(classify(s)) && EMAIL_EXISTS.test(`${(s.errors ?? []).join(" ")} ${alertText} ${s.body}`)) {
+      state.accountExists = true;
+      state.triedCreate = true;
+      state.wentBackToCreate = true;
+      state.createNext = false;
+      state.navHistory = [...(state.navHistory ?? []), "the portal says this email has an account already: signing in instead"].slice(-12);
+      await deps.progress("you have an account here already: signing in instead");
+      const way = find(s, LOGIN_LINK) ?? findBy(s, isSignIn);
+      if (way) {
+        await click(page, way.id);
+        continue;
+      }
+      if (deps.portalUrl) {
+        await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => {});
+        continue;
+      }
     }
     // a message box over the form ("Message: The system does not understand the date… [OK]", peoplesoft's
     // modal): close it so the form underneath works again, once per page
@@ -1237,8 +1303,11 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       const h = await fillHard(page, deps, state);
       filled += h.filled;
       if (h.outcome) return { outcome: h.outcome, state, filled };
-      if (h.empty.length) {
-        for (const f of h.empty) ask(state, f);
+      // only what the profile doesn't have is a question for the applicant. a box the profile has a value for that the
+      // page didn't keep (ut dallas's birthdate) is the portal's doing: the loop guard deals with it, nobody is asked
+      const unknown = h.empty.filter((f) => !deps.hasValue?.(f.label));
+      if (unknown.length) {
+        for (const f of unknown) ask(state, f);
         return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
       }
       now = await snap(page);
@@ -1504,6 +1573,9 @@ async function chooseAria(page: Page, id: string, option: string): Promise<boole
   return !!picked;
 }
 
+const DATE_BOX = /\b(date|birth|birthdate|dob|d\.o\.b)\b/i;
+const DATE_VALUE = /^(\d{4}-\d{2}-\d{2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|[A-Za-z]{3,9}\.? \d{1,2},? \d{4}|\d{1,2} [A-Za-z]{3,9}\.? \d{4})$/;
+
 async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], state?: EngineState): Promise<number> {
   const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
   if (!safe.length) return 0;
@@ -1571,7 +1643,20 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
         if (picked) n++;
         continue;
       }
-      const ok = await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
+      // a date in a plain text box: typed key by key and tabbed out of. salesforce lightning's date box ignores a value
+      // set by script and says "Birthdate is required" on Next (ut dallas)
+      const fr = frameOf(page);
+      if (f.action === "fill" && fr.typeKeys && field && (field.type === "text" || field.type === "tel") && DATE_BOX.test(`${field.label} ${field.name ?? ""}`) && DATE_VALUE.test(f.value.trim())) {
+        try {
+          await fr.typeKeys(`[data-am-id="${f.id}"]`, f.value);
+          n++;
+          await settle(page);
+          continue;
+        } catch {
+          /* the usual way below */
+        }
+      }
+      const ok = await fr.evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), f);
       if (ok) n++;
       // a list or tick box that sends the form to the server as soon as it changes (peoplesoft's
       // submitAction): wait for the reply, or it redraws the form over what gets typed next

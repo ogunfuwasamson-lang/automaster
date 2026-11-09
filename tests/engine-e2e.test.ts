@@ -638,6 +638,61 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("types a date into a box that ignores values set by script (ut dallas lightning date)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      // the box keeps only what real key presses put in: a script-set value is wiped when it loses focus
+      "/form": () => `<form action="/next"><label for="b">*Birthdate</label><input id="b" name="b" type="text" placeholder="Jun 11, 1993">
+        <label for="fn">First name *</label><input id="fn" name="fn" required><button type="submit">Next</button></form>
+        <script>const b=document.getElementById('b');let typed=false;b.addEventListener('keydown',e=>{if(e.isTrusted)typed=true});
+        b.addEventListener('blur',()=>{if(!typed)b.value='';});document.querySelector('form').addEventListener('submit',e=>{if(!b.value){e.preventDefault();}});</script>`,
+      "/next": (q) => ((got = q.get("b") ?? ""), `<h1>Thanks</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/form");
+    const r = await runEngine(fromPlaywright(page), deps({ hasValue: (l) => /birth|first/i.test(l) }), { steps: 0, submitClicked: true } as EngineState, 30_000);
+    expect(got).not.toBe("");
+    expect(r.state.questions ?? []).toEqual([]);
+    await page.close();
+  }, 60_000);
+
+  it("signs in instead when the sign-up says the email has an account already (hec montréal)", async () => {
+    const page = await browser.newPage();
+    let signups = 0;
+    await portal(page, {
+      "/register": () => `<h1>New Account</h1><form action="/register2"><label for="e">Email *</label><input id="e" name="e" type="email" required>
+        <label for="p">Password *</label><input id="p" name="p" type="password" required><label for="p2">Confirm password *</label><input id="p2" name="p2" type="password" required>
+        <button type="submit">Create account</button></form><p>Already have an account? <a href="/login">Sign in</a></p>`,
+      "/register2": () => ((signups += 1), `<h1>New Account</h1><p class="error">The email address ada@example.com is already assigned to user ID 25000282.</p>
+        <form action="/register2"><label for="e">Email *</label><input id="e" name="e" type="email" required><label for="p">Password *</label><input id="p" name="p" type="password" required>
+        <button type="submit">Create account</button></form><p><a href="/login">Sign in</a></p>`),
+      "/login": () => `<h1>Sign in</h1><form action="/home"><label for="u">Email</label><input id="u" name="u" type="email"><label for="pw">Password</label><input id="pw" name="pw" type="password"><button type="submit">Sign in</button></form>`,
+      "/home": () => `<h1>My applications</h1>`,
+    });
+    await page.goto("https://portal.test/register");
+    const r = await runEngine(fromPlaywright(page), deps(), { steps: 0 } as EngineState, 30_000);
+    void r;
+    // one sign-up, then signed in with the login on file: never a second account
+    expect(signups).toBe(1);
+    expect(page.url()).toContain("/home");
+    await page.close();
+  }, 60_000);
+
+  it("works a peoplesoft lookup: searches the profile's value and picks it (manchester country)", async () => {
+    const page = await browser.newPage();
+    let picked = "";
+    await portal(page, {
+      "/lookup": () => `<title>Look Up Country</title><h1>Look Up Country</h1><form action="/results"><label for="d">Description</label><input id="d" name="d" type="text">
+        <button type="submit">Look Up</button><button type="button">Cancel</button></form>`,
+      "/results": (q) => `<title>Look Up Country</title><h1>Look Up Country</h1><p>Search Results</p><a href="/pick?c=NGA">NGA</a> <a href="/pick?c=NGA">${q.get("d")}</a> <a href="/pick?c=NER">Niger</a>`,
+      "/pick": (q) => ((picked = q.get("c") ?? ""), `<title>Registration</title><h1>Registration</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/lookup");
+    await runEngine(fromPlaywright(page), deps({ fillFromKey: (f, k) => resolve(f, k, sheet) }), { steps: 0, submitClicked: true } as EngineState, 30_000);
+    expect(picked).toBe("NGA");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

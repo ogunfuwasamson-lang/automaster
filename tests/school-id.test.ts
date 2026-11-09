@@ -49,3 +49,16 @@ describe("yes/no id keys never go into a number box", () => {
     expect(resolve({ id: "s", label: "Do you have a McGill ID number?", type: "radio", options: ["Yes", "No"] } as never, "has_school_id", sheet)).toMatchObject({ action: "choose", option: "No" });
   });
 });
+
+import { notForApplicant } from "@/lib/portal-questions";
+describe("stop reasons seen in production", () => {
+  it("answers the mailing-address yes/no from the profile (ut dallas)", () => {
+    expect(keyForLabel("*Is your permanent mailing address different from your current address?")).toBe("mailing_differs");
+    expect(keyForLabel("Is your mailing address the same as your permanent address?")).toBe("mailing_same");
+    expect(keyForLabel("Mailing address country *")).toBe("country");
+  });
+  it("never asks the applicant peoplesoft's bare security pairs (manchester)", () => {
+    for (const l of ["Question 1 *", "Answer 3 *", "*Question 2"]) expect(notForApplicant(l), l).toBe(true);
+    expect(notForApplicant("Question about your previous study")).toBe(false);
+  });
+});
