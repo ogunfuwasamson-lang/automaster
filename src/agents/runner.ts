@@ -784,11 +784,29 @@ export const runner: Record<string, Handler> = {
               body: (document.body?.innerText ?? "").replace(/\s+/g, " ").slice(0, 700),
               // sentences anywhere on the page that say what's wrong (inline errors sit far below the top)
               complaints: ((document.body?.innerText ?? "").replace(/\s+/g, " ").match(/[^.!?]{0,120}\b(required|invalid|already|error|must|not valid|does not|cannot|can't|incorrect|mismatch|too short|too long)\b[^.!?]{0,120}[.!?]?/gi) ?? []).slice(0, 12),
+              // what the agents' own page reader saw (it reaches inside salesforce components; the lists above don't):
+              // labels and whether each was still empty, never values
+              seen: (() => {
+                const am = (window as unknown as { __am?: { snapshot(): { allFields: { type: string; label: string; required?: boolean }[]; fields: { label: string }[]; buttons: { label: string }[]; errors: string[] } } }).__am;
+                try {
+                  const sn = am?.snapshot();
+                  if (!sn) return null;
+                  return {
+                    fields: sn.allFields.slice(0, 40).map((f) => `${f.type}:${f.label.replace(/\s+/g, " ").slice(0, 60)}${f.required ? " *" : ""}`),
+                    empty: sn.fields.slice(0, 40).map((f) => f.label.replace(/\s+/g, " ").slice(0, 60)),
+                    buttons: sn.buttons.slice(0, 40).map((b) => b.label.slice(0, 50)),
+                    errors: sn.errors,
+                  };
+                } catch {
+                  return null;
+                }
+              })(),
             };
           })
           .catch(() => null);
-          const all = (await Promise.all(page.frames().map(one))).filter(Boolean) as { fields: string[] }[];
-          return all.sort((a, b) => b.fields.length - a.fields.length)[0] ?? null;
+          const all = (await Promise.all(page.frames().map(one))).filter(Boolean) as { fields: string[]; seen?: { fields: string[] } | null }[];
+          const size = (x: (typeof all)[number]) => Math.max(x.fields.length, x.seen?.fields.length ?? 0);
+          return all.sort((a, b) => size(b) - size(a))[0] ?? null;
         })(),
       };
       const login = await getLogin(job.user_id, host(), applicationId).catch(() => null);
