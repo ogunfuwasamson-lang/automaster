@@ -88,7 +88,10 @@ export async function recordQuestions(userId: string, applicationId: string, que
     rows.push(base);
   }
   if (!rows.length) return 0;
-  await db.from("portal_questions").insert(rows);
+  // one open copy per question (unique index): a run that recorded the same question a moment ago fails the whole
+  // batch, so the rest go in one by one and only the duplicate is dropped
+  const { error: batch } = await db.from("portal_questions").insert(rows);
+  if (batch) for (const r of rows) await db.from("portal_questions").insert(r);
   // earlier answers, saved under this form's wording so the next run fills them exactly (this restarts the run)
   if (reused.length) {
     await updateProfile(userId, (p) => reused.reduce((acc, r) => confirmFact(acc, r.question, r.value), p));
