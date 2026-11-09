@@ -127,7 +127,8 @@ const CredOut = z.object({ username: z.string(), password: z.string() });
 // a login the portal emailed to the applicant, read from their inbox and kept in the vault
 async function issuedLogin(userId: string, applicationId: string, jobId: string | null, host: string, since: number) {
   const root = hostRoot(host);
-  const mails = await recentMail(userId, `in:anywhere -in:trash newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => []);
+  // the inbox when gmail is connected, and any email the applicant pasted in (hec montréal emails its own login)
+  const mails = [...(await recentMail(userId, `in:anywhere -in:trash newer_than:60d from:${root} (password OR "user id" OR userid OR username OR identifiant OR "mot de passe" OR account OR compte)`, 6).catch(() => [])), ...(await pastedMail(userId, root, since).catch(() => []))];
   for (const m of mails.filter((x) => x.at >= since).sort((a, b) => b.at - a.at)) {
     let c = extractCredentials(m);
     if (!c.username || !c.password) {
@@ -256,7 +257,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.password_reset", applicationId: c.applicationId, channel: "portal", context: { host: c.host() } });
       return l;
     },
-    loginFromMail: c.readMail ? (since) => issuedLogin(c.userId, c.applicationId, c.jobId, c.host(), since) : undefined,
+    loginFromMail: (since) => issuedLogin(c.userId, c.applicationId, c.jobId, c.host(), since),
     verification: (since) => findVerification(c.userId, c.host(), since),
     progress: async (note) => {
       if (note === lastNote) return;
