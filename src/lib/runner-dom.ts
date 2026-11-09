@@ -254,7 +254,8 @@ export const DOM_HELPER = String.raw`
     if (!el) return false;
     if (f.action === "fill") { if (el.maxLength > 0 && f.value.length > el.maxLength) return false; setValue(el, f.value); return true; }
     if (f.action === "choose") {
-      if (el.tagName === "SELECT") { const o = [...el.options].find((x) => x.text.trim() === f.option); if (!o) return false; el.value = o.value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return true; }
+      // already showing that answer: leave it. re-choosing fires change, and peoplesoft reloads the page on every change
+      if (el.tagName === "SELECT") { const o = [...el.options].find((x) => x.text.trim() === f.option); if (!o) return false; if (el.value === o.value && el.selectedIndex === o.index) return true; el.value = o.value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return true; }
       const hit = radioGroup(el).find((g) => (labelFor(g) || g.value) === f.option);
       if (!hit) return false; hit.click(); return true;
     }
@@ -274,9 +275,23 @@ export const DOM_HELPER = String.raw`
       fields: fields(false),
       allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required, aria: f.aria })),
       buttons: buttons(),
-      errors: [...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message, .message-container.error, .alert-error, .alert-warning, .notification.is-danger, .toast-error, .msg-error, .error-msg, .errortext, .error-text')]
-        .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
+      // the browser's own checks (pattern, type, length): a box that breaks one stops the form posting and shows only
+      // a tooltip, so the page "comes back" with nothing written on it. calgary's eID form works this way
+      errors: [...nativeInvalid(), ...[...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message, .message-container.error, .alert-error, .alert-warning, .notification.is-danger, .toast-error, .msg-error, .error-msg, .errortext, .error-text')]
+        .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200)].slice(0, 5),
     };
+  }
+  function nativeInvalid() {
+    const out = [];
+    for (const el of all("input, select, textarea")) {
+      if (out.length >= 3) break;
+      if (!el.willValidate || !el.validity || el.validity.valid || el.validity.valueMissing) continue;
+      if (el.type === "hidden" || el.type === "checkbox" || el.type === "radio" || !String(el.value || "").trim() || !visible(el)) continue;
+      const why = el.title || el.validationMessage || "not accepted";
+      const name = (labelFor(el) || el.name || "a box").split(why).join(" ").replace(/\s+/g, " ").trim().slice(0, 60);
+      out.push((name + ": " + why).slice(0, 190));
+    }
+    return out;
   }
   // numbered marks on everything clickable or typeable in view, drawn over the page for a screenshot ("set of
   // marks"), so the model can point at element 12 instead of guessing pixels

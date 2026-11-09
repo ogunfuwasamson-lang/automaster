@@ -576,6 +576,26 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 30_000);
 
+  it("reports a box the browser's own checks reject, and doesn't re-choose a shown answer (calgary, manchester)", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`<form><label for="u">eID</label><input id="u" required pattern="^([A-Za-z0-9.]+(\\.[A-Za-z]+))$" title="Must be in the pattern first.last" value="samson.ogunfuwa2">
+      <label for="e">Email</label><input id="e" type="email" required>
+      <label for="s">On behalf?</label><select id="s"><option value="N">No</option><option value="Y">Yes</option></select></form>`);
+    await page.evaluate(DOM_HELPER);
+    const errors = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { errors: string[] } } }).__am.snapshot().errors);
+    expect(errors).toEqual(["eID: Must be in the pattern first.last"]);
+    const changes = await page.evaluate(() => {
+      let n = 0;
+      document.getElementById("s")!.addEventListener("change", () => n++);
+      const am = (window as unknown as { __am: { snapshot(): { allFields: { id: string; label: string }[] }; apply(f: unknown): boolean } }).__am;
+      const id = am.snapshot().allFields.find((f) => /behalf/.test(f.label))!.id;
+      const ok = am.apply({ id, action: "choose", option: "No" });
+      return { ok, n };
+    });
+    expect(changes).toEqual({ ok: true, n: 0 });
+    await page.close();
+  }, 30_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);
