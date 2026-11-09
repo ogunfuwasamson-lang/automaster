@@ -134,7 +134,25 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
   );
 }
 
-export function MailCard({ available, email, status, error, notice, via }: { available: boolean; email: string | null; status: string | null; error: string | null; notice: string | null; via?: "composio" | "google" }) {
+export function MailCard({
+  available,
+  email,
+  status,
+  error,
+  notice,
+  via,
+  signedInAs,
+  portalEmails = [],
+}: {
+  available: boolean;
+  email: string | null;
+  status: string | null;
+  error: string | null;
+  notice: string | null;
+  via?: "composio" | "google";
+  signedInAs?: string | null;
+  portalEmails?: string[];
+}) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const NOTICE: Record<string, [string, "go" | "stop"]> = {
@@ -146,9 +164,33 @@ export function MailCard({ available, email, status, error, notice, via }: { ava
     unavailable: ["Gmail isn't switched on for this app yet.", "stop"],
   };
   const n = notice ? NOTICE[notice] : null;
+  // the portals send codes to the email the agents signed up with: that's the inbox to connect
+  const wanted = portalEmails[0] ?? null;
+  const mismatch = !!(email && wanted && !portalEmails.includes(email.toLowerCase()));
   return (
     <div className="space-y-4">
       {n && <p className={`rounded-lg border px-3.5 py-2.5 text-sm ${n[1] === "go" ? "border-go/40 bg-go/8" : "border-stop/40 bg-stop/8"}`}>{n[0]}</p>}
+      {(signedInAs || wanted) && (
+        <dl className="grid gap-1 rounded-lg border border-line px-3.5 py-2.5 text-xs sm:grid-cols-[auto_1fr] sm:gap-x-3">
+          {signedInAs && (
+            <>
+              <dt className="text-muted">Signed in to Ivyward as</dt>
+              <dd className="truncate font-medium">{signedInAs}</dd>
+            </>
+          )}
+          {wanted && (
+            <>
+              <dt className="text-muted">Your portal accounts use</dt>
+              <dd className="truncate font-medium">{portalEmails.join(", ")}</dd>
+            </>
+          )}
+        </dl>
+      )}
+      {mismatch && (
+        <p className="rounded-lg border border-signal/40 bg-signal/8 px-3.5 py-2.5 text-sm">
+          The connected Gmail ({email}) isn&apos;t the inbox your portal accounts use. Schools send codes and reset links to {wanted}, so connect that one instead: disconnect, then connect again and pick {wanted} on Google&apos;s screen.
+        </p>
+      )}
       {!available ? (
         <p className="text-sm text-muted">Sending from the app isn&apos;t switched on yet. Until then, drafts open in your own email app.</p>
       ) : email ? (
@@ -188,6 +230,7 @@ export function MailCard({ available, email, status, error, notice, via }: { ava
             Connect Gmail so approved emails go out from your own address, the agents can read the codes portals send when they create your accounts, and replies from your schools land on your home page.
           </p>
           <p className="text-xs text-muted">They never delete or change anything in your inbox.</p>
+          {wanted && <p className="text-sm">On Google&apos;s screen, choose <span className="font-medium">{wanted}</span>: that&apos;s where your schools send codes and reset links. Leave every permission ticked.</p>}
           {via === "composio" && (
             <p className="rounded-lg border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-muted">
               Google will ask you to allow <span className="font-medium text-foreground">Composio</span>. That&apos;s the service Ivyward uses to connect to Gmail securely, so Google shows its name instead of ours. Ivyward only uses your Gmail for your applications, and you can disconnect it here at any time.

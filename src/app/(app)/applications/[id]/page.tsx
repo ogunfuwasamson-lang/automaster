@@ -241,6 +241,10 @@ export default async function ApplicationPage({ params, searchParams }: { params
           school={p.schools.name}
           questions={(asked ?? []).map((q) => q.question as string)}
           mailConnected={mailOk}
+          pageSaid={(() => {
+            const d = ((app as { runner_state?: { debug?: { errors?: string[]; complaints?: string[] } } }).runner_state ?? {}).debug;
+            return [...new Set([...(d?.errors ?? []), ...(d?.complaints ?? [])].map((x) => x.trim()).filter((x) => x.length > 8))];
+          })()}
         />
       )}
 

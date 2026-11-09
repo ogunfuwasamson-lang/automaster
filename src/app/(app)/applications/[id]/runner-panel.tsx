@@ -28,8 +28,9 @@ export function RunnerPanel(props: {
   paused?: boolean;
   questions?: string[];
   mailConnected?: boolean;
+  pageSaid?: string[];
 }) {
-  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [], mailConnected = true } = props;
+  const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [], mailConnected = true, pageSaid = [] } = props;
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const { ext, checked } = useExtension(runnerStatus === "running" || runnerStatus === "ready" ? 8000 : 0);
@@ -177,6 +178,12 @@ export function RunnerPanel(props: {
           ) : note && !(runnerStatus === "idle" && /cancelled by you|stopped by you/.test(note)) ? (
             <p className="mt-0.5 text-sm text-muted">{sentence(note)}</p>
           ) : null}
+          {stuck && pageSaid.length > 0 && (
+            <p className="mt-1.5 text-sm">
+              <span className="text-muted">The portal said: </span>
+              {pageSaid.slice(0, 3).join(" ")}
+            </p>
+          )}
         </div>
         {(working || stuck || paused) && (
           <div className="flex shrink-0 gap-1.5">

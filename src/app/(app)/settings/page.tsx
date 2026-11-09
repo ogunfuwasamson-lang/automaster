@@ -47,13 +47,16 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     db.from("mail_accounts").select("email, status, last_error").eq("user_id", uid).maybeSingle(),
     db.from("runner_tokens").select("id, label, created_at, last_used_at").eq("user_id", uid).is("revoked_at", null).order("created_at", { ascending: false }),
   ]);
+  // the inbox the portals write to: the agents can only read codes and reset links if this is the Gmail connected
+  const { data: logins } = await db.from("portal_accounts").select("login_email").eq("user_id", uid).limit(200);
+  const portalEmails = [...new Set((logins ?? []).map((l) => (l.login_email as string).toLowerCase()))];
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <PageHeader title="Settings" description="What the agents do on their own, and where they act for you." />
 
       <Group title="Gmail" description="Lets the agents email as you and read what schools send back.">
-        <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} via={composioMail() ? "composio" : "google"} />
+        <MailCard available={gmailConfigured()} email={acct?.email ?? null} status={acct?.status ?? null} error={acct?.last_error ?? null} notice={mail ?? null} via={composioMail() ? "composio" : "google"} signedInAs={auth.user.email ?? null} portalEmails={portalEmails} />
       </Group>
 
       <Group title="Calendar" description="Where webinars, deadlines and interviews land.">
