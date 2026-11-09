@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const usa: Guide = {
   slug: "apply-to-us-universities-as-an-international-student",
   title: "Applying to US graduate schools as an international student in 2026–27",
-  seoTitle: "Applying to US grad schools as an international student (2026–27 rules)",
+  seoTitle: "Applying to US grad schools as an international student",
   description:
     "How US graduate admissions work, deadlines, tests, costs, funding, the F-1 visa and its fees, and the January 2026 visa restrictions that affect 39 countries.",
   category: "Countries",

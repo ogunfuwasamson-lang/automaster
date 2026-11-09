@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const emailProfessor: Guide = {
   slug: "how-to-email-a-professor",
   title: "How to email a professor about a PhD or master's position (with a template)",
-  seoTitle: "How to email a professor for a PhD position or funding (template)",
+  seoTitle: "How to email a professor for a PhD position (template)",
   description:
     "When to contact potential supervisors, what a good first email contains, a template you can adapt, and how to follow up without being a nuisance.",
   category: "Applying",

@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const sop: Guide = {
   slug: "statement-of-purpose-guide",
   title: "How to write a statement of purpose that gets you admitted",
-  seoTitle: "How to write a statement of purpose for a master's or PhD (with structure)",
+  seoTitle: "How to write a statement of purpose (master's & PhD)",
   description:
     "What admissions committees look for in a statement of purpose, a structure that works for master's and PhD applications, and the mistakes that sink otherwise strong applicants.",
   category: "Applying",

@@ -5,7 +5,7 @@ const U = "2026-10-31";
 export const deadlines2027: Guide = {
   slug: "application-deadlines-2027-intake",
   title: "University and scholarship application deadlines for 2027 entry",
-  seoTitle: "Application deadlines for fall 2027: universities and scholarships by country",
+  seoTitle: "Fall 2027 application deadlines by country",
   description: "When to apply for a September 2027 start: the usual deadline windows for universities in the US, UK, Canada, Europe and Asia, and for the major scholarships, in one calendar.",
   category: "Applying",
   updated: U,
@@ -72,7 +72,7 @@ Ivyward tracks every round for every program and scholarship on your list, inclu
 export const ireland: Guide = {
   slug: "study-in-ireland",
   title: "Studying a master's in Ireland as an international student",
-  seoTitle: "Master's in Ireland for international students: costs, visa, post-study work",
+  seoTitle: "Master's in Ireland: costs, visa, post-study work",
   description: "How applying to Irish universities works, what the student visa needs (including the €10,000 proof of funds), and the post-study Stamp 1G for master's graduates.",
   category: "Countries",
   updated: U,
@@ -120,7 +120,7 @@ Ivyward includes Irish programs in your shortlist when Ireland is one of your re
 export const netherlands: Guide = {
   slug: "study-in-the-netherlands",
   title: "Studying a master's in the Netherlands as an international student",
-  seoTitle: "Master's in the Netherlands for international students: Studielink, costs, visa",
+  seoTitle: "Master's in the Netherlands: Studielink, costs, visa",
   description: "How to apply through Studielink, the deadlines for non-EU applicants, what you must show for the residence permit in 2026 (€1,130.77 a month), and the scholarships available.",
   category: "Countries",
   updated: U,
@@ -171,7 +171,7 @@ Ivyward handles the Studielink and university applications, tracks the earlier s
 export const australia: Guide = {
   slug: "study-in-australia",
   title: "Studying a master's in Australia as an international student",
-  seoTitle: "Master's in Australia for international students: intakes, visa and costs",
+  seoTitle: "Master's in Australia: intakes, visa and costs",
   description: "How Australian university applications and intakes work, the student visa's financial requirement (AUD 29,710 a year for living costs), the Genuine Student test, and funding options.",
   category: "Countries",
   updated: U,
@@ -220,7 +220,7 @@ Ivyward includes Australian programs when Australia is one of your regions, fill
 export const scholarshipEssay: Guide = {
   slug: "how-to-write-a-scholarship-essay",
   title: "How to write a scholarship essay that wins",
-  seoTitle: "How to write a winning scholarship essay (Chevening, Commonwealth and more)",
+  seoTitle: "How to write a winning scholarship essay (with examples)",
   description: "What scholarship panels score, how to structure leadership, impact and career-plan essays, and the mistakes that cost strong candidates the award.",
   category: "Funding",
   updated: U,
@@ -279,7 +279,7 @@ Ivyward drafts scholarship essays from the facts in your profile and documents, 
 export const academicCv: Guide = {
   slug: "cv-for-masters-application",
   title: "How to write a CV for a master's, PhD or scholarship application",
-  seoTitle: "Academic CV for a master's or PhD application: format and example sections",
+  seoTitle: "Academic CV for a master's or PhD application",
   description: "What an admissions CV is for, the sections to include, how long it should be, and how it differs from a job résumé.",
   category: "Applying",
   updated: U,
@@ -375,7 +375,7 @@ Ivyward only applies on universities' own portals, and you pay application fees 
 export const mba: Guide = {
   slug: "mba-application-guide",
   title: "How to apply for an MBA abroad: rounds, GMAT, essays and scholarships",
-  seoTitle: "How to apply for an MBA abroad: rounds, GMAT/GRE, essays, scholarships",
+  seoTitle: "How to apply for an MBA abroad: GMAT, essays, scholarships",
   description: "How MBA admissions rounds work, test requirements and waivers, what essays and interviews look for, and how to get scholarships.",
   category: "Applying",
   updated: U,
@@ -423,7 +423,7 @@ Ivyward tracks each school's rounds and aims your applications at the earliest s
 export const cheapest: Guide = {
   slug: "affordable-countries-to-study-abroad",
   title: "The most affordable countries to study a master's abroad",
-  seoTitle: "Cheapest countries to study a master's abroad for international students",
+  seoTitle: "Cheapest countries to study a master's abroad",
   description: "Where international students pay little or no tuition, what living costs and visa funds really add up to, and where scholarships make study nearly free.",
   category: "Countries",
   updated: U,

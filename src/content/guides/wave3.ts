@@ -8,7 +8,7 @@ const NAFSA: [string, string] = ["NAFSA: proclamation of December 16, 2025 (effe
 export const bachelors: Guide = {
   slug: "how-to-apply-for-a-bachelors-degree-abroad",
   title: "How to apply for a bachelor's degree abroad (BSc, BA) as an international student",
-  seoTitle: "How to apply for a bachelor's degree abroad: UCAS, Common App and more",
+  seoTitle: "How to apply for a bachelor's degree abroad",
   description: "How undergraduate admissions work in the US (Common App), the UK (UCAS), Canada, Europe and Asia, the 2027 entry deadlines, and how international undergraduates get funding.",
   category: "Applying",
   updated: U,
@@ -68,7 +68,7 @@ Ivyward covers bachelor's programmes as well as master's and PhDs: it shortlists
 export const undergradAid: Guide = {
   slug: "full-financial-aid-for-international-undergraduates",
   title: "Full financial aid for international undergraduates: need-blind US colleges and other routes",
-  seoTitle: "Fully funded bachelor's for international students: need-blind colleges (2027)",
+  seoTitle: "Fully funded bachelor's abroad: need-blind colleges 2027",
   description: "Which US colleges admit international students regardless of ability to pay and meet full need, how their aid works, and the other routes to a fully funded bachelor's.",
   category: "Funding",
   updated: U,
@@ -136,7 +136,7 @@ Ivyward finds the colleges and scholarships you can realistically win given your
 export const france: Guide = {
   slug: "study-in-france",
   title: "Studying in France as an international student: Campus France, fees and scholarships",
-  seoTitle: "Study in France for international students: Campus France, fees, Eiffel",
+  seoTitle: "Study in France: Campus France, fees, Eiffel scholarship",
   description: "How the Campus France and Études en France procedure works, what non-EU students pay at public universities, and the scholarships that help, including Eiffel.",
   category: "Countries",
   updated: U,
@@ -185,7 +185,7 @@ Ivyward includes French programmes when France is one of your regions, prepares 
 export const sweden: Guide = {
   slug: "study-in-sweden",
   title: "Studying a master's in Sweden: University Admissions, fees and scholarships",
-  seoTitle: "Master's in Sweden for international students: deadlines, SEK 900 fee, SISGP",
+  seoTitle: "Master's in Sweden: deadlines, fees, SISGP scholarship",
   description: "How to apply through University Admissions in Sweden, the application fee and deadlines for non-EU students, tuition, and the Swedish Institute and university scholarships.",
   category: "Countries",
   updated: U,
@@ -225,7 +225,7 @@ Ivyward prepares your University Admissions application, keeps the fee and docum
 export const japan: Guide = {
   slug: "study-in-japan",
   title: "Studying in Japan as an international student: MEXT, English-taught degrees and costs",
-  seoTitle: "Study in Japan for international students: MEXT routes and English programmes",
+  seoTitle: "Study in Japan: MEXT scholarship and English programmes",
   description: "How to study in Japan: the MEXT embassy and university routes, English-taught degree programmes, research student status, and costs.",
   category: "Countries",
   updated: U,
@@ -262,7 +262,7 @@ Ivyward finds English-taught programmes and supervisors whose research fits your
 export const korea: Guide = {
   slug: "study-in-south-korea",
   title: "Studying in South Korea: GKS scholarship, universities and costs",
-  seoTitle: "Study in South Korea for international students: GKS and English programmes",
+  seoTitle: "Study in South Korea: GKS scholarship and English programs",
   description: "How to study in South Korea through the Global Korea Scholarship or direct admission, the embassy and university tracks, language training and costs.",
   category: "Countries",
   updated: U,
@@ -294,7 +294,7 @@ Ivyward matches you to GKS and university scholarships, drafts your study plan a
 export const china: Guide = {
   slug: "study-in-china",
   title: "Studying in China: Chinese Government Scholarship, English-taught programmes and applying",
-  seoTitle: "Study in China for international students: CSC scholarship and how to apply",
+  seoTitle: "Study in China: CSC scholarship and how to apply",
   description: "How the Chinese Government Scholarship works (Type A through embassies, Type B through universities), English-taught programmes, and how to apply.",
   category: "Countries",
   updated: U,
@@ -399,7 +399,7 @@ Ivyward shortlists ${o.field} programmes you can get into, checks each scholarsh
 export const publicHealth = field({
   slug: "scholarships-for-public-health",
   field: "public health",
-  seo: "Fully funded scholarships for public health (MPH, MSc, PhD) for international students",
+  seo: "Fully funded public health scholarships (MPH, MSc, PhD)",
   keywords: ["public health scholarships", "fully funded MPH", "MPH scholarships for international students", "global health masters scholarship", "public health PhD funding"],
   answer: "Public health is one of the best-funded fields for international students, because development-focused awards prioritise it: Commonwealth Master's, Chevening, DAAD EPOS, JJ/WBGSP and Erasmus Mundus all fund MPH and global health master's degrees. PhDs in epidemiology and biostatistics are commonly funded through research positions.",
   programs: "Master of Public Health (MPH), MSc in global health, epidemiology, health policy or health economics, and PhDs in epidemiology, biostatistics and health systems. UK one-year MSc programmes and European joint degrees are common choices.",
@@ -418,7 +418,7 @@ export const publicHealth = field({
 export const engineeringCs = field({
   slug: "scholarships-for-engineering-and-computer-science",
   field: "engineering and computer science",
-  seo: "Scholarships for engineering and computer science master's and PhDs (international)",
+  seo: "Engineering & computer science scholarships abroad",
   keywords: ["engineering scholarships for international students", "computer science scholarships", "fully funded masters in computer science", "data science scholarship", "PhD in computer science funding", "STEM scholarships abroad"],
   answer: "Engineering and computer science PhDs are usually fully funded through research and teaching assistantships, especially in the US and Canada, and as salaried positions in Germany, the Netherlands and the Nordics. For master's degrees, the best routes are government scholarships (Chevening, DAAD, Erasmus Mundus, MEXT, GKS), assistantships at large public universities, and tuition-free study in Germany.",
   programs: "MSc and MEng in computer science, data science, AI, electrical, mechanical, civil and chemical engineering; thesis-based master's in Canada; PhDs in the US, Canada and Europe.",
@@ -437,7 +437,7 @@ export const engineeringCs = field({
 export const businessLaw = field({
   slug: "scholarships-for-business-and-law",
   field: "business, economics and law",
-  seo: "Scholarships for business, MBA, economics and law for international students",
+  seo: "MBA, business, economics & law scholarships abroad",
   keywords: ["MBA scholarships for international students", "economics scholarships", "LLM scholarship", "law masters scholarship", "business school scholarships", "fully funded MBA"],
   answer: "Business and law degrees are rarely funded by departments, so the money comes from merit scholarships at admission (larger in early rounds), government scholarships that accept these fields (Chevening funds many one-year UK MBAs, MSc economics and LLM degrees), Knight-Hennessy at Stanford, and school-specific fellowships for applicants from particular regions.",
   programs: "MBA, Master in Management, MSc in finance, economics or development economics, and LLM degrees. One-year UK and European programmes keep total cost down.",
@@ -455,7 +455,7 @@ export const businessLaw = field({
 export const agricultureEducation = field({
   slug: "scholarships-for-agriculture-environment-and-education",
   field: "agriculture, environment and education",
-  seo: "Scholarships for agriculture, environment, climate and education master's degrees",
+  seo: "Agriculture, climate & education master's scholarships",
   keywords: ["agriculture scholarships", "environmental science scholarship", "climate change masters scholarship", "education masters scholarship international", "food security scholarship"],
   answer: "Agriculture, environment, climate and education are priority fields for development-focused scholarships: Commonwealth, DAAD EPOS, JJ/WBGSP, Erasmus Mundus and Chevening all fund master's degrees in these areas, and US land-grant universities often fund graduate students in agriculture and environmental science through assistantships.",
   programs: "MSc in agricultural economics, agronomy, food security, environmental management, climate policy, water resources, and MA or MEd in education policy and leadership.",

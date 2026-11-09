@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const shortlist: Guide = {
   slug: "how-to-build-a-university-shortlist",
   title: "How to choose universities: building a shortlist you can actually get into",
-  seoTitle: "How to choose universities abroad: reach, target and safety shortlist",
+  seoTitle: "How to choose universities: a shortlist you can get into",
   description:
     "How to decide where to apply: the factors that matter, how to judge your chances honestly, and how many reach, target and safer programs to include.",
   category: "Applying",

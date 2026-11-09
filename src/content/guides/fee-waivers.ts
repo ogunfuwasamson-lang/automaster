@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const feeWaivers: Guide = {
   slug: "how-to-get-application-fee-waivers",
   title: "How to get university application fee waivers (including as an international student)",
-  seoTitle: "How to get application fee waivers for grad school and university",
+  seoTitle: "How to get application fee waivers (grad and undergrad)",
   description:
     "Who qualifies for an application fee waiver, the routes most people miss, how international applicants get them, and the email that works when there's no form.",
   category: "Funding",

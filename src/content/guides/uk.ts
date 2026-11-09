@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const uk: Guide = {
   slug: "apply-for-masters-in-the-uk",
   title: "How to apply for a master's in the UK as an international student",
-  seoTitle: "How to apply for a master's in the UK as an international student (2027)",
+  seoTitle: "How to apply for a master's in the UK (2027)",
   description:
     "How UK postgraduate admissions work, entry requirements, deadlines, costs, the student visa and the Graduate route changes coming in 2027.",
   category: "Countries",

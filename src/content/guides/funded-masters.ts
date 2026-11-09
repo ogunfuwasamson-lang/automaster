@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const fundedMasters: Guide = {
   slug: "fully-funded-masters-scholarships-international-students",
   title: "Fully funded master's scholarships for international students",
-  seoTitle: "Fully funded master's scholarships for international students (2027)",
+  seoTitle: "Fully funded master's scholarships abroad (2027)",
   description:
     "Where fully funded master's places actually come from, the major government and university scholarships by country, who each one suits, and a realistic plan to win one.",
   category: "Funding",

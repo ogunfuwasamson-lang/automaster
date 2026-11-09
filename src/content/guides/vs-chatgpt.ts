@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const vsChatgpt: Guide = {
   slug: "ivyward-vs-chatgpt-for-university-applications",
   title: "Ivyward vs ChatGPT for university applications",
-  seoTitle: "Ivyward vs ChatGPT for university applications: what each can do",
+  seoTitle: "Ivyward vs ChatGPT for university applications",
   description:
     "What a general chatbot can and can't do for your applications, what an application agent adds, and how to use them together.",
   category: "AI and tools",

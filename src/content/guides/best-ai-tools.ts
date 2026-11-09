@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const bestAiTools: Guide = {
   slug: "best-ai-tools-for-university-applications",
   title: "The best AI tools for university applications in 2026, by job",
-  seoTitle: "Best AI tools for university and grad school applications (2026)",
+  seoTitle: "Best AI tools for university applications (2026)",
   description:
     "Which kinds of AI tools help with each part of an application: research, shortlisting, essays, checking, portals, fee waivers and funding. Where each one stops, and what to use when.",
   category: "AI and tools",

@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const canada: Guide = {
   slug: "apply-for-masters-in-canada",
   title: "How to apply for a master's or PhD in Canada as an international student",
-  seoTitle: "How to apply for a master's in Canada as an international student (2027)",
+  seoTitle: "How to apply for a master's in Canada (2027)",
   description:
     "How Canadian graduate admissions work, the 2026 study-permit rules (including the exemption for master's and PhD students), proof of funds, funding and post-graduation work.",
   category: "Countries",

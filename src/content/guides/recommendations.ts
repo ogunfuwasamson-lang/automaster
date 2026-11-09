@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const recommendations: Guide = {
   slug: "letters-of-recommendation",
   title: "Letters of recommendation for graduate school: who to ask and how",
-  seoTitle: "Letters of recommendation for grad school: who to ask, when, and how",
+  seoTitle: "Grad school recommendation letters: who to ask and how",
   description:
     "Who makes a strong referee, how far ahead to ask, what to send them so the letter is specific, and what to do when a referee goes quiet near the deadline.",
   category: "Applying",

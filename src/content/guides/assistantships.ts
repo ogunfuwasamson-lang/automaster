@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const assistantships: Guide = {
   slug: "graduate-assistantships-explained",
   title: "Graduate assistantships explained: TA, RA and GA positions that pay for your degree",
-  seoTitle: "Graduate assistantships (TA, RA, GA): how they waive tuition and pay you",
+  seoTitle: "Graduate assistantships: free tuition plus a salary",
   description:
     "What teaching, research and graduate assistantships are, what they pay, whether master's and international students can get them, and how to ask for one.",
   category: "Funding",

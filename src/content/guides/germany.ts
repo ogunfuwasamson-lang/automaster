@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const germany: Guide = {
   slug: "study-in-germany-tuition-free",
   title: "Studying a master's in Germany: low tuition, how to apply, and the blocked account",
-  seoTitle: "Master's in Germany for international students: tuition, uni-assist, blocked account",
+  seoTitle: "Master's in Germany: tuition, uni-assist, blocked account",
   description:
     "Why most German public universities charge little or no tuition, how to apply (directly or through uni-assist), the €11,904 blocked account, and the scholarships that cover living costs.",
   category: "Countries",

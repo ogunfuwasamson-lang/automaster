@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const aiAllowed: Guide = {
   slug: "is-it-allowed-to-use-ai-for-university-applications",
   title: "Is it allowed to use AI on university applications?",
-  seoTitle: "Can you use AI for college and grad school applications? The rules in 2026",
+  seoTitle: "Can you use AI on university applications? 2026 rules",
   description:
     "What the Common App and universities actually say about AI, the uses that are generally fine, the ones that can get an offer withdrawn, and how to use AI help honestly.",
   category: "AI and tools",

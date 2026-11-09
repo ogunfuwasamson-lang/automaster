@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const testWaivers: Guide = {
   slug: "gre-gmat-ielts-waivers",
   title: "GRE, GMAT and IELTS waivers: when you can skip the test",
-  seoTitle: "GRE, GMAT and IELTS waivers: how to get into a master's without the test",
+  seoTitle: "GRE, GMAT & IELTS waivers: apply without the test",
   description:
     "When programs waive the GRE or GMAT, when an English test isn't needed, how to ask for a waiver, and when taking the test anyway is the smarter move.",
   category: "Applying",

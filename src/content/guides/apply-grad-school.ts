@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const applyGradSchool: Guide = {
   slug: "how-to-apply-to-graduate-school",
   title: "How to apply to graduate school abroad: a step-by-step timeline",
-  seoTitle: "How to apply to graduate school abroad: step-by-step timeline (2027 intake)",
+  seoTitle: "How to apply to grad school abroad: 2027 step by step",
   description:
     "Every step of a master's or PhD application, from shortlist to visa, with a month-by-month timeline for a September 2027 start and the documents you'll need.",
   category: "Applying",

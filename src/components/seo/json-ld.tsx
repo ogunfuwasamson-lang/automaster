@@ -8,7 +8,7 @@ export function Script({ data }: { data: unknown }) {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;
 }
 
-export const ORG = { "@type": "Organization", "@id": `${SITE.url}/#org`, name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon.svg`, slogan: SITE.tagline, description: SITE.short, knowsAbout: ["university admissions", "graduate school applications", "application fee waivers", "scholarships", "fully funded master's and PhD programs", "statements of purpose", "AI admissions assistance"] };
+export const ORG = { "@type": "Organization", "@id": `${SITE.url}/#org`, name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon.svg`, slogan: SITE.tagline, description: SITE.short, sameAs: [CHROME_STORE_URL], knowsAbout: ["university admissions", "university application portals", "AI application agents", "graduate school applications", "application fee waivers", "scholarships", "fully funded master's and PhD programs", "statements of purpose", "AI admissions assistance"] };
 
 export function SiteJsonLd({ faq }: { faq?: [string, string][] }) {
   const graph: unknown[] = [

@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const proofOfFunds: Guide = {
   slug: "student-visa-proof-of-funds",
   title: "Student visa proof of funds in 2026: how much the UK, US, Canada and Germany require",
-  seoTitle: "Student visa proof of funds 2026: UK, US, Canada and Germany amounts",
+  seoTitle: "Student visa proof of funds 2026: UK, US, Canada, Germany",
   description:
     "The current living-cost amounts each country requires for a student visa, what counts as acceptable evidence, and how scholarships change what you must show.",
   category: "Visas",

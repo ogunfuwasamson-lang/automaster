@@ -22,10 +22,19 @@ import { vsConsultant } from "./vs-consultant";
 import { vsChatgpt } from "./vs-chatgpt";
 import { ghana, kenya, india, pakistan } from "./origin";
 import { bachelors, undergradAid, france, sweden, japan, korea, china, hungaryTurkey, publicHealth, engineeringCs, businessLaw, agricultureEducation } from "./wave3";
+import { aiApplyForMe, portalProblems, payFeesNigeria, transcriptsNigeria, wes, howMany, timeline2027, slate } from "./wave4";
 import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, academicCv, scams, mba, cheapest } from "./more";
 
 // order within a category is the order on /guides
 export const GUIDES: Guide[] = [
+  aiApplyForMe,
+  portalProblems,
+  timeline2027,
+  howMany,
+  slate,
+  payFeesNigeria,
+  transcriptsNigeria,
+  wes,
   feeWaivers,
   undergradAid,
   fundedMasters,

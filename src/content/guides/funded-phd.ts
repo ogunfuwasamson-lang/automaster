@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const fundedPhd: Guide = {
   slug: "fully-funded-phd-how-funding-works",
   title: "Fully funded PhD programs: how PhD funding works and how to get it",
-  seoTitle: "Fully funded PhD programs for international students: how funding works",
+  seoTitle: "Fully funded PhDs for international students: how it works",
   description:
     "Why most good PhD offers are fully funded, how funding differs in the US, UK, Canada and Europe, what a funding package includes, and how to find supervisors with money.",
   category: "Funding",

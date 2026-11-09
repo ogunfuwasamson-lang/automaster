@@ -47,6 +47,18 @@ export const FAQ: [string, string][] = [
     "It tries before you pay. The agents check each program's fee waiver rules, apply for any waiver you qualify for, and where there's no form they draft a short request for you to approve. The application waits for the answer, so you don't pay a fee that could have been waived.",
   ],
   [
+    "Is there an AI that applies to universities for me?",
+    "Yes. Ivyward's agents create your account on each university's portal, fill in every page from your profile, upload your documents and submit once you've approved the packet. You still sign, pay the application fee on the school's page, and tick any bot check. ChatGPT and other chatbots can help you write, but they don't fill in or submit portals.",
+  ],
+  [
+    "Does Ivyward work for Nigerian and other African students?",
+    "Yes, it was built for international applicants, including those from Nigeria, Ghana and Kenya. It shortlists programs with funding and fee waivers, and asks for waivers for you. In Nigeria, submissions cost ₦10,000 for 5.",
+  ],
+  [
+    "Which university application portals does Ivyward work with?",
+    "Most of them: Slate, Salesforce, PeopleSoft, UK systems like SITS, and schools' own portals. When a portal blocks cloud browsers, the free Ivyward extension finishes the application in your own Chrome.",
+  ],
+  [
     "Is my data safe?",
     "Portal passwords are encrypted, card details never reach Ivyward, and your data is never used to train AI models or sold. You can pause every agent at once, disconnect Gmail at any time, and ask for your account to be deleted.",
   ],

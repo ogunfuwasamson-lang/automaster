@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const moreAid: Guide = {
   slug: "how-to-ask-for-more-financial-aid",
   title: "How to ask a university for more scholarship money after you're admitted",
-  seoTitle: "How to ask for more scholarship money: merit reconsideration letter",
+  seoTitle: "How to ask a university for more scholarship money",
   description:
     "When universities will raise an offer, what evidence moves them, a merit reconsideration email you can adapt, and the mistakes that end the conversation.",
   category: "Funding",

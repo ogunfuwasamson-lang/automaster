@@ -30,7 +30,7 @@ function build(o: Origin): Guide {
   return {
     slug: o.slug,
     title: `Scholarships for ${o.demonym} students to study abroad`,
-    seoTitle: `Fully funded scholarships for ${o.demonym} students abroad (2027)`,
+    seoTitle: `Fully funded scholarships for ${o.demonym} students (2027)`,
     description: `The fully funded scholarships open to students from ${o.country}, what changed in visa rules for 2026–27, and how to build an application plan that can win one.`,
     category: "Funding",
     updated: "2026-10-31",

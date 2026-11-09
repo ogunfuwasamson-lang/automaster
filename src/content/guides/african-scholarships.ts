@@ -3,7 +3,7 @@ import type { Guide } from "../types";
 export const africanScholarships: Guide = {
   slug: "scholarships-for-nigerian-and-african-students",
   title: "Scholarships for Nigerian and African students to study abroad",
-  seoTitle: "Fully funded scholarships for Nigerian and African students abroad (2027)",
+  seoTitle: "Fully funded scholarships for Nigerian & African students",
   description:
     "The fully funded scholarships open to Nigerians and other Africans, which countries are realistic in 2026–27 given visa changes, and how to put together a competitive plan.",
   category: "Funding",
