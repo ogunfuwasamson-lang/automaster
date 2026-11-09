@@ -2178,6 +2178,7 @@
     });
   });
   async function handle(msg, sender) {
+    if (/^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
     if (msg.type === "bridge:hello") {
       const c = await cfg();
       const a = [...runs.values()][0];

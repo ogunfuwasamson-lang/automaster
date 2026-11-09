@@ -706,6 +706,9 @@ chrome.alarms.onAlarm.addListener((a: { name: string }) => {
 // ---------- messages: the Ivyward site, the popup, the side panel, the page bar ----------
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handle(msg: any, sender: any) {
+  // the side panel's and popup's controls (approve, submit, settings) come only from the extension's own pages,
+  // never from a script running in a web page
+  if (/^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
   // from the Ivyward site (bridge.js): pairing and "run now"
   if (msg.type === "bridge:hello") {
     const c = await cfg();
