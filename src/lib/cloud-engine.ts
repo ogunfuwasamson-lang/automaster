@@ -201,7 +201,7 @@ export interface NavAction {
 
 export type Outcome =
   | { kind: "submitted"; note: string }
-  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" | "review" }
+  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" | "review" | "stopped" }
   | { kind: "wait"; note: string; seconds: number } // try again later (e.g. waiting for the verification email)
   | { kind: "continue"; note: string } // out of time in this run; pick up straight away
   | { kind: "failed"; note: string };

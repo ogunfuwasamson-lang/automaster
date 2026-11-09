@@ -524,6 +524,8 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
           continue;
         } else {
           if (c.why === "ivyward") notify(task.id, task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
+          // stopped from the panel or its tab closed: tell Ivyward, or the next queue check starts it again
+          else await eng(task.id, "finish", { state, outcome: { kind: "needs_you", reason: "stopped", note: "you stopped it in Chrome. Choose Run in my Chrome to carry on" } }).catch(() => {});
           break;
         }
       }

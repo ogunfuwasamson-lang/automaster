@@ -2009,6 +2009,8 @@
             continue;
           } else {
             if (c.why === "ivyward") notify(task.id, task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
+            else await eng(task.id, "finish", { state, outcome: { kind: "needs_you", reason: "stopped", note: "you stopped it in Chrome. Choose Run in my Chrome to carry on" } }).catch(() => {
+            });
             break;
           }
         }
