@@ -47,3 +47,13 @@ describe("time to first submission", () => {
     expect(median([3, 1, 2, 10])).toBe(2.5);
   });
 });
+
+describe("admin: where a sign-up came from", () => {
+  it("prefers utm, then invites, then the referring site", async () => {
+    const { sourceOf } = await import("@/app/admin/data");
+    expect(sourceOf({ utm_source: "chatgpt.com" })).toBe("chatgpt.com");
+    expect(sourceOf({ invite: "ABC" })).toBe("invite");
+    expect(sourceOf({ referrer: "https://www.google.com/search?q=x" })).toBe("google.com");
+    expect(sourceOf(null)).toBe("direct");
+  });
+});

@@ -2,6 +2,7 @@
 // someone who signs up gets a school submission quickly. pure, so the admin page and tests share it.
 
 export const MILESTONES = [
+  { key: "profile", label: "Started their profile", actions: ["interview.turn", "profile.patched", "profile.details_saved"] },
   { key: "shortlist", label: "First program shortlisted", actions: ["program.shortlisted", "application.shortlisted"] },
   { key: "draft", label: "First essay ready to review", actions: ["artifact.ready_for_user"] },
   { key: "signed", label: "First packet signed", actions: ["packet.approved"] },

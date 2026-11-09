@@ -3,9 +3,12 @@ import type { ReactNode } from "react";
 import { admin } from "@/lib/supabase/admin";
 import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/pricing";
 import { planOf } from "@/lib/plans";
+import { teamIds } from "@/lib/team";
 import { LessonsAdmin } from "@/components/learning/lessons-admin";
 import { GrowthAdmin } from "@/components/growth/growth-admin";
-import { MILESTONES, MILESTONE_ACTIONS, duration, journeys, summarize } from "@/lib/first-submission";
+import { MILESTONES, duration, summarize } from "@/lib/first-submission";
+import { STAGES, loadAdmin, scope, type AdminApp, type AdminUser } from "./data";
+import { TeamToggle } from "./team-toggle";
 
 // the operator console's views. each loads its own data, so switching views stays quick.
 
@@ -144,96 +147,191 @@ const REASON: Record<string, string> = {
   payment: "At the payment page",
 };
 
-async function attention() {
-  const { data } = await admin()
-    .from("applications")
-    .select("id, user_id, runner_status, runner_note, runner_state, runner_updated_at, programs(name, schools(name)), profiles(email)")
-    .in("runner_status", ["needs_you", "failed"])
-    .order("runner_updated_at", { ascending: false })
-    .limit(200);
-  return (data ?? []).map((a) => {
-    const st = (a.runner_state ?? {}) as { reason?: string };
-    const p = a.programs as unknown as { name?: string; schools?: { name?: string } } | null;
-    return {
-      id: a.id as string,
-      school: p?.schools?.name ?? "Unknown school",
-      program: p?.name ?? "",
-      email: (a.profiles as unknown as { email?: string } | null)?.email ?? "",
-      status: a.runner_status as string,
-      reason: a.runner_status === "failed" ? "failed" : (st.reason ?? "other"),
-      note: (a.runner_note as string) ?? "",
-      at: a.runner_updated_at as string,
-    };
-  });
-}
-
 // ---- views ----
 
-export async function OverviewView({ since }: { since: string }) {
+const STATUS_ORDER = ["researching", "shortlisted", "preparing", "packet_approved", "submitted", "under_review", "interview", "waitlisted", "admitted", "accepted", "rejected", "declined", "dropped"];
+const STATUS_LABEL: Record<string, string> = {
+  researching: "Researching",
+  shortlisted: "Shortlisted",
+  preparing: "Preparing the packet",
+  packet_approved: "Signed, agents submitting",
+  submitted: "Submitted",
+  under_review: "Under review",
+  interview: "Interview",
+  waitlisted: "Waitlisted",
+  admitted: "Admitted",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  declined: "Declined",
+  dropped: "Dropped",
+};
+const SUBMITTED = new Set(["submitted", "under_review", "interview", "waitlisted", "admitted", "accepted", "rejected", "declined"]);
+
+function ScopeNote({ hidden, everyone, view }: { hidden: number; everyone: boolean; view: string }) {
+  if (!hidden && !everyone) return null;
+  const base = view === "overview" ? "/admin" : `/admin?view=${view}`;
+  const join = base.includes("?") ? "&" : "?";
+  return (
+    <p className="text-[13px] text-muted">
+      {everyone ? "Showing every account, team and test accounts included. " : `Real users only: ${hidden} team or test account${hidden === 1 ? "" : "s"} left out. `}
+      <Link href={everyone ? base : `${base}${join}all=1`} className="underline decoration-current/30 underline-offset-4 hover:text-foreground">
+        {everyone ? "Show real users only" : "Include them"}
+      </Link>
+      {" · "}
+      <Link href="/admin?view=users" className="underline decoration-current/30 underline-offset-4 hover:text-foreground">
+        Choose which accounts are team
+      </Link>
+    </p>
+  );
+}
+
+function Bars({ rows, total }: { rows: [string, number][]; total: number }) {
+  return (
+    <ul className="space-y-2.5 px-4 py-4">
+      {rows.map(([label, n]) => (
+        <li key={label} className="grid grid-cols-[minmax(0,11rem)_1fr_2.5rem] items-center gap-3 text-[13.5px]">
+          <span className="truncate">{label}</span>
+          <span className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+            <span className="block h-full rounded-full bg-foreground/70" style={{ width: `${total ? (n / total) * 100 : 0}%` }} />
+          </span>
+          <span className="text-right tabular-nums text-muted">{n}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Daily({ dates }: { dates: string[] }) {
+  const days = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10));
+  const counts = days.map((d) => dates.filter((x) => x.slice(0, 10) === d).length);
+  const max = Math.max(1, ...counts);
+  return (
+    <div className="px-4 pb-3 pt-4">
+      <div className="flex h-24 items-end gap-[3px]" role="img" aria-label={`Sign-ups per day for the last 30 days: ${counts.reduce((a, b) => a + b, 0)} in total`}>
+        {counts.map((c, i) => (
+          <span key={days[i]} title={`${days[i]}: ${c}`} className={`flex-1 rounded-t-sm ${c ? "bg-foreground/70" : "bg-neutral-200 dark:bg-neutral-800"}`} style={{ height: `${c ? Math.max(8, (c / max) * 100) : 4}%` }} />
+        ))}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11.5px] text-muted">
+        <span>{new Date(days[0]).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+        <span>today</span>
+      </div>
+    </div>
+  );
+}
+
+export async function OverviewView({ since, everyone }: { since: string; everyone: boolean }) {
   const db = admin();
-  const [h, waiting, { data: users }, { data: runs }, { data: pays }, { data: steps }, { count: submittedMonth }] = await Promise.all([
+  const [h, d, { data: runs }, { data: pays }] = await Promise.all([
     health(),
-    attention(),
-    db.from("profiles").select("id, email, created_at"),
-    db.from("agent_runs").select("cost_usd").gte("started_at", since).limit(50000),
+    loadAdmin(),
+    db.from("agent_runs").select("user_id, cost_usd").gte("started_at", since).limit(50000),
     db.from("billing_events").select("user_id, kind, amount, currency").gte("created_at", since),
-    db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).limit(50000),
-    db.from("events").select("id", { count: "exact", head: true }).eq("action", "runner.submitted").gte("created_at", since),
   ]);
-  const funnel = summarize(journeys(users ?? [], steps ?? []));
-  const cost = (runs ?? []).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
-  const revenue = (pays ?? []).reduce((s, p) => s + (p.currency === "USD" ? Number(p.amount) || 0 : p.kind === "submission" ? 1.9 : 0), 0);
-  const paying = new Set((pays ?? []).map((p) => p.user_id)).size;
-  const week = (users ?? []).filter((u) => Date.now() - Date.parse(u.created_at) < 7 * 86_400_000).length;
-  const groups = new Map<string, typeof waiting>();
-  for (const w of waiting) groups.set(w.reason, [...(groups.get(w.reason) ?? []), w]);
-  const ordered = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+  const { users, apps, hidden } = scope(d, everyone);
+  const ids = new Set(users.map((u) => u.id));
+  const week = (iso: string | null) => !!iso && Date.now() - Date.parse(iso) < 7 * 86_400_000;
+  const cost = (runs ?? []).filter((r) => ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  const teamCost = (runs ?? []).filter((r) => !ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  const payers = new Set((pays ?? []).filter((p) => ids.has(p.user_id)).map((p) => p.user_id));
+  const reached = (k: string) => users.filter((u) => k === "signup" || u.journey.at[k as keyof typeof u.journey.at]).length;
+  const submittedApps = apps.filter((a) => SUBMITTED.has(a.status)).length;
+  const submitters = new Set(apps.filter((a) => SUBMITTED.has(a.status)).map((a) => a.userId)).size;
+  const byStage = STAGES.map((s) => [s.label, users.filter((u) => u.stage === s.key).length] as [string, number]);
+  const sources = new Map<string, number>();
+  for (const u of users) sources.set(u.source, (sources.get(u.source) ?? 0) + 1);
+  const statusRows = STATUS_ORDER.map((st) => [STATUS_LABEL[st], apps.filter((a) => a.status === st).length] as [string, number]).filter(([, n]) => n);
+
+  // who needs a nudge: real users who stopped moving, and applications the agents stopped on
+  const stalled = users
+    .filter((u) => u.stage !== "submitted" && (!u.lastActive || Date.now() - Date.parse(u.lastActive) > 3 * 86_400_000))
+    .sort((a, b) => (a.lastActive ?? a.joined).localeCompare(b.lastActive ?? b.joined));
+  const stopped = apps.filter((a) => a.runner === "needs_you" || a.runner === "failed");
+  const groups = new Map<string, AdminApp[]>();
+  for (const a of stopped) groups.set(a.reason ?? "other", [...(groups.get(a.reason ?? "other") ?? []), a]);
+  const stageLabel = (k: string) => STAGES.find((s) => s.key === k)?.label ?? k;
 
   return (
     <div className="space-y-10">
       <HealthStrip h={h} />
+      <ScopeNote hidden={hidden} everyone={everyone} view="overview" />
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <Stat label="Users" value={`${users?.length ?? 0}`} sub={`${week} new this week`} />
-        <Stat label="Submitted by the agents" value={`${funnel.submitted}`} sub={`${submittedMonth ?? 0} this month`} tone={funnel.submitted ? "go" : undefined} />
-        <Stat label="Sign-up to first submission" value={duration(funnel.medianToSubmitMs)} sub="median" />
-        <Stat label="AI cost" value={$(cost)} sub={`${$(cost / Math.max(1, users?.length ?? 1))} per user`} />
-        <Stat label="Revenue, est." value={$(revenue)} sub={`${paying} paying`} />
-        <Stat label="Margin after AI" value={$(revenue - cost)} tone={revenue - cost < 0 ? "stop" : "go"} />
+        <Stat label="Sign-ups" value={`${users.length}`} sub={`${users.filter((u) => week(u.joined)).length} in the last 7 days`} />
+        <Stat label="Active this week" value={`${users.filter((u) => week(u.lastActive)).length}`} sub="did something themselves" />
+        <Stat label="Reached a shortlist" value={`${reached("shortlist")}`} sub={`${users.length ? Math.round((reached("shortlist") / users.length) * 100) : 0}% of sign-ups`} />
+        <Stat label="Signed a packet" value={`${reached("signed")}`} sub={`${users.length ? Math.round((reached("signed") / users.length) * 100) : 0}% of sign-ups`} />
+        <Stat label="Submitted" value={`${submittedApps}`} sub={`application${submittedApps === 1 ? "" : "s"}, ${submitters} user${submitters === 1 ? "" : "s"}`} tone={submittedApps ? "go" : undefined} />
+        <Stat label="AI cost this month" value={$(cost)} sub={`${$(cost / Math.max(1, users.length))} a user${teamCost ? `, ${$(teamCost)} on team accounts` : ""}${payers.size ? `, ${payers.size} paying` : ""}`} />
       </dl>
 
-      <Section
-        title="Needs attention"
-        note={waiting.length ? `${waiting.length} application${waiting.length === 1 ? "" : "s"} stopped, grouped by why` : "Nothing is waiting."}
-        action={
-          <Link href="/admin?view=portals" className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">
-            Portal details
-          </Link>
-        }
-      >
-        {ordered.length > 0 && (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {ordered.map(([reason, list]) => (
-              <Card key={reason}>
-                <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                  <p className="text-[14.5px] font-medium">{reason === "failed" ? "Run failed" : (REASON[reason] ?? "Other")}</p>
-                  <Pill tone={reason === "failed" || reason === "stuck" ? "stop" : "signal"}>{list.length}</Pill>
-                </div>
-                <ul className="divide-y divide-line">
-                  {list.slice(0, 5).map((w) => (
-                    <li key={w.id} className="px-4 py-2.5">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="truncate text-[14px]">{w.school}</span>
-                        <span className="shrink-0 text-[12px] text-muted">{ago(w.at)}</span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">
-                        {w.email} · {w.note}
-                      </p>
-                    </li>
-                  ))}
-                  {list.length > 5 && <li className="px-4 py-2 text-[12.5px] text-muted">and {list.length - 5} more</li>}
-                </ul>
-              </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title="Where users are" note="Each user's furthest step.">
+          <Card>
+            <Bars rows={byStage} total={users.length} />
+          </Card>
+        </Section>
+        <Section title="Applications by status" note={`${apps.length} across ${new Set(apps.map((a) => a.userId)).size} users.`}>
+          <Card>{statusRows.length ? <Bars rows={statusRows} total={apps.length} /> : <p className="px-4 py-4 text-[13.5px] text-muted">No applications yet.</p>}</Card>
+        </Section>
+        <Section title="Sign-ups, last 30 days">
+          <Card>
+            <Daily dates={users.map((u) => u.joined)} />
+          </Card>
+        </Section>
+        <Section title="Where sign-ups come from" note="First-touch source recorded at sign-up.">
+          <Card>
+            <Bars rows={[...sources.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)} total={users.length} />
+          </Card>
+        </Section>
+      </div>
+
+      <Section title="Users who stopped" note={stalled.length ? "Not submitted and not active for 3 days or more." : "Everyone not yet submitted was active in the last 3 days."} action={<Link href={`/admin?view=users${everyone ? "&all=1" : ""}`} className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">All users</Link>}>
+        {stalled.length > 0 && (
+          <Table head={["User", "Furthest step", "Last active", "Joined", "Source"]} min="40rem">
+            {stalled.slice(0, 10).map((u) => (
+              <tr key={u.id}>
+                <td className="max-w-[16rem] truncate px-4 py-3">{u.email}</td>
+                <td className="px-4 py-3">{stageLabel(u.stage)}</td>
+                <td className="px-4 py-3 text-muted">{ago(u.lastActive)}</td>
+                <td className="px-4 py-3 text-muted">{ago(u.joined)}</td>
+                <td className="px-4 py-3 text-muted">{u.source}</td>
+              </tr>
             ))}
+          </Table>
+        )}
+      </Section>
+
+      <Section
+        title="Applications the agents stopped on"
+        note={stopped.length ? `${stopped.length} across ${new Set(stopped.map((a) => a.userId)).size} users, grouped by why` : "None."}
+        action={<Link href={`/admin?view=portals${everyone ? "&all=1" : ""}`} className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">Portal details</Link>}
+      >
+        {groups.size > 0 && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {[...groups.entries()]
+              .sort((a, b) => b[1].length - a[1].length)
+              .map(([reason, list]) => (
+                <Card key={reason}>
+                  <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                    <p className="text-[14.5px] font-medium">{reason === "failed" ? "Run failed" : (REASON[reason] ?? "Other")}</p>
+                    <Pill tone={reason === "failed" || reason === "stuck" ? "stop" : "signal"}>{list.length}</Pill>
+                  </div>
+                  <ul className="divide-y divide-line">
+                    {list.slice(0, 5).map((w) => (
+                      <li key={w.id} className="px-4 py-2.5">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="truncate text-[14px]">{w.school}</span>
+                          <span className="shrink-0 text-[12px] text-muted">{ago(w.updated)}</span>
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">
+                          {w.email} · {w.note}
+                        </p>
+                      </li>
+                    ))}
+                    {list.length > 5 && <li className="px-4 py-2 text-[12.5px] text-muted">and {list.length - 5} more</li>}
+                  </ul>
+                </Card>
+              ))}
           </div>
         )}
       </Section>
@@ -241,25 +339,64 @@ export async function OverviewView({ since }: { since: string }) {
   );
 }
 
-export async function SubmissionsView() {
-  const db = admin();
-  const [{ data: users }, { data: steps }] = await Promise.all([
-    db.from("profiles").select("id, email, created_at"),
-    db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).limit(50000),
-  ]);
-  const trips = journeys(users ?? [], steps ?? []).sort((a, b) => b.signedUp.localeCompare(a.signedUp));
+export async function UsersView({ since, everyone }: { since: string; everyone: boolean }) {
+  const [d, { data: runs }] = await Promise.all([loadAdmin(), admin().from("agent_runs").select("user_id, cost_usd").gte("started_at", since).limit(50000)]);
+  const spend = new Map<string, number>();
+  for (const r of runs ?? []) spend.set(r.user_id, (spend.get(r.user_id) ?? 0) + (Number(r.cost_usd) || 0));
+  const { users, hidden } = scope(d, everyone);
+  const stageLabel = (k: string) => STAGES.find((s) => s.key === k)?.label ?? k;
+  const count = (u: AdminUser, sts: string[]) => sts.reduce((n, s) => n + (u.apps[s] ?? 0), 0);
+  return (
+    <div className="space-y-4">
+      <ScopeNote hidden={hidden} everyone={everyone} view="users" />
+      <Section title="Users" note="Newest first. Mark your own and test accounts as team so the numbers show real applicants.">
+        <Table head={["User", "Counted as", "Joined", "Source", "Last active", "Furthest step", "Shortlisted", "Preparing", "Signed", "Submitted", "Stopped", "AI this month"]} min="70rem">
+          {[...users]
+            .sort((a, b) => b.joined.localeCompare(a.joined))
+            .map((u) => (
+              <tr key={u.id}>
+                <td className="max-w-[16rem] truncate px-4 py-3">
+                  {u.email}
+                  {u.plan !== "free" && <span className="ml-2 text-[12px] capitalize text-muted">{u.plan}</span>}
+                </td>
+                <td className="px-4 py-3">
+                  <TeamToggle userId={u.id} team={u.team} />
+                </td>
+                <td className="px-4 py-3 text-muted">{new Date(u.joined).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</td>
+                <td className="px-4 py-3 text-muted">{u.source}</td>
+                <td className="px-4 py-3 text-muted">{ago(u.lastActive)}</td>
+                <td className="px-4 py-3">{stageLabel(u.stage)}</td>
+                <td className={td}>{count(u, ["shortlisted", "researching"]) || <span className="text-muted">·</span>}</td>
+                <td className={td}>{count(u, ["preparing"]) || <span className="text-muted">·</span>}</td>
+                <td className={td}>{count(u, ["packet_approved"]) || <span className="text-muted">·</span>}</td>
+                <td className={`${td} ${count(u, [...SUBMITTED]) ? "font-medium text-go" : ""}`}>{count(u, [...SUBMITTED]) || <span className="text-muted">·</span>}</td>
+                <td className={`${td} ${u.waiting ? "text-signal" : ""}`}>{u.waiting || <span className="text-muted">·</span>}</td>
+                <td className={td}>{$(spend.get(u.id) ?? 0)}</td>
+              </tr>
+            ))}
+        </Table>
+      </Section>
+    </div>
+  );
+}
+
+export async function SubmissionsView({ everyone }: { everyone: boolean }) {
+  const d = await loadAdmin();
+  const { users, hidden } = scope(d, everyone);
+  const trips = users.map((u) => u.journey).sort((a, b) => b.signedUp.localeCompare(a.signedUp));
   const funnel = summarize(trips);
   return (
     <div className="space-y-10">
-      <Section title="Time to first submission" note="From sign-up to the first application the agents submitted, for every user since launch.">
+      <ScopeNote hidden={hidden} everyone={everyone} view="submissions" />
+      <Section title="Time to first submission" note="From sign-up to the first application the agents submitted.">
         <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label="Submitted" value={`${funnel.submitted} of ${funnel.users}`} tone={funnel.submitted ? "go" : undefined} />
+          <Stat label="Users who submitted" value={`${funnel.submitted} of ${funnel.users}`} tone={funnel.submitted ? "go" : undefined} />
           <Stat label="Median time" value={duration(funnel.medianToSubmitMs)} />
           <Stat label="Within 15 min" value={`${funnel.within15m}`} />
           <Stat label="Within 24 h / 7 d" value={`${funnel.within24h} / ${funnel.within7d}`} />
         </dl>
       </Section>
-      <Section title="Where people stop" note="Each step's reach, and how long it takes.">
+      <Section title="Where people stop" note="How many users reached each step, and how long it took.">
         <Table head={["Step", "Users who reached it", "Median from sign-up", "Median from the step before"]}>
           {funnel.steps.map((x) => (
             <tr key={x.key}>
@@ -275,7 +412,7 @@ export async function SubmissionsView() {
         </Table>
       </Section>
       <Section title="Each user" note="Time from sign-up to each step.">
-        <Table head={["User", "Signed up", ...MILESTONES.map((m) => m.label)]} min="58rem">
+        <Table head={["User", "Signed up", ...MILESTONES.map((m) => m.label)]} min="64rem">
           {trips.map((j) => (
             <tr key={j.userId}>
               <td className="max-w-[14rem] truncate px-4 py-3">{j.email}</td>
@@ -293,96 +430,146 @@ export async function SubmissionsView() {
   );
 }
 
-export async function PortalsView() {
-  const { data } = await admin()
-    .from("applications")
-    .select("id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, status, programs(name, schools(name)), profiles(email)")
-    .neq("runner_status", "idle")
-    .order("runner_updated_at", { ascending: false })
-    .limit(60);
-  const tone = (s: string): Tone => (s === "submitted" ? "go" : s === "failed" ? "stop" : s === "needs_you" ? "signal" : undefined);
-  const label: Record<string, string> = { submitted: "Submitted", failed: "Failed", needs_you: "Needs the applicant", running: "Running", ready: "Queued", paused: "Paused" };
+export async function PortalsView({ everyone }: { everyone: boolean }) {
+  const d = await loadAdmin();
+  const { apps, hidden } = scope(d, everyone);
+  const worked = apps.filter((a) => a.runner !== "idle" || SUBMITTED.has(a.status));
+  // per school, across every user: how often the agents get through
+  const bySchool = new Map<string, { school: string; host: string | null; total: number; submitted: number; stopped: number; running: number; reasons: Map<string, number> }>();
+  for (const a of worked) {
+    const r = bySchool.get(a.school) ?? { school: a.school, host: a.host, total: 0, submitted: 0, stopped: 0, running: 0, reasons: new Map() };
+    r.total++;
+    if (SUBMITTED.has(a.status)) r.submitted++;
+    else if (a.runner === "needs_you" || a.runner === "failed") {
+      r.stopped++;
+      const why = a.reason ?? "other";
+      r.reasons.set(why, (r.reasons.get(why) ?? 0) + 1);
+    } else if (a.runner === "running" || a.runner === "ready") r.running++;
+    r.host ??= a.host;
+    bySchool.set(a.school, r);
+  }
+  const rows = [...bySchool.values()].sort((a, b) => b.total - a.total || a.school.localeCompare(b.school));
+  const ids = worked.map((a) => a.id);
+  const { data } = ids.length
+    ? await admin().from("applications").select("id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name)), profiles(email)").in("id", ids.slice(0, 300)).order("runner_updated_at", { ascending: false })
+    : { data: [] };
   return (
-    <Section title="Portal runs" note="Every application the agents have worked on, newest first. Open one for the last page they saw.">
-      <div className="space-y-2">
-        {(data ?? []).map((a) => {
-          const st = (a.runner_state ?? {}) as {
-            last_url?: string;
-            reason?: string;
-            steps?: number;
-            totalSteps?: number;
-            stuckRepeats?: number;
-            navHistory?: string[];
-            debug?: { title?: string; fields?: string[]; values?: string[]; buttons?: string[]; errors?: string[]; complaints?: string[]; unnamed?: string[]; captcha?: boolean; body?: string };
-          };
-          const d = st.debug;
-          const p = a.programs as unknown as { name?: string; schools?: { name?: string } } | null;
-          return (
-            <details key={a.id} className="group rounded-2xl border border-line bg-surface shadow-card">
-              <summary className="grid cursor-pointer list-none gap-x-4 gap-y-1 px-4 py-3 marker:hidden sm:grid-cols-[minmax(0,14rem)_9rem_minmax(0,1fr)_6rem] sm:items-center">
-                <span className="min-w-0">
-                  <span className="block truncate text-[14.5px] font-medium">{p?.schools?.name ?? "Unknown school"}</span>
-                  <span className="block truncate text-[12px] text-muted">{(a.profiles as unknown as { email?: string } | null)?.email}</span>
-                </span>
-                <span>
-                  <Pill tone={tone(a.runner_status)}>{label[a.runner_status] ?? a.runner_status}</Pill>
-                </span>
-                <span className="line-clamp-2 text-[13px] text-muted">{a.runner_note}</span>
-                <span className="text-[12px] text-muted sm:text-right">{ago(a.runner_updated_at)}</span>
-              </summary>
-              <div className="space-y-3 border-t border-line px-4 py-3 text-[12.5px]">
-                <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+    <div className="space-y-10">
+      <ScopeNote hidden={hidden} everyone={everyone} view="portals" />
+      <Section title="By school" note="Every school the agents have worked on, across all users.">
+        <Table head={["School", "Portal", "Applications", "Submitted", "Stopped", "In progress", "Why they stopped"]} min="56rem">
+          {rows.length ? (
+            rows.map((r) => (
+              <tr key={r.school}>
+                <td className="max-w-[16rem] truncate px-4 py-3">{r.school}</td>
+                <td className="max-w-[12rem] truncate px-4 py-3 font-mono text-[12px] text-muted">{r.host ?? "·"}</td>
+                <td className={td}>{r.total}</td>
+                <td className={`${td} ${r.submitted ? "font-medium text-go" : ""}`}>{r.submitted}</td>
+                <td className={`${td} ${r.stopped ? "text-signal" : ""}`}>{r.stopped}</td>
+                <td className={td}>{r.running}</td>
+                <td className="px-4 py-3 text-[12.5px] text-muted">
+                  {[...r.reasons.entries()].map(([why, n]) => `${why === "failed" ? "Run failed" : (REASON[why] ?? why)}${n > 1 ? ` ×${n}` : ""}`).join(", ") || "·"}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td className="px-4 py-3 text-muted" colSpan={7}>
+                The agents haven&apos;t worked on any portal yet.
+              </td>
+            </tr>
+          )}
+        </Table>
+      </Section>
+      <Section title="Each run" note="Newest first. Open one for what the page said, the last steps and the raw page details.">
+        <RunList rows={data ?? []} />
+      </Section>
+    </div>
+  );
+}
+
+function RunList({ rows }: { rows: Record<string, unknown>[] }) {
+  const tone = (s: string): Tone => (s === "submitted" ? "go" : s === "failed" ? "stop" : s === "needs_you" ? "signal" : undefined);
+  const label: Record<string, string> = { submitted: "Submitted", failed: "Failed", needs_you: "Needs the applicant", running: "Running", ready: "Queued", paused: "Paused", idle: "Idle" };
+  return (
+    <div className="space-y-2">
+      {rows.map((a) => {
+        const st = (a.runner_state ?? {}) as {
+          last_url?: string;
+          reason?: string;
+          steps?: number;
+          totalSteps?: number;
+          stuckRepeats?: number;
+          navHistory?: string[];
+          debug?: { title?: string; fields?: string[]; values?: string[]; buttons?: string[]; errors?: string[]; complaints?: string[]; unnamed?: string[]; captcha?: boolean; body?: string };
+        };
+        const dbg = st.debug;
+        const p = a.programs as { schools?: { name?: string } } | null;
+        const status = a.runner_status as string;
+        return (
+          <details key={a.id as string} className="group rounded-2xl border border-line bg-surface shadow-card">
+            <summary className="grid cursor-pointer list-none gap-x-4 gap-y-1 px-4 py-3 marker:hidden sm:grid-cols-[minmax(0,14rem)_9rem_minmax(0,1fr)_6rem] sm:items-center">
+              <span className="min-w-0">
+                <span className="block truncate text-[14.5px] font-medium">{p?.schools?.name ?? "Unknown school"}</span>
+                <span className="block truncate text-[12px] text-muted">{(a.profiles as { email?: string } | null)?.email}</span>
+              </span>
+              <span>
+                <Pill tone={tone(status)}>{label[status] ?? status}</Pill>
+              </span>
+              <span className="line-clamp-2 text-[13px] text-muted">{a.runner_note as string}</span>
+              <span className="text-[12px] text-muted sm:text-right">{ago(a.runner_updated_at as string)}</span>
+            </summary>
+            <div className="space-y-3 border-t border-line px-4 py-3 text-[12.5px]">
+              <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                <div className="truncate">
+                  <dt className="inline text-muted">Last page: </dt>
+                  <dd className="inline break-all">{st.last_url ?? "none"}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-muted">Reason: </dt>
+                  <dd className="inline">{st.reason ? (REASON[st.reason] ?? st.reason) : "none"}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-muted">Steps: </dt>
+                  <dd className="inline">
+                    {st.steps ?? 0} this run, {st.totalSteps ?? 0} in all{st.stuckRepeats ? `, stuck ${st.stuckRepeats}× on this page` : ""}
+                  </dd>
+                </div>
+                {dbg?.title && (
                   <div className="truncate">
-                    <dt className="inline text-muted">Last page: </dt>
-                    <dd className="inline break-all">{st.last_url ?? "none"}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline text-muted">Reason: </dt>
-                    <dd className="inline">{st.reason ? (REASON[st.reason] ?? st.reason) : "none"}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline text-muted">Steps: </dt>
-                    <dd className="inline">
-                      {st.steps ?? 0} this run, {st.totalSteps ?? 0} in all{st.stuckRepeats ? `, stuck ${st.stuckRepeats}× on this page` : ""}
-                    </dd>
-                  </div>
-                  {d?.title && (
-                    <div className="truncate">
-                      <dt className="inline text-muted">Page title: </dt>
-                      <dd className="inline">{d.title}</dd>
-                    </div>
-                  )}
-                </dl>
-                {(d?.complaints?.length || d?.errors?.length) && (
-                  <p className="text-stop">What the page said: {[...(d?.errors ?? []), ...(d?.complaints ?? [])].join(" · ")}</p>
-                )}
-                {st.navHistory?.length ? (
-                  <ol className="list-decimal space-y-0.5 pl-5 text-muted">
-                    {st.navHistory.slice(-8).map((n, i) => (
-                      <li key={i}>{n}</li>
-                    ))}
-                  </ol>
-                ) : null}
-                {d && (
-                  <div className="space-y-1 rounded-xl bg-neutral-100 p-3 font-mono text-[11.5px] leading-relaxed dark:bg-neutral-900">
-                    <p>fields: {(d.fields ?? []).join(" | ")}</p>
-                    <p>values: {(d.values ?? []).join(" | ")}</p>
-                    <p>buttons: {(d.buttons ?? []).join(" | ")}</p>
-                    {d.unnamed?.length ? <p>buttons without text: {d.unnamed.join(" | ")}</p> : null}
-                    <p>captcha: {String(d.captcha ?? false)}</p>
-                    <p className="whitespace-pre-wrap">body: {d.body}</p>
+                    <dt className="inline text-muted">Page title: </dt>
+                    <dd className="inline">{dbg.title}</dd>
                   </div>
                 )}
-              </div>
-            </details>
-          );
-        })}
-      </div>
-    </Section>
+              </dl>
+              {dbg?.complaints?.length || dbg?.errors?.length ? <p className="text-stop">What the page said: {[...(dbg?.errors ?? []), ...(dbg?.complaints ?? [])].join(" · ")}</p> : null}
+              {st.navHistory?.length ? (
+                <ol className="list-decimal space-y-0.5 pl-5 text-muted">
+                  {st.navHistory.slice(-8).map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ol>
+              ) : null}
+              {dbg && (
+                <div className="space-y-1 rounded-xl bg-neutral-100 p-3 font-mono text-[11.5px] leading-relaxed dark:bg-neutral-900">
+                  <p>fields: {(dbg.fields ?? []).join(" | ")}</p>
+                  <p>values: {(dbg.values ?? []).join(" | ")}</p>
+                  <p>buttons: {(dbg.buttons ?? []).join(" | ")}</p>
+                  {dbg.unnamed?.length ? <p>buttons without text: {dbg.unnamed.join(" | ")}</p> : null}
+                  <p>captcha: {String(dbg.captcha ?? false)}</p>
+                  <p className="whitespace-pre-wrap">body: {dbg.body}</p>
+                </div>
+              )}
+            </div>
+          </details>
+        );
+      })}
+    </div>
   );
 }
 
 export async function CostsView({ since }: { since: string }) {
+  const team = await teamIds();
   const db = admin();
   const [{ data: users }, { data: runs }] = await Promise.all([
     db.from("profiles").select("id, email, plan, monthly_budget_usd"),
@@ -449,7 +636,10 @@ export async function CostsView({ since }: { since: string }) {
               const share = budget ? r.cost / budget : 0;
               return (
                 <tr key={u.id}>
-                  <td className="max-w-[14rem] truncate px-4 py-3">{u.email}</td>
+                  <td className="max-w-[14rem] truncate px-4 py-3">
+                    {u.email}
+                    {team.has(u.id) && <span className="ml-2 text-[12px] text-muted">team</span>}
+                  </td>
                   <td className="px-4 py-3 capitalize">{u.plan}</td>
                   <td className={td}>
                     <span className={share > 0.9 ? "font-medium text-stop" : ""}>
