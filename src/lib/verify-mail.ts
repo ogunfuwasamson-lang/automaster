@@ -40,7 +40,7 @@ export function extractCredentials(mail: { subject: string; text: string; html: 
     const m = text.match(re);
     return m ? m[1].trim().replace(/[.,;]+$/, "") : null;
   };
-  const username = grab(/(?:user\s*id|user\s*name|username|login\s*(?:id|name)?|identifiant|code\s*(?:d['’]\s*)?utilisateur|nom\s*d['’]\s*utilisateur)\s*(?:is|est)?\s*[:：=]?\s*([A-Za-z0-9._@-]{3,64})/i);
+  const username = grab(/(?:user\s*id|user\s*name|username|login\s*(?:id|name)?|identifiant|code\s*(?:d['’]\s*)?utilisateur|nom\s*d['’]\s*utilisateur)\s*(?:(?:is|est)\s*[:：=]?|[:：=])\s*([A-Za-z0-9._@-]{3,64})/i);
   const password = grab(/(?:temporary\s*)?(?:password|passcode|mot\s*de\s*passe(?:\s*temporaire)?)\s*(?:is|est)?\s*[:：=]\s*(\S{4,64})/i);
   return { username, password };
 }
