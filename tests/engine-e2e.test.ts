@@ -566,6 +566,16 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("a list already on a real first option isn't empty; a placeholder is (manchester)", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`<p>*Are you acting on behalf of applicants?</p><select id="a" required><option value="N">No</option><option value="Y">Yes</option></select>
+      <label for="t">Title *</label><select id="t" required><option value="">Select...</option><option>Mr</option></select>`);
+    await page.evaluate(DOM_HELPER);
+    const empty = await page.evaluate(() => (window as unknown as { __am: { snapshot(): { fields: { label: string }[] } } }).__am.snapshot().fields.map((f) => f.label));
+    expect(empty).toEqual(["Title *"]);
+    await page.close();
+  }, 30_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

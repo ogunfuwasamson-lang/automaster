@@ -122,7 +122,11 @@ export const DOM_HELPER = String.raw`
     return radio.name || "";
   };
 
-  const isEmpty = (el) => el.tagName === "SELECT" ? (el.selectedIndex <= 0 || !el.value) : el.type === "checkbox" ? !el.checked : el.type === "file" ? !(el.files && el.files.length) : !String(el.value || "").trim();
+  // a list is empty when nothing real is chosen: a blank value, or a placeholder shown ("Select…", "-- choose --").
+  // not merely "the first option": manchester's "acting on behalf of applicants?" starts on No, its first option,
+  // and looked unanswered for ever
+  const PLACEHOLDER = /^\s*(-+\s*)?(select|choose|please (select|choose)|pick|none selected|--+)\b|^\s*$/i;
+  const isEmpty = (el) => el.tagName === "SELECT" ? (el.selectedIndex < 0 || !el.value || PLACEHOLDER.test((el.options[el.selectedIndex] || {}).text || "")) : el.type === "checkbox" ? !el.checked : el.type === "file" ? !(el.files && el.files.length) : !String(el.value || "").trim();
   const typeOf = (el) => el.tagName === "SELECT" ? "select" : el.tagName === "TEXTAREA" ? "textarea" : (el.type || "text").toLowerCase();
 
   function fields(includeFilled) {
