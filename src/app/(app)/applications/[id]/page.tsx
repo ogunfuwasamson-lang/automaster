@@ -14,6 +14,7 @@ import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
 import { admin } from "@/lib/supabase/admin";
 import { RunnerPanel } from "./runner-panel";
+import { RunHistory } from "./run-history";
 import { DeleteApplication } from "./delete-application";
 import { PayToSubmit } from "@/components/billing/pay";
 import { confirmReturn, paymentNeeded } from "@/lib/billing";
@@ -246,6 +247,10 @@ export default async function ApplicationPage({ params, searchParams }: { params
             return [...new Set([...(d?.errors ?? []), ...(d?.complaints ?? [])].map((x) => x.trim()).filter((x) => x.length > 8))];
           })()}
         />
+      )}
+
+      {["packet_approved", "submitted"].includes(app.status) && (
+        <RunHistory userId={auth.user.id} applicationId={id} checkin={((app as { runner_state?: { checkin?: { summary?: string; missing?: string[]; at?: number; signedOut?: boolean } } }).runner_state ?? {}).checkin ?? null} />
       )}
 
       {(asked ?? []).length > 0 && (

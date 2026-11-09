@@ -6,6 +6,7 @@ import { CircleCheck, Copy, Download, LoaderCircle, PlugZap } from "lucide-react
 import { toast } from "sonner";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { askExtension, useExtension } from "@/components/runner/use-extension";
+import { EXTENSION_VERSION, olderThan } from "@/lib/extension";
 
 // one-time setup: install the runner extension, then connect it to this account with one click
 export function ConnectChrome({ then, store = null }: { then: { id: string; school: string } | null; store?: string | null }) {
@@ -52,9 +53,20 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
     <div className="space-y-4">
       <p className="text-sm leading-relaxed text-muted">
         Some portals refuse any browser running in the cloud. Connect your Chrome once and, whenever that happens, the agents carry on in a background tab on this computer: same answers, same documents, your own
-        connection. If a bot check appears, the tab comes forward for you to tick it; the agents never solve those themselves.
+        connection. The Ivyward side panel shows every answer as it goes in and asks you before anything is submitted. Bot checks
+        and payment wait there for you; the agents never solve those themselves.
         {then ? <span className="mt-2 block font-medium text-foreground">Next up: {then.school}.</span> : null}
       </p>
+      {ext.installed && olderThan(ext.version) ? (
+        <div className="mb-4 rounded-3xl border border-line bg-surface p-4 text-sm shadow-card">
+          <p className="font-medium">An update is ready: version {EXTENSION_VERSION} (you have {ext.version}).</p>
+          {store ? (
+            <p className="text-muted">Chrome updates it by itself within a few hours. To update now, open chrome://extensions, switch on Developer mode and choose Update.</p>
+          ) : (
+            <p className="text-muted">Download it below and unzip it over the old folder, then open chrome://extensions and press the reload arrow on Ivyward runner. Your connection is kept.</p>
+          )}
+        </div>
+      ) : null}
       <ol className="space-y-3">
         {step(
           1,

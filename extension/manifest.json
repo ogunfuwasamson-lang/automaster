@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Ivyward runner",
-  "version": "1.2.9",
-  "description": "Finishes your approved university applications in your own Chrome when a school's portal won't let Ivyward's cloud browser in.",
+  "version": "1.3.0",
+  "description": "Finishes your approved university applications in your own Chrome: a side panel shows every answer, asks before submitting, and hands you bot checks and payment.",
   "permissions": [
     "storage",
     "alarms",
     "notifications",
     "tabs",
     "scripting",
-    "webNavigation"
+    "webNavigation",
+    "sidePanel",
+    "tabGroups"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -43,5 +45,9 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "homepage_url": "https://tryivyward.com"
+  "homepage_url": "https://tryivyward.com",
+  "minimum_chrome_version": "116",
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
 }

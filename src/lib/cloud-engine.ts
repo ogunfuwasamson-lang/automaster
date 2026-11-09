@@ -144,6 +144,12 @@ export interface EngineDeps {
   files?(): string[];
   isDone?(s: Snapshot): boolean;
   finalButton?: RegExp;
+  // each answer put on the page (the applicant's own chrome shows them, and lists them for review before submit)
+  onFilled?(f: { id: string; label: string; action: string; value: string; source?: string }): void;
+  // before leaving a page of the form for the next one: false holds the run there ("ask before each page")
+  beforeNext?(page: { label: string; title: string; url: string }): Promise<boolean>;
+  // the applicant signs in themselves (their password manager fills it): an account that exists is never typed in
+  signInYourself?(): boolean;
 }
 
 export interface Mark {
@@ -195,7 +201,7 @@ export interface NavAction {
 
 export type Outcome =
   | { kind: "submitted"; note: string }
-  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" }
+  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" | "review" }
   | { kind: "wait"; note: string; seconds: number } // try again later (e.g. waiting for the verification email)
   | { kind: "continue"; note: string } // out of time in this run; pick up straight away
   | { kind: "failed"; note: string };
@@ -986,6 +992,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         }
       }
       let login = await deps.existingLogin();
+      if (login && deps.signInYourself?.()) return { outcome: { kind: "needs_you", reason: "login", note: "sign in to the portal yourself (your password manager can fill it in); the agents carry on once you're in" }, state, filled };
       // never create a second account: first look for a login this portal already emailed
       if (!login && deps.loginFromMail) login = await deps.loginFromMail(Date.now() - 60 * 86_400_000);
       if (!login) {
@@ -1263,6 +1270,11 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     // "Start a new application" a second time makes a second application: let the navigator choose instead
     if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = undefined;
     if (next) {
+      // a page of the form (filled now, or filled before): not a landing page with a search box
+      const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
+      if (formPage && deps.beforeNext && !(await deps.beforeNext({ label: clean(next.label), title: now.title, url: now.url }))) {
+        return { outcome: { kind: "needs_you", reason: "review", note: "this page is filled in: check it, then approve it in the Ivyward side panel" }, state, filled };
+      }
       if (next.href && next === apply) state.visited = [...(state.visited ?? []), here(next.href)].slice(-30);
       await click(page, next.id);
       continue;
@@ -1527,6 +1539,7 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
     }
   }
   for (const f of fills) {
+    const n0 = n;
     try {
       if (f.action === "skip") {
         const field = safe.find((x) => x.id === f.id);
@@ -1565,6 +1578,16 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
       if (ok && (f.action === "choose" || f.action === "check")) await settle(page);
     } catch {
       /* a field we couldn't set stays empty and is reported as a question */
+    } finally {
+      if (n > n0 && deps.onFilled && f.action !== "skip") {
+        const label = safe.find((x) => x.id === f.id)?.label ?? "";
+        const value = f.action === "fill" ? f.value : f.action === "choose" ? f.option : f.action === "upload" ? f.file : "ticked";
+        try {
+          deps.onFilled({ id: f.id, label, action: f.action, value, source: f.source });
+        } catch {
+          /* display only */
+        }
+      }
     }
   }
   return n;

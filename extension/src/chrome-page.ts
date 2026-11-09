@@ -196,11 +196,42 @@ function ptUpload(a: { x: number; y: number; b64: string; name: string; mime: st
   return true;
 }
 
+// the runner's own bar on the page stays out of every picture
+function barVisible(show: boolean) {
+  const el = document.getElementById("ivyward-runner-bar");
+  if (el) el.style.visibility = show ? "" : "hidden";
+  return true;
+}
+async function shoot(windowId: number, tabId: number, quality: number): Promise<string> {
+  await run(tabId, 0, barVisible as (a: never) => boolean, false).catch(() => {});
+  try {
+    return await chrome.tabs.captureVisibleTab(windowId, { format: "jpeg", quality });
+  } finally {
+    await run(tabId, 0, barVisible as (a: never) => boolean, true).catch(() => {});
+  }
+}
+
+// a small picture of a page for the applicant's review and the run history: only of a tab already on screen
+export async function captureSmall(tabId: number): Promise<string | undefined> {
+  const t = await chrome.tabs.get(tabId);
+  if (!t.active) return undefined;
+  const url = await shoot(t.windowId, tabId, 55);
+  if (typeof OffscreenCanvas === "undefined") return url;
+  const bmp = await createImageBitmap(await (await fetch(url)).blob());
+  const w = Math.min(720, bmp.width);
+  const h = Math.round((bmp.height * w) / bmp.width);
+  const c = new OffscreenCanvas(w, h);
+  c.getContext("2d")!.drawImage(bmp, 0, 0, w, h);
+  const blob = await c.convertToBlob({ type: "image/jpeg", quality: 0.55 });
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  return "data:image/jpeg;base64," + b64(buf);
+}
+
 // the visible tab as a jpeg in css pixels (captureVisibleTab gives device pixels)
 async function capture(tabId: number): Promise<Uint8Array> {
   const t = await chrome.tabs.get(tabId);
   if (!t.active) await chrome.tabs.update(tabId, { active: true });
-  const url: string = await chrome.tabs.captureVisibleTab(t.windowId, { format: "jpeg", quality: 60 });
+  const url: string = await shoot(t.windowId, tabId, 60);
   const dpr = (await run(tabId, 0, (() => window.devicePixelRatio || 1) as (a: never) => number)) || 1;
   const blob = await (await fetch(url)).blob();
   if (dpr === 1 || typeof OffscreenCanvas === "undefined") return new Uint8Array(await blob.arrayBuffer());

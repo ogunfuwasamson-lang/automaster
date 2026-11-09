@@ -68,8 +68,24 @@ The part most fixes touch. Read in this order:
 | `lib/never-fill.ts`, `lib/net-guard.ts` | Fields never typed into; addresses the browser may never reach |
 | `lib/portal-url.ts`, `lib/apply-crawl.ts` | Finding the real application site |
 | `lib/school-memory.ts`, `lib/lessons.ts` | What the agents learned about each school and in general |
-| `app/api/runner/*` | Endpoints the Chrome extension calls (tasks, engine, map, check) |
-| `extension/` | The Chrome extension that runs the same engine in the applicant's browser |
+| `app/api/runner/*` | Endpoints the Chrome extension calls (tasks, engine, map, check; `panel` for questions, run history, corrections, tab facts and status checks) |
+| `extension/` | The Chrome extension that runs the same engine in the applicant's browser (see below) |
+| `app/(app)/applications/[id]/run-history.tsx` | Portal history on the application page: pages filled (labels), pictures, status checks |
+
+## The Chrome extension (`extension/`)
+
+| File | Role |
+|---|---|
+| `manifest.json` | MV3 manifest; its `version` is also what the site offers as the latest (`lib/extension.ts`) |
+| `src/background.ts` | The worker: picks up applications sent to Chrome (several at once, each in a background tab in the purple "Ivyward" tab group), runs the engine, and handles everything that waits for the applicant: page approval, the review before submit, bot checks, payment, password-manager sign-in, a step onto a site that isn't the portal. Also take over / hand back (learns corrections), weekly read-only status checks, reading facts from a tab |
+| `src/chrome-page.ts` | The engine's page interface for a Chrome tab; small pictures for the review (`captureSmall`) |
+| `sidepanel.html`, `sidepanel.js` | The side panel: what's waiting for you, runs with Pause / Take over / Hand back / Stop, every answer by page, school questions, the queue, facts from a tab, settings |
+| `popup.html`, `popup.js` | Toolbar popup: connect, queue, open the side panel, update notice |
+| `bridge.js` | Lets tryivyward.com talk to the extension (pair, run now) |
+| `dom-helper.js`, `background.js` | Built files (`npm run build:extension`): don't edit |
+
+The engine hooks the extension uses: `onFilled` (each answer put in), `beforeNext` (hold before the next page),
+`signInYourself` (the applicant signs in), and `canSubmit` (where the review happens).
 
 ## AI, cost and health
 
@@ -79,6 +95,7 @@ The part most fixes touch. Read in this order:
 | `lib/research.ts` | Web research with Claude's search and fetch tools |
 | `lib/pricing.ts` | Per-token prices and `costOf()` |
 | `lib/budget.ts` | Monthly AI allowance per user (`budgetFor()` is shared with the admin) |
+| `lib/extension.ts` | The latest extension version and `olderThan()` for update notices |
 | `lib/runs.ts` | Reads every `agent_runs` row (pages past Supabase's 1,000-row limit) |
 | `lib/ai-health.ts` | Circuit breaker when the provider account fails; `ensureAiWorks()` test call before work resumes |
 

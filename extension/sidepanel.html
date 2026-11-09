@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ivyward runner</title>
+<style>
+  :root { --ink:#1c1530; --muted:#6b6478; --line:#e7e2ee; --brand:#9b2c4e; --brand-soft:#fbf1f4; --ok:#166534; --warn:#b45309; --bg:#fff; --card:#faf8fc; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#eeeaf5; --muted:#a59db3; --line:#332c40; --brand:#e07a9a; --brand-soft:#2a1820; --ok:#4ade80; --warn:#fbbf24; --bg:#16121d; --card:#1e1828; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  header img { width: 18px; height: 18px; }
+  header b { font-size: 14px; }
+  header .v { margin-left: auto; color: var(--muted); font-size: 11px; }
+  main { padding: 10px 14px 40px; }
+  h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 18px 0 6px; }
+  .card { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .card.ask { border-color: var(--brand); background: var(--brand-soft); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  button { font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  input[type=text], select { font: inherit; width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  dl { margin: 6px 0 0; display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: 3px 10px; }
+  dt { color: var(--muted); overflow-wrap: anywhere; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .page { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+  .page img { width: 100%; border: 1px solid var(--line); border-radius: 4px; margin-top: 6px; }
+  .state { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); }
+  label.opt { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+  .update { background: var(--brand-soft); border-bottom: 1px solid var(--line); padding: 8px 14px; }
+  a { color: var(--brand); }
+  .empty { color: var(--muted); padding: 6px 0; }
+</style>
+</head>
+<body>
+<header><img src="icons/icon-32.png" alt=""><b>Ivyward runner</b><span class="v" id="v"></span></header>
+<div class="update" id="update" hidden></div>
+<main>
+  <div id="setup" hidden>
+    <p>Connect this browser to your Ivyward account first: open the toolbar button and choose Connect to Ivyward.</p>
+  </div>
+  <div id="app" hidden>
+    <section id="asks"></section>
+
+    <h2>Working now</h2>
+    <section id="runs"></section>
+
+    <h2>Questions from your schools</h2>
+    <section id="questions"><p class="empty">None right now.</p></section>
+
+    <h2>Queued for this browser</h2>
+    <section id="queue"></section>
+
+    <h2>From the page you're reading</h2>
+    <div class="card">
+      <p class="muted" style="margin:0">Open a program page in this window, then read it for the deadline, fee and requirements. The page is only read, never changed.</p>
+      <div class="row"><button id="facts">Read this tab</button></div>
+      <div id="factsOut"></div>
+    </div>
+
+    <h2>Settings</h2>
+    <div class="card">
+      <b>When to ask you</b>
+      <label class="opt"><input type="radio" name="approval" value="submit"> Fill everything, ask before submitting</label>
+      <label class="opt"><input type="radio" name="approval" value="page"> Ask before each page</label>
+      <p class="muted" style="margin:2px 0 10px">Submitting and paying always wait for you.</p>
+      <label class="opt">Schools at the same time
+        <select id="parallel" style="width:auto"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label class="opt"><input type="checkbox" id="pmSignIn"> I'll sign in to portals myself (my password manager fills it in)</label>
+      <label class="opt"><input type="checkbox" id="checkins"> Check my submitted applications' portals once a week (read only)</label>
+      <label class="opt"><input type="checkbox" id="auto"> Start queued applications by themselves</label>
+      <div class="row"><button id="checkNow">Check submitted portals now</button></div>
+    </div>
+    <p class="muted" id="err" role="alert"></p>
+  </div>
+</main>
+<script src="sidepanel.js"></script>
+</body>
+</html>

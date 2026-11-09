@@ -25,6 +25,11 @@
   var NEVER_FILL = /passport|national\s*id|\bnin\b|\bssn\b|social\s*security|tax\s*id|\bbvn\b|password|passcode|\bpin\b|security\s*(question|answer)|card\s*(number|holder)|\bcvv\b|\bcvc\b|expir|iban|account\s*number|routing|signature/i;
 
   // src/lib/cloud-engine.ts
+  var orOutage = (fallback) => (e) => {
+    const msg = String(e?.message ?? e);
+    if (e?.name === "AiUnavailable" || /AI is paused until|credit balance is too low|insufficient.?credit|invalid x-api-key|authentication_error/i.test(msg)) throw e;
+    return fallback;
+  };
   function ask(state, f, key) {
     const label = cleanLabel(f.label, f.options).slice(0, 200);
     if (!label) return;
@@ -49,6 +54,7 @@
   var LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
   var CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
   var VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
+  var CHANGE_PW = /(change (your )?password|must change|password (has )?expired|choose a new password|changer (votre )?mot de passe|nouveau mot de passe)/i;
   var SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
   var CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
   var CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
@@ -68,15 +74,18 @@
   }
   var findBy = (s, ok) => s.buttons.find((b) => ok(clean(b.label)) && goesSomewhere(s, b));
   var BLOCK_TITLE = /^(access denied|forbidden|403\b|request (blocked|rejected)|attention required|just a moment|pardon our interruption|are you a (robot|human)|you have been blocked|blocked)/i;
-  var BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue)/i;
+  var BLOCK_BODY = /(unusual traffic from your|automated (requests|queries|access)|request (was|has been) (blocked|rejected)|verify (that )?you are (a )?human|checking (if the site connection is secure|your browser before)|enable javascript and cookies to continue|performing security verification|verif(y|ies) (that )?you are not a bot|security service to protect against malicious bots)/i;
   var isBlockPage = (s) => BLOCK_TITLE.test(s.title.trim()) || BLOCK_BODY.test(s.body.slice(0, 800));
   var TERMS = /(i (have read and )?(agree|accept)|i confirm (that )?i have read|accept to continue|terms (of use|and conditions|of service)|privacy (policy|notice)|data protection (statement|policy|notice))/i;
+  function isCodeBox(f) {
+    return /^(text|tel|number|search|)$/.test(f.type) && CODE_LABEL.test(f.label) && !/zip|postal|area|country|permanent|course|program|programme|subject|school|institution|promo|discount|coupon|referral|invite|tax|sort|swift|bank|do you have|have you/i.test(f.label);
+  }
   function classify(s) {
     if (s.confirmation) return "confirmation";
-    if (s.captcha) return "captcha";
+    if (s.captcha || /error generating captcha token|captcha (verification|validation) failed|recaptcha (verification )?failed/i.test(`${s.body.slice(0, 4e3)} ${(s.errors ?? []).join(" ")}`)) return "captcha";
     if (s.payment) return "payment";
     const pw = s.allFields.filter((f) => f.type === "password");
-    const code = s.allFields.find((f) => f.type !== "password" && CODE_LABEL.test(f.label) && !/zip|postal|area|country/i.test(f.label));
+    const code = s.allFields.find((f) => isCodeBox(f));
     if (pw.length >= 2 || pw.length === 1 && SIGNUP_WORDS.test(s.body.slice(0, 3e3)) && s.allFields.length >= 4) return "signup";
     if (pw.length === 1) return "login";
     if (code && s.allFields.length <= 3) return "verify_code";
@@ -129,7 +138,8 @@
   async function click(page, id) {
     const sel = `[data-am-id="${id}"]`;
     const href = await frameOf(page).evaluate((q) => {
-      const a = document.querySelector(q);
+      const id2 = q.match(/data-am-id="([^"]+)"/)?.[1] ?? "";
+      const a = window.__am?.byId?.(id2) ?? document.querySelector(q);
       return a && a.tagName === "A" && a.target && a.target !== "_self" && /^https?:/.test(a.href) ? a.href : null;
     }, sel).catch(() => null);
     if (href) {
@@ -143,7 +153,7 @@
       await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {
       }), frameOf(page).click(sel, { timeout: 8e3 })]);
     } catch {
-      await frameOf(page).evaluate((s) => document.querySelector(s)?.click(), sel);
+      await frameOf(page).evaluate((i) => (window.__am?.byId?.(i) ?? document.querySelector(`[data-am-id="${i}"]`))?.click(), id);
     }
     await page.waitForLoadState("networkidle", { timeout: 15e3 }).catch(() => {
     });
@@ -156,6 +166,28 @@
       if (/detached|Timeout \d+ms exceeded|not attached|not visible/i.test(String(e?.message ?? e))) throw new Redrawn();
       throw e;
     }
+  }
+  var IDP_HOST = /(^|\.)(login\.microsoftonline\.com|login\.live\.com|account\.live\.com|account\.microsoft\.com|accounts\.google\.com|myaccount\.google\.com|appleid\.apple\.com|idmsa\.apple\.com|login\.yahoo\.com|facebook\.com|linkedin\.com|okta\.com|auth0\.com)$/i;
+  var hostOf = (u) => {
+    try {
+      return new URL(u).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  };
+  var DEAD_END = /an error has occurred that has stopped this transaction|(your |the )?session (has )?(timed out|expired)|has timed out due to inactivity|this page has expired|page (is )?no longer (valid|available)/i;
+  var LOGIN_REFUSED = /\b(invalid|incorrect|wrong|not recogni[sz]ed|unrecogni[sz]ed|unknown (user|login|e-?mail|account|username|id)|failed|does not exist|doesn't exist|no account|not match|identifiant (inconnu|invalide)|mot de passe (invalide|incorrect))/i;
+  var USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
+  function usernameBox(s) {
+    return s.allFields.find((f) => f.type !== "password" && f.type !== "email" && !/e-?mail/i.test(f.label) && /\b(user ?name|e-?id|user ?id|login ?(id|name))\b/i.test(`${f.label} ${f.name ?? ""}`));
+  }
+  async function valueOf(page, id) {
+    return frameOf(page).evaluate((i) => String(window.__am?.byId?.(i)?.value ?? ""), id).catch(() => "");
+  }
+  function withNumber(name, n) {
+    const dot = name.lastIndexOf(".");
+    if (dot > 0) return `${name.slice(0, dot).replace(/\d+$/, "")}${n}${name.slice(dot)}`;
+    return `${name.replace(/\d+$/, "")}${n}`;
   }
   var Redrawn = class extends Error {
     constructor() {
@@ -193,7 +225,7 @@
       if (add) asked.push(clean(add.label).toLowerCase());
     }
     if (!asked.length) return void 0;
-    const key = (state.lastFingerprint ?? "").slice(0, 60);
+    const key = `${(state.lastFingerprint ?? "").slice(0, 60)}#${state.navClicks ?? 0}`;
     const done = new Set(state.pressedAsked ?? []);
     const b = s.buttons.find((x) => asked.includes(clean(x.label).toLowerCase()) && !done.has(`${key}|${clean(x.label).toLowerCase()}`) && !DANGEROUS.test(x.label) && !FINAL.test(clean(x.label)));
     if (b) state.pressedAsked = [...done, `${key}|${clean(b.label).toLowerCase()}`].slice(-30);
@@ -201,9 +233,10 @@
   }
   var SEC_Q = /\b(security|secret|memorable|challenge)?\s*question\b/i;
   var SEC_A = /\b(security|secret|memorable|challenge)?\s*answer\b/i;
+  var isSecAnswer = (label) => SEC_A.test(label) && (!SEC_Q.test(label) || /\banswer\b[\s\S]*\bquestion\b/i.test(label));
   async function securityQuestions(page, fields, login) {
     const qs = fields.filter((f) => f.type === "select" && SEC_Q.test(f.label) && (f.options?.length ?? 0) > 1);
-    const as = fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+    const as = fields.filter((f) => (f.type === "text" || f.type === "password") && isSecAnswer(f.label));
     if (!as.length && !qs.length || !login.answers?.length) return [];
     const done = [];
     const used = /* @__PURE__ */ new Set();
@@ -218,7 +251,7 @@
     }
     if (done.length) {
       await sleep(2500);
-      const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && SEC_A.test(f.label) && !SEC_Q.test(f.label));
+      const again = (await snap(page)).fields.filter((f) => (f.type === "text" || f.type === "password") && isSecAnswer(f.label));
       as.splice(0, as.length, ...again);
     }
     for (const [i, a] of as.entries()) {
@@ -318,11 +351,11 @@
       await main.evaluate(() => window.__am.clearMarks(), void 0).catch(() => {
       });
       if (!image) break;
-      const a = await deps2.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps2.files?.() ?? [] }).catch(() => null);
+      const a = await deps2.see({ image, goal, url: await page.url(), history: (state.visionHistory ?? []).slice(-10), empty, marks, files: deps2.files?.() ?? [] }).catch(orOutage(null));
       if (!a || a.action === "done") break;
       if (a.action === "handoff") {
         log(`handoff: ${a.note}`);
-        const reason = /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+        const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
         return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
       }
       const m = a.mark ? marks.find((x2) => x2.n === a.mark) : void 0;
@@ -433,7 +466,7 @@
     const todo = fields.filter((f) => !seen.has(key(f)) && !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`) && f.type !== "password");
     if (!todo.length) return 0;
     state.decided = [...seen, ...todo.map(key)].slice(-120);
-    const fills = await deps2.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2e3), errors: s.errors ?? [] }).catch(() => []);
+    const fills = await deps2.decide(todo, { url: s.url, title: s.title, body: s.body.slice(0, 2e3), errors: s.errors ?? [] }).catch(orOutage([]));
     return applyList(page, deps2, todo, fills, state);
   }
   async function fillHard(page, deps2, state) {
@@ -507,9 +540,10 @@
       if (REGISTER_PAGE.test(s.url) && /^(forbidden|access denied|403|request blocked)/i.test(s.title.trim() || s.body.trim().slice(0, 40))) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
-      const formComplains = /(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error|please (enter|select|provide|choose|complete)|is required|required field|must (be|contain|match|include)|do(es)? not match|too (short|long))/i.test(s.body);
+      const formComplains = /(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error|please (enter|select|provide|choose|complete)|is required|are mandatory|is mandatory|required field|must (be|contain|match|include)|do(es)? not match|too (short|long))/i.test(`${s.body} ${alertText} ${(s.errors ?? []).join(" ")}`);
       const blankRequired = s.fields.some((f) => f.required && f.type !== "checkbox");
-      if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
+      const changingPassword = s.allFields.some((f) => f.type === "password" && /\b(current|old|existing|temporary)\b/i.test(`${f.label} ${f.name ?? ""}`)) || CHANGE_PW.test(s.body.slice(0, 1500));
+      if ((state.signupTries ?? 0) >= 3 && state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired && !changingPassword) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
       const okBox = find(s, /^(ok|okay)$/i);
@@ -539,7 +573,7 @@
         const req = s.fields.filter((f) => f.required && f.type !== "checkbox").map((f) => cleanLabel(f.label, f.options).slice(0, 80));
         let stillEmpty = s.fields.filter((x) => x.required && x.type !== "checkbox" && !NEVER_FILL.test(`${x.label} ${x.name ?? ""}`));
         if (stillEmpty.length) {
-          const fills = await deps2.map(stillEmpty).catch(() => []);
+          const fills = await deps2.map(stillEmpty).catch(orOutage([]));
           const n = await applyList(page, deps2, stillEmpty, fills, state);
           if (n) {
             filled += n;
@@ -550,14 +584,14 @@
             if (!stillEmpty.length) continue;
           }
         }
-        const pwBoxes = s.allFields.filter((f) => f.type === "password");
+        const pwBoxes2 = s.allFields.filter((f) => f.type === "password");
         const pwKey = `${(s.fingerprint ?? "").slice(0, 60)}|pw`;
-        if (s.fields.some((f) => f.type === "password") && pwBoxes.length && !(state.pressedAsked ?? []).includes(pwKey)) {
+        if (s.fields.some((f) => f.type === "password") && pwBoxes2.length && !(state.pressedAsked ?? []).includes(pwKey)) {
           const login = await deps2.existingLogin();
           if (login) {
             state.pressedAsked = [...state.pressedAsked ?? [], pwKey].slice(-30);
-            for (const p of pwBoxes) await fillText(page, p.id, login.password);
-            filled += pwBoxes.length;
+            for (const p of pwBoxes2) await fillText(page, p.id, login.password);
+            filled += pwBoxes2.length;
             state.samePageCount = 0;
             continue;
           }
@@ -585,6 +619,20 @@
         if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
         const o2 = await stuckStep(page, deps2, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
         if (o2) return { outcome: o2, state, filled };
+        continue;
+      }
+      if (IDP_HOST.test(hostOf(s.url)) && !(deps2.portalUrl && hostOf(deps2.portalUrl) === hostOf(s.url))) {
+        state.idpBacks = (state.idpBacks ?? 0) + 1;
+        state.navHistory = [...state.navHistory ?? [], `left ${hostOf(s.url)} (another company's sign-in): back to the school's portal`].slice(-20);
+        if (state.idpBacks > 2 || !deps2.portalUrl) return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal kept sending the agents to another company's sign-in page (Microsoft, Google or similar). Open the portal and sign in with the school's own account option" }, state, filled };
+        await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
+        continue;
+      }
+      if (deps2.portalUrl && DEAD_END.test(s.body.slice(0, 2e3)) && s.fields.length === 0 && (state.restarts ?? 0) < 2) {
+        state.restarts = (state.restarts ?? 0) + 1;
+        state.navHistory = [...state.navHistory ?? [], `the portal ended the session ("${(s.body.match(DEAD_END)?.[0] ?? "").slice(0, 60)}"): started again from the portal`].slice(-20);
+        await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
+        state.samePageCount = 0;
         continue;
       }
       if (!deps2.goal && deps2.portalUrl && LEAD_PAGE.test(`${s.url} ${s.title}`) && !LEAD_PAGE.test(deps2.portalUrl) && (state.leadBacks ?? 0) < 3) {
@@ -623,20 +671,24 @@
         if (r) return { outcome: r, state, filled };
       }
       if (kind === "login") {
+        if (state.createNext && !state.triedCreate) {
+          const create = find(s, CREATE) ?? findCreate(s);
+          state.createNext = false;
+          if (create) {
+            state.triedCreate = true;
+            state.accountAt = Date.now();
+            await deps2.progress("creating your portal account");
+            await click(page, create.id);
+            continue;
+          }
+        }
         let login = await deps2.existingLogin();
+        if (login && deps2.signInYourself?.()) return { outcome: { kind: "needs_you", reason: "login", note: "sign in to the portal yourself (your password manager can fill it in); the agents carry on once you're in" }, state, filled };
         if (!login && deps2.loginFromMail) login = await deps2.loginFromMail(Date.now() - 60 * 864e5);
         if (!login) {
           const create = find(s, CREATE) ?? findCreate(s);
           if (create && !state.triedCreate) {
             await deps2.progress("creating your portal account");
-            const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
-            const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
-            if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
-              state.pressedAsked = [...state.pressedAsked ?? [], addrKey].slice(-30);
-              state.navHistory = [...state.navHistory ?? [], `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
-              await click(page, addAddr.id);
-              continue;
-            }
             state.accountAt = Date.now();
             state.triedCreate = true;
             await click(page, create.id);
@@ -658,7 +710,7 @@
         else await frameOf(page).press(`[data-am-id="${pw.id}"]`, "Enter").catch(() => {
         });
         const after = await snap(page);
-        if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
+        if (classify(after) === "login" && LOGIN_REFUSED.test(`${after.body} ${(after.errors ?? []).join(" ")}`)) {
           if (!state.triedMailLogin && deps2.loginFromMail) {
             state.triedMailLogin = true;
             const issued = await deps2.loginFromMail(Date.now() - 60 * 864e5);
@@ -674,6 +726,23 @@
               state.accountAt = Date.now();
               await deps2.progress("creating your portal account");
               await click(page, create.id);
+              continue;
+            }
+            const here2 = await page.url();
+            if (/\/account\/login\b/i.test(here2) && login.status === "created" && !state.wentBackToCreate) {
+              state.wentBackToCreate = true;
+              state.createNext = false;
+              const u = new URL(here2);
+              const back = u.searchParams.get("r");
+              state.navHistory = [...state.navHistory ?? [], "the saved login has never worked here: opened the portal's account registration"].slice(-12);
+              await page.goto(`${u.origin}/account/register${back ? `?r=${encodeURIComponent(back)}` : ""}`, { timeout: 45e3 }).catch(() => null);
+              continue;
+            }
+            if (deps2.portalUrl && !state.wentBackToCreate && login.status === "created" && !state.accountAt && await page.url() !== deps2.portalUrl) {
+              state.createNext = true;
+              state.wentBackToCreate = true;
+              state.navHistory = [...state.navHistory ?? [], "the saved login has never worked here: back to the portal's front page to create the account"].slice(-12);
+              await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
               continue;
             }
           }
@@ -701,8 +770,49 @@
         if (classify(after) !== "login") state.signedIn = true;
         continue;
       }
+      const pwBoxes = s.allFields.filter((f) => f.type === "password");
+      const currentBox = pwBoxes.find((f) => /\b(current|old|existing|temporary|present|actuel|ancien)\b/i.test(`${f.label} ${f.name ?? ""}`)) ?? (pwBoxes.length === 3 && CHANGE_PW.test(s.body.slice(0, 3e3)) ? pwBoxes[0] : void 0);
+      if ((kind === "signup" || kind === "form") && pwBoxes.length >= 2 && currentBox && deps2.rotatePassword && (state.passwordChanges ?? 0) < 2) {
+        const now2 = await deps2.existingLogin();
+        if (now2) {
+          state.passwordChanges = (state.passwordChanges ?? 0) + 1;
+          await deps2.progress("the portal asked for a new password: setting one and saving it under Portal logins");
+          const fresh = await deps2.rotatePassword();
+          const userBox = s.fields.find((f) => f.type !== "password" && /\b(user\s*(id|name)|login\s*(id|name)?|identifiant|matricule|e-?mail)\b/i.test(`${f.label} ${f.name ?? ""}`));
+          if (userBox) await fillText(page, userBox.id, now2.login_email);
+          await fillText(page, currentBox.id, now2.password);
+          for (const p of pwBoxes) if (p.id !== currentBox.id) await fillText(page, p.id, fresh.password);
+          state.navHistory = [...state.navHistory ?? [], "changed the portal password as it asked, and saved the new one"].slice(-12);
+          const go = s.buttons.find((x) => /^(change|save|submit|update|continue|confirm|ok|modifier|enregistrer|valider)( (my |the )?password)?$/i.test(clean(x.label))) ?? find(s, CREATE_SUBMIT);
+          if (go) await click(page, go.id);
+          else await page.pressEnter();
+          continue;
+        }
+      }
       if (kind === "signup") {
+        const addAddr = s.buttons.find((b) => /^(add|enter|update)( an?| your)?( home| mailing| permanent| contact)? address$/i.test(clean(b.label)));
+        const addrKey = `${(s.url.match(/^https?:\/\/[^/]+/) ?? [""])[0]}|address`;
+        if (addAddr && !(state.pressedAsked ?? []).includes(addrKey)) {
+          state.pressedAsked = [...state.pressedAsked ?? [], addrKey].slice(-30);
+          state.navHistory = [...state.navHistory ?? [], `opened "${clean(addAddr.label)}" before creating the account`].slice(-12);
+          await click(page, addAddr.id);
+          continue;
+        }
         const login = await deps2.existingLogin() ?? await deps2.createLogin(deps2.accountEmail);
+        const said = (s.errors ?? []).join(" ").trim();
+        if (state.signupTries && USERNAME_TAKEN.test(said) && (state.usernameTries ?? 0) < 3) {
+          state.usernameTries = (state.usernameTries ?? 0) + 1;
+          const box = usernameBox(s);
+          const now2 = box ? await valueOf(page, box.id) : "";
+          if (box && now2) {
+            const next2 = withNumber(now2, state.usernameTries + 1);
+            await fillText(page, box.id, next2);
+            state.navHistory = [...state.navHistory ?? [], `the portal said the username was taken: trying "${next2}"`].slice(-12);
+          }
+        } else if ((state.signupTries ?? 0) >= 3) {
+          return { outcome: { kind: "needs_you", reason: "account", note: said ? `the portal didn't create the account. It said: "${said.slice(0, 200)}"` : "the portal didn't create the account and showed no reason. Open the live view to see the sign-up page" }, state, filled };
+        }
+        state.signupTries = (state.signupTries ?? 0) + 1;
         await deps2.progress("creating your portal account");
         const others = s.fields.filter((f) => f.type !== "password");
         for (const f of others.filter((f2) => f2.type === "email" || /e-?mail/i.test(f2.label))) await fillText(page, f.id, login.login_email);
@@ -742,7 +852,8 @@
         }
         state.verifyWaitSince = void 0;
         if (kind === "verify_code" && v.code) {
-          const box = s.allFields.find((f) => CODE_LABEL.test(f.label));
+          const box = s.allFields.find((f) => isCodeBox(f));
+          if (!box) return { outcome: { kind: "needs_you", reason: "verification", note: "the portal asked for an emailed code but the agents couldn't find where to type it; open the live view" }, state, filled };
           await fillText(page, box.id, v.code);
           const go = find(s, VERIFY_BTN);
           if (go) await click(page, go.id);
@@ -800,6 +911,10 @@
       (s.fields.length ? find(now, /^(ok|okay|done|update)$/i) : void 0) ?? apply;
       if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = void 0;
       if (next) {
+        const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
+        if (formPage && deps2.beforeNext && !await deps2.beforeNext({ label: clean(next.label), title: now.title, url: now.url })) {
+          return { outcome: { kind: "needs_you", reason: "review", note: "this page is filled in: check it, then approve it in the Ivyward side panel" }, state, filled };
+        }
         if (next.href && next === apply) state.visited = [...state.visited ?? [], here(next.href)].slice(-30);
         await click(page, next.id);
         continue;
@@ -838,10 +953,10 @@
     if (!deps2.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
     state.navCalls = (state.navCalls ?? 0) + 1;
     const history = state.navHistory ?? [];
-    const a = await deps2.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!await deps2.existingLogin() }).catch(() => null);
+    const a = await deps2.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!await deps2.existingLogin() }).catch(orOutage(null));
     if (!a) return fallback;
     const log = (t) => state.navHistory = [...history, t].slice(-12);
-    const root = (u) => {
+    const root2 = (u) => {
       try {
         return new URL(u).hostname.split(".").slice(-2).join(".");
       } catch {
@@ -871,8 +986,8 @@
         }
       };
       const seen = [s.url, ...s.buttons.map((b2) => b2.href ?? ""), ...state.visited ?? [], deps2.portalUrl ?? ""].filter(Boolean);
-      const plausible = onPage || seen.some((u) => root(u) === root(a.url) && seg(u) === seg(a.url));
-      if (!/^https:\/\//.test(a.url) || !onPage && root(a.url) !== root(s.url) || !plausible) {
+      const plausible = onPage || seen.some((u) => root2(u) === root2(a.url) && seg(u) === seg(a.url));
+      if (!/^https:\/\//.test(a.url) || !onPage && root2(a.url) !== root2(s.url) || !plausible) {
         log(`refused goto ${a.url}`);
         return null;
       }
@@ -916,6 +1031,7 @@
       return null;
     }
     log(`click "${label}"`);
+    state.navClicks = (state.navClicks ?? 0) + 1;
     await deps2.progress(a.note ? a.note.slice(0, 80) : `pressing "${label}"`);
     await click(page, b.id);
     return null;
@@ -923,11 +1039,16 @@
   async function stuckStep(page, deps2, s, state, why, fallback) {
     const look = (x) => `${x.fingerprint}|${x.url}|${x.fields.length}|${x.buttons.map((b) => b.label).join("/")}`;
     const before = look(s);
+    const walled = async () => isBlockPage(await snap(page)) ? { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" } : null;
     const o = await navStep(page, deps2, s, state, why, fallback);
-    if (!o) return null;
+    if (!o) return await walled();
+    if (o.kind === "needs_you" && o.reason === "stuck") {
+      const w = await walled();
+      if (w) return w;
+    }
     if (o.kind !== "needs_you" || o.reason !== "stuck" && o.reason !== "login") return o;
     const v = await visionLoop(page, deps2, state, why, []);
-    if (v.outcome) return v.outcome;
+    if (v.outcome) return await walled() ?? v.outcome;
     if (!v.acted) return o;
     return look(await snap(page)) !== before ? null : o;
   }
@@ -983,9 +1104,31 @@
     await deps2.progress("set a new portal password and saved it under Portal logins");
     return "continue";
   }
+  async function readAriaOptions(page, fields) {
+    for (const f of fields.filter((x) => x.aria && !(x.options ?? []).length).slice(0, 12)) {
+      try {
+        await frameOf(page).click(`[data-am-id="${f.id}"]`, { timeout: 5e3 });
+        await sleep(700);
+        f.options = await frameOf(page).evaluate((i) => window.__am.openOptions(i), f.id).catch(() => []);
+        await page.pressKey?.("Escape").catch(() => {
+        });
+        await sleep(200);
+      } catch {
+      }
+    }
+  }
+  async function chooseAria(page, id, option) {
+    await frameOf(page).click(`[data-am-id="${id}"]`, { timeout: 8e3 });
+    await sleep(700);
+    const picked = await frameOf(page).evaluate((v) => window.__am.pickOption(v), option).catch(() => null);
+    if (!picked) await page.pressKey?.("Escape").catch(() => {
+    });
+    return !!picked;
+  }
   async function applyFills(page, deps2, fields, state) {
     const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
     if (!safe.length) return 0;
+    await readAriaOptions(page, safe);
     return applyList(page, deps2, safe, await deps2.map(safe), state);
   }
   async function applyList(page, deps2, safe, fills, state) {
@@ -1009,6 +1152,7 @@
       }
     }
     for (const f of fills) {
+      const n0 = n;
       try {
         if (f.action === "skip") {
           const field2 = safe.find((x) => x.id === f.id);
@@ -1025,6 +1169,13 @@
           continue;
         }
         const field = safe.find((x) => x.id === f.id);
+        if (field?.aria && (f.action === "choose" || f.action === "fill")) {
+          if (await chooseAria(page, f.id, f.action === "choose" ? f.option : f.value)) {
+            n++;
+            await settle(page);
+          }
+          continue;
+        }
         if (field?.combo && f.action === "fill") {
           const sel = `[data-am-id="${f.id}"]`;
           await frameOf(page).fill(sel, f.value, { timeout: 8e3 });
@@ -1037,6 +1188,15 @@
         if (ok) n++;
         if (ok && (f.action === "choose" || f.action === "check")) await settle(page);
       } catch {
+      } finally {
+        if (n > n0 && deps2.onFilled && f.action !== "skip") {
+          const label = safe.find((x) => x.id === f.id)?.label ?? "";
+          const value = f.action === "fill" ? f.value : f.action === "choose" ? f.option : f.action === "upload" ? f.file : "ticked";
+          try {
+            deps2.onFilled({ id: f.id, label, action: f.action, value, source: f.source });
+          } catch {
+          }
+        }
       }
     }
     return n;
@@ -1276,10 +1436,39 @@
     box.dispatchEvent(new Event("change", { bubbles: true }));
     return true;
   }
+  function barVisible(show) {
+    const el = document.getElementById("ivyward-runner-bar");
+    if (el) el.style.visibility = show ? "" : "hidden";
+    return true;
+  }
+  async function shoot(windowId, tabId, quality) {
+    await run(tabId, 0, barVisible, false).catch(() => {
+    });
+    try {
+      return await chrome.tabs.captureVisibleTab(windowId, { format: "jpeg", quality });
+    } finally {
+      await run(tabId, 0, barVisible, true).catch(() => {
+      });
+    }
+  }
+  async function captureSmall(tabId) {
+    const t = await chrome.tabs.get(tabId);
+    if (!t.active) return void 0;
+    const url = await shoot(t.windowId, tabId, 55);
+    if (typeof OffscreenCanvas === "undefined") return url;
+    const bmp = await createImageBitmap(await (await fetch(url)).blob());
+    const w = Math.min(720, bmp.width);
+    const h = Math.round(bmp.height * w / bmp.width);
+    const c = new OffscreenCanvas(w, h);
+    c.getContext("2d").drawImage(bmp, 0, 0, w, h);
+    const blob = await c.convertToBlob({ type: "image/jpeg", quality: 0.55 });
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    return "data:image/jpeg;base64," + b64(buf);
+  }
   async function capture(tabId) {
     const t = await chrome.tabs.get(tabId);
     if (!t.active) await chrome.tabs.update(tabId, { active: true });
-    const url = await chrome.tabs.captureVisibleTab(t.windowId, { format: "jpeg", quality: 60 });
+    const url = await shoot(t.windowId, tabId, 60);
     const dpr = await run(tabId, 0, (() => window.devicePixelRatio || 1)) || 1;
     const blob = await (await fetch(url)).blob();
     if (dpr === 1 || typeof OffscreenCanvas === "undefined") return new Uint8Array(await blob.arrayBuffer());
@@ -1375,7 +1564,10 @@
   // extension/src/background.ts
   var DEFAULT_API = "https://tryivyward.com";
   var RUN_MS = 15 * 6e4;
-  var VERSION = "0.3.1";
+  var VERSION = chrome.runtime.getManifest().version;
+  var GROUP_TITLE = "Ivyward";
+  var PAY_HOST = /(^|\.)(flywire\.com|paypal\.com|stripe\.com|checkout\.stripe\.com|braintreegateway\.com|cybersource\.com|authorize\.net|paymentus\.com|touchnet\.(com|net)|transact\.com|nelnet\.(com|net)|worldpay\.com|adyen\.com|paystack\.co|paystack\.com|flutterwave\.com)$/i;
+  var MAX_PAGES = 15;
   var sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
   async function nap(ms) {
     const end = Date.now() + ms;
@@ -1385,7 +1577,7 @@
     }
   }
   async function cfg() {
-    return chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true });
+    return chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true, approval: "submit", parallel: 2, pmSignIn: false, checkins: true });
   }
   async function api(path, opts = {}) {
     const c = await cfg();
@@ -1404,52 +1596,217 @@
     return json;
   }
   var eng = (application, op, body = {}) => apiJson("/api/runner/engine", { method: "POST", body: JSON.stringify({ application, op, ...body }) });
-  async function getActive() {
-    return (await chrome.storage.session.get({ active: null })).active;
-  }
-  async function setActive(a) {
-    await chrome.storage.session.set({ active: a });
-  }
-  var running = false;
+  var panelApi = (body) => apiJson("/api/runner/panel", { method: "POST", body: JSON.stringify(body) });
+  var runs = /* @__PURE__ */ new Map();
+  var control = /* @__PURE__ */ new Map();
   var lastTasks = null;
+  async function publish() {
+    const pending = (await chrome.storage.session.get({ pending: [] })).pending;
+    await chrome.storage.session.set({ runs: [...runs.values()] });
+    const waiting = (lastTasks?.tasks ?? []).filter((t) => t.runner_status === "needs_you" && t.mode === "extension").length;
+    const n = pending.length + waiting;
+    await chrome.action.setBadgeText({ text: n ? String(n) : runs.size ? "\u2022" : "" }).catch(() => {
+    });
+    await chrome.action.setBadgeBackgroundColor({ color: n ? "#ea580c" : "#4f46e5" }).catch(() => {
+    });
+  }
+  async function setPhase(taskId, phase, st) {
+    const r = runs.get(taskId);
+    if (!r) return;
+    r.phase = phase;
+    if (st) r.state = st;
+    await publish();
+    await banner(r.tabId, r.school, phase, r.state);
+  }
   async function tasks() {
     lastTasks = await apiJson("/api/runner/tasks");
-    const n = lastTasks.tasks.filter((t) => t.runner_status === "needs_you" && t.mode === "extension").length;
-    await chrome.action.setBadgeText({ text: running ? "\u2022" : n ? String(n) : "" });
-    await chrome.action.setBadgeBackgroundColor({ color: running ? "#4f46e5" : "#ea580c" });
+    await publish();
     return lastTasks;
   }
-  function notify(title, message) {
-    chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title, message, priority: 2 });
+  function notify(id, title, message) {
+    chrome.notifications.create(id + ":" + Date.now(), { type: "basic", iconUrl: "icons/icon-128.png", title, message, priority: 2 });
   }
+  chrome.notifications.onClicked.addListener(async (nid) => {
+    const r = runs.get(nid.split(":")[0]);
+    if (r) await focusTab(r.tabId);
+    else await openPanel();
+  });
   async function focusTab(tabId) {
     const t = await chrome.tabs.update(tabId, { active: true }).catch(() => null);
     if (t) await chrome.windows.update(t.windowId, { focused: true }).catch(() => {
     });
   }
+  async function openPanel(windowId) {
+    try {
+      const w = windowId ?? (await chrome.windows.getLastFocused()).id;
+      await chrome.sidePanel.open({ windowId: w });
+    } catch {
+    }
+  }
   async function tabAlive(tabId) {
     return !!await chrome.tabs.get(tabId).catch(() => null);
   }
-  var sheets = /* @__PURE__ */ new Map();
-  function deps(taskId, start, tabId) {
+  async function intoGroup(tabId) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const { groupId } = await chrome.storage.session.get({ groupId: -1 });
+      let gid = -1;
+      if (groupId >= 0) {
+        const g = await chrome.tabGroups.get(groupId).catch(() => null);
+        if (g && g.windowId === tab.windowId) gid = groupId;
+      }
+      gid = await chrome.tabs.group(gid >= 0 ? { tabIds: [tabId], groupId: gid } : { tabIds: [tabId] });
+      await chrome.tabGroups.update(gid, { title: GROUP_TITLE, color: "purple" });
+      await chrome.storage.session.set({ groupId: gid });
+    } catch {
+    }
+  }
+  function pageBanner(a) {
+    const ID = "ivyward-runner-bar";
+    let host = document.getElementById(ID);
+    if (a.hide) {
+      host?.remove();
+      return true;
+    }
+    if (!host) {
+      host = document.createElement("div");
+      host.id = ID;
+      host.setAttribute("aria-hidden", "true");
+      host.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647;pointer-events:none";
+      const root3 = host.attachShadow({ mode: "closed" });
+      host.__root = root3;
+      root3.innerHTML = `<style>
+      .bar{pointer-events:auto;display:flex;gap:8px;align-items:center;font:12px/1.3 system-ui,sans-serif;background:#1c1530;color:#fff;border-radius:999px;padding:6px 6px 6px 12px;box-shadow:0 2px 10px rgba(0,0,0,.25);max-width:340px}
+      .dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;flex:none}
+      .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      button{font:inherit;border:0;border-radius:999px;padding:4px 10px;cursor:pointer;background:#fff;color:#1c1530}
+      button.ghost{background:transparent;color:#d8ccff}
+    </style><div class="bar"><span class="dot"></span><span class="t"></span><button class="ghost" data-a="panel">Details</button><button data-a="pause">Pause</button></div>`;
+      root3.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (b) chrome.runtime.sendMessage({ type: "banner:" + b.dataset.a });
+      });
+      document.documentElement.appendChild(host);
+    }
+    const root2 = host.__root;
+    root2.querySelector(".t").textContent = a.state === "paused" || a.state === "taken_over" ? `Ivyward paused \xB7 ${a.school}` : `Ivyward is working \xB7 ${a.phase}`;
+    const btn = root2.querySelector('[data-a="pause"]');
+    btn.textContent = a.state === "paused" || a.state === "taken_over" ? "Resume" : "Pause";
+    btn.dataset.a = a.state === "paused" || a.state === "taken_over" ? "resume" : "pause";
+    return true;
+  }
+  async function banner(tabId, school, phase, state, hide = false) {
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: pageBanner, args: [{ school, phase: phase.slice(0, 80), state, hide }] }).catch(() => {
+    });
+  }
+  chrome.webNavigation.onCompleted.addListener((d) => {
+    if (d.frameId !== 0) return;
+    for (const r of runs.values()) if (r.tabId === d.tabId) banner(r.tabId, r.school, r.phase, r.state);
+  });
+  async function ask2(p, minutes) {
+    const id = `${p.taskId}:${p.kind}:${Date.now()}`;
+    const { pending } = await chrome.storage.session.get({ pending: [] });
+    await chrome.storage.session.set({ pending: [...pending.filter((x) => !(x.taskId === p.taskId && x.kind === p.kind)), { ...p, id, at: Date.now() }] });
+    await publish();
+    notify(p.taskId, p.school, p.title);
+    const end = Date.now() + minutes * 6e4;
+    let answer = null;
+    while (Date.now() < end) {
+      const { answers } = await chrome.storage.session.get({ answers: {} });
+      if (id in answers) {
+        answer = !!answers[id];
+        delete answers[id];
+        await chrome.storage.session.set({ answers });
+        break;
+      }
+      const c = control.get(p.taskId);
+      if (c?.stop && c.why !== "offsite") break;
+      await sleep3(1e3);
+      await chrome.runtime.getPlatformInfo();
+    }
+    const { pending: now } = await chrome.storage.session.get({ pending: [] });
+    await chrome.storage.session.set({ pending: now.filter((x) => x.id !== id) });
+    await publish();
+    return answer;
+  }
+  function closePage(r, tabUrl) {
+    const last = r.pages[r.pages.length - 1];
+    if (r.current && !r.current.fills.length && last && last.url === r.current.url) {
+      if (r.current.shot) last.shot = r.current.shot;
+    } else if (r.current && (r.current.fills.length || r.current.shot)) {
+      r.pages = [...r.pages, r.current].slice(-MAX_PAGES);
+    }
+    r.current = tabUrl ? { title: "", url: tabUrl, fills: [] } : null;
+  }
+  async function finishPage(taskId) {
+    const r = runs.get(taskId);
+    if (!r?.current) return;
+    const tab = await chrome.tabs.get(r.tabId).catch(() => null);
+    if (!tab) return;
+    r.current.title = tab.title || r.current.title;
+    if (tab.active) r.current.shot = await captureSmall(r.tabId).catch(() => void 0);
+    const page = r.current;
+    if (page.fills.length) {
+      panelApi({ op: "page", application: taskId, title: page.title.slice(0, 300), url: page.url.slice(0, 2e3), filled: page.fills.map((f) => f.label.slice(0, 200)).slice(0, 150), shot: page.shot?.replace(/^data:image\/jpeg;base64,/, "") }).catch(() => {
+      });
+    }
+    closePage(r, tab.url);
+    await publish();
+  }
+  var root = (h) => h.replace(/^www\./, "").split(".").slice(-2).join(".");
+  function hostOf2(u) {
+    try {
+      return u ? new URL(u).hostname : "";
+    } catch {
+      return "";
+    }
+  }
+  async function allowed(taskId) {
+    const { allow } = await chrome.storage.local.get({ allow: {} });
+    return /* @__PURE__ */ new Set([...control.get(taskId)?.allow ?? [], ...allow[taskId] ?? []]);
+  }
+  async function remember(taskId, host) {
+    const { allow } = await chrome.storage.local.get({ allow: {} });
+    const a = allow;
+    a[taskId] = [.../* @__PURE__ */ new Set([...a[taskId] ?? [], root(host)])].slice(-20);
+    await chrome.storage.local.set({ allow: a });
+    control.get(taskId)?.allow.add(root(host));
+  }
+  chrome.webNavigation.onCommitted.addListener(async (d) => {
+    if (d.frameId !== 0 || !/^https?:/.test(d.url)) return;
+    for (const r of runs.values()) {
+      if (r.tabId !== d.tabId) continue;
+      const c = control.get(r.taskId);
+      const h = hostOf2(d.url);
+      if (!c || !h || IDP_HOST.test(h) || PAY_HOST.test(h)) return;
+      if ((await allowed(r.taskId)).has(root(h))) return;
+      c.stop = true;
+      c.why = "offsite";
+      c.offsite = h;
+    }
+  });
+  function deps(taskId, start, tabId, s) {
     const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
     let lastNote = "";
     const typed = /* @__PURE__ */ new Map();
     if (!sheets.has(taskId)) apiJson(`/api/runner/sheet?application=${taskId}`).then((d) => sheets.set(taskId, d)).catch(() => {
     });
-    let stop = false;
     let checkedAt = 0;
     return {
       shouldStop: () => {
+        const c = control.get(taskId);
         if (Date.now() - checkedAt > 6e3) {
           checkedAt = Date.now();
           apiJson("/api/runner/tasks").then((d) => {
             const t = d.tasks.find((x) => x.id === taskId);
-            stop = !t || t.mode !== "extension";
+            if ((!t || t.mode !== "extension") && c) {
+              c.stop = true;
+              c.why = "ivyward";
+            }
           }).catch(() => {
           });
         }
-        return stop;
+        return !!c?.stop;
       },
       map: async (fields) => (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, host: await host().catch(() => void 0), fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
       file: async (key) => {
@@ -1460,7 +1817,18 @@
         if (!res.ok) throw new Error("couldn't fetch " + f.label);
         return { name: f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };
       },
-      canSubmit: () => apiJson("/api/runner/check", { method: "POST", body: JSON.stringify({ application: taskId }) }),
+      // the server checks the packet is signed and paid for; then the applicant sees every answer and says submit.
+      // nothing is submitted from this browser without that yes
+      canSubmit: async () => {
+        const d = await apiJson("/api/runner/check", { method: "POST", body: JSON.stringify({ application: taskId }) });
+        if (!d.allowed) return d;
+        const r = runs.get(taskId);
+        await finishPage(taskId);
+        if (r) await setPhase(taskId, "waiting for you to review and submit", "waiting");
+        const yes = await ask2({ taskId, school: r?.school ?? "", kind: "submit", title: "Everything is filled in. Check your answers in the side panel, then choose Submit." }, 60);
+        if (r) await setPhase(taskId, yes ? "submitting" : "waiting for your review", "working");
+        return yes ? d : { allowed: false, reason: "waiting for you to review the answers and choose Submit in the Ivyward side panel" };
+      },
       existingLogin: async () => (await eng(taskId, "login_get", { host: await host() })).login,
       createLogin: async (email) => (await eng(taskId, "login_create", { host: await host(), email })).login,
       accountEmail: start.accountEmail,
@@ -1485,11 +1853,35 @@
       progress: async (note) => {
         if (note === lastNote) return;
         lastNote = note;
+        await setPhase(taskId, note);
         await eng(taskId, "progress", { note: note.slice(0, 300) }).catch(() => {
         });
-      }
+      },
+      onFilled: (f) => {
+        const r = runs.get(taskId);
+        if (!r) return;
+        if (!r.current) r.current = { title: "", url: "", fills: [] };
+        r.current.fills = [...r.current.fills.filter((x) => x.id !== f.id), { id: f.id, label: f.label.replace(/\s+/g, " ").trim().slice(0, 160), action: f.action, value: f.value.slice(0, 300) }].slice(-120);
+        publish();
+      },
+      beforeNext: async (p) => {
+        await finishPage(taskId);
+        if (s.approval !== "page") return true;
+        const c = control.get(taskId);
+        if (c?.approvedPage) {
+          c.approvedPage = false;
+          return true;
+        }
+        const r = runs.get(taskId);
+        await setPhase(taskId, "waiting for you to approve this page", "waiting");
+        const yes = await ask2({ taskId, school: r?.school ?? "", kind: "page", title: `Page filled in: ${p.title.slice(0, 80)}. Approve it to go on to "${p.label.slice(0, 40)}".` }, 30);
+        await setPhase(taskId, yes ? `pressing "${p.label.slice(0, 40)}"` : "waiting for you", yes ? "working" : "waiting");
+        return !!yes;
+      },
+      signInYourself: () => s.pmSignIn
     };
   }
+  var sheets = /* @__PURE__ */ new Map();
   async function peek(tabId) {
     try {
       await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ["dom-helper.js"] });
@@ -1499,42 +1891,91 @@
       return null;
     }
   }
-  async function watch(tabId, minutes, done) {
+  async function watch(tabId, minutes, done, taskId) {
     const end = Date.now() + minutes * 6e4;
     while (Date.now() < end) {
       await nap(4e3);
       if (!await tabAlive(tabId)) return false;
+      if (taskId && control.get(taskId)?.stop && control.get(taskId)?.why !== "offsite") return false;
       const s = await peek(tabId);
       if (s && done(s)) return true;
     }
     return false;
   }
+  function readBack(ids) {
+    const deep = (q) => {
+      const rs = [document];
+      for (let i = 0; i < rs.length && rs.length < 400; i++) {
+        const hit = rs[i].querySelector(q);
+        if (hit) return hit;
+        for (const e of rs[i].querySelectorAll("*")) if (e.shadowRoot) rs.push(e.shadowRoot);
+      }
+      return null;
+    };
+    const out = {};
+    for (const id of ids) {
+      const el = deep(`[data-am-id="${id}"]`);
+      if (!el) {
+        out[id] = null;
+        continue;
+      }
+      if (el instanceof HTMLSelectElement) out[id] = el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : "";
+      else if (el.type === "checkbox") out[id] = el.checked ? "ticked" : "";
+      else if (el.type === "radio") {
+        const group = el.name ? Array.from(document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`)) : [el];
+        const on = group.find((g) => g.checked);
+        out[id] = on ? (on.labels?.[0]?.textContent ?? on.value).trim() : "";
+      } else if (el.type === "file" || el.type === "password") out[id] = null;
+      else out[id] = String(el.value ?? "");
+    }
+    return out;
+  }
+  async function learnCorrections(taskId) {
+    const r = runs.get(taskId);
+    if (!r) return 0;
+    const answers = [...r.pages.slice(-3).flatMap((p) => p.fills), ...r.current?.fills ?? []].filter((a) => a.action !== "upload");
+    if (!answers.length) return 0;
+    const [res] = await chrome.scripting.executeScript({ target: { tabId: r.tabId, frameIds: [0] }, func: readBack, args: [answers.map((a) => a.id)] }).catch(() => [null]);
+    const now = res?.result ?? {};
+    const items = answers.filter((a) => now[a.id] != null && now[a.id].trim() !== a.value.trim() && now[a.id].trim()).map((a) => ({ label: a.label, value: now[a.id].trim().slice(0, 2e3) }));
+    if (!items.length) return 0;
+    const tab = await chrome.tabs.get(r.tabId).catch(() => null);
+    await panelApi({ op: "corrections", application: taskId, host: hostOf2(tab?.url), items: items.slice(0, 60) }).catch(() => {
+    });
+    return items.length;
+  }
   async function runTask(task, opts = {}) {
-    if (running) return;
-    running = true;
+    if (runs.has(task.id)) return;
+    const s = await cfg();
+    const c = { stop: false, why: "", allow: /* @__PURE__ */ new Set() };
+    control.set(task.id, c);
     let tabId;
     try {
       const start = await eng(task.id, "start", { claim: !!opts.claim });
       if (start.stop) {
-        if (opts.claim) notify(task.school, start.stop);
+        if (opts.claim) notify(task.id, task.school, start.stop);
         return;
       }
-      const prev = await getActive();
-      tabId = opts.tabId ?? (prev?.taskId === task.id && await tabAlive(prev.tabId) ? prev.tabId : void 0);
+      for (const u of [start.url, task.portal_url]) if (hostOf2(u)) c.allow.add(root(hostOf2(u)));
+      const { tabs: kept } = await chrome.storage.session.get({ tabs: {} });
+      const prev = kept[task.id];
+      tabId = opts.tabId ?? (prev && await tabAlive(prev) ? prev : void 0);
       if (!tabId) tabId = (await chrome.tabs.create({ url: start.url, active: !!opts.focus })).id;
       else if (opts.focus) await focusTab(tabId);
-      await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "working" });
-      await tasks().catch(() => {
-      });
+      if (opts.tabId) c.allow.add(root(hostOf2((await chrome.tabs.get(tabId)).url)));
+      await chrome.storage.session.set({ tabs: { ...kept, [task.id]: tabId } });
+      await intoGroup(tabId);
+      runs.set(task.id, { taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "starting", state: "working", pages: [], current: null });
+      await setPhase(task.id, "starting");
       const page = chromePage(tabId);
       await page.waitForLoadState("domcontentloaded", { timeout: 45e3 }).catch(() => {
       });
       let state = start.state;
-      for (let round = 0; round < 15; round++) {
+      for (let round = 0; round < 20; round++) {
         let outcome;
         let filled = 0;
         try {
-          const r = await runEngine(page, deps(task.id, start, tabId), state, RUN_MS);
+          const r = await runEngine(page, deps(task.id, start, tabId, s), state, RUN_MS);
           state = r.state;
           outcome = r.outcome;
           filled = r.filled;
@@ -1542,93 +1983,205 @@
           if (!await tabAlive(tabId)) outcome = { kind: "needs_you", reason: "stuck", note: "the portal tab was closed. Choose Run in my Chrome to carry on" };
           else outcome = { kind: "failed", note: `the agents hit a problem in Chrome: ${String(e?.message ?? e).slice(0, 160)}` };
         }
+        if (c.stop) {
+          if (c.why === "offsite") {
+            const h = c.offsite ?? "";
+            c.stop = false;
+            c.why = "";
+            await setPhase(task.id, `waiting: is ${h} part of ${task.school}'s application?`, "waiting");
+            const yes = await ask2({ taskId: task.id, school: task.school, kind: "offsite", host: h, title: `The agents went to ${h}, which isn't ${task.school}'s portal. Let them work there?` }, 30);
+            if (yes) {
+              await remember(task.id, h);
+              await setPhase(task.id, "carrying on", "working");
+              continue;
+            }
+            await chrome.tabs.goBack(tabId).catch(() => {
+            });
+            outcome = { kind: "needs_you", reason: "stuck", note: `the agents were stopped from working on ${h}. Open the portal tab and take the next step yourself, then choose Run in my Chrome` };
+          } else if (c.why === "pause" || c.why === "takeover") {
+            await eng(task.id, "save", { state, url: (await chrome.tabs.get(tabId).catch(() => null))?.url }).catch(() => {
+            });
+            await setPhase(task.id, c.why === "takeover" ? "you have the wheel: hand back in the side panel when you're done" : "paused: resume from the side panel", c.why === "takeover" ? "taken_over" : "paused");
+            const end = Date.now() + 2 * 36e5;
+            while (c.stop && Date.now() < end && await tabAlive(tabId)) await nap(2e3);
+            if (c.stop) break;
+            await setPhase(task.id, "carrying on", "working");
+            continue;
+          } else {
+            if (c.why === "ivyward") notify(task.id, task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
+            break;
+          }
+        }
         const tab = await chrome.tabs.get(tabId).catch(() => null);
         const url = tab?.url;
-        let host;
-        try {
-          host = url ? new URL(url).hostname : void 0;
-        } catch {
-          host = void 0;
-        }
+        const host = hostOf2(url) || void 0;
         const fin = await eng(task.id, "finish", { state, url, filled, host, outcome }).catch(() => ({}));
         if (fin.stop) {
-          notify(task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
+          notify(task.id, task.school, "Paused in Ivyward. The tab stays open; nothing else happens until you resume.");
           break;
         }
         if (outcome.kind === "continue") continue;
         if (outcome.kind === "wait") {
-          await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "waiting for an email" });
+          await setPhase(task.id, "waiting for an email", "waiting");
           await nap(Math.min(outcome.seconds, 120) * 1e3);
+          await setPhase(task.id, "carrying on", "working");
           continue;
         }
         if (outcome.kind === "submitted") {
-          notify(`${task.school}: submitted`, "The application went in. Ivyward has recorded it.");
+          await finishPage(task.id);
+          notify(task.id, `${task.school}: submitted`, "The application went in. Ivyward has recorded it.");
           break;
         }
-        if (outcome.kind === "needs_you" && (outcome.reason === "captcha" || outcome.reason === "blocked")) {
-          await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "waiting for you" });
-          notify(`${task.school}: one check for you`, "Complete the check in the tab that just opened. The agents carry on by themselves.");
-          await focusTab(tabId);
-          if (await watch(tabId, 30, (s) => !s.captcha && !isBlockPage(s))) {
-            await eng(task.id, "progress", { note: "carrying on after the check" }).catch(() => {
+        if (outcome.kind === "needs_you" && ["captcha", "blocked", "payment", "login", "review"].includes(outcome.reason)) {
+          const k = outcome.reason;
+          if (k === "review") {
+            const yes = await ask2({ taskId: task.id, school: task.school, kind: "page", title: "This page is waiting for your approval in the side panel." }, 60);
+            if (yes) {
+              await setPhase(task.id, "carrying on", "working");
+              state = { ...state, samePageCount: 0 };
+              c.approvedPage = true;
+              continue;
+            }
+            break;
+          }
+          if (k === "login" && !s.pmSignIn) {
+            notify(task.id, `${task.school}: needs you`, fin.note || outcome.note);
+            break;
+          }
+          const what = k === "payment" ? "Pay the application fee in the portal tab. The agents confirm the submission after." : k === "login" ? "Sign in to the portal in its tab (your password manager can fill it in). The agents carry on once you're in." : "Complete the check in the portal tab. The agents carry on by themselves.";
+          await setPhase(task.id, k === "payment" ? "waiting for you to pay" : k === "login" ? "waiting for you to sign in" : "waiting for you to complete a check", "waiting");
+          const pend = ask2({ taskId: task.id, school: task.school, kind: k === "payment" ? "payment" : k === "login" ? "signin" : "check", title: what }, k === "payment" ? 60 : 30);
+          const startUrl = url;
+          const done = await watch(
+            tabId,
+            k === "payment" ? 60 : 30,
+            (x) => k === "payment" ? x.confirmation || !x.payment && x.url !== startUrl : k === "login" ? classify(x) !== "login" : !x.captcha && !isBlockPage(x),
+            task.id
+          );
+          const { answers } = await chrome.storage.session.get({ answers: {} });
+          const { pending } = await chrome.storage.session.get({ pending: [] });
+          for (const p of pending) if (p.taskId === task.id) answers[p.id] = true;
+          await chrome.storage.session.set({ answers });
+          await pend;
+          if (done) {
+            await eng(task.id, "progress", { note: "carrying on after your step" }).catch(() => {
             });
+            await setPhase(task.id, "carrying on", "working");
             await nap(1500);
             continue;
           }
           break;
         }
-        if (outcome.kind === "needs_you" && outcome.reason === "payment") {
-          await setActive({ taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "waiting for payment" });
-          notify(`${task.school}: ready to pay`, "Everything is filled in. Pay the application fee in the portal tab; the agents confirm the submission after.");
-          await focusTab(tabId);
-          const startUrl = url;
-          if (await watch(tabId, 60, (s) => s.confirmation || !s.payment && s.url !== startUrl)) continue;
-          break;
+        if (outcome.kind === "needs_you") {
+          await setPhase(task.id, outcome.reason === "question" ? "waiting for your answers (side panel)" : "needs you", "waiting");
+          notify(task.id, `${task.school}: needs you`, fin.note || outcome.note);
+          if (outcome.reason === "question") await openPanel();
         }
-        if (outcome.kind === "needs_you") notify(`${task.school}: needs you`, fin.note || outcome.note);
         break;
       }
     } catch (e) {
-      notify(task.school, String(e?.message ?? e).slice(0, 200));
+      notify(task.id, task.school, String(e?.message ?? e).slice(0, 200));
     } finally {
-      running = false;
-      await setActive(null);
+      if (tabId) await banner(tabId, task.school, "", "", true);
+      runs.delete(task.id);
+      control.delete(task.id);
       sheets.delete(task.id);
-      await tasks().catch(() => {
-      });
+      const { pending } = await chrome.storage.session.get({ pending: [] });
+      await chrome.storage.session.set({ pending: pending.filter((p) => p.taskId !== task.id) });
+      await tasks().catch(() => publish());
+      setTimeout(poll, 1e3);
     }
   }
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    for (const r of runs.values()) {
+      if (r.tabId !== tabId) continue;
+      const c = control.get(r.taskId);
+      if (c) {
+        c.stop = true;
+        c.why = "closed";
+      }
+    }
+  });
   async function poll() {
     const c = await cfg();
-    if (!c.token || running) return;
+    if (!c.token) return;
     let data;
     try {
       data = await tasks();
     } catch {
       return;
     }
+    await checkVersion().catch(() => {
+    });
     if (data.paused || !c.auto) return;
     const now = Date.now();
-    const next = data.tasks.find((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && (!t.resume_at || t.resume_at <= now));
-    if (next) runTask(next);
+    const room = Math.max(1, Math.min(3, c.parallel)) - runs.size;
+    if (room <= 0) return;
+    const next = data.tasks.filter((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && !runs.has(t.id) && (!t.resume_at || t.resume_at <= now)).slice(0, room);
+    for (const t of next) runTask(t);
   }
-  function ensureAlarm() {
+  async function checkVersion() {
+    const { versionAt } = await chrome.storage.local.get({ versionAt: 0 });
+    if (Date.now() - versionAt < 6 * 36e5) return;
+    const d = await apiJson("/api/runner/panel");
+    await chrome.storage.local.set({ versionAt: Date.now(), latest: d.latest ?? VERSION });
+  }
+  function pageText() {
+    return { title: document.title, text: (document.body?.innerText ?? "").slice(0, 3e4) };
+  }
+  async function checkins() {
+    const c = await cfg();
+    if (!c.token || !c.checkins || runs.size) return;
+    const d = await apiJson("/api/runner/panel?what=checkins");
+    const due = d.checkins.filter((x) => !x.last || Date.now() - x.last > 7 * 864e5).slice(0, 5);
+    for (const x of due) {
+      if (runs.size) return;
+      const tab = await chrome.tabs.create({ url: x.url, active: false });
+      try {
+        await intoGroup(tab.id);
+        await chromePage(tab.id).waitForLoadState("networkidle", { timeout: 45e3 }).catch(() => {
+        });
+        await nap(2500);
+        const snap2 = await peek(tab.id);
+        const t = await chrome.tabs.get(tab.id);
+        if (!snap2 || classify(snap2) === "login") {
+          await panelApi({ op: "checkin", application: x.id, url: t.url, title: t.title ?? "", text: "", signedOut: true }).catch(() => {
+          });
+          continue;
+        }
+        const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, func: pageText });
+        const res = await panelApi({ op: "checkin", application: x.id, url: t.url, title: r.result.title, text: r.result.text }).catch(() => null);
+        if (res?.changed) notify(x.id, `${x.school}: your portal changed`, res.summary ?? "Open Ivyward to see what changed.");
+      } finally {
+        await chrome.tabs.remove(tab.id).catch(() => {
+        });
+      }
+    }
+  }
+  function ensureAlarms() {
     chrome.alarms.create("poll", { periodInMinutes: 1 });
+    chrome.alarms.create("checkins", { periodInMinutes: 24 * 60, delayInMinutes: 30 });
+    chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: false }).catch?.(() => {
+    });
   }
-  chrome.runtime.onInstalled.addListener(ensureAlarm);
-  chrome.runtime.onStartup.addListener(ensureAlarm);
-  chrome.alarms.onAlarm.addListener((a) => a.name === "poll" && poll());
+  chrome.runtime.onInstalled.addListener(ensureAlarms);
+  chrome.runtime.onStartup.addListener(ensureAlarms);
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (a.name === "poll") poll();
+    if (a.name === "checkins") checkins().catch(() => {
+    });
+  });
   async function handle(msg, sender) {
     if (msg.type === "bridge:hello") {
       const c = await cfg();
-      const a = await getActive();
-      return { version: VERSION, paired: !!c.token, running: a ? { id: a.taskId, school: a.school, phase: a.phase } : null };
+      const a = [...runs.values()][0];
+      return { version: VERSION, paired: !!c.token, running: a ? { id: a.taskId, school: a.school, phase: a.phase } : null, runs: [...runs.values()].map((r) => ({ id: r.taskId, school: r.school, phase: r.phase })) };
     }
     if (msg.type === "bridge:pair") {
       const origin = new URL(sender.url).origin;
       if (!/^amr_[\w-]{20,}$/.test(msg.token)) throw new Error("bad key");
       await chrome.storage.local.set({ token: msg.token, api: origin, auto: true });
-      ensureAlarm();
+      ensureAlarms();
       setTimeout(poll, 500);
       return { paired: true, version: VERSION };
     }
@@ -1636,11 +2189,9 @@
       const d = await tasks();
       const t = d.tasks.find((x) => x.id === msg.id);
       if (!t) throw new Error("that application isn't queued for submitting");
-      if (running) {
-        const a = await getActive();
-        if (a?.taskId === t.id) return { started: true };
-        throw new Error(`busy with ${a?.school ?? "another school"}; this one is next`);
-      }
+      if (runs.has(t.id)) return { started: true };
+      const c = await cfg();
+      if (runs.size >= Math.max(1, Math.min(3, c.parallel))) throw new Error(`busy with ${[...runs.values()].map((r) => r.school).join(" and ")}; this one is next`);
       runTask(t, { claim: true, focus: msg.type === "popup:start" || !!msg.focus });
       return { started: true };
     }
@@ -1648,17 +2199,91 @@
       poll();
       return { ok: true };
     }
-    if (msg.type === "popup:tasks") {
-      const d = await tasks();
-      return { ...d, active: await getActive() };
+    if (msg.type === "popup:tasks" || msg.type === "panel:state") {
+      const d = lastTasks ?? await tasks();
+      const { pending } = await chrome.storage.session.get({ pending: [] });
+      const { latest } = await chrome.storage.local.get({ latest: VERSION });
+      return { ...d, runs: [...runs.values()], active: [...runs.values()][0] ?? null, pending, version: VERSION, latest, settings: await cfg().then(({ token: _t, ...rest }) => (void _t, rest)) };
     }
     if (msg.type === "popup:attach") {
       const d = await tasks();
       const t = d.tasks.find((x) => x.id === msg.id);
       if (!t) throw new Error("not in your queue");
-      if (running) throw new Error("busy with another school");
+      if (runs.has(t.id)) throw new Error("already running");
       runTask(t, { claim: true, tabId: msg.tabId });
       return { started: true };
+    }
+    if (msg.type === "popup:panel") {
+      await openPanel(msg.windowId);
+      return { ok: true };
+    }
+    if (msg.type === "panel:resolve") {
+      const { answers } = await chrome.storage.session.get({ answers: {} });
+      await chrome.storage.session.set({ answers: { ...answers, [msg.id]: !!msg.ok } });
+      return { ok: true };
+    }
+    if (msg.type === "panel:pause" || msg.type === "panel:takeover") {
+      const c = control.get(msg.id);
+      if (!c) throw new Error("not running");
+      c.stop = true;
+      c.why = msg.type === "panel:takeover" ? "takeover" : "pause";
+      if (msg.type === "panel:takeover") {
+        const r = runs.get(msg.id);
+        if (r) await focusTab(r.tabId);
+      }
+      await setPhase(msg.id, msg.type === "panel:takeover" ? "handing you the wheel\u2026" : "pausing after this step\u2026");
+      return { ok: true };
+    }
+    if (msg.type === "panel:resume") {
+      const c = control.get(msg.id);
+      const r = runs.get(msg.id);
+      if (!c || !r) throw new Error("not running");
+      const learned = r.state === "taken_over" ? await learnCorrections(msg.id).catch(() => 0) : 0;
+      c.stop = false;
+      c.why = "";
+      return { ok: true, learned };
+    }
+    if (msg.type === "panel:stop") {
+      const c = control.get(msg.id);
+      if (c) {
+        c.stop = true;
+        c.why = "closed";
+      }
+      return { ok: true };
+    }
+    if (msg.type === "panel:focus") {
+      const r = runs.get(msg.id);
+      if (r) await focusTab(r.tabId);
+      return { ok: true };
+    }
+    if (msg.type === "panel:questions") return apiJson(`/api/runner/panel${msg.id ? `?application=${msg.id}` : ""}`);
+    if (msg.type === "panel:answer") return panelApi({ op: "answer", id: msg.id, answer: msg.answer });
+    if (msg.type === "panel:settings") {
+      const allowedKeys = ["approval", "parallel", "pmSignIn", "checkins", "auto"];
+      const patch = Object.fromEntries(Object.entries(msg.settings ?? {}).filter(([k]) => allowedKeys.includes(k)));
+      await chrome.storage.local.set(patch);
+      if ("parallel" in patch) setTimeout(poll, 300);
+      return { ok: true };
+    }
+    if (msg.type === "panel:facts") {
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (!tab?.id || !/^https?:/.test(tab.url || "")) throw new Error("open a university page in this window first");
+      const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, func: pageText });
+      return panelApi({ op: "facts", url: tab.url, title: r.result.title, text: r.result.text });
+    }
+    if (msg.type === "panel:save_deadline") return panelApi({ op: "facts_save", application: msg.id, deadline: msg.deadline });
+    if (msg.type === "panel:checkins") {
+      await chrome.storage.local.set({ versionAt: 0 });
+      checkins().catch(() => {
+      });
+      return { ok: true };
+    }
+    if (msg.type.startsWith("banner:")) {
+      const r = [...runs.values()].find((x) => x.tabId === sender.tab?.id);
+      if (msg.type === "banner:panel") await openPanel(sender.tab?.windowId);
+      if (r && msg.type === "banner:pause") return handle({ type: "panel:pause", id: r.taskId }, sender);
+      if (r && msg.type === "banner:resume") return handle({ type: "panel:resume", id: r.taskId }, sender);
+      return { ok: true };
     }
     return null;
   }

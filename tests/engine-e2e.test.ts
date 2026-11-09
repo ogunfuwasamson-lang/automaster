@@ -596,6 +596,48 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 30_000);
 
+  it("reports each answer it puts in, and holds before the next page until the applicant approves (chrome side panel)", async () => {
+    const page = await browser.newPage();
+    let reached = false;
+    await portal(page, {
+      "/form": () => `<form action="/next"><h1>Personal details</h1><label for="fn">First name *</label><input id="fn" name="fn" required>
+        <label for="em">Email *</label><input id="em" name="em" type="email" required><button type="submit">Next</button></form>`,
+      "/next": () => ((reached = true), `<h1>Thanks</h1>`),
+    });
+    await page.goto("https://portal.test/form");
+    const filled: string[] = [];
+    const asked: string[] = [];
+    const d = deps({ onFilled: (f) => filled.push(`${f.label}=${f.value}`), beforeNext: async (p) => (asked.push(p.label), false) });
+    const r = await runEngine(fromPlaywright(page), d, ({ steps: 0 } as EngineState), 30_000);
+    expect(filled).toEqual(["First name *=Ada", "Email *=ada@example.com"]);
+    expect(asked).toEqual(["Next"]);
+    expect(reached).toBe(false);
+    expect(r.outcome).toMatchObject({ kind: "needs_you", reason: "review" });
+    // approved: the same page goes on (its boxes are already filled, and it still asks)
+    const r2 = await runEngine(fromPlaywright(page), deps({ beforeNext: async (p) => (asked.push(p.label), true) }), r.state, 30_000);
+    expect(asked).toEqual(["Next", "Next"]);
+    expect(reached).toBe(true);
+    void r2;
+    await page.close();
+  }, 60_000);
+
+  it("hands the sign-in page to the applicant when they use their password manager", async () => {
+    const page = await browser.newPage();
+    let typed = false;
+    await portal(page, {
+      "/login": () => `<form action="/home"><h1>Sign in</h1><label for="u">Email</label><input id="u" name="u" type="email"><label for="p">Password</label><input id="p" name="p" type="password"><button type="submit">Sign in</button></form>`,
+      "/home": () => ((typed = true), `<h1>Home</h1>`),
+    });
+    await page.goto("https://portal.test/login");
+    const d = deps({ signInYourself: () => true });
+    d.logins.push({ login_email: "ada@example.com", password: "Pw-saved-1A", status: "verified" });
+    const r = await runEngine(fromPlaywright(page), d, ({ steps: 0 } as EngineState), 30_000);
+    expect(r.outcome).toMatchObject({ kind: "needs_you", reason: "login" });
+    expect(typed).toBe(false);
+    expect(await page.inputValue("#p")).toBe("");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

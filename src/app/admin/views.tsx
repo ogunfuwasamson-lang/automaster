@@ -264,6 +264,10 @@ const runnerTone = (s: string): Tone => (s === "submitted" ? "go" : s === "faile
 // what happened, in words. actions not listed read as their name
 const EVENT: Record<string, string> = {
   "runner.submitted": "Agents submitted an application",
+  "runner.corrections": "Applicant corrected the agents' answers in Chrome",
+  "runner.status_changed": "A submitted application's portal changed",
+  "runner.status_checked": "Checked a submitted portal (no change)",
+  "application.deadline_from_page": "Deadline saved from a program page",
   "application.submitted": "Application marked submitted",
   "inbox.submission_receipt": "School confirmed a submission by email",
   "runner.started": "Agents started on a portal",
@@ -311,7 +315,7 @@ const EVENT: Record<string, string> = {
   "references.requested": "Asked referees for letters",
 };
 // machine chatter: left out of activity feeds
-const NOISE = ["runner.resumed", "guard.allow", "guard.allow_with_undo", "system.pinged", "program.researching", "artifact.revised", "artifact.sent_back", "lesson.approve"];
+const NOISE = ["runner.page", "runner.status_checked", "runner.resumed", "guard.allow", "guard.allow_with_undo", "system.pinged", "program.researching", "artifact.revised", "artifact.sent_back", "lesson.approve"];
 const eventLabel = (a: string) => EVENT[a] ?? a.replace(/[._]/g, " ");
 const actorLabel = (a: string) => (a === "user" ? "applicant" : a.replace(/^agent:/, ""));
 

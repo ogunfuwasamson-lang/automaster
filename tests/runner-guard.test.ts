@@ -141,3 +141,13 @@ describe("refused sign-in", () => {
     for (const t of ["Sign in to your account", "Forgot your user ID?", "Unknown"]) expect(LOGIN_REFUSED.test(t), t).toBe(false);
   });
 });
+
+import { olderThan } from "@/lib/extension";
+describe("extension version", () => {
+  it("compares versions by number, not text", () => {
+    expect(olderThan("1.2.9", "1.3.0")).toBe(true);
+    expect(olderThan("1.2.10", "1.2.9")).toBe(false);
+    expect(olderThan("1.3.0", "1.3.0")).toBe(false);
+    expect(olderThan(null, "1.3.0")).toBe(false);
+  });
+});
