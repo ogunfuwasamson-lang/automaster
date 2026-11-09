@@ -388,6 +388,8 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
     runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", since),
     db.from("jobs").select("user_id, agent, task, last_error").eq("status", "failed").gte("finished_at", dayAgo).limit(1000),
   ]);
+  // gmail connections that failed (any account: a setup problem hits everyone)
+  const { data: mailFails } = await db.from("events").select("user_id, context, created_at").eq("action", "mail.connect_failed").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200);
   const { users, ids, apps, payments, hidden } = scope(d, everyone);
   const userMap = new Map(d.users.map((u) => [u.id, u]));
   const appMap = new Map(d.apps.map((a) => [a.id, a]));
@@ -413,6 +415,15 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
   const workerStale = !h.lastLock || Date.now() - Date.parse(h.lastLock) > 20 * 60_000;
   if (h.credit) att.push({ tone: "stop", title: "The agents can't work: Anthropic credit is empty", detail: `Nothing has run since ${ago(h.lastOk)}. ${h.queued} job${h.queued === 1 ? "" : "s"} waiting. Top up at console.anthropic.com; the worker picks up within 15 minutes.` });
   else if (h.pausedUntil) att.push({ tone: "stop", title: "AI calls are paused", detail: `The circuit breaker tripped after repeated failures. It retries at ${new Date(h.pausedUntil).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC.` });
+  if (mailFails?.length) {
+    const why = String((mailFails[0].context as { error?: string } | null)?.error ?? "");
+    const setup = /permission|api key|unauthori[sz]ed|403|401|auth config/i.test(why);
+    att.push({
+      tone: "stop",
+      title: `Gmail connection failed ${mailFails.length} time${mailFails.length === 1 ? "" : "s"} in the last 24 hours, for ${new Set(mailFails.map((m) => m.user_id)).size} user${new Set(mailFails.map((m) => m.user_id)).size === 1 ? "" : "s"}`,
+      detail: setup ? `A setup problem, so nobody can connect: ${why.slice(0, 220)}` : `Latest: ${why.slice(0, 220)}`,
+    });
+  }
   if (workerStale && h.queued) att.push({ tone: "stop", title: "The job worker has stopped", detail: `No job picked up for ${ago(h.lastLock)}, with ${h.queued} due.`, href: "/admin?view=system" });
   const myFailed = (failedJobs ?? []).filter((j) => ids.has(j.user_id));
   if (myFailed.length) {

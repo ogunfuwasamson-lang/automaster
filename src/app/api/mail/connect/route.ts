@@ -35,7 +35,9 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error("composio connect failed", e);
       await logEvent({ userId: auth.user.id, actor: "system", action: "mail.connect_failed", channel: "email", context: { error: String((e as Error)?.message ?? e).slice(0, 500), via: "composio", stage: "start" } }).catch(() => {});
-      return NextResponse.redirect(`${appUrl()}/settings?mail=error`);
+      // a problem with our own setup (the key's permissions, a removed auth config): retrying won't help, so say so
+      const setup = /permission|api key|unauthori[sz]ed|\b40[13]\b|auth.?config/i.test(String((e as Error)?.message ?? e));
+      return NextResponse.redirect(`${appUrl()}/settings?mail=${setup ? "down" : "error"}`);
     }
   } else {
     res = NextResponse.redirect(authUrl(state));

@@ -162,6 +162,7 @@ export function MailCard({
     expired: ["That link expired. Try again.", "stop"],
     error: ["Couldn't connect Gmail. Try again.", "stop"],
     unavailable: ["Gmail isn't switched on for this app yet.", "stop"],
+    down: ["Connecting Gmail isn't working on our side right now. We've been alerted; please try again later.", "stop"],
   };
   const n = notice ? NOTICE[notice] : null;
   // the portals send codes to the email the agents signed up with: that's the inbox to connect
