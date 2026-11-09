@@ -13,24 +13,32 @@ export class BudgetExceeded extends Error {
   }
 }
 
+type BudgetProfile = { plan?: string | null; plan_until?: string | null; monthly_budget_usd?: number | null; is_admin?: boolean | null };
+
+// a user's AI allowance this month, from their profile and what they paid for this month. pure, so the operator
+// console shows the same number the agents are held to.
+export function budgetFor(p: BudgetProfile | null, singles: number, packs: number): number {
+  // per-user override (e.g. the founder's own account) beats the plan's budget
+  if (p?.monthly_budget_usd != null) return Number(p.monthly_budget_usd);
+  // staff accounts (and the learning jobs that run under them) aren't capped by a plan
+  if (p?.is_admin) return STAFF_BUDGET_USD;
+  // africa: every submission paid for this month (one-off, or 5 per pack) adds to the month's allowance of agent work
+  return planOf(p?.plan, p?.plan_until ?? null).aiBudgetUsd + (singles + packs * PACK_SIZE) * BUDGET_PER_SUBMISSION_USD;
+}
+
 export async function userPlan(userId: string): Promise<{ plan: Plan; budget: number }> {
   const db = admin();
   // plan_until arrives with the billing migration: read without it until then
   const full = await db.from("profiles").select("plan, plan_until, monthly_budget_usd, is_admin").eq("id", userId).maybeSingle();
-  const data = (full.error ? (await db.from("profiles").select("plan, monthly_budget_usd").eq("id", userId).maybeSingle()).data : full.data) as { plan?: string; plan_until?: string | null; monthly_budget_usd?: number | null; is_admin?: boolean } | null;
+  const data = (full.error ? (await db.from("profiles").select("plan, monthly_budget_usd").eq("id", userId).maybeSingle()).data : full.data) as BudgetProfile | null;
   const plan = planOf(data?.plan, data?.plan_until ?? null);
-  // per-user override (e.g. the founder's own account) beats the plan's budget
-  const own = data?.monthly_budget_usd != null ? Number(data.monthly_budget_usd) : null;
-  if (own != null) return { plan, budget: own };
-  // staff accounts (and the learning jobs that run under them) aren't capped by a plan
-  if (data?.is_admin) return { plan, budget: STAFF_BUDGET_USD };
-  // africa: every submission paid for this month (one-off, or 5 per pack) adds to the month's allowance of agent work
+  if (data?.monthly_budget_usd != null || data?.is_admin) return { plan, budget: budgetFor(data, 0, 0) };
   const since = monthStartUTC();
   const [{ count: singles }, { count: packs }] = await Promise.all([
     db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "submission").gte("created_at", since),
     db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "pack").gte("created_at", since),
   ]);
-  return { plan, budget: plan.aiBudgetUsd + ((singles ?? 0) + (packs ?? 0) * PACK_SIZE) * BUDGET_PER_SUBMISSION_USD };
+  return { plan, budget: budgetFor(data, singles ?? 0, packs ?? 0) };
 }
 
 export async function monthlyBudget(userId: string): Promise<number> {

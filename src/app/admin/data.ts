@@ -2,6 +2,8 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { MILESTONES, MILESTONE_ACTIONS, journeys, type MilestoneKey, type UserJourney } from "@/lib/first-submission";
 import { teamIds } from "@/lib/team";
+import { budgetFor } from "@/lib/budget";
+import { monthStartUTC } from "@/lib/pricing";
 
 // everything the operator console counts, loaded once per request: every account, every application, the
 // milestones each user reached, and when they were last active. team and test accounts are flagged, and left out
@@ -9,18 +11,38 @@ import { teamIds } from "@/lib/team";
 
 export const STAGES: { key: MilestoneKey | "signup"; label: string }[] = [{ key: "signup", label: "Signed up" }, ...MILESTONES.map((m) => ({ key: m.key, label: m.label }))];
 
+export const SUBMITTED = new Set(["submitted", "under_review", "interview", "waitlisted", "admitted", "accepted", "rejected", "declined"]);
+
+export interface Payment {
+  userId: string;
+  kind: string;
+  amount: number | null;
+  currency: string | null;
+  at: string;
+}
+
 export interface AdminUser {
   id: string;
   email: string;
+  name: string | null;
   joined: string;
   plan: string;
+  admin: boolean;
   team: boolean;
   source: string;
-  lastActive: string | null;
+  invited: boolean;
+  lastSignIn: string | null;
+  lastActive: string | null; // the latest of: signing in, doing something in the app, talking to the interviewer
   stage: MilestoneKey | "signup";
   journey: UserJourney;
   apps: Record<string, number>;
-  waiting: number; // applications stopped for this user
+  appCount: number;
+  submitted: number;
+  waiting: number; // applications the agents stopped on for this user
+  docs: number;
+  gmail: { email: string; status: string } | null;
+  budget: number; // this month's AI allowance
+  payments: Payment[];
 }
 
 export interface AdminApp {
@@ -33,8 +55,10 @@ export interface AdminApp {
   reason: string | null;
   note: string;
   school: string;
+  program: string | null;
   host: string | null;
   updated: string | null;
+  submittedAt: string | null;
 }
 
 export function sourceOf(src: unknown): string {
@@ -59,24 +83,67 @@ const host = (u: string | null | undefined) => {
   }
 };
 
+type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+// supabase hands back at most 1,000 rows a request whatever .limit() says: page through, or the counts are wrong
+export async function every<T>(page: (from: number, to: number) => Page<T>, cap = 200_000): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; from < cap; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+// when each account last signed in (auth keeps it; profiles don't)
+async function signIns(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const auth = admin().auth.admin;
+  for (let page = 1; page < 200; page++) {
+    const { data, error } = await auth.listUsers({ page, perPage: 1000 });
+    if (error || !data?.users?.length) break;
+    for (const u of data.users) if (u.last_sign_in_at) out.set(u.id, u.last_sign_in_at);
+    if (data.users.length < 1000) break;
+  }
+  return out;
+}
+
+const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
+
+type ProfileRow = { id: string; email: string; full_name: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null };
+type AppRow = { id: string; user_id: string; status: string; runner_status: string | null; runner_note: string | null; runner_state: unknown; runner_updated_at: string | null; portal_url: string | null; submitted_at: string | null; programs: unknown };
+
 export async function loadAdmin() {
   const db = admin();
   const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const [team, { data: profiles }, { data: apps }, { data: steps }, { data: activity }] = await Promise.all([
+  const month = monthStartUTC();
+  const [team, profiles, apps, steps, activity, logins, mail, docs, pays] = await Promise.all([
     teamIds(),
-    db.from("profiles").select("id, email, created_at, plan, signup_source"),
-    db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, programs(schools(name))").limit(20000),
-    db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).limit(50000),
-    db.from("events").select("user_id, created_at").eq("actor", "user").gte("created_at", monthAgo).order("created_at", { ascending: false }).limit(20000),
+    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by").order("created_at").range(a, b)),
+    every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
+    every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
+    // what the user did: their own actions, plus each message they sent the interviewer
+    every<{ user_id: string; created_at: string }>((a, b) => db.from("events").select("user_id, created_at").or("actor.eq.user,action.eq.interview.turn").gte("created_at", monthAgo).order("created_at", { ascending: false }).range(a, b)),
+    signIns().catch(() => new Map<string, string>()),
+    every<{ user_id: string; email: string; status: string }>((a, b) => db.from("mail_accounts").select("user_id, email, status").range(a, b)),
+    every<{ user_id: string }>((a, b) => db.from("documents").select("user_id").range(a, b)),
+    every<{ user_id: string; kind: string; amount: number | null; currency: string | null; created_at: string }>((a, b) => db.from("billing_events").select("user_id, kind, amount, currency, created_at").order("created_at", { ascending: false }).range(a, b)),
   ]);
-  const last = new Map<string, string>();
-  for (const e of activity ?? []) if (!last.has(e.user_id)) last.set(e.user_id, e.created_at);
-  const trips = new Map(journeys((profiles ?? []).map((p) => ({ id: p.id, email: p.email, created_at: p.created_at })), steps ?? []).map((j) => [j.userId, j]));
-  const email = new Map((profiles ?? []).map((p) => [p.id as string, p.email as string]));
 
-  const allApps: AdminApp[] = (apps ?? []).map((a) => {
+  const last = new Map<string, string>();
+  for (const e of activity) if (!last.has(e.user_id)) last.set(e.user_id, e.created_at);
+  const trips = new Map(journeys(profiles.map((p) => ({ id: p.id, email: p.email, created_at: p.created_at })), steps).map((j) => [j.userId, j]));
+  const email = new Map(profiles.map((p) => [p.id, p.email]));
+  const gmail = new Map(mail.map((m) => [m.user_id, { email: m.email, status: m.status }]));
+  const docCount = new Map<string, number>();
+  for (const d of docs) docCount.set(d.user_id, (docCount.get(d.user_id) ?? 0) + 1);
+  const payments: Payment[] = pays.map((p) => ({ userId: p.user_id, kind: p.kind, amount: p.amount != null ? Number(p.amount) : null, currency: p.currency, at: p.created_at }));
+
+  const allApps: AdminApp[] = apps.map((a) => {
     const st = (a.runner_state ?? {}) as { reason?: string; last_url?: string };
-    const p = a.programs as unknown as { schools?: { name?: string } } | null;
+    const p = a.programs as { name?: string; schools?: { name?: string } } | null;
     return {
       id: a.id,
       userId: a.user_id,
@@ -87,33 +154,53 @@ export async function loadAdmin() {
       reason: a.runner_status === "failed" ? "failed" : (st.reason ?? null),
       note: a.runner_note ?? "",
       school: p?.schools?.name ?? "Unknown school",
+      program: p?.name ?? null,
       host: host(st.last_url ?? a.portal_url),
       updated: a.runner_updated_at,
+      submittedAt: a.submitted_at,
     };
   });
+  const appsOf = new Map<string, AdminApp[]>();
+  for (const a of allApps) appsOf.set(a.userId, [...(appsOf.get(a.userId) ?? []), a]);
 
-  const users: AdminUser[] = (profiles ?? []).map((p) => {
+  const users: AdminUser[] = profiles.map((p) => {
     const j = trips.get(p.id)!;
     const reached = [...MILESTONES].reverse().find((m) => j.at[m.key]);
-    const mine = allApps.filter((a) => a.userId === p.id);
-    const apps: Record<string, number> = {};
-    for (const a of mine) apps[a.status] = (apps[a.status] ?? 0) + 1;
+    const mine = appsOf.get(p.id) ?? [];
+    const counts: Record<string, number> = {};
+    for (const a of mine) counts[a.status] = (counts[a.status] ?? 0) + 1;
+    const paid = payments.filter((x) => x.userId === p.id);
+    const thisMonth = paid.filter((x) => x.at >= month);
     return {
       id: p.id,
       email: p.email,
+      name: p.full_name,
       joined: p.created_at,
       plan: p.plan ?? "free",
+      admin: !!p.is_admin,
       team: team.has(p.id),
       source: sourceOf(p.signup_source),
-      lastActive: last.get(p.id) ?? null,
+      invited: !!p.referred_by,
+      lastSignIn: logins.get(p.id) ?? null,
+      lastActive: later(last.get(p.id), logins.get(p.id)),
       stage: reached?.key ?? "signup",
       journey: j,
-      apps,
+      apps: counts,
+      appCount: mine.length,
+      submitted: mine.filter((a) => SUBMITTED.has(a.status)).length,
       waiting: mine.filter((a) => a.runner === "needs_you" || a.runner === "failed").length,
+      docs: docCount.get(p.id) ?? 0,
+      gmail: gmail.get(p.id) ?? null,
+      budget: budgetFor(
+        { plan: p.plan, plan_until: p.plan_until, monthly_budget_usd: p.monthly_budget_usd, is_admin: p.is_admin },
+        thisMonth.filter((x) => x.kind === "submission").length,
+        thisMonth.filter((x) => x.kind === "pack").length,
+      ),
+      payments: paid,
     };
   });
 
-  return { users, apps: allApps, team };
+  return { users, apps: allApps, team, payments };
 }
 
 export type AdminData = Awaited<ReturnType<typeof loadAdmin>>;
@@ -122,5 +209,5 @@ export type AdminData = Awaited<ReturnType<typeof loadAdmin>>;
 export function scope(d: AdminData, everyone: boolean) {
   const users = everyone ? d.users : d.users.filter((u) => !u.team);
   const ids = new Set(users.map((u) => u.id));
-  return { users, apps: d.apps.filter((a) => ids.has(a.userId)), hidden: d.users.length - users.length };
+  return { users, ids, apps: d.apps.filter((a) => ids.has(a.userId)), payments: d.payments.filter((p) => ids.has(p.userId)), hidden: d.users.length - users.length };
 }
