@@ -58,3 +58,33 @@ export async function otherRunActive(applicationId: string, exceptJobId: string)
     .limit(1);
   return !!data?.length;
 }
+
+// another of this applicant's applications is being worked on the same portal right now (two programs at one school,
+// an application and a scholarship on one Slate site). one portal account, one browser at a time: signing in
+// twice ends the other session
+export async function otherRunOnPortal(userId: string, portalUrl: string | null, exceptApplicationId: string, exceptJobId: string): Promise<boolean> {
+  const root = (u: string | null | undefined) => {
+    try {
+      return u ? new URL(u).hostname.replace(/^www\./, "").split(".").slice(-2).join(".") : "";
+    } catch {
+      return "";
+    }
+  };
+  const mine = root(portalUrl);
+  if (!mine) return false;
+  const db = admin();
+  const { data: jobs } = await db
+    .from("jobs")
+    .select("payload")
+    .eq("user_id", userId)
+    .eq("agent", "runner")
+    .eq("task", "run")
+    .eq("status", "running")
+    .neq("id", exceptJobId)
+    .gt("locked_at", new Date(Date.now() - 10 * 60_000).toISOString())
+    .limit(10);
+  const ids = (jobs ?? []).map((j) => (j.payload as { applicationId?: string })?.applicationId).filter((x): x is string => !!x && x !== exceptApplicationId);
+  if (!ids.length) return false;
+  const { data: apps } = await db.from("applications").select("portal_url, runner_state").in("id", ids);
+  return (apps ?? []).some((a) => root(a.portal_url as string | null) === mine || root((a.runner_state as { last_url?: string } | null)?.last_url) === mine);
+}

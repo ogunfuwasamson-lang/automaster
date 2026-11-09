@@ -12,6 +12,7 @@ import { runStructured } from "@/lib/llm";
 import { guard } from "@/lib/guard";
 import { settleBeforeSubmit } from "@/lib/billing";
 import { textPdf } from "@/lib/pdf";
+import { asPdf } from "@/lib/doc-pdf";
 
 // the extension authenticates with a personal key (Authorization: Bearer amr_...). we keep only its hash.
 export async function runnerUser(req: NextRequest): Promise<string | null> {
@@ -254,7 +255,12 @@ export async function submitDecision(userId: string, applicationId: string) {
 }
 
 // the bytes behind a fill-sheet file key: an approved essay as pdf, or one of the applicant's documents
-export async function sheetFile(userId: string, sheet: FillSheet, key: string): Promise<{ name: string; mime: string; buffer: Buffer }> {
+export async function sheetFile(userId: string, sheet: FillSheet, key: string, want?: { pdf?: boolean }): Promise<{ name: string; mime: string; buffer: Buffer }> {
+  const f = await rawSheetFile(userId, sheet, key);
+  return want?.pdf ? asPdf(f) : f;
+}
+
+async function rawSheetFile(userId: string, sheet: FillSheet, key: string): Promise<{ name: string; mime: string; buffer: Buffer }> {
   const f = sheet.files.find((x) => x.key === key);
   if (!f) throw new Error(`not in the packet: ${key}`);
   if (key.startsWith("essay:")) {

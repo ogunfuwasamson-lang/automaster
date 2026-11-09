@@ -172,7 +172,7 @@ export function buildSheet(a: {
 
   // education: most recent first
   const edu = [...p.education].sort((x, y) => (y.end ?? "9999").localeCompare(x.end ?? "9999"));
-  edu.slice(0, 3).forEach((e, i) => {
+  edu.slice(0, 6).forEach((e, i) => {
     const n = i + 1;
     set(`edu${n}_institution`, e.institution);
     set(`edu${n}_degree`, e.degree);
@@ -189,7 +189,7 @@ export function buildSheet(a: {
 
   // work: current first
   const work = [...p.work].sort((x, y) => (y.end ?? "9999").localeCompare(x.end ?? "9999") || (y.start ?? "").localeCompare(x.start ?? ""));
-  work.slice(0, 4).forEach((w, i) => {
+  work.slice(0, 6).forEach((w, i) => {
     const n = i + 1;
     set(`work${n}_employer`, w.company);
     set(`work${n}_title`, w.role);

@@ -316,13 +316,14 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
     },
     map: async (fields) =>
       (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, host: await host().catch(() => undefined), fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
-    file: async (key) => {
+    file: async (key, want) => {
       if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
       const f = sheets.get(taskId)!.files.find((x) => x.key === key);
       if (!f) throw new Error("file not in the packet");
-      const res = await api(f.url);
+      const res = await api(want?.pdf && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}pdf=1` : f.url);
       if (!res.ok) throw new Error("couldn't fetch " + f.label);
-      return { name: f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };
+      const named = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
+      return { name: named || f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };
     },
     // the server checks the packet is signed and paid for; then the applicant sees every answer and says submit.
     // nothing is submitted from this browser without that yes
@@ -389,6 +390,7 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       return !!yes;
     },
     signInYourself: () => s.pmSignIn,
+    allowNewApp: async () => !!(await eng(taskId, "allow_new_app").catch(() => ({}))).allow,
   };
 }
 
@@ -547,7 +549,7 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
       if (outcome.kind === "continue") continue;
       if (outcome.kind === "wait") {
         await setPhase(task.id, "waiting for an email", "waiting");
-        await nap(Math.min(outcome.seconds, 120) * 1000);
+        await nap(Math.min(outcome.seconds, 30 * 60) * 1000);
         await setPhase(task.id, "carrying on", "working");
         continue;
       }

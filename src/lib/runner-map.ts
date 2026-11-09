@@ -277,6 +277,11 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
       const alt = sheet.fields[k] ? bestOption(sheet.fields[k], f.options ?? []) : null;
       if (alt) return { id: f.id, action: "choose", option: alt, source: k };
     }
+    // a US/Canada-style state list that doesn't have the applicant's state or region: its "not applicable" choice
+    if (key === "state") {
+      const na = (f.options ?? []).find((o) => /^\s*(not applicable|n\/a|none|other|outside (the )?(us|u\.s\.|united states|canada)|international|foreign|non-us|not in (the )?(us|list))\b/i.test(o));
+      if (na) return { id: f.id, action: "choose", option: na, source: key };
+    }
     return null;
   }
   // yes/no boxes are the applicant's call: only ticked when they answered yes to this question

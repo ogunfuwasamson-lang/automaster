@@ -44,6 +44,7 @@ const Body = z.discriminatedUnion("op", [
     goalJob: z.string().max(400).optional(),
   }),
   z.object({ op: z.literal("rotate"), application: z.string().uuid(), host: z.string().max(253) }),
+  z.object({ op: z.literal("allow_new_app"), application: z.string().uuid() }),
   z.object({ op: z.literal("save"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional() }),
   z.object({ op: z.literal("finish"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional(), filled: z.number().int().min(0).max(5000).optional(), host: z.string().max(253).optional(), outcome: Outcome }),
 ]);
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ action, value: action?.action === "type" && action.sheet_key ? (deps.sheetValue?.(action.sheet_key) ?? null) : null });
   }
   if (b.op === "rotate") return NextResponse.json({ login: await deps.rotatePassword!() });
+  if (b.op === "allow_new_app") return NextResponse.json({ allow: deps.allowNewApp ? await deps.allowNewApp() : false });
 
   // finish: one run of the engine in chrome ended
   const o = b.outcome;

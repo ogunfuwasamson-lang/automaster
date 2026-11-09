@@ -69,6 +69,13 @@ export interface EngineState {
   wentBackToCreate?: boolean; // went back for that once already
   accountExists?: boolean; // the sign-up page said this email already has an account
   lookups?: number; // peoplesoft "Look Up …" searches done on this run
+  newAppBlocked?: string; // a "Start a new application" the once-per-portal rule held back
+  newAppAllowedUsed?: boolean; // the applicant said yes to a new one, and it was started
+  pdfOnly?: boolean; // the portal said uploads must be PDF
+  missingDocs?: string[]; // required uploads the packet has no file for
+  lockWaits?: number; // times we waited out "temporarily locked / too many attempts"
+  downWaits?: number; // times we waited out maintenance or an outage
+  entries?: { edu?: number; work?: number }; // education / work entries already saved through "add another"
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -92,6 +99,16 @@ function ask(state: EngineState, f: PageField, key?: string) {
   state.questions = list.slice(-12);
 }
 
+// an upload box (a document to add) or an essay too long for its box: never a question the applicant can type into
+function notAQuestion(state: EngineState, f: PageField): boolean {
+  if (f.type === "file") {
+    state.missingDocs = [...new Set([...(state.missingDocs ?? []), cleanLabel(f.label, f.options).slice(0, 80) || "a required document"])];
+    return true;
+  }
+  const l = cleanLabel(f.label, f.options).slice(0, 50);
+  return !!l && (state.missingDocs ?? []).some((m) => m.includes(l));
+}
+
 function questionNote(state: EngineState): string {
   const qs = state.questions ?? [];
   if (!qs.length) return missingNote(state.missing ?? []);
@@ -107,7 +124,8 @@ export interface Login {
 
 export interface EngineDeps {
   map(fields: PageField[]): Promise<Fill[]>;
-  file(key: string): Promise<EngineFile>;
+  // pdf: the upload box only takes PDF (Word files are converted)
+  file(key: string, want?: { pdf?: boolean }): Promise<EngineFile>;
   canSubmit(): Promise<{ allowed: boolean; reason: string }>;
   existingLogin(): Promise<Login | null>;
   createLogin(email: string): Promise<Login>;
@@ -153,6 +171,8 @@ export interface EngineDeps {
   beforeNext?(page: { label: string; title: string; url: string }): Promise<boolean>;
   // the applicant signs in themselves (their password manager fills it): an account that exists is never typed in
   signInYourself?(): boolean;
+  // the applicant said yes to "start a new application for this program?" (the one started is for another)
+  allowNewApp?(): Promise<boolean>;
 }
 
 export interface Mark {
@@ -204,7 +224,7 @@ export interface NavAction {
 
 export type Outcome =
   | { kind: "submitted"; note: string }
-  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" | "review" | "stopped" }
+  | { kind: "needs_you"; note: string; reason: "captcha" | "payment" | "question" | "verification" | "stuck" | "login" | "account" | "blocked" | "review" | "stopped" | "documents" | "closed" }
   | { kind: "wait"; note: string; seconds: number } // try again later (e.g. waiting for the verification email)
   | { kind: "continue"; note: string } // out of time in this run; pick up straight away
   | { kind: "failed"; note: string };
@@ -411,6 +431,33 @@ export const LOGIN_REFUSED = /\b(invalid|incorrect|wrong|not recogni[sz]ed|unrec
 
 // the sign-up said the email has an account already (not "Already have an account? Sign in", which every sign-up shows)
 export const EMAIL_EXISTS = /\b(e-?mail|email address|courriel)\b[^.!?]{0,80}\b(is |has )?(already )(been )?(registered|in use|used|taken|assigned|associated|linked|on file|exists?)\b|\b(an )?account (with|for|using) (this|that|the) e-?mail( address)? (already )?exists|\b(e-?mail|courriel)\b[^.!?]{0,60}\bdéjà (utilisé|associé|enregistré)/i;
+
+// "too many attempts, try again in 30 minutes", "account temporarily locked" (brandeis)
+export const LOCKED = /\b(temporarily (blocked|locked|disabled|suspended)|too many (failed |unsuccessful |login |sign-?in )?(attempts|tries|requests)|account (has been |is )?(temporarily )?(locked|blocked)|try again (in|after) \d+\s*(min|hour)|rate limit(ed)?)\b/i;
+export function lockMinutes(text: string): number {
+  const m = text.match(/(?:in|after)\s+(\d+)\s*(min|minute|hour|hr)/i);
+  if (!m) return 30;
+  const n = Number(m[1]) * (/^h/i.test(m[2]) ? 60 : 1);
+  return Math.min(Math.max(n + 2, 5), 24 * 60);
+}
+// the portal is down for maintenance or erroring for everyone: come back later
+export const DOWN = /\b(scheduled maintenance|undergoing maintenance|down for maintenance|temporarily unavailable|service unavailable|503 service|502 bad gateway|504 gateway|site is currently (down|offline|unavailable)|system is (currently )?(unavailable|offline|down))\b/i;
+// the intake is closed, or not open yet: nothing the agents can do on the portal until it opens
+export const CLOSED = /\b(applications? (are|is) (now )?closed|(application )?deadline (has )?passed|no longer (accepting|taking) applications|not (currently |yet )?(accepting|open for) applications|applications? (will )?(open|opens) (on|in)\b|this (term|intake|program(me)?) is (closed|not available))/i;
+// the portal says it already has this application
+export const ALREADY_SUBMITTED = /\b(you have already submitted|application (has )?already been submitted|already submitted (an|this|your) application)\b/i;
+// an upload box that only takes PDF, said in words
+export const PDF_ONLY = /\b(only pdf|pdf (files? )?only|must be (in )?(a )?pdf|upload (a |your )?pdf|accepted (file )?(format|type)s?:? pdf\b(?!\s*,)|file type (is )?not (allowed|supported|accepted)|invalid file (type|format))/i;
+// a name the portal's file check will take: plain letters, numbers, dots, dashes; at most 60 characters
+export function safeFileName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, "").slice(0, 6) : "";
+  const base = (dot > 0 ? name.slice(0, dot) : name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/_+/g, "_").replace(/^[_.]+|[_.]+$/g, "");
+  return `${(base || "document").slice(0, 60 - ext.length)}${ext}`;
+}
+// "Add another qualification", "Save and add another job": a repeating section asks for its next entry
+export const ADD_ANOTHER = /^(add|save and add|add (an)?other|add new|\+)\s*(another|more|new|an?)?\s*(education|qualification|school|institution|degree|academic|employment|work|job|experience|position|employer)\b|^add another$/i;
+const entryKind = (label: string): "edu" | "work" | null => (/(education|qualification|school|institution|degree|academic)/i.test(label) ? "edu" : /(employment|work|job|experience|position|employer)/i.test(label) ? "work" : null);
 
 export const USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
 
@@ -801,12 +848,25 @@ async function fillHard(page: Page, deps: EngineDeps, state: EngineState): Promi
 
 const SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
 
+// stopped because the application already on the portal is for another program (ut dallas: an MS/MBA application,
+// 480 stops). the agents never start a second one by themselves: they ask once, and a yes lets them start it
+export const WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course)\b/i;
+const NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program. Should the agents start a new application for the program you're applying to?";
+function askAboutNewApp(r: { outcome: Outcome; state: EngineState; filled: number }) {
+  const st = r.state;
+  if (r.outcome.kind !== "needs_you" || r.outcome.reason === "question" || !st.newAppBlocked || st.newAppAllowedUsed) return r;
+  if (!WRONG_PROGRAM.test(`${r.outcome.note} ${(st.navHistory ?? []).slice(-4).join(" ")}`)) return r;
+  ask(st, { id: "new-application", label: NEW_APP_QUESTION, type: "radio", options: ["Yes", "No"] } as PageField, "start_new_application");
+  return { ...r, outcome: { kind: "needs_you" as const, reason: "question" as const, note: "the application already on this portal seems to be for another program: answer whether the agents should start a new one" } };
+}
+
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
   const end = Date.now() + budgetMs;
   // a page that redraws a box mid-fill starts the pass again from a fresh look, a few times at most
   for (let i = 0; i < 8; i++) {
     try {
-      return await runPass(page, deps, state, Math.max(0, end - Date.now()));
+      const r = await runPass(page, deps, state, Math.max(0, end - Date.now()));
+      return askAboutNewApp(r);
     } catch (e) {
       if (!(e instanceof Redrawn) || Date.now() >= end) throw e;
       state.navHistory = [...(state.navHistory ?? []), "the page redrew while filling; looking again"].slice(-12);
@@ -844,6 +904,41 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         state.samePageCount = 0;
         continue;
       }
+    }
+
+    const said = `${(s.errors ?? []).join(" ")} ${s.body}`;
+    const kind0 = classify(s);
+    // too many attempts / temporarily locked: wait it out (what the page says, or 30 minutes), three times at most
+    if ((kind0 === "login" || kind0 === "signup") && LOCKED.test(said)) {
+      state.lockWaits = (state.lockWaits ?? 0) + 1;
+      if (state.lockWaits > 3) return { outcome: { kind: "needs_you", reason: "login", note: "the portal keeps the account locked after several waits. Reset the password on the portal, or wait a day and choose Try again" }, state, filled };
+      const min = lockMinutes(said);
+      return { outcome: { kind: "wait", seconds: min * 60, note: `the portal locked sign-ins for a while: trying again in ${min} minutes` }, state, filled };
+    }
+    // the whole portal is down (maintenance, 503): come back in half an hour, four times at most
+    if (said.length < 3000 && DOWN.test(said) && !insideForm(s)) {
+      state.downWaits = (state.downWaits ?? 0) + 1;
+      if (state.downWaits > 4) return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal has been down for maintenance for hours; the agents will try again when you choose Try again" }, state, filled };
+      return { outcome: { kind: "wait", seconds: 30 * 60, note: "the portal is down for maintenance: trying again in 30 minutes" }, state, filled };
+    }
+    // the intake is closed or not open yet, and there's no way into a form from here
+    if (CLOSED.test(said) && !insideForm(s) && !find(s, START) && !find(s, NEXT)) {
+      const line = (said.match(new RegExp(`[^.!?]{0,120}${CLOSED.source}[^.!?]{0,120}`, "i"))?.[0] ?? "").trim();
+      return { outcome: { kind: "needs_you", reason: "closed", note: `the portal says applications aren't open${line ? `: "${line.slice(0, 200)}"` : ""}. Check the intake, or choose another program` }, state, filled };
+    }
+    if (ALREADY_SUBMITTED.test(said)) {
+      return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says this application was already submitted. Check the portal, then mark it submitted in Ivyward" }, state, filled };
+    }
+    if (PDF_ONLY.test(said)) state.pdfOnly = true;
+    // a button that unlocks only once the terms box is scrolled to the end: scroll every scrolling box down once
+    if (state.samePageCount === 1) {
+      await frameOf(page)
+        .evaluate(() => {
+          for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollHeight > el.clientHeight + 20 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight;
+          window.scrollTo(0, document.body.scrollHeight);
+          return true;
+        }, undefined)
+        .catch(() => false);
     }
 
     // loop guard: the same page three times in a row means the portal won't take what we gave it
@@ -965,7 +1060,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         if (o) return { outcome: o, state, filled };
         continue;
       }
-      for (const f of stillEmpty) ask(state, f);
+      for (const f of stillEmpty) if (!notAQuestion(state, f)) ask(state, f);
+      if (state.missingDocs?.length) return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
       const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
       const err = (s.errors ?? []).join("; ").slice(0, 160);
       const stop: Outcome = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
@@ -1305,7 +1401,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       if (h.outcome) return { outcome: h.outcome, state, filled };
       // only what the profile doesn't have is a question for the applicant. a box the profile has a value for that the
       // page didn't keep (ut dallas's birthdate) is the portal's doing: the loop guard deals with it, nobody is asked
-      const unknown = h.empty.filter((f) => !deps.hasValue?.(f.label));
+      const unknown = h.empty.filter((f) => !deps.hasValue?.(f.label) && !notAQuestion(state, f));
       if (unknown.length) {
         for (const f of unknown) ask(state, f);
         return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
@@ -1313,6 +1409,9 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       now = await snap(page);
     }
 
+    if (state.missingDocs?.length) {
+      return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
+    }
     const submit = find(now, FINAL) ?? (deps.finalButton ? find(now, deps.finalButton) : undefined);
     if (submit) {
       state.reachedSubmit = true;
@@ -1322,6 +1421,21 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       state.submitClicked = true;
       await click(page, submit.id);
       continue;
+    }
+    // a repeating section with more of the applicant's entries to go ("Add another qualification"): add the next one
+    const add = now.buttons.find((b) => ADD_ANOTHER.test(clean(b.label)));
+    const addKind = add ? entryKind(clean(add.label)) : null;
+    if (add && addKind && deps.fillFromKey) {
+      const done = state.entries?.[addKind] ?? 0;
+      const probe = await deps.fillFromKey({ id: "probe", label: addKind === "edu" ? "Institution" : "Employer", type: "text" } as PageField, `${addKind}${done + 2}_${addKind === "edu" ? "institution" : "employer"}`);
+      const mark = `add|${addKind}|${done + 1}`;
+      if (probe && probe.action === "fill" && done < 5 && !(state.pressedAsked ?? []).includes(mark)) {
+        state.pressedAsked = [...(state.pressedAsked ?? []), mark].slice(-30);
+        state.entries = { ...(state.entries ?? {}), [addKind]: done + 1 };
+        await deps.progress(`adding your ${addKind === "edu" ? "education" : "work"} entry ${done + 2}`);
+        await click(page, add.id);
+        continue;
+      }
     }
     // landing pages offer "log in" and "create an account": once there's a login on file, sign in
     const haveLogin = !s.fields.length && !!(await deps.existingLogin());
@@ -1337,7 +1451,13 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       (s.fields.length ? find(now, /^(ok|okay|done|update)$/i) : undefined) ??
       apply;
     // "Start a new application" a second time makes a second application: let the navigator choose instead
-    if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = undefined;
+    if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) {
+      if (!state.newAppAllowedUsed && (await deps.allowNewApp?.())) state.newAppAllowedUsed = true;
+      else {
+        state.newAppBlocked = clean(next.label);
+        next = undefined;
+      }
+    }
     if (next) {
       // a page of the form (filled now, or filled before): not a landing page with a search box
       const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
@@ -1457,8 +1577,12 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   }
   // "Start a new application" pressed again makes a second application (seen on ut dallas): once per portal
   if (NEW_APP.test(label) && !markNewApp(state, label)) {
-    log(`didn't press "${label}": an application was started already`);
-    return null;
+    if (!state.newAppAllowedUsed && (await deps.allowNewApp?.())) state.newAppAllowedUsed = true;
+    else {
+      state.newAppBlocked = label;
+      log(`didn't press "${label}": an application was started already`);
+      return null;
+    }
   }
   log(`click "${label}"`);
   // a choice made on the page (ut dallas: the existing application's tile) can unlock the button it asks for again
@@ -1610,11 +1734,41 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
       if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint} ${await page.url()}`);
     }
   }
+  // a repeating section's second, third… entry: the rules map its boxes to edu1_/work1_ every time; move them on to
+  // the entry this one is (edu2_, edu3_…). nothing left to enter: those boxes are left alone
+  for (const kind of ["edu", "work"] as const) {
+    const done = state?.entries?.[kind] ?? 0;
+    if (!done || !deps.fillFromKey) continue;
+    for (const f of fills) {
+      if (f.action === "skip" || !("source" in f) || !new RegExp(`^${kind}1_`).test(f.source)) continue;
+      const field = safe.find((x) => x.id === f.id);
+      const next = field ? await deps.fillFromKey(field, f.source.replace(`${kind}1_`, `${kind}${done + 1}_`)) : null;
+      if (next) Object.assign(f, next);
+      else Object.assign(f, { action: "skip", reason: `no ${kind} entry ${done + 1}` });
+    }
+  }
+  // a box that takes fewer characters than the answer: cut short lines at a word; never an essay (it's flagged)
+  for (const f of fills) {
+    const field = safe.find((x) => x.id === f.id);
+    if (f.action !== "fill" || !field?.maxLength || f.value.length <= field.maxLength) continue;
+    if (f.source.startsWith("essay:")) {
+      if (state) state.missingDocs = [...new Set([...(state.missingDocs ?? []), `a shorter "${cleanLabel(field.label, field.options).slice(0, 50)}" (the box takes ${field.maxLength} characters; yours has ${f.value.length})`])];
+      Object.assign(f, { action: "skip", reason: "too long" });
+      continue;
+    }
+    const cut = f.value.slice(0, field.maxLength);
+    f.value = (cut.lastIndexOf(" ") > field.maxLength * 0.6 ? cut.slice(0, cut.lastIndexOf(" ")) : cut).trim();
+  }
   for (const f of fills) {
     const n0 = n;
     try {
       if (f.action === "skip") {
         const field = safe.find((x) => x.id === f.id);
+        // a required upload the packet has no file for: a document to add, not a question to answer
+        if (state && field?.type === "file" && field.required) {
+          state.missingDocs = [...new Set([...(state.missingDocs ?? []), cleanLabel(field.label, field.options).slice(0, 80) || "a required document"])];
+          continue;
+        }
         if (state && f.reason.startsWith("missing:") && field?.required) {
           state.missing = [...new Set([...(state.missing ?? []), f.reason.slice(8)])];
           ask(state, field, f.reason.slice(8));
@@ -1622,9 +1776,17 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
         continue;
       }
       if (f.action === "upload") {
-        const file = await deps.file(f.file);
-        await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
+        // PDF when the box (its accept list) or the page says so: Word files are converted on the way
+        const accept = await frameOf(page)
+          .evaluate((id: string) => String(((window as unknown as { __am?: { byId?(i: string): Element | null } }).__am?.byId?.(id) as HTMLInputElement | null)?.accept ?? ""), f.id)
+          .catch(() => "");
+        const pdf = !!state?.pdfOnly || (/pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept));
+        const file = await deps.file(f.file, { pdf });
+        await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
         n++;
+        // uploads often finish in the background (a progress bar): let it end before the next step
+        await sleep(1500);
+        await settle(page);
         continue;
       }
       const field = safe.find((x) => x.id === f.id);

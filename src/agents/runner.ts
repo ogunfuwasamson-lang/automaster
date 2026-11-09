@@ -4,7 +4,7 @@ import { cleanLabel } from "@/lib/labels";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
-import { enqueue, otherRunActive } from "@/lib/queue";
+import { enqueue, otherRunActive, otherRunOnPortal } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
@@ -194,7 +194,12 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       return stopped || aiPausedNow();
     },
     map: (fields) => mapFields(c.userId, c.sheet, fields, c.memory),
-    file: (key) => sheetFile(c.userId, c.sheet, key),
+    file: (key, want) => sheetFile(c.userId, c.sheet, key, want),
+    // the applicant answered yes to "start a new application for this program?"
+    allowNewApp: async () => {
+      const { data } = await admin().from("portal_questions").select("answer").eq("user_id", c.userId).eq("application_id", c.applicationId).eq("sheet_key", "start_new_application").eq("status", "answered").order("answered_at", { ascending: false }).limit(1).maybeSingle();
+      return /^\s*yes\b/i.test(String(data?.answer ?? ""));
+    },
     canSubmit: () => submitDecision(c.userId, c.applicationId),
     existingLogin: () => getLogin(c.userId, c.host(), c.applicationId),
     createLogin: async (email) => {
@@ -683,6 +688,11 @@ export const runner: Record<string, Handler> = {
     const { data: row0 } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
     if (!app || app.status !== "packet_approved" || !["ready", "running", "needs_you"].includes(app.runner_status as string)) return { skipped: "not queued" };
     if (await otherRunActive(applicationId, job.id)) return { skipped: "another run is working on this application" };
+    // the same portal account busy with another of their applications: try again in a few minutes
+    if (await otherRunOnPortal(job.user_id, normalizeUrl((row0?.runner_state as RunnerState | null)?.last_url) ?? normalizeUrl(app.portal_url), applicationId, job.id)) {
+      await enqueue({ userId: job.user_id, agent: "runner", task: "run", payload: { applicationId }, runAt: new Date(Date.now() + 5 * 60_000) });
+      return { skipped: "another of this applicant's applications is using the same portal; trying again in 5 minutes" };
+    }
     // the applicant's chrome has this one, or they're driving it in the live browser
     if (row0?.runner_mode === "extension") return { skipped: "running in the applicant's chrome" };
     if (await liveActive(applicationId)) return { skipped: "live browser open" };

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { admin } from "@/lib/supabase/admin";
 import { loadSheet, runnerUser } from "@/lib/runner";
 import { textPdf } from "@/lib/pdf";
+import { asPdf } from "@/lib/doc-pdf";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,10 @@ export async function GET(req: NextRequest) {
   if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
   const { data: blob, error } = await db.storage.from("documents").download(doc.storage_path);
   if (error || !blob) return NextResponse.json({ error: "couldn't read the file" }, { status: 500 });
-  return new NextResponse(new Uint8Array(await blob.arrayBuffer()), {
-    headers: { "content-type": doc.mime_type ?? "application/octet-stream", "content-disposition": `attachment; filename="${doc.filename.replace(/"/g, "")}"` },
+  // ?pdf=1: the upload box only takes PDF
+  const f = { name: doc.filename as string, mime: (doc.mime_type as string | null) ?? "application/octet-stream", buffer: Buffer.from(await blob.arrayBuffer()) };
+  const out = q.get("pdf") === "1" ? await asPdf(f) : f;
+  return new NextResponse(new Uint8Array(out.buffer), {
+    headers: { "content-type": out.mime, "content-disposition": `attachment; filename="${out.name.replace(/"/g, "")}"` },
   });
 }

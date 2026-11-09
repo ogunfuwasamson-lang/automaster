@@ -6398,6 +6398,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     else list.push(q);
     state.questions = list.slice(-12);
   }
+  function notAQuestion(state, f) {
+    if (f.type === "file") {
+      state.missingDocs = [.../* @__PURE__ */ new Set([...state.missingDocs ?? [], cleanLabel(f.label, f.options).slice(0, 80) || "a required document"])];
+      return true;
+    }
+    const l = cleanLabel(f.label, f.options).slice(0, 50);
+    return !!l && (state.missingDocs ?? []).some((m) => m.includes(l));
+  }
   function questionNote(state) {
     const qs = state.questions ?? [];
     if (!qs.length) return missingNote(state.missing ?? []);
@@ -6563,6 +6571,25 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   var DEAD_END = /an error has occurred that has stopped this transaction|(your |the )?session (has )?(timed out|expired)|has timed out due to inactivity|this page has expired|page (is )?no longer (valid|available)/i;
   var LOGIN_REFUSED = /\b(invalid|incorrect|wrong|not recogni[sz]ed|unrecogni[sz]ed|unknown (user|login|e-?mail|account|username|id)|failed|does not exist|doesn't exist|no account|not match|identifiant (inconnu|invalide)|mot de passe (invalide|incorrect))/i;
   var EMAIL_EXISTS = /\b(e-?mail|email address|courriel)\b[^.!?]{0,80}\b(is |has )?(already )(been )?(registered|in use|used|taken|assigned|associated|linked|on file|exists?)\b|\b(an )?account (with|for|using) (this|that|the) e-?mail( address)? (already )?exists|\b(e-?mail|courriel)\b[^.!?]{0,60}\bdéjà (utilisé|associé|enregistré)/i;
+  var LOCKED = /\b(temporarily (blocked|locked|disabled|suspended)|too many (failed |unsuccessful |login |sign-?in )?(attempts|tries|requests)|account (has been |is )?(temporarily )?(locked|blocked)|try again (in|after) \d+\s*(min|hour)|rate limit(ed)?)\b/i;
+  function lockMinutes(text) {
+    const m = text.match(/(?:in|after)\s+(\d+)\s*(min|minute|hour|hr)/i);
+    if (!m) return 30;
+    const n2 = Number(m[1]) * (/^h/i.test(m[2]) ? 60 : 1);
+    return Math.min(Math.max(n2 + 2, 5), 24 * 60);
+  }
+  var DOWN = /\b(scheduled maintenance|undergoing maintenance|down for maintenance|temporarily unavailable|service unavailable|503 service|502 bad gateway|504 gateway|site is currently (down|offline|unavailable)|system is (currently )?(unavailable|offline|down))\b/i;
+  var CLOSED = /\b(applications? (are|is) (now )?closed|(application )?deadline (has )?passed|no longer (accepting|taking) applications|not (currently |yet )?(accepting|open for) applications|applications? (will )?(open|opens) (on|in)\b|this (term|intake|program(me)?) is (closed|not available))/i;
+  var ALREADY_SUBMITTED = /\b(you have already submitted|application (has )?already been submitted|already submitted (an|this|your) application)\b/i;
+  var PDF_ONLY = /\b(only pdf|pdf (files? )?only|must be (in )?(a )?pdf|upload (a |your )?pdf|accepted (file )?(format|type)s?:? pdf\b(?!\s*,)|file type (is )?not (allowed|supported|accepted)|invalid file (type|format))/i;
+  function safeFileName(name) {
+    const dot = name.lastIndexOf(".");
+    const ext = dot > 0 ? name.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, "").slice(0, 6) : "";
+    const base = (dot > 0 ? name.slice(0, dot) : name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/_+/g, "_").replace(/^[_.]+|[_.]+$/g, "");
+    return `${(base || "document").slice(0, 60 - ext.length)}${ext}`;
+  }
+  var ADD_ANOTHER = /^(add|save and add|add (an)?other|add new|\+)\s*(another|more|new|an?)?\s*(education|qualification|school|institution|degree|academic|employment|work|job|experience|position|employer)\b|^add another$/i;
+  var entryKind = (label) => /(education|qualification|school|institution|degree|academic)/i.test(label) ? "edu" : /(employment|work|job|experience|position|employer)/i.test(label) ? "work" : null;
   var USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
   function usernameBox(s2) {
     return s2.allFields.find((f) => f.type !== "password" && f.type !== "email" && !/e-?mail/i.test(f.label) && /\b(user ?name|e-?id|user ?id|login ?(id|name))\b/i.test(`${f.label} ${f.name ?? ""}`));
@@ -6887,11 +6914,21 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     return { filled, empty };
   }
   var SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
+  var WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course)\b/i;
+  var NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program. Should the agents start a new application for the program you're applying to?";
+  function askAboutNewApp(r) {
+    const st = r.state;
+    if (r.outcome.kind !== "needs_you" || r.outcome.reason === "question" || !st.newAppBlocked || st.newAppAllowedUsed) return r;
+    if (!WRONG_PROGRAM.test(`${r.outcome.note} ${(st.navHistory ?? []).slice(-4).join(" ")}`)) return r;
+    ask(st, { id: "new-application", label: NEW_APP_QUESTION, type: "radio", options: ["Yes", "No"] }, "start_new_application");
+    return { ...r, outcome: { kind: "needs_you", reason: "question", note: "the application already on this portal seems to be for another program: answer whether the agents should start a new one" } };
+  }
   async function runEngine(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
     for (let i = 0; i < 8; i++) {
       try {
-        return await runPass(page, deps2, state, Math.max(0, end - Date.now()));
+        const r = await runPass(page, deps2, state, Math.max(0, end - Date.now()));
+        return askAboutNewApp(r);
       } catch (e) {
         if (!(e instanceof Redrawn) || Date.now() >= end) throw e;
         state.navHistory = [...state.navHistory ?? [], "the page redrew while filling; looking again"].slice(-12);
@@ -6918,12 +6955,41 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         s2 = await snap(page);
         if (isBlockPage(s2)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
       }
-      if (/^\s*look ?up\b/i.test(s2.title) && (state.lookups ?? 0) < 6 && deps2.fillFromKey) {
+      const lookTitle = [s2.title, (s2.fingerprint ?? "").split("|")[0]].find((t) => /^\s*look ?up\s+\S/i.test(t ?? "")) ?? "";
+      if (lookTitle && (state.lookups ?? 0) < 6 && deps2.fillFromKey) {
         state.lookups = (state.lookups ?? 0) + 1;
-        if (await lookUp(page, deps2, s2.title)) {
+        if (await lookUp(page, deps2, lookTitle)) {
           state.samePageCount = 0;
           continue;
         }
+      }
+      const said = `${(s2.errors ?? []).join(" ")} ${s2.body}`;
+      const kind0 = classify(s2);
+      if ((kind0 === "login" || kind0 === "signup") && LOCKED.test(said)) {
+        state.lockWaits = (state.lockWaits ?? 0) + 1;
+        if (state.lockWaits > 3) return { outcome: { kind: "needs_you", reason: "login", note: "the portal keeps the account locked after several waits. Reset the password on the portal, or wait a day and choose Try again" }, state, filled };
+        const min = lockMinutes(said);
+        return { outcome: { kind: "wait", seconds: min * 60, note: `the portal locked sign-ins for a while: trying again in ${min} minutes` }, state, filled };
+      }
+      if (said.length < 3e3 && DOWN.test(said) && !insideForm(s2)) {
+        state.downWaits = (state.downWaits ?? 0) + 1;
+        if (state.downWaits > 4) return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal has been down for maintenance for hours; the agents will try again when you choose Try again" }, state, filled };
+        return { outcome: { kind: "wait", seconds: 30 * 60, note: "the portal is down for maintenance: trying again in 30 minutes" }, state, filled };
+      }
+      if (CLOSED.test(said) && !insideForm(s2) && !find(s2, START) && !find(s2, NEXT)) {
+        const line = (said.match(new RegExp(`[^.!?]{0,120}${CLOSED.source}[^.!?]{0,120}`, "i"))?.[0] ?? "").trim();
+        return { outcome: { kind: "needs_you", reason: "closed", note: `the portal says applications aren't open${line ? `: "${line.slice(0, 200)}"` : ""}. Check the intake, or choose another program` }, state, filled };
+      }
+      if (ALREADY_SUBMITTED.test(said)) {
+        return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says this application was already submitted. Check the portal, then mark it submitted in Ivyward" }, state, filled };
+      }
+      if (PDF_ONLY.test(said)) state.pdfOnly = true;
+      if (state.samePageCount === 1) {
+        await frameOf(page).evaluate(() => {
+          for (const el of Array.from(document.querySelectorAll("*"))) if (el.scrollHeight > el.clientHeight + 20 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight;
+          window.scrollTo(0, document.body.scrollHeight);
+          return true;
+        }, void 0).catch(() => false);
       }
       if (s2.fingerprint !== state.lastFingerprint) recentDialogs.delete(page);
       const alertText = (recentDialogs.get(page) ?? []).join(" | ");
@@ -7023,7 +7089,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           if (o3) return { outcome: o3, state, filled };
           continue;
         }
-        for (const f of stillEmpty) ask(state, f);
+        for (const f of stillEmpty) if (!notAQuestion(state, f)) ask(state, f);
+        if (state.missingDocs?.length) return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
         const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
         const err = (s2.errors ?? []).join("; ").slice(0, 160);
         const stop = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
@@ -7210,8 +7277,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           continue;
         }
         const login = await deps2.existingLogin() ?? await deps2.createLogin(deps2.accountEmail);
-        const said = (s2.errors ?? []).join(" ").trim();
-        if (state.signupTries && USERNAME_TAKEN.test(said) && (state.usernameTries ?? 0) < 3) {
+        const said2 = (s2.errors ?? []).join(" ").trim();
+        if (state.signupTries && USERNAME_TAKEN.test(said2) && (state.usernameTries ?? 0) < 3) {
           state.usernameTries = (state.usernameTries ?? 0) + 1;
           const box = usernameBox(s2);
           const now2 = box ? await valueOf(page, box.id) : "";
@@ -7221,7 +7288,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             state.navHistory = [...state.navHistory ?? [], `the portal said the username was taken: trying "${next2}"`].slice(-12);
           }
         } else if ((state.signupTries ?? 0) >= 3) {
-          return { outcome: { kind: "needs_you", reason: "account", note: said ? `the portal didn't create the account. It said: "${said.slice(0, 200)}"` : "the portal didn't create the account and showed no reason. Open the live view to see the sign-up page" }, state, filled };
+          return { outcome: { kind: "needs_you", reason: "account", note: said2 ? `the portal didn't create the account. It said: "${said2.slice(0, 200)}"` : "the portal didn't create the account and showed no reason. Open the live view to see the sign-up page" }, state, filled };
         }
         state.signupTries = (state.signupTries ?? 0) + 1;
         await deps2.progress("creating your portal account");
@@ -7300,12 +7367,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         const h = await fillHard(page, deps2, state);
         filled += h.filled;
         if (h.outcome) return { outcome: h.outcome, state, filled };
-        const unknown2 = h.empty.filter((f) => !deps2.hasValue?.(f.label));
+        const unknown2 = h.empty.filter((f) => !deps2.hasValue?.(f.label) && !notAQuestion(state, f));
         if (unknown2.length) {
           for (const f of unknown2) ask(state, f);
           return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
         }
         now = await snap(page);
+      }
+      if (state.missingDocs?.length) {
+        return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
       }
       const submit = find(now, FINAL) ?? (deps2.finalButton ? find(now, deps2.finalButton) : void 0);
       if (submit) {
@@ -7317,11 +7387,31 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         await click(page, submit.id);
         continue;
       }
+      const add = now.buttons.find((b) => ADD_ANOTHER.test(clean(b.label)));
+      const addKind = add ? entryKind(clean(add.label)) : null;
+      if (add && addKind && deps2.fillFromKey) {
+        const done = state.entries?.[addKind] ?? 0;
+        const probe = await deps2.fillFromKey({ id: "probe", label: addKind === "edu" ? "Institution" : "Employer", type: "text" }, `${addKind}${done + 2}_${addKind === "edu" ? "institution" : "employer"}`);
+        const mark = `add|${addKind}|${done + 1}`;
+        if (probe && probe.action === "fill" && done < 5 && !(state.pressedAsked ?? []).includes(mark)) {
+          state.pressedAsked = [...state.pressedAsked ?? [], mark].slice(-30);
+          state.entries = { ...state.entries ?? {}, [addKind]: done + 1 };
+          await deps2.progress(`adding your ${addKind === "edu" ? "education" : "work"} entry ${done + 2}`);
+          await click(page, add.id);
+          continue;
+        }
+      }
       const haveLogin = !s2.fields.length && !!await deps2.existingLogin();
       const apply = !s2.fields.length ? bestApply(now, state.visited) : void 0;
       let next = find(now, NEXT) ?? (!s2.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s2.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? // a small sub-page (an address, a qualification) closes with OK / Done
       (s2.fields.length ? find(now, /^(ok|okay|done|update)$/i) : void 0) ?? apply;
-      if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) next = void 0;
+      if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) {
+        if (!state.newAppAllowedUsed && await deps2.allowNewApp?.()) state.newAppAllowedUsed = true;
+        else {
+          state.newAppBlocked = clean(next.label);
+          next = void 0;
+        }
+      }
       if (next) {
         const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
         if (formPage && deps2.beforeNext && !await deps2.beforeNext({ label: clean(next.label), title: now.title, url: now.url })) {
@@ -7439,8 +7529,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       state.submitClicked = true;
     }
     if (NEW_APP.test(label) && !markNewApp(state, label)) {
-      log(`didn't press "${label}": an application was started already`);
-      return null;
+      if (!state.newAppAllowedUsed && await deps2.allowNewApp?.()) state.newAppAllowedUsed = true;
+      else {
+        state.newAppBlocked = label;
+        log(`didn't press "${label}": an application was started already`);
+        return null;
+      }
     }
     log(`click "${label}"`);
     state.navClicks = (state.navClicks ?? 0) + 1;
@@ -7565,11 +7659,37 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         if (f.action === "fill" && ISO_DATE.test(f.value) && field?.type !== "date") f.value = dateAs(f.value, `${field?.label ?? ""} ${hint} ${await page.url()}`);
       }
     }
+    for (const kind of ["edu", "work"]) {
+      const done = state?.entries?.[kind] ?? 0;
+      if (!done || !deps2.fillFromKey) continue;
+      for (const f of fills) {
+        if (f.action === "skip" || !("source" in f) || !new RegExp(`^${kind}1_`).test(f.source)) continue;
+        const field = safe.find((x) => x.id === f.id);
+        const next = field ? await deps2.fillFromKey(field, f.source.replace(`${kind}1_`, `${kind}${done + 1}_`)) : null;
+        if (next) Object.assign(f, next);
+        else Object.assign(f, { action: "skip", reason: `no ${kind} entry ${done + 1}` });
+      }
+    }
+    for (const f of fills) {
+      const field = safe.find((x) => x.id === f.id);
+      if (f.action !== "fill" || !field?.maxLength || f.value.length <= field.maxLength) continue;
+      if (f.source.startsWith("essay:")) {
+        if (state) state.missingDocs = [.../* @__PURE__ */ new Set([...state.missingDocs ?? [], `a shorter "${cleanLabel(field.label, field.options).slice(0, 50)}" (the box takes ${field.maxLength} characters; yours has ${f.value.length})`])];
+        Object.assign(f, { action: "skip", reason: "too long" });
+        continue;
+      }
+      const cut = f.value.slice(0, field.maxLength);
+      f.value = (cut.lastIndexOf(" ") > field.maxLength * 0.6 ? cut.slice(0, cut.lastIndexOf(" ")) : cut).trim();
+    }
     for (const f of fills) {
       const n0 = n2;
       try {
         if (f.action === "skip") {
           const field2 = safe.find((x) => x.id === f.id);
+          if (state && field2?.type === "file" && field2.required) {
+            state.missingDocs = [.../* @__PURE__ */ new Set([...state.missingDocs ?? [], cleanLabel(field2.label, field2.options).slice(0, 80) || "a required document"])];
+            continue;
+          }
           if (state && f.reason.startsWith("missing:") && field2?.required) {
             state.missing = [.../* @__PURE__ */ new Set([...state.missing ?? [], f.reason.slice(8)])];
             ask(state, field2, f.reason.slice(8));
@@ -7577,9 +7697,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           continue;
         }
         if (f.action === "upload") {
-          const file = await deps2.file(f.file);
-          await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
+          const accept = await frameOf(page).evaluate((id) => String(window.__am?.byId?.(id)?.accept ?? ""), f.id).catch(() => "");
+          const pdf = !!state?.pdfOnly || /pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept);
+          const file = await deps2.file(f.file, { pdf });
+          await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
           n2++;
+          await sleep(1500);
+          await settle2(page);
           continue;
         }
         const field = safe.find((x) => x.id === f.id);
@@ -8242,13 +8366,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         return !!c?.stop;
       },
       map: async (fields) => (await apiJson("/api/runner/map", { method: "POST", body: JSON.stringify({ application: taskId, host: await host().catch(() => void 0), fields: fields.slice(0, 150).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })) }) })).fills,
-      file: async (key) => {
+      file: async (key, want) => {
         if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
         const f = sheets.get(taskId).files.find((x) => x.key === key);
         if (!f) throw new Error("file not in the packet");
-        const res = await api(f.url);
+        const res = await api(want?.pdf && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}pdf=1` : f.url);
         if (!res.ok) throw new Error("couldn't fetch " + f.label);
-        return { name: f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };
+        const named = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
+        return { name: named || f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };
       },
       // the server checks the packet is signed and paid for; then the applicant sees every answer and says submit.
       // nothing is submitted from this browser without that yes
@@ -8312,7 +8437,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         await setPhase(taskId, yes ? `pressing "${p.label.slice(0, 40)}"` : "waiting for you", yes ? "working" : "waiting");
         return !!yes;
       },
-      signInYourself: () => s2.pmSignIn
+      signInYourself: () => s2.pmSignIn,
+      allowNewApp: async () => !!(await eng(taskId, "allow_new_app").catch(() => ({}))).allow
     };
   }
   var sheets = /* @__PURE__ */ new Map();
@@ -8459,7 +8585,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         if (outcome.kind === "continue") continue;
         if (outcome.kind === "wait") {
           await setPhase(task.id, "waiting for an email", "waiting");
-          await nap(Math.min(outcome.seconds, 120) * 1e3);
+          await nap(Math.min(outcome.seconds, 30 * 60) * 1e3);
           await setPhase(task.id, "carrying on", "working");
           continue;
         }
