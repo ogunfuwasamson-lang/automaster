@@ -74,3 +74,19 @@ describe("peoplesoft dates", () => {
     expect(dateAs("1993-06-11", "Date of Birth https://pgapplication.manchester.ac.uk/psc/apply/EMPLOYEE/SA/c/X.GBL")).toBe("06/11/1993");
   });
 });
+
+import { USERNAME_TAKEN, withNumber } from "@/lib/cloud-engine";
+describe("a taken username on a sign-up form", () => {
+  it("recognises the portal saying so, but not a registered email", () => {
+    expect(USERNAME_TAKEN.test("This eID is already taken. Please choose another.")).toBe(true);
+    expect(USERNAME_TAKEN.test("Username not available")).toBe(true);
+    expect(USERNAME_TAKEN.test("That user name already exists")).toBe(true);
+    expect(USERNAME_TAKEN.test("This email address is already registered")).toBe(false);
+    expect(USERNAME_TAKEN.test("Password must be at least 10 characters")).toBe(false);
+  });
+  it("adds a number before the last name", () => {
+    expect(withNumber("samson.ogunfuwa", 2)).toBe("samson2.ogunfuwa");
+    expect(withNumber("samson2.ogunfuwa", 3)).toBe("samson3.ogunfuwa");
+    expect(withNumber("samsono", 2)).toBe("samsono2");
+  });
+});

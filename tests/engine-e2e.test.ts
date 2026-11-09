@@ -383,6 +383,33 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("reads the sign-up page's message box and retries a taken username with a number (calgary eID)", async () => {
+    const page = await browser.newPage();
+    const tried: string[] = [];
+    await page.exposeFunction("tryName", (n: string) => (tried.push(n), /\d/.test(n)));
+    await portal(page, {
+      "/register": () => `<h1>eID Account Registration</h1><div id="container_message"></div>
+        <form id="f"><label for="u">Username</label><input id="u" name="username" value="ada.okafor" required>
+        <label for="e">Email address</label><input id="e" name="emailaddress" type="email">
+        <label for="p1">Password</label><input id="p1" name="newPassword" type="password" required>
+        <label for="p2">Confirm Password</label><input id="p2" name="confirmPassword" type="password" required>
+        <input type="submit" value="Create eID"></form>
+        <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault();
+          if (await window.tryName(document.getElementById("u").value)) { location.href = "/welcome"; return; }
+          document.getElementById("container_message").innerHTML = '<div class="message-container fade in error"><div class="message pull-left"><div>This eID is already taken. Please choose another.</div></div></div>';
+          document.getElementById("p1").value = ""; document.getElementById("p2").value = ""; });</script>`,
+      "/welcome": () => `<h1>Your eID was created</h1><p>Thank you for submitting your application.</p>`,
+    });
+    await page.goto("https://portal.test/register");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    await runEngine(fromPlaywright(page), deps(), st, 40_000);
+    expect(tried.length).toBeGreaterThanOrEqual(2);
+    expect(tried[0]).not.toMatch(/\d/);
+    expect(tried.at(-1)).toMatch(/2/);
+    expect(page.url()).toContain("/welcome");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

@@ -48,6 +48,8 @@ export interface EngineState {
   lookedForReset?: boolean; // looked at the page for a password reset link once
   pressedAsked?: string[]; // buttons pressed because the page's text asked for them, by page
   typedUploads?: string[]; // documents sent through a choose-type-then-upload area, by site
+  usernameTries?: number; // usernames the portal said were taken (calgary's eID): the next try adds a number
+  signupTries?: number; // times the sign-up form was sent on this run
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -325,6 +327,27 @@ async function fillText(page: Page, id: string, value: string) {
     throw e;
   }
 }
+// "this eID is already taken", "username not available" (not an email that's registered already: that account exists)
+export const USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
+
+// the box that holds the username on a sign-up form
+function usernameBox(s: Snapshot) {
+  return s.allFields.find((f) => f.type !== "password" && f.type !== "email" && !/e-?mail/i.test(f.label) && /\b(user ?name|e-?id|user ?id|login ?(id|name))\b/i.test(`${f.label} ${f.name ?? ""}`));
+}
+
+async function valueOf(page: Page, id: string): Promise<string> {
+  return frameOf(page)
+    .evaluate((i: string) => String(((window as unknown as { __am?: { byId?(x: string): Element | null } }).__am?.byId?.(i) as HTMLInputElement | null)?.value ?? ""), id)
+    .catch(() => "");
+}
+
+// "samson.ogunfuwa" -> "samson2.ogunfuwa" (the number before the last name), "samsono" -> "samsono2"
+export function withNumber(name: string, n: number): string {
+  const dot = name.lastIndexOf(".");
+  if (dot > 0) return `${name.slice(0, dot).replace(/\d+$/, "")}${n}${name.slice(dot)}`;
+  return `${name.replace(/\d+$/, "")}${n}`;
+}
+
 class Redrawn extends Error {
   constructor() {
     super("the page redrew the box while it was being filled");
@@ -966,6 +989,22 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
 
     if (kind === "signup") {
       const login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail));
+      const said = (s.errors ?? []).join(" ").trim();
+      // the portal said why it didn't create the account. a username someone else has: try it with a number
+      // ("samson2.ogunfuwa" keeps calgary's ".lastname" rule). anything else, after a few tries: show the applicant
+      if (state.signupTries && USERNAME_TAKEN.test(said) && (state.usernameTries ?? 0) < 3) {
+        state.usernameTries = (state.usernameTries ?? 0) + 1;
+        const box = usernameBox(s);
+        const now = box ? await valueOf(page, box.id) : "";
+        if (box && now) {
+          const next = withNumber(now, state.usernameTries + 1);
+          await fillText(page, box.id, next);
+          state.navHistory = [...(state.navHistory ?? []), `the portal said the username was taken: trying "${next}"`].slice(-12);
+        }
+      } else if ((state.signupTries ?? 0) >= 3) {
+        return { outcome: { kind: "needs_you", reason: "account", note: said ? `the portal didn't create the account. It said: "${said.slice(0, 200)}"` : "the portal didn't create the account and showed no reason. Open the live view to see the sign-up page" }, state, filled };
+      }
+      state.signupTries = (state.signupTries ?? 0) + 1;
       await deps.progress("creating your portal account");
       // email (and confirm email) get the applicant's login email; everything else from the fill sheet
       const others = s.fields.filter((f) => f.type !== "password");

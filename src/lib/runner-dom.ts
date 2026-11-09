@@ -244,7 +244,7 @@ export const DOM_HELPER = String.raw`
       fields: fields(false),
       allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required })),
       buttons: buttons(),
-      errors: [...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message')]
+      errors: [...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message, .message-container.error, .alert-error, .alert-warning, .notification.is-danger, .toast-error, .msg-error, .error-msg, .errortext, .error-text')]
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
     };
   }
