@@ -132,3 +132,12 @@ describe("security answers (calgary eID)", () => {
     expect(notForApplicant("Have you previously applied to this university?")).toBe(false);
   });
 });
+
+import { LOGIN_REFUSED } from "@/lib/cloud-engine";
+describe("refused sign-in", () => {
+  it("knows the ways portals say no", () => {
+    for (const t of ["Unknown user ID or password", "Invalid username or password.", "The password does not match", "Identifiant inconnu", "We couldn't sign you in: email not recognised"])
+      expect(LOGIN_REFUSED.test(t), t).toBe(true);
+    for (const t of ["Sign in to your account", "Forgot your user ID?", "Unknown"]) expect(LOGIN_REFUSED.test(t), t).toBe(false);
+  });
+});

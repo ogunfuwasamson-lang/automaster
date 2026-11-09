@@ -367,6 +367,9 @@ const hostOf = (u: string) => {
 export const DEAD_END = /an error has occurred that has stopped this transaction|(your |the )?session (has )?(timed out|expired)|has timed out due to inactivity|this page has expired|page (is )?no longer (valid|available)/i;
 
 // "this eID is already taken", "username not available" (not an email that's registered already: that account exists)
+// a refused sign-in, in the words portals use ("Unknown user ID or password": hec montréal's peoplesoft)
+export const LOGIN_REFUSED = /\b(invalid|incorrect|wrong|not recogni[sz]ed|unrecogni[sz]ed|unknown (user|login|e-?mail|account|username|id)|failed|does not exist|doesn't exist|no account|not match|identifiant (inconnu|invalide)|mot de passe (invalide|incorrect))/i;
+
 export const USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
 
 // the box that holds the username on a sign-up form
@@ -1012,7 +1015,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       if (go) await click(page, go.id);
       else await frameOf(page).press(`[data-am-id="${pw.id}"]`, "Enter").catch(() => {});
       const after = await snap(page);
-      if (classify(after) === "login" && /(invalid|incorrect|wrong|not recogni[sz]ed|failed|does not exist|no account)/i.test(after.body)) {
+      if (classify(after) === "login" && LOGIN_REFUSED.test(`${after.body} ${(after.errors ?? []).join(" ")}`)) {
         // a login that has never worked on this application: the applicant hasn't created the account yet
         // the portal may have issued its own login by email (we pressed "create account" earlier, or you did)
         if (!state.triedMailLogin && deps.loginFromMail) {
