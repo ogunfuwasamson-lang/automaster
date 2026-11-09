@@ -512,6 +512,32 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("chooses from a button dropdown whose list appears only when opened (ut dallas salesforce)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/addr": () => `${FAKE_SHADOW}<c-form data-lwc><form action="/done"><input type="hidden" name="country" id="hv">
+        <label id="lbl">Mailing Address Country *</label>
+        <button type="button" role="combobox" aria-haspopup="listbox" aria-labelledby="lbl" aria-controls="lst" aria-expanded="false" id="cb">Select an Option</button>
+        <div id="lst" role="listbox"></div>
+        <button type="submit">Save and continue</button></form></c-form>
+        <script>
+          const cb = document.getElementById("cb"), lst = document.getElementById("lst");
+          cb.addEventListener("click", () => {
+            lst.innerHTML = ["Ghana", "Nigeria", "Niger"].map((c) => '<div role="option" tabindex="-1">' + c + "</div>").join("");
+            cb.setAttribute("aria-expanded", "true");
+            for (const o of lst.children) o.addEventListener("click", () => { cb.textContent = o.textContent; document.getElementById("hv").value = o.textContent; lst.innerHTML = ""; });
+          });
+        </script>`,
+      "/done": (q) => ((got = q.get("country") ?? ""), `<h1>Review</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/addr");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    await runEngine(fromPlaywright(page), deps(), st, 40_000);
+    expect(got).toBe("Nigeria");
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

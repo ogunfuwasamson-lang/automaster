@@ -21,3 +21,14 @@ describe("school id and quebec permanent code questions", () => {
     expect(isCodeBox({ type: "text", label: "Enter the PIN we emailed you" })).toBe(true);
   });
 });
+
+describe("address parts named at the end of the label (ut dallas)", () => {
+  it("maps each to its part, not the street line", () => {
+    expect(keyForLabel("Mailing Address Country *")).toBe("country");
+    expect(keyForLabel("Mailing Address City")).toBe("city");
+    expect(keyForLabel("Mailing Address State/Province")).toBe("state");
+    expect(keyForLabel("Mailing Address Zip/Postal Code")).toBe("postal_code");
+    expect(keyForLabel("Mailing Address Street")).toBe("address_line1");
+    expect(keyForLabel("Address line 2")).toBe("address_line2");
+  });
+});

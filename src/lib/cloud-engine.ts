@@ -1418,9 +1418,39 @@ async function resetStep(page: Page, deps: EngineDeps, s: Snapshot, state: Engin
   return "continue";
 }
 
+// a button-dropdown (salesforce lightning) whose list isn't built until it's opened: open it, read the options,
+// close it, so the choice is made from what's really there
+async function readAriaOptions(page: Page, fields: PageField[]) {
+  for (const f of fields.filter((x) => x.aria && !(x.options ?? []).length).slice(0, 12)) {
+    try {
+      await frameOf(page).click(`[data-am-id="${f.id}"]`, { timeout: 5_000 });
+      await sleep(700);
+      f.options = await frameOf(page)
+        .evaluate((i: string) => (window as unknown as { __am: { openOptions(i: string): string[] } }).__am.openOptions(i), f.id)
+        .catch(() => []);
+      await page.pressKey?.("Escape").catch(() => {});
+      await sleep(200);
+    } catch {
+      /* left without options: the mapper answers it as text, matched when chosen */
+    }
+  }
+}
+
+// choose in a button-dropdown: open it, click the option that matches
+async function chooseAria(page: Page, id: string, option: string): Promise<boolean> {
+  await frameOf(page).click(`[data-am-id="${id}"]`, { timeout: 8_000 });
+  await sleep(700);
+  const picked = await frameOf(page)
+    .evaluate((v: string) => (window as unknown as { __am: { pickOption(v: string): string | null } }).__am.pickOption(v), option)
+    .catch(() => null);
+  if (!picked) await page.pressKey?.("Escape").catch(() => {});
+  return !!picked;
+}
+
 async function applyFills(page: Page, deps: EngineDeps, fields: PageField[], state?: EngineState): Promise<number> {
   const safe = fields.filter((f) => !NEVER_FILL.test(`${f.label} ${f.name ?? ""}`));
   if (!safe.length) return 0;
+  await readAriaOptions(page, safe);
   return applyList(page, deps, safe, await deps.map(safe), state);
 }
 
@@ -1468,6 +1498,13 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
         continue;
       }
       const field = safe.find((x) => x.id === f.id);
+      if (field?.aria && (f.action === "choose" || f.action === "fill")) {
+        if (await chooseAria(page, f.id, f.action === "choose" ? f.option : f.value)) {
+          n++;
+          await settle(page);
+        }
+        continue;
+      }
       if (field?.combo && f.action === "fill") {
         const sel = `[data-am-id="${f.id}"]`;
         await frameOf(page).fill(sel, f.value, { timeout: 8_000 });

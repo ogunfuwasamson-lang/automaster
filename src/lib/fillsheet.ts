@@ -306,6 +306,11 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(do you|will you) (require|need) a (student )?visa|\bvisa (required|needed)|require a visa/i, "visa_required"],
   [/\b(start date|intake|entry (date|point|month)|course start|commenc|when (do|would) you (like|want|intend) to start)/i, "entry_start"],
   [/\bcountry\s*of\s*(permanent\s*)?residen/i, "country_of_residence"],
+  // "Mailing Address Country", "Mailing Address City" (ut dallas): the part named at the end wins over "address"
+  [/\b(address|mailing|home|current|permanent|residential|contact|postal)\b.*\bcountry\s*\*?\s*$/i, "country"],
+  [/\b(address|mailing|home|current|permanent|residential|contact)\b.*\b(city|town)\s*\*?\s*$/i, "city"],
+  [/\b(address|mailing|home|current|permanent|residential|contact)\b.*\b(state|province|county|region)\s*\*?\s*$/i, "state"],
+  [/\b(address|mailing|home|current|permanent|residential|contact)\b.*\b(zip|postal|post)\s*code\s*\*?\s*$/i, "postal_code"],
   [/\b(address|street)\b.*\b(2|two|line\s*2)\b/i, "address_line2"],
   [/\b(street|address)(\s*line\s*1)?\b/i, "address_line1"],
   [/\b(city|town)\b/i, "city"],

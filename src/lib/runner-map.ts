@@ -12,6 +12,7 @@ export interface PageField {
   options?: string[]; // select / radio choices, as shown
   required?: boolean;
   combo?: boolean; // a search-as-you-type box: type the value, then pick it from the list that appears
+  aria?: boolean; // a dropdown that is a button opening a list (salesforce lightning): open it, then click the option
   maxLength?: number; // the most characters the box takes
 }
 

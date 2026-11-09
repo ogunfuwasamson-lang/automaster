@@ -150,7 +150,33 @@ export const DOM_HELPER = String.raw`
         maxLength: el.maxLength > 0 && el.maxLength < 1000 ? el.maxLength : undefined,
         required: el.required || el.getAttribute("aria-required") === "true" || /\*\s*$|\*\s*\(/.test(label) || (type !== "checkbox" && /\*/.test(label) && label.length < 200) });
     }
+    // dropdowns that are a button opening a list (salesforce lightning's comboboxes, many react selects): a list
+    // field, with its options if the list is already on the page (lightning builds it on first opening)
+    for (const el of all('button[role="combobox"], [role="combobox"]:not(input):not(select):not(textarea), input[role="combobox"][readonly], button[aria-haspopup="listbox"]')) {
+      if (!visible(el) || el.closest('#onetrust-consent-sdk, [id*="cookie" i], [class*="cookie" i], [role="search"]')) continue;
+      const shown = ((el.tagName === "INPUT" ? el.value : textOf(el)) || "").trim();
+      const empty = !shown || /^(-+\s*)?(select|choose|please select|pick|none)\b/i.test(shown);
+      if (!includeFilled && !empty) continue;
+      const by = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean).map((i) => one("#" + CSS.escape(i))).filter(Boolean).map(textOf).join(" ");
+      const label = (labelFor(el) || el.getAttribute("aria-label") || by || "").replace(shown, "").trim() || by || shown;
+      out.push({ id: idOf(el), label, type: "select", aria: true, name: el.getAttribute("name") || undefined, options: ariaOptions(el),
+        required: el.getAttribute("aria-required") === "true" || /\*/.test(label) || !!el.closest('[aria-required="true"], .slds-is-required, .required') });
+    }
     return out.slice(0, 150);
+  }
+  // the options of a button-dropdown's list, if the list is on the page
+  function ariaOptions(el) {
+    const ctl = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    const list = ctl ? one("#" + CSS.escape(ctl)) : null;
+    const opts = list ? [...list.querySelectorAll('[role="option"]')] : [];
+    return opts.map((o) => (o.getAttribute("aria-label") || o.getAttribute("data-value") && textOf(o) || textOf(o)).trim()).filter(Boolean).slice(0, 400);
+  }
+  // after opening a button-dropdown: its options (the controlled list, or any list now showing)
+  function openOptions(id) {
+    const el = one('[data-am-id="' + id + '"]');
+    const own = el ? ariaOptions(el) : [];
+    if (own.length) return own;
+    return [...all('[role="option"]')].filter(visible).map((o) => textOf(o).trim()).filter(Boolean).slice(0, 400);
   }
   // anything a person would click: real buttons and links, tabs, and the clickable divs some portals use
   // ("Create account" as a <div onclick> or a tab). a generic clickable that wraps a real button is skipped.
@@ -242,7 +268,7 @@ export const DOM_HELPER = String.raw`
       confirmation: /(application (has been |was )?(successfully )?submitted|thank you for (submitting|applying|your application)|submission (is )?complete|your application is complete|confirmation (number|code))/i.test(body),
       fingerprint: [...all("h1, h2, h3, legend, label")].slice(0, 40).map(textOf).join("|").slice(0, 2000),
       fields: fields(false),
-      allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required })),
+      allFields: fields(true).map((f) => ({ id: f.id, label: f.label, type: f.type, name: f.name, autocomplete: f.autocomplete, required: f.required, aria: f.aria })),
       buttons: buttons(),
       errors: [...all('.error, .errors, [role="alert"], .invalid-feedback, .field-validation-error, .form_error, .validation-message, .has-error .help-block, .alert-danger, .errorMessage, .error-message, .message-container.error, .alert-error, .alert-warning, .notification.is-danger, .toast-error, .msg-error, .error-msg, .errortext, .error-text')]
         .filter(visible).map((e) => textOf(e)).filter((t) => t && t.length < 200).slice(0, 5),
@@ -310,6 +336,6 @@ export const DOM_HELPER = String.raw`
     return location.href + "|" + (document.body ? document.body.innerText.length : 0) + "|" + all("input,select,textarea").length + "|" + h + "|" + (a ? a.tagName + (a.getAttribute("data-am-mark") || "") : "") + "|" + scrollY;
   }
   const byId = (id) => one('[data-am-id="' + id + '"]');
-  window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig, byId };
+  window.__am = { snapshot, apply, fields, pickOption, at, selectAt, marks, clearMarks, sig, byId, openOptions };
 })();
 `;
