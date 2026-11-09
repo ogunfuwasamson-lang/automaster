@@ -722,6 +722,8 @@ export const runner: Record<string, Handler> = {
     state.leadBacks = 0;
     state.restarts = 0;
     state.signupTries = 0;
+    // look for an emailed login again each run: the inbox may have been connected since the last look
+    state.triedMailLogin = false;
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     // loaded only here, so the many routes that share this file don't carry the browser library

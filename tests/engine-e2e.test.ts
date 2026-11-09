@@ -440,7 +440,7 @@ d("portal engine: failures seen in production", () => {
     await page.goto("https://portal.test/front");
     const st: EngineState = { steps: 0, submitClicked: true };
     const d = deps({ portalUrl: "https://portal.test/front" });
-    d.logins.push({ login_email: "ada@example.com", password: "Pw-first-1A" });
+    d.logins.push({ login_email: "ada@example.com", password: "Pw-first-1A", status: "created" });
     await runEngine(fromPlaywright(page), d, st, 40_000);
     expect(created).toBe(true);
     expect(st.wentBackToCreate).toBe(true);
@@ -471,6 +471,24 @@ d("portal engine: failures seen in production", () => {
     const credit = new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}');
     const d = deps({ navigate: async () => { throw credit; }, see: async () => { throw credit; } });
     await expect(runEngine(fromPlaywright(page), d, { steps: 0 }, 30_000)).rejects.toThrow(/credit balance is too low/);
+    await page.close();
+  }, 60_000);
+
+  it("never creates a second account when the saved login has failed before (hec montréal)", async () => {
+    const page = await browser.newPage();
+    let created = false;
+    await portal(page, {
+      "/front": () => `<p>First connection? Click on Create account.</p><form action="/signin"><label for="u">User ID</label><input id="u" name="u"><label for="p">Password</label><input id="p" name="p" type="password">
+        <input type="button" value="Create account" onclick="location.href='/register'"> <input type="submit" value="Sign in"></form>`,
+      "/signin": () => `<p>Your HEC ID and/or Password are invalid.</p><form action="/signin"><label for="u">User ID</label><input id="u" name="u"><label for="p">Password</label><input id="p" name="p" type="password"><input type="submit" value="Sign in"></form>`,
+      "/register": () => ((created = true), `<h1>Create your account</h1>`),
+    });
+    await page.goto("https://portal.test/front");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const d = deps({ portalUrl: "https://portal.test/front" });
+    d.logins.push({ login_email: "ada@example.com", password: "Pw-first-1A", status: "failed" });
+    await runEngine(fromPlaywright(page), d, st, 40_000);
+    expect(created).toBe(false);
     await page.close();
   }, 60_000);
 

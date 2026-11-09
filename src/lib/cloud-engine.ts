@@ -1008,7 +1008,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
           // register: its registration page is /account/register on the same site. slate turns away a second account
           // for the same email itself, so this is safe even if one was started before
           const here = await page.url();
-          if (/\/account\/login\b/i.test(here) && login.status !== "verified" && !state.wentBackToCreate) {
+          // only for a login the agents made and never got to use ("created"): one that failed may have worked before
+          if (/\/account\/login\b/i.test(here) && login.status === "created" && !state.wentBackToCreate) {
             state.wentBackToCreate = true;
             state.createNext = false;
             const u = new URL(here);
@@ -1019,7 +1020,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
           }
           // never when an account may exist already: the login worked once, or the agents created one here before
           // (hec montréal emails its own user id and password on creation: that's a login to find, not a second account)
-          if (deps.portalUrl && !state.wentBackToCreate && login.status !== "verified" && !state.accountAt && (await page.url()) !== deps.portalUrl) {
+          if (deps.portalUrl && !state.wentBackToCreate && login.status === "created" && !state.accountAt && (await page.url()) !== deps.portalUrl) {
             state.createNext = true;
             state.wentBackToCreate = true;
             state.navHistory = [...(state.navHistory ?? []), "the saved login has never worked here: back to the portal's front page to create the account"].slice(-12);
