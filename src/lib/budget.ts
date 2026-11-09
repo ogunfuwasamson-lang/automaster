@@ -3,6 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import { budgetCheck, categoryOf, monthStartUTC, type Category, type Spend } from "@/lib/pricing";
 import { BUDGET_PER_SUBMISSION_USD, planOf, type Plan } from "@/lib/plans";
 import { PACK_SIZE } from "@/lib/geo-pricing";
+import { runsSince } from "@/lib/runs";
 
 const STAFF_BUDGET_USD = 500;
 
@@ -37,15 +38,10 @@ export async function monthlyBudget(userId: string): Promise<number> {
 }
 
 export async function monthSpend(userId: string): Promise<Spend> {
-  const { data } = await admin()
-    .from("agent_runs")
-    .select("agent, cost_usd")
-    .eq("user_id", userId)
-    .gte("started_at", monthStartUTC())
-    .not("cost_usd", "is", null)
-    .limit(10000);
+  // all of the month's calls, not the first 1,000: a capped read let a busy account run past its budget
+  const data = await runsSince<{ agent: string; cost_usd: number | null }>("agent, cost_usd", monthStartUTC(), userId);
   const s: Spend = { total: 0, byCategory: { research: 0, writing: 0, core: 0 } };
-  for (const r of data ?? []) {
+  for (const r of data) {
     const c = Number(r.cost_usd) || 0;
     s.total += c;
     s.byCategory[categoryOf(r.agent)] += c;

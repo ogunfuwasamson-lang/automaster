@@ -32,13 +32,28 @@ export function cachedSystem(text: string): TextBlockParam[] {
   return [{ type: "text", text, cache_control: { type: "ephemeral" } }];
 }
 
-export async function recordUsage(runId: string, model: string, msg: Pick<Message, "usage">, extra: Record<string, unknown> = {}) {
+// one run's calls (usually one; two when a cut-off answer was asked again), each priced on its own:
+// haiku's price tier goes by each prompt's length
+export function usageTotals(model: string, calls: Message["usage"][]) {
+  let input = 0;
+  let output = 0;
+  let cost = 0;
+  for (const u of calls) {
+    input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+    output += u.output_tokens;
+    cost += costOf(model, u);
+  }
+  return { input, output, cost: Math.round(cost * 1e6) / 1e6 };
+}
+
+export async function recordUsage(runId: string, model: string, calls: Message["usage"][], extra: Record<string, unknown> = {}) {
+  const t = usageTotals(model, calls);
   await admin()
     .from("agent_runs")
     .update({
-      input_tokens: msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0),
-      output_tokens: msg.usage.output_tokens,
-      cost_usd: costOf(model, msg.usage),
+      input_tokens: t.input,
+      output_tokens: t.output,
+      cost_usd: t.cost,
       ...extra,
     })
     .eq("id", runId);
@@ -99,6 +114,9 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
   ];
 
   let msg: Message | null = null;
+  // a cut-off first answer is billed too: carry its usage into what the run records
+  let earlier: Message["usage"] | null = null;
+  const billed = (m: Message | null) => [...(earlier ? [earlier] : []), ...(m ? [m.usage] : [])];
   try {
     // stream so long outputs never hit http timeouts; parse ourselves so failures say why.
     // an answer cut off by the token limit comes back as unparseable json: ask once more with room to finish.
@@ -122,6 +140,8 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
         break;
       } catch (e) {
         if (attempt === 0 && /Failed to parse structured output|max_tokens/i.test(String(e))) {
+          if (msg) earlier = msg.usage;
+          msg = null;
           limit = Math.min(16_000, Math.max(limit * 3, 2000));
           continue;
         }
@@ -143,11 +163,11 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
     if (!checked.success) checked = args.schema.safeParse(repairEnums(json, checked.error.issues));
     if (!checked.success) throw new Error(`output failed schema: ${checked.error.message.slice(0, 500)}`);
     const output = checked.data;
-    await recordUsage(run.id, model, msg, { status: "done", output, finished_at: new Date().toISOString() });
+    await recordUsage(run.id, model, billed(msg), { status: "done", output, finished_at: new Date().toISOString() });
     return { output: output as z.infer<S>, runId: run.id as string };
   } catch (e) {
     // a failed call that reached the model was still billed: meter it
-    if (msg) await recordUsage(run.id, model, msg, {});
+    if (msg || earlier) await recordUsage(run.id, model, billed(msg), {});
     await db.from("agent_runs").update({ status: "failed", error: String(e), finished_at: new Date().toISOString() }).eq("id", run.id);
     await tripAi(e).catch(() => {});
     throw e;

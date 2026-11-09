@@ -1,3 +1,4 @@
+import { runsSince } from "@/lib/runs";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { admin } from "@/lib/supabase/admin";
@@ -222,17 +223,19 @@ function Daily({ dates }: { dates: string[] }) {
 
 export async function OverviewView({ since, everyone }: { since: string; everyone: boolean }) {
   const db = admin();
-  const [h, d, { data: runs }, { data: pays }] = await Promise.all([
+  const [h, d, runs, { data: pays }] = await Promise.all([
     health(),
     loadAdmin(),
-    db.from("agent_runs").select("user_id, cost_usd").gte("started_at", since).limit(50000),
+    runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", since),
     db.from("billing_events").select("user_id, kind, amount, currency").gte("created_at", since),
   ]);
   const { users, apps, hidden } = scope(d, everyone);
   const ids = new Set(users.map((u) => u.id));
   const week = (iso: string | null) => !!iso && Date.now() - Date.parse(iso) < 7 * 86_400_000;
-  const cost = (runs ?? []).filter((r) => ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
-  const teamCost = (runs ?? []).filter((r) => !ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  // the bill is the bill: the headline is everything spent; the split says how much went on real users
+  const spent = runs.reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  const cost = runs.filter((r) => ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  const teamCost = spent - cost;
   const payers = new Set((pays ?? []).filter((p) => ids.has(p.user_id)).map((p) => p.user_id));
   const reached = (k: string) => users.filter((u) => k === "signup" || u.journey.at[k as keyof typeof u.journey.at]).length;
   const submittedApps = apps.filter((a) => SUBMITTED.has(a.status)).length;
@@ -261,7 +264,11 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
         <Stat label="Reached a shortlist" value={`${reached("shortlist")}`} sub={`${users.length ? Math.round((reached("shortlist") / users.length) * 100) : 0}% of sign-ups`} />
         <Stat label="Signed a packet" value={`${reached("signed")}`} sub={`${users.length ? Math.round((reached("signed") / users.length) * 100) : 0}% of sign-ups`} />
         <Stat label="Submitted" value={`${submittedApps}`} sub={`application${submittedApps === 1 ? "" : "s"}, ${submitters} user${submitters === 1 ? "" : "s"}`} tone={submittedApps ? "go" : undefined} />
-        <Stat label="AI cost this month" value={$(cost)} sub={`${$(cost / Math.max(1, users.length))} a user${teamCost ? `, ${$(teamCost)} on team accounts` : ""}${payers.size ? `, ${payers.size} paying` : ""}`} />
+        <Stat
+          label="AI cost this month"
+          value={$(spent)}
+          sub={`${$(cost)} on ${everyone ? "all" : "real"} users (${$(cost / Math.max(1, users.length))} each)${teamCost > 0.005 ? `, ${$(teamCost)} on team and test accounts` : ""}${payers.size ? `, ${payers.size} paying` : ""}`}
+        />
       </dl>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -340,9 +347,9 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
 }
 
 export async function UsersView({ since, everyone }: { since: string; everyone: boolean }) {
-  const [d, { data: runs }] = await Promise.all([loadAdmin(), admin().from("agent_runs").select("user_id, cost_usd").gte("started_at", since).limit(50000)]);
+  const [d, runs] = await Promise.all([loadAdmin(), runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", since)]);
   const spend = new Map<string, number>();
-  for (const r of runs ?? []) spend.set(r.user_id, (spend.get(r.user_id) ?? 0) + (Number(r.cost_usd) || 0));
+  for (const r of runs) spend.set(r.user_id, (spend.get(r.user_id) ?? 0) + (Number(r.cost_usd) || 0));
   const { users, hidden } = scope(d, everyone);
   const stageLabel = (k: string) => STAGES.find((s) => s.key === k)?.label ?? k;
   const count = (u: AdminUser, sts: string[]) => sts.reduce((n, s) => n + (u.apps[s] ?? 0), 0);
@@ -571,14 +578,18 @@ function RunList({ rows }: { rows: Record<string, unknown>[] }) {
 export async function CostsView({ since }: { since: string }) {
   const team = await teamIds();
   const db = admin();
-  const [{ data: users }, { data: runs }] = await Promise.all([
+  type Run = { user_id: string; agent: string; model: string; cost_usd: number | null; input_tokens: number | null; output_tokens: number | null };
+  const [{ data: users }, all] = await Promise.all([
     db.from("profiles").select("id, email, plan, monthly_budget_usd"),
-    db.from("agent_runs").select("user_id, agent, model, cost_usd, input_tokens, output_tokens").gte("started_at", since).limit(50000),
+    runsSince<Run>("user_id, agent, model, cost_usd, input_tokens, output_tokens", since),
   ]);
+  // a call the api turned away (no credit, overloaded) never reached the model and cost nothing: count it apart
+  const runs = all.filter((r) => r.cost_usd != null || (r.input_tokens ?? 0) > 0);
+  const refused = all.length - runs.length;
   type Row = { cost: number; cat: Record<Category, number>; calls: number };
   const perUser = new Map<string, Row>();
   const perAgent = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
-  for (const r of runs ?? []) {
+  for (const r of runs) {
     const c = Number(r.cost_usd) || 0;
     const u = perUser.get(r.user_id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 };
     u.cost += c;
@@ -594,14 +605,15 @@ export async function CostsView({ since }: { since: string }) {
     perAgent.set(key, a);
   }
   const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
+  const teamSpend = [...perUser.entries()].filter(([id]) => team.has(id)).reduce((s, [, u]) => s + u.cost, 0);
   const agents = [...perAgent.entries()].sort((a, b) => b[1].cost - a[1].cost);
   const top = agents[0]?.[1].cost || 1;
   return (
     <div className="space-y-10">
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="AI cost this month" value={$(total)} />
-        <Stat label="Calls" value={k((runs ?? []).length)} />
-        <Stat label="Per call" value={$(total / Math.max(1, (runs ?? []).length))} />
+        <Stat label="AI cost this month" value={$(total)} sub={`${$(total - teamSpend)} real users, ${$(teamSpend)} team and test`} />
+        <Stat label="Billed calls" value={k(runs.length)} sub={refused ? `${k(refused)} more turned away by the API, not billed` : undefined} />
+        <Stat label="Per call" value={$(total / Math.max(1, runs.length))} />
         <Stat label="Most expensive agent" value={agents[0]?.[0].split(" · ")[0] ?? "none"} sub={agents[0] ? $(agents[0][1].cost) : undefined} />
       </dl>
       <Section title="By agent and model">
@@ -745,9 +757,9 @@ async function lessonData() {
   if (error) return empty;
   const rows = data ?? [];
   const global = rows.filter((l) => l.scope === "global");
-  const { data: runs } = await db.from("agent_runs").select("lesson_ids").not("lesson_ids", "is", null).gte("started_at", monthStartUTC()).limit(20000);
+  const runs = await runsSince<{ lesson_ids: string[] | null }>("lesson_ids", monthStartUTC());
   const uses = new Map<string, number>();
-  for (const r of runs ?? []) for (const id of (r.lesson_ids as string[]) ?? []) uses.set(id, (uses.get(id) ?? 0) + 1);
+  for (const r of runs) for (const id of (r.lesson_ids as string[]) ?? []) uses.set(id, (uses.get(id) ?? 0) + 1);
   const withUses = (xs: typeof rows) => xs.map((l) => ({ ...l, uses: uses.get(l.id) ?? 0 }));
   const personal = rows.filter((l) => l.scope === "user" && l.status === "active");
   return {
