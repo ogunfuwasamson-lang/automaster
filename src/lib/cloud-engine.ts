@@ -784,9 +784,12 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
     // not when the form says what's wrong (a validation message, an empty required box): that's ours to fix
-    const formComplains = /(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error|please (enter|select|provide|choose|complete)|is required|required field|must (be|contain|match|include)|do(es)? not match|too (short|long))/i.test(s.body);
+    // (pop-up messages and error boxes count: peoplesoft says "All the fields marked with * are mandatory" in an alert)
+    const formComplains = /(invalid|do(es)? not exist|already (exists|registered|in use)|not (be )?found|error|please (enter|select|provide|choose|complete)|is required|are mandatory|is mandatory|required field|must (be|contain|match|include)|do(es)? not match|too (short|long))/i.test(`${s.body} ${alertText} ${(s.errors ?? []).join(" ")}`);
     const blankRequired = s.fields.some((f) => f.required && f.type !== "checkbox"); // s.fields holds the boxes still empty
-    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired) {
+    // a password change isn't a sign-up (hec montréal's "Change Password" page)
+    const changingPassword = s.allFields.some((f) => f.type === "password" && /\b(current|old|existing|temporary)\b/i.test(`${f.label} ${f.name ?? ""}`)) || CHANGE_PW.test(s.body.slice(0, 1500));
+    if (state.samePageCount >= 2 && REGISTER_PAGE.test(`${s.url} ${s.title}`) && !(state.missing ?? []).length && !formComplains && !blankRequired && !changingPassword) {
       return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
     }
     // a message box over the form ("Message: The system does not understand the date… [OK]", peoplesoft's
@@ -1070,6 +1073,9 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         state.passwordChanges = (state.passwordChanges ?? 0) + 1;
         await deps.progress("the portal asked for a new password: setting one and saving it under Portal logins");
         const fresh = await deps.rotatePassword();
+        // hec's change form also asks for the user id: the login's own (not the email, when the portal issued one)
+        const userBox = s.fields.find((f) => f.type !== "password" && /\b(user\s*(id|name)|login\s*(id|name)?|identifiant|matricule|e-?mail)\b/i.test(`${f.label} ${f.name ?? ""}`));
+        if (userBox) await fillText(page, userBox.id, now.login_email);
         await fillText(page, currentBox.id, now.password);
         for (const p of pwBoxes) if (p.id !== currentBox.id) await fillText(page, p.id, fresh.password);
         state.navHistory = [...(state.navHistory ?? []), "changed the portal password as it asked, and saved the new one"].slice(-12);

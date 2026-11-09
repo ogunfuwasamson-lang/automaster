@@ -496,7 +496,7 @@ d("portal engine: failures seen in production", () => {
     const page = await browser.newPage();
     let sent: Record<string, string> = {};
     await portal(page, {
-      "/change": () => `<h1>Change password</h1><p>You must change your password before continuing.</p><form action="/home"><label for="o">Current password</label><input id="o" name="o" type="password"><label for="n">New password</label><input id="n" name="n" type="password"><label for="c">Confirm new password</label><input id="c" name="c" type="password"><input type="submit" value="Change Password"></form>`,
+      "/change": () => `<h1>Change password</h1><p>You must change your password before continuing.</p><form action="/home"><label for="u">User ID</label><input id="u" name="u"><label for="o">Current password</label><input id="o" name="o" type="password"><label for="n">New password</label><input id="n" name="n" type="password"><label for="c">Confirm new password</label><input id="c" name="c" type="password"><input type="submit" value="Change Password"></form>`,
       "/home": (q) => ((sent = Object.fromEntries(q)), `<h1>Welcome</h1><p>Thank you for submitting your application.</p>`),
     });
     await page.goto("https://portal.test/change");
@@ -506,6 +506,7 @@ d("portal engine: failures seen in production", () => {
     let rotated = "";
     d.rotatePassword = async () => ((rotated = "Fresh-Pw-12345!"), { login_email: "samplename", password: rotated, status: "created" });
     await runEngine(fromPlaywright(page), d, st, 30_000);
+    expect(sent.u).toBe("samplename");
     expect(sent.o).toBe("Issued-9Ab/7x");
     expect(sent.n).toBe(rotated);
     expect(sent.c).toBe(rotated);
