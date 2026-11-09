@@ -12,6 +12,7 @@ import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
+import { SITE } from "@/lib/site";
 import { aiPausedUntil } from "@/lib/ai-health";
 
 export const runtime = "nodejs";
@@ -40,6 +41,8 @@ async function handle(req: NextRequest) {
   if (tick) await sweepResumable().catch(() => 0);
   if (tick) await sweepOrphans().catch(() => 0);
   // once a day: tell search engines about library pages that are new or re-checked since yesterday
+  // the school directory's first announcement to IndexNow: once, then only new or re-checked pages daily
+  if (tick) await announceSchoolsOnce().catch(() => null);
   if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) {
     const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     await submitIndexNow(publicUrls(since)).catch(() => null);
@@ -68,6 +71,17 @@ async function handle(req: NextRequest) {
     );
   }
   return NextResponse.json({ ran: results.length, results, mail: mail.length, digests, runner: count ?? 0 });
+}
+
+async function announceSchoolsOnce() {
+  const db = admin();
+  const KEY = "indexnow_schools_v1";
+  const { data } = await db.from("billing_settings").select("value").eq("key", KEY).maybeSingle();
+  if (data?.value) return;
+  await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
+  const urls = await schoolUrls("2000-01-01");
+  const hubs = ["/schools", "/schools/us", "/schools/uk"].map((p) => `${SITE.url}${p}`);
+  await submitIndexNow([...hubs, ...urls]);
 }
 
 async function scheduleLearning() {
