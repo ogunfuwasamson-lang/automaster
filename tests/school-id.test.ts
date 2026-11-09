@@ -40,3 +40,12 @@ describe("name-built user ids", () => {
     expect(keyForLabel("eID")).toBe("username");
   });
 });
+
+import { resolve } from "@/lib/runner-map";
+describe("yes/no id keys never go into a number box", () => {
+  it("leaves calgary's UCID box empty", () => {
+    const sheet = { fields: { has_school_id: "No" }, files: [], essays: [], answers: [] } as never;
+    expect(resolve({ id: "u", label: "The UCID number If you have a UCID number", type: "text" } as never, "has_school_id", sheet)).toBeNull();
+    expect(resolve({ id: "s", label: "Do you have a McGill ID number?", type: "radio", options: ["Yes", "No"] } as never, "has_school_id", sheet)).toMatchObject({ action: "choose", option: "No" });
+  });
+});

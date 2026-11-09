@@ -259,6 +259,9 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
   if (f.type === "file") return sheet.files.some((x) => x.key === key) ? { id: f.id, action: "upload", file: key, source: key } : null;
   const value = sheet.fields[key];
   if (!value) return null;
+  // "do you have a … number?" keys answer a yes/no question. a box that wants the number itself stays empty
+  // (calgary's optional UCID box got "No" and the form refused it)
+  if (/^has_/.test(key) && f.type !== "select" && f.type !== "radio" && f.type !== "checkbox") return null;
   // "are you registering on behalf of someone / through an agent?" with Yes / No: applying for oneself is No
   if (key === "applying_as" && /^myself$/i.test(value) && (f.type === "select" || f.type === "radio")) {
     const opts = f.options ?? [];
