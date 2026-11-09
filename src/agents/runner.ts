@@ -4,7 +4,7 @@ import { cleanLabel } from "@/lib/labels";
 import * as z from "zod/v4";
 import type { Handler } from "./index";
 import { admin } from "@/lib/supabase/admin";
-import { enqueue } from "@/lib/queue";
+import { enqueue, otherRunActive } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
@@ -678,6 +678,7 @@ export const runner: Record<string, Handler> = {
     const app = await loadApp(job.user_id, applicationId);
     const { data: row0 } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
     if (!app || app.status !== "packet_approved" || !["ready", "running", "needs_you"].includes(app.runner_status as string)) return { skipped: "not queued" };
+    if (await otherRunActive(applicationId, job.id)) return { skipped: "another run is working on this application" };
     // the applicant's chrome has this one, or they're driving it in the live browser
     if (row0?.runner_mode === "extension") return { skipped: "running in the applicant's chrome" };
     if (await liveActive(applicationId)) return { skipped: "live browser open" };

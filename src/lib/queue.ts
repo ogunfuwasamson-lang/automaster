@@ -42,3 +42,19 @@ export async function enqueue(j: {
   return data?.id as string | undefined;
 }
 
+
+// another portal run is working on this application right now (a fresh lock): two browsers on one portal account
+// would fight over it, so a second run steps aside
+export async function otherRunActive(applicationId: string, exceptJobId: string): Promise<boolean> {
+  const { data } = await admin()
+    .from("jobs")
+    .select("id")
+    .eq("agent", "runner")
+    .eq("task", "run")
+    .eq("status", "running")
+    .neq("id", exceptJobId)
+    .gt("locked_at", new Date(Date.now() - 10 * 60_000).toISOString())
+    .contains("payload", { applicationId })
+    .limit(1);
+  return !!data?.length;
+}
