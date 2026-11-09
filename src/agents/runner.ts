@@ -27,7 +27,7 @@ import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
 import { askToPay, paymentNeeded, spendBonusIfUsed } from "@/lib/billing";
 import { rewardInviter } from "@/lib/referrals";
-import { aiPausedNow, assertAiAvailable } from "@/lib/ai-health";
+import { aiPausedNow, ensureAiWorks } from "@/lib/ai-health";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
@@ -667,8 +667,9 @@ export const runner: Record<string, Handler> = {
   },
 
   "runner.run": async (job) => {
-    // AI paused (credit or key): the job waits (jobs.ts parks it) instead of opening a browser it can't drive
-    await assertAiAvailable();
+    // AI paused (credit or key), or not yet shown to work again: the job waits (jobs.ts parks it) instead of
+    // opening a browser it can't drive
+    await ensureAiWorks();
     const { applicationId } = job.payload as { applicationId: string };
     const db = admin();
     const app = await loadApp(job.user_id, applicationId);
@@ -716,6 +717,8 @@ export const runner: Record<string, Handler> = {
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
     state.leadBacks = 0;
+    state.restarts = 0;
+    state.signupTries = 0;
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     // loaded only here, so the many routes that share this file don't carry the browser library

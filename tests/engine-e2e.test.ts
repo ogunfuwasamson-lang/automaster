@@ -410,6 +410,23 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("starts again from the portal when the portal ends the session (manchester peoplesoft)", async () => {
+    const page = await browser.newPage();
+    let got = "";
+    await portal(page, {
+      "/psc/broken": () => `<a href="#">New Window</a> <a href="#">Personalize Page</a><p>An error has occurred that has stopped this transaction from continuing.</p>`,
+      "/start": () => `<form action="/done"><label for="fn">First name *</label><input id="fn" name="fn" required><button type="submit">Save and continue</button></form>`,
+      "/done": (q) => ((got = q.get("fn") ?? ""), `<h1>Review</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/psc/broken");
+    const st: EngineState = { steps: 0, submitClicked: true };
+    const r = await runEngine(fromPlaywright(page), deps({ portalUrl: "https://portal.test/start" }), st, 30_000);
+    expect(got).toBe("Ada");
+    expect(r.outcome.kind).toBe("submitted");
+    expect(st.restarts).toBe(1);
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

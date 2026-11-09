@@ -6,6 +6,8 @@ import { admin } from "@/lib/supabase/admin";
 // AI work for a while, tell the operator once, and let queued jobs wait instead of failing.
 
 const KEY = "ai_paused_until";
+const TRIPPED = "ai_tripped_at"; // when an account error last paused AI work
+const PROBED = "ai_probe_ok_at"; // when a test call last worked
 const PAUSE_MS = 15 * 60_000;
 let cache: { until: number; checked: number } | null = null;
 
@@ -49,7 +51,10 @@ export async function tripAi(e: unknown) {
   const before = await aiPausedUntil().catch(() => 0);
   cache = { until, checked: Date.now() };
   const db = admin();
-  await db.from("billing_settings").upsert({ key: KEY, value: new Date(until).toISOString() });
+  await db.from("billing_settings").upsert([
+    { key: KEY, value: new Date(until).toISOString() },
+    { key: TRIPPED, value: new Date().toISOString() },
+  ]);
   if (before > Date.now() - PAUSE_MS) return; // already paused recently: don't notify again
   const { data: ops } = await db.from("profiles").select("id").eq("is_admin", true).limit(3);
   const { notify } = await import("@/lib/notify");
@@ -63,4 +68,30 @@ export async function tripAi(e: unknown) {
       urgent: true,
       email: true,
     }).catch(() => {});
+}
+
+// after an account error, the pause running out doesn't mean the credit came back. before any work starts (and
+// before a browser opens a portal it then can't finish), one tiny call checks: a fraction of a cent, once per
+// pause. without it, every expired pause restarted portal runs that filled forms and then failed (manchester: 60
+// starts in a day, its sign-up sent again and again)
+let probedOk = 0;
+export async function ensureAiWorks(): Promise<void> {
+  await assertAiAvailable();
+  const db = admin();
+  const { data } = await db.from("billing_settings").select("key, value").in("key", [TRIPPED, PROBED]);
+  const at = (k: string) => Date.parse(data?.find((r) => r.key === k)?.value ?? "") || 0;
+  const tripped = at(TRIPPED);
+  if (!tripped || Math.max(at(PROBED), probedOk) > tripped) return;
+  try {
+    const { llm } = await import("@/lib/llm");
+    await llm().messages.create({ model: process.env.AGENT_MODEL_CHEAP ?? "claude-haiku-5-5", max_tokens: 1, messages: [{ role: "user", content: "ok" }] });
+  } catch (e) {
+    if (isAccountError(e)) {
+      await tripAi(e);
+      throw new AiUnavailable(Date.now() + PAUSE_MS);
+    }
+    return; // overloaded, a network blip: not an account problem, let the work try
+  }
+  probedOk = Date.now();
+  await db.from("billing_settings").upsert({ key: PROBED, value: new Date().toISOString() });
 }

@@ -13,7 +13,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
 import { SITE } from "@/lib/site";
-import { aiPausedUntil } from "@/lib/ai-health";
+import { aiPausedUntil, ensureAiWorks } from "@/lib/ai-health";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -53,6 +53,8 @@ async function handle(req: NextRequest) {
   // the nightly learning pass (02:00 UTC), run under a staff account
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
   // the AI provider refused calls for an account reason (credit, key): hold the queue instead of failing it
+  // (a pause that ran out is checked with one small call before any job starts)
+  await ensureAiWorks().catch(() => null);
   const pausedUntil = await aiPausedUntil().catch(() => 0);
   if (pausedUntil > Date.now()) {
     const mail = await sendDue().catch(() => []);

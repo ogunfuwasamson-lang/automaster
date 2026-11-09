@@ -50,6 +50,7 @@ export interface EngineState {
   typedUploads?: string[]; // documents sent through a choose-type-then-upload area, by site
   usernameTries?: number; // usernames the portal said were taken (calgary's eID): the next try adds a number
   signupTries?: number; // times the sign-up form was sent on this run
+  restarts?: number; // times this run started again from the portal after the portal ended the session
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
@@ -327,6 +328,9 @@ async function fillText(page: Page, id: string, value: string) {
     throw e;
   }
 }
+// the portal ended the session: the page is a dead end, not a step to work on
+export const DEAD_END = /an error has occurred that has stopped this transaction|(your |the )?session (has )?(timed out|expired)|has timed out due to inactivity|this page has expired|page (is )?no longer (valid|available)/i;
+
 // "this eID is already taken", "username not available" (not an email that's registered already: that account exists)
 export const USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
 
@@ -847,6 +851,16 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       // the usual moves aren't working on this page: let the navigator look at it
       const o = await stuckStep(page, deps, s, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
       if (o) return { outcome: o, state, filled };
+      continue;
+    }
+
+    // a page that ends the session ("An error has occurred that has stopped this transaction", "your session has
+    // expired"): nothing on it can be filled or pressed. start again from the portal's front door, twice a run at most
+    if (deps.portalUrl && DEAD_END.test(s.body.slice(0, 2000)) && s.fields.length === 0 && (state.restarts ?? 0) < 2) {
+      state.restarts = (state.restarts ?? 0) + 1;
+      state.navHistory = [...(state.navHistory ?? []), `the portal ended the session ("${(s.body.match(DEAD_END)?.[0] ?? "").slice(0, 60)}"): started again from the portal`].slice(-20);
+      await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => null);
+      state.samePageCount = 0;
       continue;
     }
 
