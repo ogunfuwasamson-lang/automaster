@@ -674,6 +674,8 @@ export const runner: Record<string, Handler> = {
     // opening a browser it can't drive
     await ensureAiWorks();
     const { applicationId } = job.payload as { applicationId: string };
+    // a job that names no application is a bug upstream: fail it where it shows, never "done"
+    if (!applicationId) throw new Error("runner.run: the job's payload has no applicationId");
     const db = admin();
     const app = await loadApp(job.user_id, applicationId);
     const { data: row0 } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
