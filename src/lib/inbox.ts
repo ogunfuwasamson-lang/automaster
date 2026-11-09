@@ -37,7 +37,7 @@ const Classified = z.object({
 });
 
 const SYSTEM = `you read one email an applicant received from a university and say what it means for their application.
-kinds: decision_admit / decision_reject / decision_waitlist (a final or waitlist decision), interview_invite, document_request (they want a document, score, transcript, reference), action_required (anything else the applicant must do: deposit, form, deadline, payment), aid_offer (scholarship/assistantship/funding offered), fee_waiver_reply, account_or_verification (logins, codes, password resets), submission_receipt (application received/complete), info_or_marketing (newsletters, events, generic info).
+kinds: decision_admit / decision_reject / decision_waitlist (a final or waitlist decision), interview_invite, document_request (they want a document, score, transcript, reference), action_required (anything else the applicant must do: deposit, form, deadline, payment), aid_offer (scholarship/assistantship/funding offered), fee_waiver_reply, account_or_verification (logins, codes, password resets), submission_receipt (the school confirms the application was SUBMITTED or received as complete; an email that only says an application or account was created, started or saved is account_or_verification, not this), info_or_marketing (newsletters, events, generic info).
 summary: one plain sentence. action_needed: what the applicant must do, or "" if nothing. due_date: YYYY-MM-DD if the email gives a deadline, else "". aid_amount_usd: yearly amount in USD if an aid offer states one (convert roughly), else 0.
 only decide "decision_*" when the email itself states the decision; "your decision is available in the portal" is action_required (log in to read it).`;
 
@@ -114,7 +114,7 @@ export async function checkInbox(userId: string, jobId?: string) {
       userId,
       agent: "inbox",
       jobId,
-      promptVersion: "inbox-v1",
+      promptVersion: "inbox-v2",
       tier: "cheap",
       system: SYSTEM,
       prompt: `from: ${m.from}\nsubject: ${m.subject}\n\n${mailText(m).slice(0, 5000)}`,
