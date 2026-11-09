@@ -492,6 +492,26 @@ d("portal engine: failures seen in production", () => {
     await page.close();
   }, 60_000);
 
+  it("changes the password when the portal requires it, saving the new one first (hec montréal)", async () => {
+    const page = await browser.newPage();
+    let sent: Record<string, string> = {};
+    await portal(page, {
+      "/change": () => `<h1>Change password</h1><p>You must change your password before continuing.</p><form action="/home"><label for="o">Current password</label><input id="o" name="o" type="password"><label for="n">New password</label><input id="n" name="n" type="password"><label for="c">Confirm new password</label><input id="c" name="c" type="password"><input type="submit" value="Change Password"></form>`,
+      "/home": (q) => ((sent = Object.fromEntries(q)), `<h1>Welcome</h1><p>Thank you for submitting your application.</p>`),
+    });
+    await page.goto("https://portal.test/change");
+    const st: EngineState = { steps: 0, submitClicked: true, signedIn: true };
+    const d = deps();
+    d.logins.push({ login_email: "samplename", password: "Issued-9Ab/7x", status: "created" });
+    let rotated = "";
+    d.rotatePassword = async () => ((rotated = "Fresh-Pw-12345!"), { login_email: "samplename", password: rotated, status: "created" });
+    await runEngine(fromPlaywright(page), d, st, 30_000);
+    expect(sent.o).toBe("Issued-9Ab/7x");
+    expect(sent.n).toBe(rotated);
+    expect(sent.c).toBe(rotated);
+    await page.close();
+  }, 60_000);
+
   it("names buttons that have no text from their picture or id (manchester peoplesoft)", async () => {
     const page = await browser.newPage();
     await page.setContent(`<form><label for="fn">First name</label><input id="fn"><button type="button" id="CIBAA_REG_WRK_SUBMIT_PB"></button><button type="button"><img alt="Next page" src="data:,"></button><button type="button" id="x1"></button></form>`);

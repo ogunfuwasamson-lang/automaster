@@ -60,6 +60,7 @@ export interface EngineState {
   usernameTries?: number; // usernames the portal said were taken (calgary's eID): the next try adds a number
   signupTries?: number; // times the sign-up form was sent on this run
   restarts?: number; // times this run started again from the portal after the portal ended the session
+  passwordChanges?: number; // times this run changed the portal password because the portal asked
   createNext?: boolean; // back on the portal's front page to press "Create account" (the saved login never worked)
   wentBackToCreate?: boolean; // went back for that once already
   leadBacks?: number; // times this run came back from an enquiry form
@@ -205,6 +206,7 @@ const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|s
 const LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
 const CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
 const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
+const CHANGE_PW = /(change (your )?password|must change|password (has )?expired|choose a new password|changer (votre )?mot de passe|nouveau mot de passe)/i;
 const SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
 const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
 const CODE_LABEL = /(verification|security|confirmation|access|one.?time|activation)?\s*(code|pin|otp|passcode)\b/i;
@@ -247,7 +249,9 @@ export function isCodeBox(f: { type: string; label: string }) {
 // pure: what kind of page is this?
 export function classify(s: Snapshot): "confirmation" | "captcha" | "payment" | "login" | "signup" | "verify_code" | "check_email" | "form" {
   if (s.confirmation) return "confirmation";
-  if (s.captcha) return "captcha";
+  // slate's invisible recaptcha can't make a token in the cloud browser: "Error generating captcha token" (bu,
+  // brandeis). that's a bot check, so the run moves to the applicant's chrome, where it passes
+  if (s.captcha || /error generating captcha token|captcha (verification|validation) failed|recaptcha (verification )?failed/i.test(`${s.body.slice(0, 4000)} ${(s.errors ?? []).join(" ")}`)) return "captcha";
   if (s.payment) return "payment";
   const pw = s.allFields.filter((f) => f.type === "password");
   const code = s.allFields.find((f) => isCodeBox(f));
@@ -1054,6 +1058,26 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       // only count it as signed in once the sign-in form has actually gone away
       if (classify(after) !== "login") state.signedIn = true;
       continue;
+    }
+
+    // a password change the portal requires (hec montréal on first sign-in with the login it emailed): current
+    // password in its box, a new one everywhere else, saved first. a sign-up form has no "current password"
+    const pwBoxes = s.allFields.filter((f) => f.type === "password");
+    const currentBox = pwBoxes.find((f) => /\b(current|old|existing|temporary|present|actuel|ancien)\b/i.test(`${f.label} ${f.name ?? ""}`)) ?? (pwBoxes.length === 3 && CHANGE_PW.test(s.body.slice(0, 3000)) ? pwBoxes[0] : undefined);
+    if ((kind === "signup" || kind === "form") && pwBoxes.length >= 2 && currentBox && deps.rotatePassword && (state.passwordChanges ?? 0) < 2) {
+      const now = await deps.existingLogin();
+      if (now) {
+        state.passwordChanges = (state.passwordChanges ?? 0) + 1;
+        await deps.progress("the portal asked for a new password: setting one and saving it under Portal logins");
+        const fresh = await deps.rotatePassword();
+        await fillText(page, currentBox.id, now.password);
+        for (const p of pwBoxes) if (p.id !== currentBox.id) await fillText(page, p.id, fresh.password);
+        state.navHistory = [...(state.navHistory ?? []), "changed the portal password as it asked, and saved the new one"].slice(-12);
+        const go = s.buttons.find((x) => /^(change|save|submit|update|continue|confirm|ok|modifier|enregistrer|valider)( (my |the )?password)?$/i.test(clean(x.label))) ?? find(s, CREATE_SUBMIT);
+        if (go) await click(page, go.id);
+        else await page.pressEnter();
+        continue;
+      }
     }
 
     if (kind === "signup") {

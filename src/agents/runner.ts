@@ -724,6 +724,11 @@ export const runner: Record<string, Handler> = {
     state.signupTries = 0;
     // look for an emailed login again each run: the inbox may have been connected since the last look
     state.triedMailLogin = false;
+    // buttons pressed "once" (manchester's Add Address, 'Remember to "Save Education"'): once per run. a sign-up
+    // that didn't finish lost its address, and the next run skipped the Add Address page because it had been
+    // pressed before, so every later sign-up went in without one ("All the fields marked with * are mandatory")
+    state.pressedAsked = [];
+    state.passwordChanges = 0;
     if (!state.steps) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.started", applicationId, channel: "portal" });
 
     // loaded only here, so the many routes that share this file don't carry the browser library

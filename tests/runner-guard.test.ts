@@ -104,3 +104,9 @@ describe("pages the agents can't work on", () => {
     expect(DEAD_END.test("Personal details. Date of birth.")).toBe(false);
   });
 });
+
+import { classify } from "@/lib/cloud-engine";
+it("treats slate's 'Error generating captcha token' as a bot check (bu, brandeis)", () => {
+  const snap = { confirmation: false, captcha: false, payment: false, allFields: [{ id: "a", type: "email", label: "Email" }], fields: [], buttons: [], body: "Register. Error generating captcha token.", errors: [] } as unknown as Parameters<typeof classify>[0];
+  expect(classify(snap)).toBe("captcha");
+});
