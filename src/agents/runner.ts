@@ -781,6 +781,13 @@ export const runner: Record<string, Handler> = {
         return { halted };
       }
 
+      // a picture of where the run stopped, for fixing the runner: one per application, replaced each run, kept
+      // in the applicant's own private folder (it's their portal page)
+      await page
+        .screenshot({ type: "jpeg", quality: 50, timeout: 8_000 })
+        .then((jpg) => db.storage.from("documents").upload(`${job.user_id}/runner-debug/${applicationId}.jpg`, jpg, { contentType: "image/jpeg", upsert: true }))
+        .catch(() => {});
+
       const saved: RunnerState & { debug?: unknown } = {
         ...next,
         last_url: page.url(),

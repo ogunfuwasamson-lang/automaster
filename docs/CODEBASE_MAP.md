@@ -53,7 +53,7 @@ The part most fixes touch. Read in this order:
 
 | File | Role |
 |---|---|
-| `agents/runner.ts` | The job: opens the browser, builds the fill sheet, runs the engine, saves state, hands off to Chrome, records outcomes. Also the email lookups (verification codes, reset links, emailed logins) |
+| `agents/runner.ts` | The job: opens the browser, builds the fill sheet, runs the engine, saves state, hands off to Chrome, records outcomes. Also the email lookups (verification codes, reset links, emailed logins). Saves where each run stopped: `runner_state.debug` (labels, no values) and a screenshot at `documents/<user>/runner-debug/<application>.jpg` |
 | `lib/cloud-engine.ts` | The brain: classifies each page (login, sign-up, verification, form, captcha, payment, confirmation) and acts. Sign-up, sign-in, password reset and change, navigator and screen-reading fallbacks, dead-end and bot-wall handling |
 | `lib/runner-dom.ts` | Injected into every portal page: reads fields and buttons (including inside shadow DOM and Salesforce components), applies fills, picks options |
 | `lib/engine-page.ts` | The small browser interface the engine uses (Playwright in the cloud, the extension in Chrome) |
