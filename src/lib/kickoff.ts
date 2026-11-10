@@ -127,3 +127,25 @@ export async function autoPrepare(userId: string): Promise<number> {
   }
   return n;
 }
+
+// the shortlist as early as the agents can search well: a level, at least one region, and either fields the
+// applicant named or a document the agents have read. it used to wait for the last step of setup, and most people
+// who told us what and where to study left before that and never saw a single program.
+// once per applicant; returns true when it started.
+export async function startShortlist(userId: string, source: string): Promise<boolean> {
+  const db = admin();
+  const profile = await getProfile(userId);
+  if (!profile.goals.study_level || !(profile.preferences.regions ?? []).length) return false;
+  if (!(profile.goals.fields ?? []).length) {
+    const { count: read } = await db.from("documents").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "extracted");
+    if (!read) return false;
+  }
+  const [{ count: apps }, { count: runs }] = await Promise.all([
+    db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover").in("status", ["queued", "running", "done"]),
+  ]);
+  if (apps || runs) return false;
+  await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}` });
+  await logEvent({ userId, actor: "system", action: "recon.requested", context: { source, early: true } });
+  return true;
+}

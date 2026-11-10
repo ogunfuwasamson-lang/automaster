@@ -10,6 +10,7 @@ import { WirePatch, fromWire, WIRE_GUIDE } from "@/lib/profile";
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
 import { scheduleConsolidate } from "./curator";
+import { startShortlist } from "@/lib/kickoff";
 
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
@@ -111,6 +112,8 @@ extract the facts from the document.`,
         context: { documentId: doc.id, kind: output.detected_kind, issues: output.issues },
       });
       await scheduleConsolidate(job.user_id);
+      // a document is read: with a level and regions on file, that's enough to start the shortlist
+      await startShortlist(job.user_id, "document").catch(() => false);
       return { kind: output.detected_kind, issues: output.issues.length };
     } catch (e) {
       const last = job.attempts >= job.max_attempts;

@@ -137,7 +137,16 @@ export function Onboarding(props: {
         <Wordmark href="/dashboard" />
         <div className="flex items-center gap-1">
           <ThemeButton />
-          <a href="/dashboard" className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground">Skip setup</a>
+          <a
+            href="/dashboard"
+            onClick={() => {
+              // leaving setup early still starts the agents on what they have
+              void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
+            }}
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground"
+          >
+            Skip setup
+          </a>
         </div>
       </header>
 
