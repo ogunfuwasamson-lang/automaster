@@ -179,11 +179,18 @@ async function upsertProgram(f: ProgramFacts, sources: string[]) {
     .single();
   if (perr) throw new Error(`program upsert: ${perr.message}`);
 
-  // funding: replace this program's entries with the fresh set
-  await db.from("funding_opportunities").delete().eq("program_id", program.id);
-  if (f.funding.length) {
+  // funding: replace this program's entries with the fresh set, except awards an applicant already has on their
+  // list or has started applying for (deleting those would drop their scholarship applications)
+  const { data: old } = await db.from("funding_opportunities").select("id, name").eq("program_id", program.id);
+  const { data: used } = old?.length ? await db.from("user_funding").select("opportunity_id").in("opportunity_id", old.map((o) => o.id)) : { data: [] };
+  const inUse = new Set((used ?? []).map((u) => u.opportunity_id as string));
+  const stale = (old ?? []).filter((o) => !inUse.has(o.id as string)).map((o) => o.id as string);
+  if (stale.length) await db.from("funding_opportunities").delete().in("id", stale);
+  const kept = new Set((old ?? []).filter((o) => inUse.has(o.id as string)).map((o) => String(o.name).toLowerCase()));
+  const fresh = f.funding.filter((x) => !kept.has(x.name.toLowerCase()));
+  if (fresh.length) {
     const { error: ferr } = await db.from("funding_opportunities").insert(
-      f.funding.map((x) => ({
+      fresh.map((x) => ({
         school_id: school.id,
         program_id: program.id,
         name: x.name,
@@ -398,7 +405,16 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
       maxTokens: 6000,
     });
 
-    const { schoolId, programId } = await upsertProgram(facts, found.sources);
+    // one school, one record: when the official registry already ties this institution to a school on file, use
+    // that school's name ("UNSW Sydney" and "University of New South Wales" were two schools, and one applicant got
+    // the same program prepared twice)
+    if (!cached && inst?.school_id) {
+      const { data: known } = await db.from("schools").select("name").eq("id", inst.school_id).maybeSingle();
+      if (known?.name) facts.school_name = known.name as string;
+    }
+    // facts reused from the shared store are not re-verified: writing them back would stamp them as checked today,
+    // and a deadline that changed would never be looked at again
+    const { schoolId, programId } = cached ? { schoolId: cached.schoolId, programId: cached.programId } : await upsertProgram(facts, found.sources);
     if (inst) await linkSchool(schoolId, inst).catch(() => {});
     const { verdict, reasons } = screen(profile, facts, today());
     const appId = await placeApplication(job.user_id, programId, facts, verdict, reasons);
@@ -550,7 +566,7 @@ first list every eligibility hook you see in this profile. then search for schol
   return { found: saved, started };
 };
 
-async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[] } | null> {
+async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[]; schoolId: string; programId: string } | null> {
   const db = admin();
   const since = new Date(Date.now() - CACHE_DAYS * 86_400_000).toISOString();
   const { data: sch } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", slugify(school)).maybeSingle();
@@ -565,5 +581,5 @@ async function cachedProgramNotes(school: string, program: string): Promise<{ te
   if (!prog) return null;
   const { data: funding } = await db.from("funding_opportunities").select("name, kind, amount_note, intl_eligible, deadline, url, eligibility").eq("program_id", prog.id);
   const text = JSON.stringify({ school: sch, program: prog, funding: funding ?? [] });
-  return { text, sources: (prog.source_urls as string[]) ?? [] };
+  return { text, sources: (prog.source_urls as string[]) ?? [], schoolId: sch.id as string, programId: prog.id as string };
 }
