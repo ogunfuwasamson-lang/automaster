@@ -7,6 +7,7 @@ import { logEvent } from "@/lib/events";
 import { NEVER_FILL } from "@/lib/fillsheet";
 import { DetailsSchema } from "@/lib/details-schema";
 import { kickoff } from "@/lib/kickoff";
+import { enqueue } from "@/lib/queue";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,14 @@ export async function POST(req: NextRequest) {
     await db.from("recommenders").insert(parsed.data.recommenders.map((r) => ({ user_id: uid, name: r.name, email: r.email || null, title: r.title || null, organization: r.organization || null, relationship: r.relationship || null, phone: r.phone || null })));
   }
   await logEvent({ userId: uid, actor: "user", action: "profile.details_saved", context: { recommenders: parsed.data.recommenders.length } });
+  // referees with an email are on file now: applications that were waiting for them get their requests drafted
+  // (the closer never asks the same person twice for the same application)
+  if (parsed.data.recommenders.some((r) => r.email)) {
+    const { data: waiting } = await db.from("applications").select("id").eq("user_id", uid).in("status", ["preparing", "ready_for_review", "packet_approved"]).limit(20);
+    for (const a of waiting ?? []) {
+      await enqueue({ userId: uid, agent: "closer", task: "reference_requests", payload: { applicationId: a.id }, idempotencyKey: `refs:${a.id}:${new Date().toISOString().slice(0, 10)}` }).catch(() => null);
+    }
+  }
   const resumed = await resumeAfterProfileChange(uid, "form details");
   const k = await kickoff(uid, "details").catch(() => null);
   return NextResponse.json({ ok: true, resumed, shortlist: k?.shortlist ?? false, missing: k?.missing ?? [] });

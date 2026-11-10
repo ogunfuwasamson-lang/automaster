@@ -11,6 +11,8 @@ import { logEvent } from "@/lib/events";
 import { safeFactSheet } from "./writer";
 import { schedule } from "@/lib/outbox";
 import { schoolBrief } from "@/lib/school-memory";
+import { officialEmail } from "@/lib/writing";
+import { notify, resolve } from "@/lib/notify";
 
 // the closer: money. fee waivers before applying; aid after admission.
 // it drafts, then hands each email to the outbox: with gmail connected and the dial on "auto with undo"
@@ -86,10 +88,15 @@ async function realOffers(userId: string, exceptId: string) {
   });
 }
 
-async function saveDrafts(userId: string, applicationId: string, out: z.infer<typeof Outreach>, runId: string, kind: "fee" | "funding") {
+async function saveDrafts(userId: string, applicationId: string, out: z.infer<typeof Outreach>, runId: string, kind: "fee" | "funding", evidence: string) {
   const db = admin();
   let saved = 0;
+  let dropped = 0;
   for (const m of out.messages) {
+    // an agent only emails an address the research found on a page: anything else is left blank for the applicant
+    const to = officialEmail(m.to_email, evidence);
+    if (m.to_email && !to) dropped++;
+    m.to_email = to;
     const { data: t, error: terr } = await db
       .from("threads")
       .insert({ user_id: userId, application_id: applicationId, subject: m.subject, status: "draft" })
@@ -141,9 +148,17 @@ async function saveDrafts(userId: string, applicationId: string, out: z.infer<ty
     action: kind === "fee" ? "fee_waiver.drafted" : "funding.plan_drafted",
     applicationId,
     agentRunId: runId,
-    context: { drafts: saved, levers: out.levers.length, contacts: out.contacts.length },
+    context: { drafts: saved, levers: out.levers.length, contacts: out.contacts.length, addresses_not_in_research: dropped },
   });
   return saved;
+}
+
+// a job that is retried after a partial failure must not write (and send) the same request to a school twice
+async function alreadyDrafted(userId: string, applicationId: string, purposes: string[], withinMs?: number): Promise<boolean> {
+  let q = admin().from("messages").select("id, threads!inner(application_id)", { count: "exact", head: true }).eq("user_id", userId).eq("direction", "out").in("purpose", purposes).eq("threads.application_id", applicationId);
+  if (withinMs) q = q.gte("created_at", new Date(Date.now() - withinMs).toISOString());
+  const { count } = await q;
+  return !!count;
 }
 
 const RefOut = z.object({ subject: z.string(), body: z.string() });
@@ -158,8 +173,21 @@ export const closer: Record<string, Handler> = {
     const usable = (recs ?? []).filter((r) => r.email);
     if (!usable.length) {
       await logEvent({ userId: job.user_id, actor: "agent:closer", action: "references.missing", applicationId, context: { needed: count } });
+      // applications can't be submitted without references: ask for the referees instead of skipping in silence
+      await notify({
+        userId: job.user_id,
+        key: "referees",
+        kind: "setup",
+        urgent: true,
+        title: "Add your referees so applications aren't held up",
+        body: `${program.name} at ${school.name} asks for ${count} reference${count === 1 ? "" : "s"}. Add each referee's name and email; the agents ask them for you, with the deadline, and you can see every request before it goes.`,
+        href: "/profile?tab=details",
+        actionLabel: "Add referees",
+        email: true,
+      }).catch(() => {});
       return { skipped: "no recommenders with an email on file" };
     }
+    await resolve(job.user_id, "referees").catch(() => {});
     // don't ask the same person twice for the same application
     const { data: already } = await db.from("messages").select("to_email, threads!inner(application_id)").eq("user_id", job.user_id).eq("purpose", "reference_request").eq("threads.application_id", applicationId);
     const asked = new Set((already ?? []).map((m) => String(m.to_email).toLowerCase()));
@@ -261,6 +289,8 @@ fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0,
     const profile = await getProfile(job.user_id);
     const { program, school } = await appContext(job.user_id, applicationId);
     if (program.app_fee_usd === 0) return { skipped: "no application fee" };
+    if (await alreadyDrafted(job.user_id, applicationId, ["fee_waiver"])) return { skipped: "a fee waiver request is already drafted for this application" };
+    const brief = await schoolBrief(school.id).catch(() => "");
 
     const found = await research({
       userId: job.user_id,
@@ -301,7 +331,7 @@ draft at most one fee-waiver request (purpose fee_waiver) if the research shows 
       schema: Outreach,
       maxTokens: 3000,
     });
-    const drafts = await saveDrafts(job.user_id, applicationId, output, runId, "fee");
+    const drafts = await saveDrafts(job.user_id, applicationId, output, runId, "fee", `${found.text}\n${brief}`);
     return { drafts };
   },
 
@@ -309,6 +339,7 @@ draft at most one fee-waiver request (purpose fee_waiver) if the research shows 
     const { applicationId } = job.payload as { applicationId: string };
     const profile = await getProfile(job.user_id);
     const { app, program, school } = await appContext(job.user_id, applicationId);
+    if (await alreadyDrafted(job.user_id, applicationId, ["aid_reconsideration", "assistantship_inquiry", "scholarship_inquiry"], 2 * 3600_000)) return { skipped: "funding requests were drafted for this application moments ago" };
     const offers = await realOffers(job.user_id, applicationId);
     const aid = (app.aid_offered ?? {}) as { amount_usd?: number; note?: string; accept_by?: string | null };
 
@@ -349,7 +380,7 @@ draft up to 3 messages, most promising first (aid reconsideration, assistantship
       schema: Outreach,
       maxTokens: 5000,
     });
-    const drafts = await saveDrafts(job.user_id, applicationId, output, runId, "funding");
+    const drafts = await saveDrafts(job.user_id, applicationId, output, runId, "funding", `${found.text}\n${await schoolBrief(school.id).catch(() => "")}`);
     return { drafts };
   },
 };
