@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const db = admin();
   const { data: app } = await db.from("applications").select("id, status, program_id").eq("id", id).eq("user_id", auth.user.id).maybeSingle();
   if (!app) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!["shortlisted", "preparing"].includes(app.status)) {
+  if (!["shortlisted", "preparing", "ready_for_review"].includes(app.status)) {
     return NextResponse.json({ error: `can't prepare an application that is ${app.status}` }, { status: 400 });
   }
   const { count } = await db

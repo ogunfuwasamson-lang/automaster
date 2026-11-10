@@ -64,7 +64,7 @@ export async function runActions(userId: string, actions: Action[]): Promise<Act
         await enqueue({ userId, agent: "recon", task: "discover" });
         out.push({ type: a.type, ok: true, note: "shortlist search started" });
       } else if (a.type === "prepare_application") {
-        if (!app || !["shortlisted", "preparing"].includes(app.status)) {
+        if (!app || !["shortlisted", "preparing", "ready_for_review"].includes(app.status)) {
           out.push({ type: a.type, ok: false, note: "that application can't be prepared from where it is" });
           continue;
         }

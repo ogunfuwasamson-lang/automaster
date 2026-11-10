@@ -12,6 +12,7 @@ import { sortWork, levelOf, LEVEL_LABEL, type Profile } from "@/lib/profile";
 import { levelGuide, defaultEssay } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
+import { markReadyForReview } from "@/lib/review-ready";
 import { withinLimit, nextStep, clichesIn, CLICHES, MAX_ROUNDS, disputedFigures, maskDisputed, placeholdersIn } from "@/lib/writing";
 
 // strategist -> writer -> red team -> (writer -> red team)* -> ready for the user.
@@ -258,7 +259,7 @@ find the application's written requirements (official prompts and limits), then 
         id = data.id as string;
       }
       if (TEXT_KINDS.has(e.kind)) {
-        await enqueue({ userId: job.user_id, agent: "writer", task: "draft", payload: { artifactId: id, round: 1 }, parentJobId: job.id });
+        await enqueue({ userId: job.user_id, agent: "writer", task: "draft", payload: { artifactId: id, round: 1 }, idempotencyKey: `draft:${id}:${job.id}`, parentJobId: job.id });
         queued++;
       }
     }
@@ -310,6 +311,8 @@ find the application's written requirements (official prompts and limits), then 
       .single();
     if (error || !art) throw new Error("artifact not found");
 
+    // a piece is being (re)written: the application is with the agents again until the review passes
+    await db.from("applications").update({ status: "preparing" }).eq("id", art.application_id).eq("status", "ready_for_review");
     const profile = await getProfile(job.user_id);
     const { program, school } = await loadApp(job.user_id, art.application_id);
     const [{ data: brief }, { data: prev }, disputed] = await Promise.all([
@@ -444,6 +447,8 @@ ${v.content}`,
         parentJobId: job.id,
       });
     }
+    // the last piece of this application just became ready: tell the applicant it's their turn
+    if (step === "ready") await markReadyForReview(job.user_id, art.application_id).catch(() => false);
     await logEvent({
       userId: job.user_id,
       actor: "agent:redteam",

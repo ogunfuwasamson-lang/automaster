@@ -1,3 +1,4 @@
+import { resolve } from "@/lib/notify";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { afterSubmitted } from "@/agents/runner";
 import * as z from "zod/v4";
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         await queueRunner(uid, id);
         after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
       }
+      await resolve(uid, new RegExp(`^review(-due)?:${id}`)).catch(() => {});
       await logEvent({ userId: uid, actor: "user", action: "packet.approved", applicationId: id, programId: app.program_id, context: snapshot });
       return NextResponse.json({ ok: true });
     }

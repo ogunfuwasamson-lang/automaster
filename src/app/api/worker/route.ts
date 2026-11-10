@@ -14,7 +14,8 @@ import { enqueue } from "@/lib/queue";
 import { appUrl } from "@/lib/gmail";
 import { SITE } from "@/lib/site";
 import { aiPausedUntil, ensureAiWorks } from "@/lib/ai-health";
-import { autoPrepare } from "@/lib/kickoff";
+import { autoPrepare, startShortlist } from "@/lib/kickoff";
+import { markReadyForReview, nudgeReviews } from "@/lib/review-ready";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -46,6 +47,10 @@ async function handle(req: NextRequest) {
   if (tick) await announceSchoolsOnce().catch(() => null);
   // once: applicants whose shortlist finished before auto-prepare existed get their nearest deadlines started too
   if (tick) await autoPrepareBackfillOnce().catch(() => null);
+  // applications waiting on the applicant's sign-off with a deadline inside a week: remind them (once per step)
+  if (tick) await nudgeReviews().catch(() => 0);
+  // once: people the old flow left behind (essays finished but never handed over; setup left before the shortlist)
+  if (tick) await handoffBackfillOnce().catch(() => null);
   if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) {
     const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     await submitIndexNow(publicUrls(since)).catch(() => null);
@@ -97,6 +102,26 @@ async function autoPrepareBackfillOnce() {
   await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
   const { data: rows } = await db.from("applications").select("user_id").eq("status", "shortlisted").limit(2000);
   for (const u of [...new Set((rows ?? []).map((r) => r.user_id as string))]) await autoPrepare(u).catch(() => 0);
+}
+
+async function handoffBackfillOnce() {
+  const db = admin();
+  const KEY = "handoff_backfill_v1";
+  const { data } = await db.from("billing_settings").select("value").eq("key", KEY).maybeSingle();
+  if (data?.value) return;
+  await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
+  // essays that were ready all along: mark them, with one email per applicant (not one per application)
+  const { data: apps } = await db.from("applications").select("id, user_id").eq("status", "preparing").order("target_deadline", { ascending: true, nullsFirst: false }).limit(1000);
+  const emailed = new Set<string>();
+  for (const a of apps ?? []) {
+    const moved = await markReadyForReview(a.user_id as string, a.id as string, { email: !emailed.has(a.user_id as string) }).catch(() => false);
+    if (moved) emailed.add(a.user_id as string);
+  }
+  // signed up in the last two weeks, said what and where, and never got a shortlist: start it (the "shortlist is
+  // ready" email brings them back)
+  const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
+  const { data: people } = await db.from("profiles").select("id").gte("created_at", since).limit(500);
+  for (const p of people ?? []) await startShortlist(p.id as string, "backfill").catch(() => false);
 }
 
 async function scheduleLearning() {

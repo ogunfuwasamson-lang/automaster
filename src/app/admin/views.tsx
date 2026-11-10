@@ -264,6 +264,8 @@ const runnerTone = (s: string): Tone => (s === "submitted" ? "go" : s === "faile
 // what happened, in words. actions not listed read as their name
 const EVENT: Record<string, string> = {
   "runner.submitted": "Agents submitted an application",
+  "application.ready_for_review": "Essays finished: handed to the applicant for sign-off",
+  "references.missing": "An application needs references and no referee email is on file",
   "runner.corrections": "Applicant corrected the agents' answers in Chrome",
   "runner.status_changed": "A submitted application's portal changed",
   "runner.status_checked": "Checked a submitted portal (no change)",

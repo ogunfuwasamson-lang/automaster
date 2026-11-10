@@ -82,3 +82,32 @@ export function maskDisputed<T>(value: T, figures: string[]): T {
 export function placeholdersIn(text: string): string[] {
   return text.match(/\[(?:[^\]]{0,60})\]|\{\{[^}]*\}\}|\b(?:TBD|TODO|XX+|lorem ipsum)\b|<insert[^>]*>/gi) ?? [];
 }
+
+// ---------------------------------------------------------------------------
+// handoff to the applicant: an application is ready for their review when every written piece has a current
+// version that passed the review loop (or that they wrote themselves). pure, so it can be tested.
+// ---------------------------------------------------------------------------
+export const NOT_AN_ESSAY = new Set(["strategy", "video_or_interview", "fee_plan", "funding_plan"]);
+export type PieceState = { kind: string; current_version: number; versions: { version: number; author: string | null; status: string | null }[] };
+export function essaysReady(pieces: PieceState[]): boolean {
+  const essays = pieces.filter((p) => !NOT_AN_ESSAY.has(p.kind));
+  if (!essays.length) return false;
+  return essays.every((p) => {
+    const v = p.versions.find((x) => x.version === p.current_version);
+    return !!v && p.current_version > 0 && (v.status === "ready" || /^user/.test(v.author ?? ""));
+  });
+}
+
+// when to remind someone their signed-off review is still waiting: a week out, three days out, the day before
+export function dueBucket(daysLeft: number): "7" | "3" | "1" | null {
+  if (daysLeft < 0 || daysLeft > 7) return null;
+  return daysLeft <= 1 ? "1" : daysLeft <= 3 ? "3" : "7";
+}
+
+// an address an agent may email: well-formed, and one the research actually found on a page. a model asked for an
+// "official contact" can produce a plausible address that exists nowhere; this is the check that it didn't
+export function officialEmail(email: string, evidence: string): string {
+  const e = email.trim();
+  if (!/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(e)) return "";
+  return evidence.toLowerCase().includes(e.toLowerCase()) ? e : "";
+}
