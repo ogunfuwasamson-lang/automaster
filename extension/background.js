@@ -8123,8 +8123,25 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     };
   }
 
-  // extension/src/background.ts
+  // extension/src/pure.ts
   var DEFAULT_API = "https://tryivyward.com";
+  function safeApi(u) {
+    try {
+      const x = new URL(u);
+      const local = x.hostname === "localhost" || x.hostname === "127.0.0.1";
+      if (x.protocol === "https:" && /(^|\.)tryivyward\.com$/.test(x.hostname) || local && /^https?:$/.test(x.protocol)) return x.origin;
+    } catch {
+    }
+    return DEFAULT_API;
+  }
+  var root = (h) => {
+    const parts = h.toLowerCase().replace(/^www\./, "").split(".");
+    const two = parts.length >= 3 && parts[parts.length - 1].length === 2 && /^(ac|edu|co|com|org|gov|net|sch|or|ne|go)$/.test(parts[parts.length - 2]);
+    return parts.slice(two ? -3 : -2).join(".");
+  };
+  var backoff = (n2) => Math.min(30, [1, 2, 5, 15][Math.min(n2, 4) - 1] ?? 30) * 6e4;
+
+  // extension/src/background.ts
   var RUN_MS = 15 * 6e4;
   var VERSION = chrome.runtime.getManifest().version;
   var GROUP_TITLE = "Ivyward";
@@ -8139,7 +8156,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     }
   }
   async function cfg() {
-    return chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true, approval: "submit", parallel: 2, pmSignIn: false, checkins: true });
+    const c = await chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true, approval: "submit", parallel: 2, pmSignIn: false, checkins: true });
+    return { ...c, api: safeApi(c.api) };
   }
   async function api(path, opts = {}) {
     const c = await cfg();
@@ -8178,6 +8196,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   async function setPhase(taskId, phase, st) {
     const r = runs.get(taskId);
     if (!r) return;
+    if (phase && phase !== r.phase) r.log = [...r.log, { at: Date.now(), text: phase.slice(0, 140) }].slice(-40);
     r.phase = phase;
     if (st) r.state = st;
     await publish();
@@ -8318,7 +8337,6 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     closePage(r, tab.url);
     await publish();
   }
-  var root = (h) => h.replace(/^www\./, "").split(".").slice(-2).join(".");
   function hostOf2(u) {
     try {
       return u ? new URL(u).hostname : "";
@@ -8427,6 +8445,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         const r = runs.get(taskId);
         if (!r) return;
         if (!r.current) r.current = { title: "", url: "", fills: [] };
+        if (!r.current.fills.some((x) => x.id === f.id)) r.answered++;
         r.current.fills = [...r.current.fills.filter((x) => x.id !== f.id), { id: f.id, label: f.label.replace(/\s+/g, " ").trim().slice(0, 160), action: f.action, value: f.value.slice(0, 300) }].slice(-120);
         clearTimeout(publishTimer);
         publishTimer = setTimeout(publish, 250);
@@ -8449,6 +8468,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       allowNewApp: async () => !!(await eng(taskId, "allow_new_app").catch(() => ({}))).allow
     };
   }
+  var failures = /* @__PURE__ */ new Map();
   var sheets = /* @__PURE__ */ new Map();
   async function peek(tabId) {
     try {
@@ -8533,7 +8553,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (opts.tabId) c.allow.add(root(hostOf2((await chrome.tabs.get(tabId)).url)));
       await chrome.storage.session.set({ tabs: { ...kept, [task.id]: tabId } });
       await intoGroup(tabId);
-      runs.set(task.id, { taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "starting", state: "working", pages: [], current: null });
+      runs.set(task.id, { taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "starting", state: "working", pages: [], current: null, log: [], answered: 0 });
       await setPhase(task.id, "starting");
       const page = chromePage(tabId);
       await page.waitForLoadState("domcontentloaded", { timeout: 45e3 }).catch(() => {
@@ -8572,7 +8592,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             await setPhase(task.id, c.why === "takeover" ? "you have the wheel: hand back in the side panel when you're done" : "paused: resume from the side panel", c.why === "takeover" ? "taken_over" : "paused");
             const end = Date.now() + 2 * 36e5;
             while (c.stop && Date.now() < end && await tabAlive(tabId)) await nap(2e3);
-            if (c.stop) break;
+            if (c.stop) {
+              const gone = !await tabAlive(tabId);
+              await eng(task.id, "finish", { state, outcome: { kind: "needs_you", reason: "stopped", note: gone ? "the portal tab was closed while it was paused. Choose Run in my Chrome to carry on" : "paused in Chrome for two hours. Choose Run in my Chrome to carry on" } }).catch(() => {
+              });
+              break;
+            }
             await setPhase(task.id, "carrying on", "working");
             continue;
           } else {
@@ -8649,8 +8674,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         }
         break;
       }
+      failures.delete(task.id);
     } catch (e) {
-      notify(task.id, task.school, String(e?.message ?? e).slice(0, 200));
+      const f = failures.get(task.id) ?? { n: 0, until: 0 };
+      f.n++;
+      f.until = Date.now() + backoff(f.n);
+      failures.set(task.id, f);
+      if (f.n === 1 || opts.claim) notify(task.id, task.school, String(e?.message ?? e).slice(0, 200));
+      if (f.n === 4) await eng(task.id, "finish", { state: {}, outcome: { kind: "needs_you", reason: "stuck", note: `couldn't start in Chrome after 4 tries: ${String(e?.message ?? e).slice(0, 120)}. Choose Run in my Chrome to try again` } }).catch(() => {
+      });
     } finally {
       if (tabId) await banner(tabId, task.school, "", "", true);
       runs.delete(task.id);
@@ -8687,7 +8719,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const now = Date.now();
     const room = Math.max(1, Math.min(3, c.parallel)) - runs.size;
     if (room <= 0) return;
-    const next = data.tasks.filter((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && !runs.has(t.id) && (!t.resume_at || t.resume_at <= now)).slice(0, room);
+    const next = data.tasks.filter((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && !runs.has(t.id) && (!t.resume_at || t.resume_at <= now) && (failures.get(t.id)?.until ?? 0) <= now).slice(0, room);
     for (const t of next) runTask(t);
   }
   async function checkVersion() {
@@ -8728,6 +8760,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       }
     }
   }
+  chrome.commands?.onCommand.addListener(async (name, tab) => {
+    if (name === "open-panel") await openPanel(tab?.windowId);
+    if (name === "pause-all") {
+      const working = [...runs.values()].some((r) => r.state === "working");
+      await handle({ type: working ? "panel:pause_all" : "panel:resume_all" }, null, true).catch(() => {
+      });
+      if (runs.size) notify("all", "Ivyward", working ? "Paused in this browser. Press Alt+Shift+P again to carry on." : "Carrying on.");
+    }
+  });
   function ensureAlarms() {
     chrome.alarms.create("poll", { periodInMinutes: 1 });
     chrome.alarms.create("checkins", { periodInMinutes: 24 * 60, delayInMinutes: 30 });
@@ -8741,8 +8782,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (a.name === "checkins") checkins().catch(() => {
     });
   });
-  async function handle(msg, sender) {
-    if (/^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
+  async function handle(msg, sender, internal = false) {
+    if (!internal && /^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
     if (msg.type === "bridge:hello") {
       const c = await cfg();
       const a = [...runs.values()][0];
@@ -8763,6 +8804,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (runs.has(t.id)) return { started: true };
       const c = await cfg();
       if (runs.size >= Math.max(1, Math.min(3, c.parallel))) throw new Error(`busy with ${[...runs.values()].map((r) => r.school).join(" and ")}; this one is next`);
+      failures.delete(t.id);
       runTask(t, { claim: true, focus: msg.type === "popup:start" || !!msg.focus });
       return { started: true };
     }
@@ -8814,6 +8856,17 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       c.why = "";
       return { ok: true, learned };
     }
+    if (msg.type === "panel:pause_all" || msg.type === "panel:resume_all") {
+      let n2 = 0;
+      for (const r of [...runs.values()]) {
+        const held = r.state === "paused" || r.state === "taken_over";
+        if (msg.type === "panel:pause_all" ? held || r.state === "waiting" : !held) continue;
+        await handle({ type: msg.type === "panel:pause_all" ? "panel:pause" : "panel:resume", id: r.taskId }, sender, true).catch(() => {
+        });
+        n2++;
+      }
+      return { ok: true, n: n2 };
+    }
     if (msg.type === "panel:stop") {
       const c = control.get(msg.id);
       if (c) {
@@ -8852,8 +8905,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (msg.type.startsWith("banner:")) {
       const r = [...runs.values()].find((x) => x.tabId === sender.tab?.id);
       if (msg.type === "banner:panel") await openPanel(sender.tab?.windowId);
-      if (r && msg.type === "banner:pause") return handle({ type: "panel:pause", id: r.taskId }, sender);
-      if (r && msg.type === "banner:resume") return handle({ type: "panel:resume", id: r.taskId }, sender);
+      if (r && msg.type === "banner:pause") return handle({ type: "panel:pause", id: r.taskId }, sender, true);
+      if (r && msg.type === "banner:resume") return handle({ type: "panel:resume", id: r.taskId }, sender, true);
       return { ok: true };
     }
     return null;

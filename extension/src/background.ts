@@ -17,11 +17,11 @@
 // - a check before working on a site that isn't the school's portal
 import { runEngine, isBlockPage, classify, IDP_HOST, type EngineDeps, type EngineState, type Outcome, type Snapshot } from "@/lib/cloud-engine";
 import { chromePage, captureSmall } from "./chrome-page";
+import { DEFAULT_API, safeApi, root, backoff } from "./pure";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const chrome: any;
 
-const DEFAULT_API = "https://tryivyward.com";
 const RUN_MS = 15 * 60_000; // one engine run in the applicant's own chrome (no server time limit); the state is saved between runs
 const VERSION: string = chrome.runtime.getManifest().version;
 const GROUP_TITLE = "Ivyward";
@@ -32,7 +32,7 @@ type Task = { id: string; school: string; program: string; portal_url: string | 
 type Answer = { id: string; label: string; action: string; value: string };
 type Page = { title: string; url: string; fills: Answer[]; shot?: string };
 // what the panel shows for each run (kept in chrome.storage.session, so the panel updates as it changes)
-type RunView = { taskId: string; school: string; tabId: number; startedAt: number; phase: string; state: "working" | "paused" | "taken_over" | "waiting"; pages: Page[]; current: Page | null };
+type RunView = { taskId: string; school: string; tabId: number; startedAt: number; phase: string; state: "working" | "paused" | "taken_over" | "waiting"; pages: Page[]; current: Page | null; log: { at: number; text: string }[]; answered: number };
 type Pending = { id: string; taskId: string; school: string; kind: "page" | "submit" | "offsite" | "signin" | "check" | "payment"; title: string; detail?: string; host?: string; at: number };
 type Settings = { api: string; token: string; auto: boolean; approval: "submit" | "page"; parallel: number; pmSignIn: boolean; checkins: boolean };
 
@@ -47,7 +47,8 @@ async function nap(ms: number) {
 }
 
 async function cfg(): Promise<Settings> {
-  return chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true, approval: "submit", parallel: 2, pmSignIn: false, checkins: true });
+  const c = await chrome.storage.local.get({ api: DEFAULT_API, token: "", auto: true, approval: "submit", parallel: 2, pmSignIn: false, checkins: true });
+  return { ...c, api: safeApi(c.api) };
 }
 
 async function api(path: string, opts: RequestInit = {}) {
@@ -96,6 +97,7 @@ chrome.storage.session.set({ pending: [], runs: [] }).catch(() => {});
 async function setPhase(taskId: string, phase: string, st?: RunView["state"]) {
   const r = runs.get(taskId);
   if (!r) return;
+  if (phase && phase !== r.phase) r.log = [...r.log, { at: Date.now(), text: phase.slice(0, 140) }].slice(-40);
   r.phase = phase;
   if (st) r.state = st;
   await publish();
@@ -253,7 +255,6 @@ async function finishPage(taskId: string) {
 }
 
 // ---------- the sites a run may work on ----------
-const root = (h: string) => h.replace(/^www\./, "").split(".").slice(-2).join(".");
 function hostOf(u?: string | null) {
   try {
     return u ? new URL(u).hostname : "";
@@ -369,6 +370,7 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       const r = runs.get(taskId);
       if (!r) return;
       if (!r.current) r.current = { title: "", url: "", fills: [] };
+      if (!r.current.fills.some((x) => x.id === f.id)) r.answered++;
       r.current.fills = [...r.current.fills.filter((x) => x.id !== f.id), { id: f.id, label: f.label.replace(/\s+/g, " ").trim().slice(0, 160), action: f.action, value: f.value.slice(0, 300) }].slice(-120);
       // one write for a burst of answers, not one per box (each write carries the page pictures)
       clearTimeout(publishTimer);
@@ -393,6 +395,9 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
     allowNewApp: async () => !!(await eng(taskId, "allow_new_app").catch(() => ({}))).allow,
   };
 }
+
+// runs that failed to start: when each may be tried again
+const failures = new Map<string, { n: number; until: number }>();
 
 const sheets = new Map<string, { files: { key: string; url: string; filename: string; label: string }[] }>();
 
@@ -487,7 +492,7 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
     if (opts.tabId) c.allow.add(root(hostOf((await chrome.tabs.get(tabId)).url)));
     await chrome.storage.session.set({ tabs: { ...(kept as Record<string, number>), [task.id]: tabId } });
     await intoGroup(tabId);
-    runs.set(task.id, { taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "starting", state: "working", pages: [], current: null });
+    runs.set(task.id, { taskId: task.id, school: task.school, tabId, startedAt: Date.now(), phase: "starting", state: "working", pages: [], current: null, log: [], answered: 0 });
     await setPhase(task.id, "starting");
 
     const page = chromePage(tabId);
@@ -527,7 +532,13 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
           // wait for Resume / Hand back (up to 2 hours); the tab stays as it is
           const end = Date.now() + 2 * 3600_000;
           while (c.stop && Date.now() < end && (await tabAlive(tabId))) await nap(2000);
-          if (c.stop) break;
+          if (c.stop) {
+            // still held after two hours, or the tab was closed: say so in Ivyward, or the queue starts it again
+            // in a new tab a minute later
+            const gone = !(await tabAlive(tabId));
+            await eng(task.id, "finish", { state, outcome: { kind: "needs_you", reason: "stopped", note: gone ? "the portal tab was closed while it was paused. Choose Run in my Chrome to carry on" : "paused in Chrome for two hours. Choose Run in my Chrome to carry on" } }).catch(() => {});
+            break;
+          }
           await setPhase(task.id, "carrying on", "working");
           continue;
         } else {
@@ -608,8 +619,16 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
       }
       break;
     }
+    failures.delete(task.id);
   } catch (e) {
-    notify(task.id, task.school, String((e as Error)?.message ?? e).slice(0, 200));
+    // a run that can't start (no connection, Ivyward unreachable) is tried again with longer gaps, and the applicant
+    // is told once, not once a minute
+    const f = failures.get(task.id) ?? { n: 0, until: 0 };
+    f.n++;
+    f.until = Date.now() + backoff(f.n);
+    failures.set(task.id, f);
+    if (f.n === 1 || opts.claim) notify(task.id, task.school, String((e as Error)?.message ?? e).slice(0, 200));
+    if (f.n === 4) await eng(task.id, "finish", { state: {}, outcome: { kind: "needs_you", reason: "stuck", note: `couldn't start in Chrome after 4 tries: ${String((e as Error)?.message ?? e).slice(0, 120)}. Choose Run in my Chrome to try again` } }).catch(() => {});
   } finally {
     if (tabId) await banner(tabId, task.school, "", "", true);
     runs.delete(task.id);
@@ -649,7 +668,7 @@ async function poll() {
   // jobs Ivyward moved to this browser (the portal refused the cloud runner): several at once, each in its own tab
   const room = Math.max(1, Math.min(3, c.parallel)) - runs.size;
   if (room <= 0) return;
-  const next = data.tasks.filter((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && !runs.has(t.id) && (!t.resume_at || t.resume_at <= now)).slice(0, room);
+  const next = data.tasks.filter((t) => t.mode === "extension" && ["ready", "running"].includes(t.runner_status) && !runs.has(t.id) && (!t.resume_at || t.resume_at <= now) && (failures.get(t.id)?.until ?? 0) <= now).slice(0, room);
   for (const t of next) runTask(t);
 }
 
@@ -693,6 +712,16 @@ async function checkins() {
   }
 }
 
+// keyboard: Alt+Shift+I opens the side panel, Alt+Shift+P pauses or resumes everything in this browser
+chrome.commands?.onCommand.addListener(async (name: string, tab?: { windowId?: number }) => {
+  if (name === "open-panel") await openPanel(tab?.windowId);
+  if (name === "pause-all") {
+    const working = [...runs.values()].some((r) => r.state === "working");
+    await handle({ type: working ? "panel:pause_all" : "panel:resume_all" }, null, true).catch(() => {});
+    if (runs.size) notify("all", "Ivyward", working ? "Paused in this browser. Press Alt+Shift+P again to carry on." : "Carrying on.");
+  }
+});
+
 function ensureAlarms() {
   chrome.alarms.create("poll", { periodInMinutes: 1 });
   chrome.alarms.create("checkins", { periodInMinutes: 24 * 60, delayInMinutes: 30 });
@@ -707,10 +736,11 @@ chrome.alarms.onAlarm.addListener((a: { name: string }) => {
 
 // ---------- messages: the Ivyward site, the popup, the side panel, the page bar ----------
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handle(msg: any, sender: any) {
+async function handle(msg: any, sender: any, internal = false) {
   // the side panel's and popup's controls (approve, submit, settings) come only from the extension's own pages,
-  // never from a script running in a web page
-  if (/^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
+  // never from a script running in a web page. (the bar on the portal page may only pause and resume its own run:
+  // those two are passed on from below with internal = true)
+  if (!internal && /^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
   // from the Ivyward site (bridge.js): pairing and "run now"
   if (msg.type === "bridge:hello") {
     const c = await cfg();
@@ -732,6 +762,7 @@ async function handle(msg: any, sender: any) {
     if (runs.has(t.id)) return { started: true };
     const c = await cfg();
     if (runs.size >= Math.max(1, Math.min(3, c.parallel))) throw new Error(`busy with ${[...runs.values()].map((r) => r.school).join(" and ")}; this one is next`);
+    failures.delete(t.id);
     runTask(t, { claim: true, focus: msg.type === "popup:start" || !!msg.focus });
     return { started: true };
   }
@@ -787,6 +818,16 @@ async function handle(msg: any, sender: any) {
     c.why = "";
     return { ok: true, learned };
   }
+  if (msg.type === "panel:pause_all" || msg.type === "panel:resume_all") {
+    let n = 0;
+    for (const r of [...runs.values()]) {
+      const held = r.state === "paused" || r.state === "taken_over";
+      if (msg.type === "panel:pause_all" ? held || r.state === "waiting" : !held) continue;
+      await handle({ type: msg.type === "panel:pause_all" ? "panel:pause" : "panel:resume", id: r.taskId }, sender, true).catch(() => {});
+      n++;
+    }
+    return { ok: true, n };
+  }
   if (msg.type === "panel:stop") {
     const c = control.get(msg.id);
     if (c) {
@@ -827,8 +868,8 @@ async function handle(msg: any, sender: any) {
   if (msg.type.startsWith("banner:")) {
     const r = [...runs.values()].find((x) => x.tabId === sender.tab?.id);
     if (msg.type === "banner:panel") await openPanel(sender.tab?.windowId);
-    if (r && msg.type === "banner:pause") return handle({ type: "panel:pause", id: r.taskId }, sender);
-    if (r && msg.type === "banner:resume") return handle({ type: "panel:resume", id: r.taskId }, sender);
+    if (r && msg.type === "banner:pause") return handle({ type: "panel:pause", id: r.taskId }, sender, true);
+    if (r && msg.type === "banner:resume") return handle({ type: "panel:resume", id: r.taskId }, sender, true);
     return { ok: true };
   }
   return null;

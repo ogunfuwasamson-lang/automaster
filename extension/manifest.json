@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ivyward runner",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Finishes your approved university applications in your own Chrome. Shows every answer and asks before submitting.",
   "permissions": [
     "storage",
@@ -49,5 +49,19 @@
   "minimum_chrome_version": "116",
   "side_panel": {
     "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "open-panel": {
+      "suggested_key": {
+        "default": "Alt+Shift+I"
+      },
+      "description": "Open the Ivyward side panel"
+    },
+    "pause-all": {
+      "suggested_key": {
+        "default": "Alt+Shift+P"
+      },
+      "description": "Pause or resume the agents in this browser"
+    }
   }
 }

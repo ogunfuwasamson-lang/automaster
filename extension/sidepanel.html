@@ -36,11 +36,21 @@
   .update { background: var(--brand-soft); border-bottom: 1px solid var(--line); padding: 8px 14px; }
   a { color: var(--brand); }
   .empty { color: var(--muted); padding: 6px 0; }
+  .say { position: sticky; top: 44px; z-index: 2; margin: 0; padding: 8px 14px; background: var(--card); border-bottom: 1px solid var(--line); font-size: 12px; }
+  .say.bad { color: var(--warn); }
+  .log { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; max-height: 180px; overflow: auto; }
+  .log li { padding: 2px 0; color: var(--muted); }
+  .log time { font-variant-numeric: tabular-nums; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 </style>
 </head>
 <body>
 <header><img src="icons/icon-32.png" alt=""><b>Ivyward runner</b><span class="v" id="v"></span></header>
 <div class="update" id="update" hidden></div>
+<p class="say" id="err" role="status" aria-live="polite" hidden></p>
+<p class="say bad" id="offline" hidden>This computer is offline. The agents carry on when the connection is back.</p>
 <main>
   <div id="setup" hidden>
     <p>Connect this browser to your Ivyward account first: open the toolbar button and choose Connect to Ivyward.</p>
@@ -49,6 +59,7 @@
     <section id="asks"></section>
 
     <h2>Working now</h2>
+    <div class="row" id="allRow" style="margin:0 0 4px" hidden><button id="pauseAll">Pause all</button></div>
     <section id="runs"></section>
 
     <h2>Questions from your schools</h2>
@@ -76,8 +87,8 @@
       <label class="opt"><input type="checkbox" id="checkins"> Check my submitted applications' portals once a week (read only)</label>
       <label class="opt"><input type="checkbox" id="auto"> Start queued applications by themselves</label>
       <div class="row"><button id="checkNow">Check submitted portals now</button></div>
+      <p class="muted" style="margin:10px 0 0">Keyboard: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> opens this panel, <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> pauses or resumes everything.</p>
     </div>
-    <p class="muted" id="err" role="alert"></p>
   </div>
 </main>
 <script src="sidepanel.js"></script>

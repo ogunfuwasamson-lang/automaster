@@ -20,7 +20,24 @@ const el = (tag, props = {}, ...kids) => {
   for (const c of kids.flat(Infinity)) if (c) e.append(c);
   return e;
 };
-const err = (e) => ($("err").textContent = e ? e.message || String(e) : "");
+// one line of feedback, at the top where it's seen (errors stay until the next action; notes fade)
+let sayTimer;
+const say = (text, bad = false) => {
+  const box = $("err");
+  box.textContent = text || "";
+  box.className = "say" + (bad ? " bad" : "");
+  box.hidden = !text;
+  clearTimeout(sayTimer);
+  if (text && !bad) sayTimer = setTimeout(() => (box.hidden = true), 6000);
+};
+const err = (e) => say(e ? e.message || String(e) : "", true);
+const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+// every answer the agents put in, as text to keep or paste somewhere
+const asText = (run) => [...(run.pages || []), ...(run.current && run.current.fills.length ? [run.current] : [])]
+  .map((p, i) => `${p.title || `Page ${i + 1}`}\n${p.fills.map((f) => `  ${f.label || "(unlabelled)"}: ${f.action === "upload" ? "uploaded " + f.value : f.value}`).join("\n")}`).join("\n\n");
+const copyBtn = (run) => el("button", { text: "Copy all answers", title: "Keep a record of what was entered", on: { click: (e) => navigator.clipboard.writeText(`${run.school}\n\n${asText(run)}`).then(() => { e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy all answers"), 2000); }, err) } });
+// open <details> survive a redraw
+const openKeys = () => new Set([...document.querySelectorAll("details[open][data-k]")].map((d) => d.dataset.k));
 const act = (msg) => send(msg).then(() => refresh(), err);
 const STATE = { working: "working", paused: "paused", taken_over: "you have it", waiting: "waiting for you" };
 const STATUS = { ready: "Queued", running: "Working", needs_you: "Needs you", failed: "Problem" };
@@ -57,7 +74,7 @@ function renderAsks(d) {
     const show = el("button", { text: "Show the tab", on: { click: () => act({ type: "panel:focus", id: p.taskId }) } });
     const card = el("div", { class: "card ask" }, el("b", { text: p.school }), el("p", { style: "margin:4px 0 0", text: p.title }));
     if (p.kind === "submit") {
-      card.append(el("p", { class: "muted", text: "Your answers, page by page. Anything wrong? Choose Not yet, take over and fix it in the tab, then hand back." }), review(run), el("div", { class: "row" }, yes("Submit"), no("Not yet"), show));
+      card.append(el("p", { class: "muted", text: "Your answers, page by page. Anything wrong? Choose Not yet, take over and fix it in the tab, then hand back." }), review(run), el("div", { class: "row" }, yes("Submit"), no("Not yet"), show, run ? copyBtn(run) : null));
     } else if (p.kind === "page") {
       card.append(answers(run?.pages?.[run.pages.length - 1]?.fills), el("div", { class: "row" }, yes("Approve and go on"), no("Hold"), show));
     } else if (p.kind === "offsite") {
@@ -71,22 +88,30 @@ function renderAsks(d) {
 
 function renderRuns(d) {
   const box = $("runs");
+  const open = openKeys();
   box.replaceChildren();
+  $("allRow").hidden = d.runs.length < 2;
+  const anyWorking = d.runs.some((r) => r.state === "working");
+  $("pauseAll").textContent = anyWorking ? "Pause all" : "Resume all";
+  $("pauseAll").onclick = () => act({ type: anyWorking ? "panel:pause_all" : "panel:resume_all" });
   if (!d.runs.length) return box.append(el("p", { class: "empty", text: d.paused ? "Paused from Ivyward." : "Nothing running in this browser." }));
   for (const r of d.runs) {
     const held = r.state === "paused" || r.state === "taken_over";
     box.append(el("div", { class: "card" },
       el("div", { class: "row", style: "margin:0" }, el("b", { text: r.school }), el("span", { class: "state", text: STATE[r.state] || r.state })),
       el("p", { class: "muted", style: "margin:4px 0 0", text: r.phase }),
+      el("p", { class: "muted", style: "margin:2px 0 0", text: `${r.answered || 0} answer${r.answered === 1 ? "" : "s"} entered · ${(r.pages || []).length} page${(r.pages || []).length === 1 ? "" : "s"} done · started ${ago(r.startedAt)} ago` }),
       el("div", { class: "row" },
         held
-          ? el("button", { class: "primary", text: r.state === "taken_over" ? "Hand back" : "Resume", on: { click: () => send({ type: "panel:resume", id: r.taskId }).then((x) => { if (x && x.learned) $("err").textContent = `Learned ${x.learned} correction${x.learned === 1 ? "" : "s"} from you.`; refresh(); }, err) } })
+          ? el("button", { class: "primary", text: r.state === "taken_over" ? "Hand back" : "Resume", on: { click: () => send({ type: "panel:resume", id: r.taskId }).then((x) => { if (x && x.learned) say(`Learned ${x.learned} correction${x.learned === 1 ? "" : "s"} from you. The agents will use ${x.learned === 1 ? "it" : "them"} next time.`); refresh(); }, err) } })
           : el("button", { text: "Pause", on: { click: () => act({ type: "panel:pause", id: r.taskId }) } }),
         held ? null : el("button", { text: "Take over", title: "Pause and bring up the tab so you can change things; hand back when done", on: { click: () => act({ type: "panel:takeover", id: r.taskId }) } }),
         el("button", { text: "Show the tab", on: { click: () => act({ type: "panel:focus", id: r.taskId }) } }),
         el("button", { text: "Stop", on: { click: () => act({ type: "panel:stop", id: r.taskId }) } }),
       ),
-      el("details", {}, el("summary", { class: "muted", text: `Answers on this page (${(r.current && r.current.fills.length) || 0})` }), answers(r.current && r.current.fills)),
+      el("details", { "data-k": `a:${r.taskId}`, open: open.has(`a:${r.taskId}`) }, el("summary", { class: "muted", text: `Answers on this page (${(r.current && r.current.fills.length) || 0})` }), answers(r.current && r.current.fills), (r.pages || []).length ? el("div", { class: "row" }, copyBtn(r)) : null),
+      el("details", { "data-k": `l:${r.taskId}`, open: open.has(`l:${r.taskId}`) }, el("summary", { class: "muted", text: "What the agents did" }),
+        el("ol", { class: "log" }, (r.log || []).slice().reverse().map((x) => el("li", {}, el("time", { text: new Date(x.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }), " ", x.text)))),
     ));
   }
 }
@@ -110,6 +135,12 @@ async function renderQuestions() {
   let d;
   try { d = await send({ type: "panel:questions" }); } catch (e) { return; }
   if (d && d.latest) showUpdate(d.latest);
+  // an answer being typed or chosen is never wiped by the refresh
+  const busy = [...box.querySelectorAll("input,select")].some((i) => i.value.trim() || i === document.activeElement);
+  const sig = JSON.stringify(d.questions.map((q) => q.id));
+  if (busy && box.dataset.sig === sig) return;
+  if (busy) return;
+  box.dataset.sig = sig;
   box.replaceChildren();
   if (!d.questions.length) return box.append(el("p", { class: "empty", text: "None right now." }));
   for (const q of d.questions) {
@@ -119,9 +150,9 @@ async function renderQuestions() {
     const save = el("button", { class: "primary", text: "Save answer", on: { click: async () => {
       if (!input.value.trim()) return;
       save.disabled = true;
-      try { await send({ type: "panel:answer", id: q.id, answer: input.value }); renderQuestions(); } catch (e) { err(e); save.disabled = false; }
+      try { await send({ type: "panel:answer", id: q.id, answer: input.value }); input.value = ""; say("Saved. The agents carry on with it."); renderQuestions(); } catch (e) { err(e); save.disabled = false; }
     } } });
-    const skip = el("button", { text: "Doesn't apply to me", on: { click: () => send({ type: "panel:answer", id: q.id, answer: null }).then(renderQuestions, err) } });
+    const skip = el("button", { text: "Doesn't apply to me", on: { click: () => { input.value = ""; send({ type: "panel:answer", id: q.id, answer: null }).then(renderQuestions, err); } } });
     box.append(el("div", { class: "card" }, el("div", { class: "muted", text: q.school || "" }), el("p", { style: "margin:2px 0 6px", text: q.question }), input, el("div", { class: "row" }, save, skip)));
   }
 }
@@ -149,14 +180,22 @@ function renderSettings(s) {
   $("auto").checked = !!s.auto;
 }
 
+let lastSig = "";
+window.addEventListener("online", () => refresh());
+window.addEventListener("offline", () => refresh());
 async function refresh() {
   const { token } = await chrome.storage.local.get({ token: "" });
   $("setup").hidden = !!token;
   $("app").hidden = !token;
   $("v").textContent = "v" + chrome.runtime.getManifest().version;
   if (!token) return;
+  $("offline").hidden = navigator.onLine;
   try {
     const d = await send({ type: "panel:state" });
+    // redraw only when something changed: a redraw every few seconds moved the page under the reader's finger
+    const sig = JSON.stringify([d.pending, d.runs.map((r) => [r.taskId, r.state, r.phase, r.answered, (r.pages || []).length, r.current && r.current.fills.length, (r.log || []).length]), d.tasks, d.paused, d.settings, d.latest]);
+    if (sig === lastSig) return;
+    lastSig = sig;
     renderAsks(d);
     renderRuns(d);
     renderQueue(d);
@@ -171,7 +210,7 @@ async function refresh() {
 for (const r of document.querySelectorAll('input[name="approval"]')) r.addEventListener("change", () => send({ type: "panel:settings", settings: { approval: r.value } }).catch(err));
 $("parallel").addEventListener("change", (e) => send({ type: "panel:settings", settings: { parallel: Number(e.target.value) } }).catch(err));
 for (const k of ["pmSignIn", "checkins", "auto"]) $(k).addEventListener("change", (e) => send({ type: "panel:settings", settings: { [k]: e.target.checked } }).catch(err));
-$("checkNow").addEventListener("click", () => send({ type: "panel:checkins" }).then(() => ($("err").textContent = "Checking your submitted portals in background tabs. Changes show up in Ivyward."), err));
+$("checkNow").addEventListener("click", () => send({ type: "panel:checkins" }).then(() => say("Checking your submitted portals in background tabs. Changes show up in Ivyward."), err));
 
 // facts from the tab the applicant is reading
 $("facts").addEventListener("click", async () => {

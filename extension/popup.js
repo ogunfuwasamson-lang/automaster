@@ -99,7 +99,15 @@ $("panel").onclick = async () => {
 };
 $("refresh").onclick = () => send({ type: "popup:poll" }).finally(render);
 $("saveApi").onclick = async () => {
-  await chrome.storage.local.set({ api: $("api").value.trim() || DEFAULT_API });
+  // the key is only ever sent to Ivyward (or a developer's own machine)
+  let api = DEFAULT_API;
+  try {
+    const x = new URL($("api").value.trim());
+    const local = x.hostname === "localhost" || x.hostname === "127.0.0.1";
+    if ((x.protocol === "https:" && /(^|\.)tryivyward\.com$/.test(x.hostname)) || local) api = x.origin;
+    else $("err").textContent = "Only tryivyward.com is allowed here.";
+  } catch {}
+  await chrome.storage.local.set({ api });
   render();
 };
 $("logout").onclick = async () => {
