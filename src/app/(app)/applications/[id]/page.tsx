@@ -66,7 +66,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
   const [{ data: app }, { data: jobs }, { data: threads }, { count: logins }, { data: asked }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
+      .select("id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, fee_waiver_status, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))")
       .eq("id", id)
       .maybeSingle(),
     auth.sb.from("jobs").select("agent, status, payload").in("agent", ["strategist", "writer", "redteam", "closer"]).in("status", ["queued", "running"]),
@@ -177,7 +177,14 @@ export default async function ApplicationPage({ params, searchParams }: { params
           {p.app_fee_usd != null && (
             <div>
               <dt className="text-xs text-muted">Application fee</dt>
-              <dd className="font-medium tabular">{p.app_fee_usd ? `$${p.app_fee_usd}` : "None"}</dd>
+              <dd className="font-medium tabular">
+                {p.app_fee_usd ? `$${p.app_fee_usd}` : "None"}
+                {p.app_fee_usd && app.fee_waiver_status ? (
+                  <span className={`ml-2 text-[13px] font-normal ${app.fee_waiver_status === "granted" ? "text-go" : "text-muted"}`}>
+                    {app.fee_waiver_status === "granted" ? "waived" : app.fee_waiver_status === "denied" ? "waiver refused" : "waiver asked for"}
+                  </span>
+                ) : null}
+              </dd>
             </div>
           )}
           {p.url && (

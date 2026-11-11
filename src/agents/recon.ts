@@ -122,15 +122,26 @@ const num = (s: string) => {
 };
 const iso = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s.trim()) ? s.trim() : null);
 
+// a school that was merged into another keeps its old name as an alias of the kept one ("UNSW Sydney" is the
+// University of New South Wales), so research under the old name lands on the kept school instead of reviving it
+async function mergedInto(slug: string): Promise<{ id: string; slug: string; name: string } | null> {
+  const db = admin();
+  const { data: alias } = await db.from("school_knowledge").select("school_id").eq("kind", "alias").eq("key", slug).limit(1).maybeSingle();
+  if (!alias?.school_id) return null;
+  const { data: kept } = await db.from("schools").select("id, slug, name").eq("id", alias.school_id).maybeSingle();
+  return (kept as { id: string; slug: string; name: string } | null) ?? null;
+}
+
 async function upsertProgram(f: ProgramFacts, sources: string[]) {
   const db = admin();
-  const slug = slugify(f.school_name);
+  const merged = await mergedInto(slugify(f.school_name)).catch(() => null);
+  const slug = merged?.slug ?? slugify(f.school_name);
   const { data: school, error: serr } = await db
     .from("schools")
     .upsert(
       {
         slug,
-        name: f.school_name,
+        name: merged?.name ?? f.school_name,
         city: f.school_city || null,
         state: f.school_state || null,
         country: f.country || null,
@@ -569,7 +580,7 @@ first list every eligibility hook you see in this profile. then search for schol
 async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[]; schoolId: string; programId: string } | null> {
   const db = admin();
   const since = new Date(Date.now() - CACHE_DAYS * 86_400_000).toISOString();
-  const { data: sch } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", slugify(school)).maybeSingle();
+  const { data: sch } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", (await mergedInto(slugify(school)).catch(() => null))?.slug ?? slugify(school)).maybeSingle();
   if (!sch) return null;
   const { data: progs } = await db
     .from("programs")

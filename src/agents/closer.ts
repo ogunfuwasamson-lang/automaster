@@ -142,6 +142,7 @@ async function saveDrafts(userId: string, applicationId: string, out: z.infer<ty
   await db.from("artifact_versions").insert({ artifact_id: artId, user_id: userId, version, content: md, author: "agent:closer" });
   await db.from("artifacts").update({ current_version: version }).eq("id", artId);
 
+  if (kind === "fee" && saved) await db.from("applications").update({ fee_waiver_status: "requested" }).eq("id", applicationId).eq("user_id", userId).is("fee_waiver_status", null);
   await logEvent({
     userId,
     actor: "agent:closer",

@@ -7,6 +7,7 @@ import { hostRoot } from "@/lib/verify-mail";
 import { normalizeUrl } from "@/lib/portal-url";
 import { runStructured } from "@/lib/llm";
 import { logEvent, recordOutcome } from "@/lib/events";
+import { notify } from "@/lib/notify";
 import { enqueue } from "@/lib/queue";
 import { baseSubject, mailText, parseFrom } from "@/lib/mail-text";
 import { findFollowups } from "@/lib/followups";
@@ -34,11 +35,14 @@ const Classified = z.object({
   action_needed: z.string(),
   due_date: z.string(),
   aid_amount_usd: z.number(),
+  // for a reply about an application fee waiver: what the school decided
+  waiver: z.enum(["granted", "denied", "unclear", "none"]),
 });
 
 const SYSTEM = `you read one email an applicant received from a university and say what it means for their application.
 kinds: decision_admit / decision_reject / decision_waitlist (a final or waitlist decision), interview_invite, document_request (they want a document, score, transcript, reference), action_required (anything else the applicant must do: deposit, form, deadline, payment), aid_offer (scholarship/assistantship/funding offered), fee_waiver_reply, account_or_verification (logins, codes, password resets), submission_receipt (the school confirms the application was SUBMITTED or received as complete; an email that only says an application or account was created, started or saved is account_or_verification, not this), info_or_marketing (newsletters, events, generic info).
 summary: one plain sentence. action_needed: what the applicant must do, or "" if nothing. due_date: YYYY-MM-DD if the email gives a deadline, else "". aid_amount_usd: yearly amount in USD if an aid offer states one (convert roughly), else 0.
+waiver: for a fee_waiver_reply only: "granted" when the email says the fee is waived or gives a waiver code, "denied" when it refuses, "unclear" when it asks for more or doesn't say; "none" for every other kind.
 only decide "decision_*" when the email itself states the decision; "your decision is available in the portal" is action_required (log in to read it).`;
 
 const ACT: Partial<Record<(typeof KINDS)[number], string>> = {
@@ -114,7 +118,7 @@ export async function checkInbox(userId: string, jobId?: string) {
       userId,
       agent: "inbox",
       jobId,
-      promptVersion: "inbox-v2",
+      promptVersion: "inbox-v3",
       tier: "cheap",
       system: SYSTEM,
       prompt: `from: ${m.from}\nsubject: ${m.subject}\n\n${mailText(m).slice(0, 5000)}`,
@@ -160,6 +164,9 @@ export async function checkInbox(userId: string, jobId?: string) {
       await recordOutcome({ userId, applicationId: match.applicationId, kind: "proxy", label: `reply:${c.kind}`, source: "inbox" });
     }
 
+    // what the school decided about the fee, and money it offered: recorded on the application so wins can be counted
+    if (match.applicationId) await recordMoney(userId, match.applicationId, c, school0(match.school, fromDomain)).catch(() => {});
+
     const link = acct?.email ? `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(acct.email)}#all/${id}` : null;
     const school = match.school ?? fromDomain;
     if (ACT[c.kind] && match.applicationId) {
@@ -188,6 +195,29 @@ export async function checkInbox(userId: string, jobId?: string) {
     }
   }
   return { read: mails.length, added };
+}
+
+const school0 = (name: string | null, domain: string) => name ?? domain;
+
+// a waiver granted or refused, or aid offered, written to the application (and the applicant told about a win)
+export async function recordMoney(userId: string, applicationId: string, c: { kind: string; waiver?: string; aid_amount_usd?: number; summary: string }, school: string) {
+  const db = admin();
+  if (c.kind === "fee_waiver_reply" && (c.waiver === "granted" || c.waiver === "denied")) {
+    const { data: app } = await db.from("applications").select("programs(app_fee_usd)").eq("id", applicationId).eq("user_id", userId).maybeSingle();
+    const fee = (app?.programs as unknown as { app_fee_usd: number | null } | null)?.app_fee_usd ?? null;
+    await db.from("applications").update({ fee_waiver_status: c.waiver, fee_waived_usd: c.waiver === "granted" ? fee : null }).eq("id", applicationId).eq("user_id", userId);
+    await logEvent({ userId, actor: "agent:inbox", action: `fee_waiver.${c.waiver}`, applicationId, channel: "email", context: { saved_usd: c.waiver === "granted" ? fee : 0 } });
+    if (c.waiver === "granted") {
+      await notify({ userId, key: `waiver:${applicationId}`, kind: "info", title: `${school} waived your application fee${fee ? `: $${fee} saved` : ""}`, body: c.summary, href: `/applications/${applicationId}`, actionLabel: "Open the application", email: true }).catch(() => {});
+    }
+  }
+  if (c.kind === "aid_offer" && (c.aid_amount_usd ?? 0) > 0) {
+    const { data: app } = await db.from("applications").select("aid_offered").eq("id", applicationId).eq("user_id", userId).maybeSingle();
+    const cur = (app?.aid_offered ?? null) as { amount_usd?: number } | null;
+    // the school's own email is the record until the applicant enters the decision themselves
+    if (!cur?.amount_usd) await db.from("applications").update({ aid_offered: { amount_usd: Math.round(c.aid_amount_usd!), note: c.summary.slice(0, 200), accept_by: null, source: "email" } }).eq("id", applicationId).eq("user_id", userId);
+    await logEvent({ userId, actor: "agent:inbox", action: "funding.offered", applicationId, channel: "email", context: { amount_usd: Math.round(c.aid_amount_usd!) } });
+  }
 }
 
 // called by the worker a few times an hour

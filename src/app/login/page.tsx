@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useSearchParams } from "next/navigation";
 import { Mail, ArrowLeft, Check } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { ThemeButton } from "@/components/theme";
+import { emailTypo } from "@/lib/email-typo";
 import { Turnstile, TURNSTILE_KEY, type CheckState } from "@/components/turnstile";
 
 function LoginForm() {
@@ -25,13 +26,34 @@ function LoginForm() {
   const onToken = (t: string | null) => {
     token.current = t;
   };
-  const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used or has expired. Enter your email for a fresh one." : "");
+  const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used, has expired, or was opened in a different browser from the one you asked in. Enter your email for a fresh one and open it here." : "");
+
+  // "Continue with Google" appears only when Google sign-in is switched on for this project
+  const [google, setGoogle] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setGoogle(!!j?.external?.google))
+      .catch(() => {});
+  }, []);
+  const backTo = () => (next.startsWith("/") && !next.startsWith("//") ? `?next=${encodeURIComponent(next)}` : "");
+  async function withGoogle() {
+    setLeaving(true);
+    setErr("");
+    const { error } = await browserClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback${backTo()}` } });
+    if (error) {
+      setErr("Google sign-in didn't start. Use the email link below instead.");
+      setLeaving(false);
+    }
+  }
+  const meant = emailTypo(email);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setState("sending");
     setErr("");
-    const back = next.startsWith("/") && !next.startsWith("//") ? `?next=${encodeURIComponent(next)}` : "";
+    const back = backTo();
     // the bot check usually finishes on its own within a few seconds: wait for it rather than turn the person away
     for (let i = 0; TURNSTILE_KEY && !token.current && check.current === "loading" && i < 100; i++) await new Promise((r) => setTimeout(r, 100));
     const captchaToken = token.current;
@@ -59,8 +81,8 @@ function LoginForm() {
         </motion.span>
         <h1 className="text-3xl font-bold tracking-[-0.04em]">Check your inbox</h1>
         <p className="text-[15px] leading-relaxed text-muted">
-          We sent a sign-in link to <span className="font-semibold text-foreground">{email}</span>. Open it on this device. It works once and
-          expires in an hour.
+          We sent a sign-in link to <span className="font-semibold text-foreground">{email}</span>. Open it in this same browser. It works once and expires in an hour. Nothing after a
+          minute? Check spam, and that the address is spelled right.
         </p>
         <button onClick={() => setState("idle")} className="inline-flex items-center gap-1.5 text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
           <ArrowLeft className="size-4" aria-hidden /> Use a different email
@@ -77,9 +99,36 @@ function LoginForm() {
           {signup ? "Enter your email and we'll send you a link to create your account. No password needed." : "Enter your email and we'll send you a sign-in link."}
         </p>
       </div>
+      {google && (
+        <>
+          <Button type="button" size="lg" variant="secondary" className="w-full" onClick={withGoogle} disabled={leaving}>
+            <svg viewBox="0 0 18 18" className="size-[18px]" aria-hidden>
+              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+              <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z" />
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+            </svg>
+            {leaving ? "Opening Google…" : "Continue with Google"}
+          </Button>
+          <div className="flex items-center gap-3 text-xs text-muted" role="separator">
+            <span className="h-px flex-1 bg-line" />
+            or use an email link
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
       <Field label="Email" error={err || null}>
-        <Input type="email" required autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+        <Input type="email" required autoComplete="email" autoFocus={!google} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
       </Field>
+      {meant && (
+        <p className="-mt-3 text-sm text-muted" role="status">
+          Did you mean{" "}
+          <button type="button" className="font-semibold text-brand underline-offset-2 hover:underline" onClick={() => setEmail(meant)}>
+            {meant}
+          </button>
+          ?
+        </p>
+      )}
       <Turnstile
         key={visibleCheck ? "visible" : "invisible"}
         visible={visibleCheck}
