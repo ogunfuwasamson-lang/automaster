@@ -111,7 +111,9 @@ export function buildSheet(a: {
     set("dob_day", dob.slice(8, 10));
   }
   set("gender", d.gender || fact(/\b(gender|sex)\b/i));
-  set("citizenship", p.identity.citizenship);
+  // the passport they named on a card is their citizenship when the profile itself doesn't say
+  const citizen = p.identity.citizenship || d.passport_country || null;
+  set("citizenship", citizen);
   set("country_of_birth", d.country_of_birth || fact(/(country|place) of birth|birth ?(country|place)|born in/i));
   set("country_of_residence", p.identity.country_of_residence);
   set("address_line1", d.address_line1);
@@ -122,12 +124,19 @@ export function buildSheet(a: {
   set("country", d.country || p.identity.country_of_residence);
   set("linkedin", d.linkedin);
   set("website", d.website);
-  set("nationality", p.identity.citizenship);
+  set("nationality", citizen);
   // plain facts that follow from where they live and what they speak, for the yes/no questions forms ask
   const lives = (d.country || p.identity.country_of_residence || "").trim();
   if (lives) set("lives_in", lives);
   const firstLang = d.first_language || fact(/(first|native|mother).{0,10}(language|tongue)/i);
   if (firstLang) set("english_first_language", /^english\b/i.test(firstLang.trim()) ? "Yes" : "No");
+  // "language spoken most often at home" when they only gave a first language
+  set("home_language", d.home_language || firstLang);
+  // "do you hold an English language qualification?": yes with a score on file, no when they're going by a
+  // medium-of-instruction letter and have no test; otherwise unknown and the form's question goes to them
+  const engTest = p.tests.find((t) => /^(TOEFL|IELTS|Duolingo)$/.test(t.name) && t.status === "taken" && t.score);
+  if (engTest) set("has_english_test", "Yes");
+  else if (p.english.route === "waiver" && !p.tests.some((t) => /^(TOEFL|IELTS|Duolingo)$/.test(t.name) && t.status !== "not_planned")) set("has_english_test", "No");
   // everything else on the profile details (languages, background, family, activities, the yes/no questions):
   // offered under its own key, so a form question about it is filled without asking
   for (const fd of PORTAL_DETAIL_FIELDS) if (!(fd.key in f)) set(fd.key, /^(legal_.*_name|preferred_name)$/.test(fd.key) ? okName(d[fd.key]) : d[fd.key]);
@@ -263,7 +272,15 @@ const DIAL = ["1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "4
 
 export const LABEL_RULES: [RegExp, string][] = [
   // yes/no: is the mailing address another one (before the address-part rules below)
-  [/\b(mailing|postal|correspondence|current)\s+address\b.{0,40}\b(different|differ)\b|\bdifferent\s+(mailing|postal|correspondence)\s+address\b/i, "mailing_differs"],
+  [/\b(mailing|postal|correspondence|current)\s+address\b.{0,40}\b(different|differ)\b|\bdifferent\s+(mailing|postal|correspondence)\s+address\b|\b(living|live|residing|reside|staying)\b.{0,30}\bdifferent address\b/i, "mailing_differs"],
+  // before the address rules: a language question that mentions an address ("language spoken most frequently at
+  // your permanent address", mcgill) is about the language
+  [/\blanguage\b.{0,20}\b(spoken|used|speak)\b.{0,40}\b(home|address|household|family)\b|\b(spoken|speak)\b.{0,20}\bat home\b/i, "home_language"],
+  // a bare "Term" / "Intake" / "Semester" box on an application is the term applied for
+  [/^\*?\s*(term|intake|semester|session)(\s+\1)?\s*\*?\s*$/i, "entry_term"],
+  [/\b(ever|previously|before|already)\b.{0,25}\bstud(y|ied|ying)\b.{0,25}\b(in|at)\b|\bprevious(ly)? stud(y|ied) in\b/i, "studied_in_country_before"],
+  [/\b(taught|instruction|delivered|conducted|studied)\b.{0,25}\b(in|through|entirely in)\s+english\b|\benglish[- ]medium\b|\bmedium of instruction\b/i, "english_medium_education"],
+  [/\b(hold|have|taken|possess|completed)\b.{0,30}\benglish (language )?(qualification|test|proficiency test|exam)/i, "has_english_test"],
   [/\b(mailing|postal|correspondence)\s+address\b.{0,40}\bsame as\b|\bsame as (my |your )?(permanent|home|current|residential) address\b/i, "mailing_same"],
   // first, before the name rules: its label says "last name". a user id the portal wants built from the name: calgary's "eID first.last"
   [/\bfirst(\s*name)?\s*\.\s*last(\s*name)?\b|\bfirstname\.lastname\b/i, "username_first_last"],
@@ -366,9 +383,15 @@ export function keyForLabel(label: string): string | null {
     if (/name/i.test(l)) return `rec${n}_name`;
     return null;
   }
-  for (const [re, key] of LABEL_RULES) if (re.test(l)) return key;
+  // a yes/no question is never answered with a piece of contact text: "Are you currently living at a different
+  // address?" once got the street address typed into it
+  const asksYesNo = YES_NO_QUESTION.test(l);
+  for (const [re, key] of LABEL_RULES) if (re.test(l) && !(asksYesNo && TEXT_ONLY_KEY.test(key))) return key;
   return null;
 }
+
+const YES_NO_QUESTION = /^\*?\s*(are|is|do|does|did|have|has|had|will|would|was|were|can|could|should)\b.*\?\s*\*?$/i;
+const TEXT_ONLY_KEY = /^(address_line[12]|city|state|postal_code|country|phone|phone_.*|email|first_name|last_name|middle_name|full_name|preferred_name|linkedin|website|username.*|program|edu\d_(institution|major|degree)|work\d_(employer|title))$/;
 
 // fields the runner must never fill, whatever the label matching says
 export { NEVER_FILL } from "@/lib/never-fill";

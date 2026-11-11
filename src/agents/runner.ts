@@ -57,6 +57,7 @@ actions:
 - goto: open url (a link on this page or the same site).
 - wait_email: the portal sent an email (code, link, or login) and nothing else can be done until it arrives.
 - handoff: ONLY for a bot check (captcha), a payment, or a personal fact the sheet truly doesn't have. note says exactly what the applicant must do, in one plain sentence.
+  never hand off for a password, a password confirmation, security questions or recovery answers: the system creates the account password and those answers itself and keeps them with the login. on a sign-up page, fill what the sheet has and press the create/register/continue button; the password boxes are filled for you. never ask the applicant to choose, send or type a password.
 - done: the application is already submitted.
 how to find your way:
 - school and program pages: the application is always linked somewhere. look for apply online, apply now, start your application, online application, how to apply, application portal, apply via (ucas, slate, the school's system), admissions, or a menu. follow it.
@@ -81,7 +82,7 @@ actions (point at elements with mark; use x, y only for something without a mark
 - back: go back a page after a wrong turn.
 - wait: the page is loading or a spinner is showing.
 - done: the goal is reached, or nothing more can be done on this screen.
-- handoff: a bot check, a payment, or a question about the applicant the fill sheet can't answer. note says what the applicant must do.
+- handoff: a bot check, a payment, or a question about the applicant the fill sheet can't answer. note says what the applicant must do. never for a password, security question or recovery answer: those are created and filled by the system, so leave those boxes and press the create or continue button.
 how to work:
 - a plain dropdown (mark type select): use type with the sheet_key; the matching option is chosen for you. clicking it won't work (its list doesn't show in screenshots).
 - custom dropdowns (comboboxes, styled lists): click to open, then click the option (scroll the list or type a few letters if it's long). check the value in the marks list afterwards.

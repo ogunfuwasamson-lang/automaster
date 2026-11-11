@@ -7,7 +7,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
       <div className="min-w-0">
         {eyebrow ? <div className="mb-2">{eyebrow}</div> : null}
         <h1 className="text-[30px] leading-tight sm:text-[36px]">{title}</h1>
-        {description ? <p className="mt-0.5 max-w-3xl truncate text-sm text-muted">{description}</p> : null}
+        {description ? <p className="mt-0.5 max-w-3xl text-sm text-muted sm:truncate">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>

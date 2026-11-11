@@ -18,6 +18,25 @@ const skippedOf = (d: Details): string[] => {
 
 const isSkipped = (d: Details, k: string) => skippedOf(d).includes(k);
 
+// lets a phone or browser offer the person's own saved name, number and address
+const AUTOFILL: Record<string, string> = {
+  legal_first_name: "given-name",
+  legal_middle_name: "additional-name",
+  legal_last_name: "family-name",
+  preferred_name: "nickname",
+  email: "email",
+  phone: "tel",
+  date_of_birth: "bday",
+  address_line1: "address-line1",
+  address_line2: "address-line2",
+  city: "address-level2",
+  state: "address-level1",
+  postal_code: "postal-code",
+  country: "country-name",
+  linkedin: "url",
+  website: "url",
+};
+
 export function QuestionDeck({
   initial,
   level,
@@ -152,12 +171,16 @@ export function QuestionDeck({
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void answer(draft);
                       }}
+                      aria-label={current.ask ?? current.label}
                       placeholder="A few honest sentences is plenty"
                     />
                   ) : (
                     <Input
                       ref={input}
                       autoFocus
+                      aria-label={current.ask ?? current.label}
+                      autoComplete={AUTOFILL[current.key] ?? "off"}
+                      enterKeyHint="next"
                       type={current.kind === "date" ? "date" : current.kind === "email" ? "email" : current.kind === "tel" ? "tel" : current.kind === "url" ? "url" : "text"}
                       value={draft}
                       maxLength={300}

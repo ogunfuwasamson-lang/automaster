@@ -56,7 +56,7 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
     await notify({ userId, key: "setup:gmail", kind: "setup", title: "Connect Gmail so the agents can act on school emails", body: "They register you for webinars that unlock fee waivers, claim waivers, read verification codes and tell you when a school replies. No Gmail? Paste a school's email in Messages and they'll do the same.", href: "/settings", actionLabel: "Connect Gmail" });
   } else await resolve(userId, "setup:gmail");
 
-  const gaps = profileGaps(profile).length;
+  const gaps = profileGaps(profile, details).length;
   if (gaps) {
     missing.push("interview");
     await notify({ userId, key: "setup:interview", kind: "setup", title: `${gaps} question${gaps === 1 ? "" : "s"} left for Ivyward AI`, body: "A few answers your documents didn't cover. It takes a couple of minutes.", href: "/dashboard?chat=open", actionLabel: "Answer them" });

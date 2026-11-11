@@ -295,7 +295,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
           <span className="bg-hero-gradient grid size-11 shrink-0 place-items-center rounded-2xl text-white">
             <Mail className="size-5" aria-hidden />
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0 flex-1 basis-[calc(100%-4rem)] sm:basis-0">
             <span className="block font-bold">Emails with {p.schools.name.split(",")[0]}</span>
             <span className="block truncate text-[13px] text-muted">Latest: {convos[0].subject ?? convos[0].messages.at(-1)!.subject ?? "(no subject)"}</span>
           </span>

@@ -539,7 +539,17 @@ export function Interview({
         <div ref={bottom} />
       </section>
 
-      {err && <p className="mb-2 rounded-lg border border-stop/40 bg-stop/8 px-3 py-2 text-sm">{err.charAt(0).toUpperCase() + err.slice(1)}</p>}
+      {err && (
+        <p className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stop/40 bg-stop/8 px-3 py-2 text-sm" role="alert">
+          <span>{err.charAt(0).toUpperCase() + err.slice(1)}</span>
+          {/* what they said is already saved: this asks for the reply again without making them retype it */}
+          {phase !== "thinking" && !/limit/i.test(err) && (
+            <button type="button" className="tap font-semibold underline underline-offset-4" onClick={() => send(null, false)}>
+              Try again
+            </button>
+          )}
+        </p>
+      )}
 
       {started && (
         <footer className={embedded ? "-mx-4 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 sm:-mx-6 sm:px-6" : "sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0"}>

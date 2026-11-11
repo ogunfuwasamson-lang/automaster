@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ivyward runner",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Finishes your approved university applications in your own Chrome. Shows every answer and asks before submitting.",
   "permissions": [
     "storage",

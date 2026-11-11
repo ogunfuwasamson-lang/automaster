@@ -8,6 +8,10 @@ import { PORTAL_DETAIL_FIELDS, detailFor } from "@/lib/portal-fields";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
 import { isSecAnswer, type PortalQuestion } from "@/lib/cloud-engine";
+import { profileBrief } from "@/lib/profile";
+import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
+import { runStructured } from "@/lib/llm";
+import { acceptInferred, answerable, Inferred, INFER_SYSTEM, inferPrompt } from "@/lib/profile-answers";
 
 // never the applicant's to answer here: security answers and passwords are made up and saved with the login by the
 // agents, and a label that's only a placeholder ("Your answer", "Type here") isn't a question anyone can answer.
@@ -90,6 +94,18 @@ export async function recordQuestions(userId: string, applicationId: string, que
     rows.push(base);
   }
   if (!rows.length) return 0;
+  // what's left would go to the applicant. first: does their profile already answer it? (a question the fill
+  // sheet couldn't match to one stored value, but that follows from what they told us.) answered ones are saved
+  // as facts with the line they rest on, and the run carries on without asking
+  const toAsk = rows.filter((r) => !r.status && !triedBefore.has(r.qkey as string) && answerable(r.question as string, r.field_type as string | null));
+  if (toAsk.length) {
+    const found = await fromProfile(userId, applicationId, profile, toAsk.map((r) => ({ label: r.question as string, type: r.field_type as string | null, options: r.options as string[] }))).catch(() => new Map<number, { value: string; basis: string }>());
+    for (const [i, a] of found) {
+      Object.assign(toAsk[i], { status: "answered", answer: a.value, answered_at: new Date().toISOString() });
+      reused.push({ question: toAsk[i].question as string, value: a.value });
+    }
+    if (found.size) await logEvent({ userId, actor: "agent:runner", action: "runner.answers_from_profile", applicationId, context: { count: found.size, answers: [...found].map(([i, a]) => ({ question: (toAsk[i].question as string).slice(0, 120), answer: a.value.slice(0, 120), basis: a.basis.slice(0, 160) })) } });
+  }
   // one open copy per question (unique index): a run that recorded the same question a moment ago fails the whole
   // batch, so the rest go in one by one and only the duplicate is dropped
   const { error: batch } = await db.from("portal_questions").insert(rows);
@@ -107,6 +123,22 @@ export async function recordQuestions(userId: string, applicationId: string, que
   const n = count ?? asked;
   await notify({ userId, key: "portal-questions", kind: "setup", urgent: true, title: `Your schools are asking ${n} question${n === 1 ? "" : "s"}`, body: "An application form is paused until they're answered. Most take one tap.", href: "/dashboard#questions", actionLabel: "Answer them" }).catch(() => {});
   return asked;
+}
+
+// one small model call for all of a page's unanswered questions. no key, no credit or any failure: nothing is
+// answered and the questions go to the applicant as before
+async function fromProfile(userId: string, applicationId: string, profile: Awaited<ReturnType<typeof getProfile>>, questions: { label: string; type?: string | null; options?: string[] }[]) {
+  const db = admin();
+  const [{ data: prof }, { data: app }] = await Promise.all([
+    db.from("profiles").select("portal_details").eq("id", userId).maybeSingle(),
+    db.from("applications").select("programs(name, degree, schools(name, country))").eq("id", applicationId).maybeSingle(),
+  ]);
+  const p = app?.programs as unknown as { name: string; degree: string | null; schools: { name: string; country: string | null } } | null;
+  const brief = profileBrief(profile);
+  const details = detailsBrief((prof?.portal_details ?? {}) as PortalDetails, "all");
+  const school = p ? `${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}${p.schools.country ? `, ${p.schools.country}` : ""}` : "a university";
+  const { output } = await runStructured({ userId, agent: "runner", tier: "cheap", promptVersion: "profile-answers-v1", system: INFER_SYSTEM, prompt: inferPrompt(brief, details, school, questions), schema: Inferred, maxTokens: 1500, lessons: false });
+  return acceptInferred(output, questions, `${brief}\n${details}\n${school}`);
 }
 
 export async function openQuestions(userId: string): Promise<OpenQuestion[]> {

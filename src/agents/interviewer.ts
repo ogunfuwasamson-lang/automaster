@@ -69,7 +69,7 @@ hard rules:
 - when your own question has a few clear answers (an intake, a degree level, yes or no, which of their programs), put them in choices (2 to 8, short) so they can tap one; leave choices empty for open questions.
 - never ask the same thing twice. if the transcript shows you asked it and they answered anything, it's closed. unclear answers ("depends", "any") go in notes, and the gap key in skipped_gaps.
 - when they name recommenders, set recommenders.count_lined_up and put names and roles in recommenders.notes.
-- never ask what the profile or documents already answer. if something conflicts, confirm it once.
+- never ask what the profile, the profile details or the documents already answer, in any wording: before every question, check all three. if something conflicts, confirm it once.
 - never ask for passport numbers, ID numbers, bank details, or passwords.
 - action ids and urls come only from the lists below or from what they pasted. times in UTC; convert from the time zone they or the school state.
 
@@ -103,7 +103,6 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
     seasonOverview(userId),
   ]);
   const transcript = (history ?? []).reverse() as Turn[];
-  const gaps = profileGaps(profile);
   // the application-profile chapter in progress: the one they asked for, else the one the last question came from
   const details = (row?.portal_details as PortalDetails | null) ?? {};
   const level = (profile.goals.study_level as Level | null) ?? null;
@@ -113,6 +112,9 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
   const lastKey = (lastMeta?.ask?.id ?? "").replace(/^d:/, "");
   const focus = asked?.id ?? lastMeta?.chapter ?? CHAPTERS.find((c) => c.keys.includes(lastKey))?.id ?? null;
   const chapterNow = nextQuestions(details, level, 4, focus);
+  const gaps = profileGaps(profile, details);
+  // they asked for a chapter by name (the buttons in setup and on the profile do): that comes before the gaps
+  const wantsChapter = !!asked && chapterNow.chapter?.chapter.id === asked.id;
 
   const prompt = `profile:
 ${profileBrief(profile, row?.target_term)}
@@ -132,7 +134,7 @@ today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
 application profile (${formReadiness(details, level)}% ready for forms). chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done, ${chapterNow.chapter.chapter.style === "story" ? "a conversation" : "quick answers"})` : "(all chapters done)"}
 ${chapterNow.questions.map((f) => `- [d:${f.key}] ${f.ask ?? f.label}${f.options?.length ? ` (options: ${f.options.join(" / ")})` : ""}${f.kind === "date" ? " (a date)" : ""}${f.hint ? ` (hint: ${f.hint})` : ""}`).join("\n") || "(nothing open)"}
 
-gaps, highest priority first:
+${wantsChapter ? `they asked to do the chapter "${chapterNow.chapter!.chapter.title}" now: ask its questions above, in order, starting with the first. leave the gaps below for after the chapter.\n\n` : ""}gaps, highest priority first:
 ${gaps.map((g, i) => `${i + 1}. [${g.key}] ${g.ask}`).join("\n") || "(none: move to stories, or wrap up)"}
 
 conversation so far (oldest first):
@@ -231,7 +233,7 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     wrapUp: output.mode === "wrap_up",
     next,
     completeness: completeness(updated),
-    gapsLeft: profileGaps(updated).length,
+    gapsLeft: profileGaps(updated, details).length,
     questionsLeft: questions.length - answered,
     ask,
   };

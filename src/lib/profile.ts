@@ -246,9 +246,13 @@ export interface Gap {
   ask: string;
 }
 
-export function profileGaps(p: Profile): Gap[] {
+// details: the applicant's form details (quick cards). a gap they already answered there isn't a gap: someone who
+// told a card which passport they hold isn't asked their citizenship again, and their story answers count as stories
+export function profileGaps(p: Profile, details?: Record<string, unknown> | null): Gap[] {
   const g: Gap[] = [];
   const has = (v: unknown) => v !== null && v !== undefined && v !== "";
+  const d = (k: string) => has(details?.[k]) && details?.[k] !== "Prefer not to say";
+  const told = ["proudest_achievement", "challenge_overcome", "failure_lesson", "leadership_moment", "teamwork_disagreement", "community_impact"].filter(d).length;
 
   const lvl = levelOf(p);
   const L = LEVEL_LABEL[lvl];
@@ -258,7 +262,7 @@ export function profileGaps(p: Profile): Gap[] {
   if (!p.preferences.regions?.length) g.push({ key: "preferences.regions", ask: `where they want to study: ${Object.values(REGIONS).join(", ")} (one or several)` });
   if (!p.goals.degree_types?.length) g.push({ key: "goals.degree_types", ask: lvl === "undergraduate" ? "which degree types they'd consider (BA, BSc, BEng, BBA, liberal arts, foundation year)" : lvl === "phd" ? "PhD, DPhil, or an MPhil/MRes route into a PhD; and whether they need it fully funded with a stipend" : "which degree types they'd consider (e.g. MS/MSc, MA, MBA, MiM, MEng, MPhil, LLM, MPP), and whether research or taught" });
   if (!has(p.funding.need)) g.push({ key: "funding.need", ask: "full funding required, partial ok, or self-funded" });
-  if (!has(p.identity.citizenship)) g.push({ key: "identity.citizenship", ask: "citizenship (decides which scholarships they're eligible for)" });
+  if (!has(p.identity.citizenship) && !d("passport_country")) g.push({ key: "identity.citizenship", ask: "citizenship (decides which scholarships they're eligible for)" });
   if (p.funding.need && p.funding.need !== "full" && !has(p.funding.annual_budget_usd))
     g.push({ key: "funding.annual_budget_usd", ask: "how much per year (USD) they can cover for tuition + living" });
   if (!has(p.goals.gmat_gre_plan)) g.push({ key: "goals.gmat_gre_plan", ask: `willing to take admissions tests (${TESTS_FOR[lvl]}) if it opens more programs or funding, or only programs that don't require them` });
@@ -272,10 +276,10 @@ export function profileGaps(p: Profile): Gap[] {
   if (!has(p.preferences.max_applications) && !has(p.funding.application_fee_budget_usd)) g.push({ key: "preferences.max_applications", ask: "how many applications they want to send" });
   if (!has(p.funding.application_fee_budget_usd)) g.push({ key: "funding.application_fee_budget_usd", ask: "total budget for application fees" });
   if (!has(p.goals.long_term_goal)) g.push({ key: "goals.long_term_goal", ask: "10-year goal" });
-  if (p.stories.length < 3)
+  if (p.stories.length + told < 3)
     g.push({
       key: "stories",
-      ask: `essay material (have ${p.stories.length}, want 3+): ${
+      ask: `essay material (have ${p.stories.length + told}, want 3+): ${
         lvl === "phd" ? "research experience, projects, publications, a hard problem they solved" : lvl === "undergraduate" ? "activities, leadership, projects, competitions, service, a challenge they overcame" : "specific stories with numbers: leadership, a failure, a big win"
       }`,
     });

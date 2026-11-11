@@ -39,6 +39,26 @@ export function ChatDock() {
   // opened from the last step of setup: closing the panel, finished or not, starts the agents
   const fromSetup = useRef(false);
 
+  // on a phone the button sits over the right edge of lists (arrows, copy buttons): it steps aside while the
+  // page is scrolled down and comes back on the way up or at rest
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    let t: ReturnType<typeof setTimeout>;
+    const on = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) > 8) setTucked(y > last && y > 120);
+      last = y;
+      clearTimeout(t);
+      t = setTimeout(() => setTucked(false), 1400);
+    };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", on);
+      clearTimeout(t);
+    };
+  }, []);
+
   const load = useCallback(async () => {
     const res = await fetch("/api/interview/history");
     if (res.ok) setHist(await res.json());
@@ -110,7 +130,7 @@ export function ChatDock() {
       <Dialog.Trigger asChild>
         <button
           hidden={path.startsWith("/messages")}
-          className="bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-medium text-white shadow-lift transition-opacity hover:opacity-90 lg:bottom-8 lg:right-8"
+          className={`bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-medium text-white shadow-lift transition-[opacity,transform] duration-200 hover:opacity-90 motion-reduce:transition-none lg:bottom-8 lg:right-8 lg:translate-x-0 lg:opacity-100 ${tucked ? "translate-x-[70%] opacity-60" : ""}`}
           aria-label={questions.length ? `Ivyward AI: ${questions.length} questions waiting` : "Ivyward AI"}
         >
           <MessagesSquare className="size-5" aria-hidden />

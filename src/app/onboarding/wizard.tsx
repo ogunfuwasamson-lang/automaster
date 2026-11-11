@@ -24,9 +24,9 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-const BASE_STEPS = ["What you're applying for", "Where to study", "Your documents", "Your email", "Meet Ivyward AI"];
-const BASE_ICON = [GraduationCap, Globe2, FileUp, Mail, Mic];
-const BASE_HINT = ["Level, fields and start date", "Regions the agents search", "CV, transcripts and anything else", "Lets agents send and read for you", "Your admissions assistant"];
+const BASE_STEPS = ["What you're applying for", "Where to study", "The basics", "Your documents", "Your email"];
+const BASE_ICON = [GraduationCap, Globe2, IdCard, FileUp, Mail];
+const BASE_HINT = ["Level, fields and start date", "Regions the agents search", "Your name as schools need it", "CV, transcripts and anything else", "Lets agents send and read for you"];
 
 export type PackOffer = { label: string; each: string; size: number; credits: number; bonus: number; justPaid: boolean; ready: boolean };
 
@@ -68,16 +68,23 @@ export function Onboarding(props: {
   pack: PackOffer | null;
   details: PortalDetails;
 }) {
-  // goals, where, documents, email, the basics, then (in pack countries) the submission pack, and last the
-  // application profile: the rest of what forms ask, by conversation or cards, now or later
-  const BASICS = 5;
+  // goals, where, the basics (who you are: a minute of taps, and nothing to go and find), then documents and
+  // email (the two that need a file or another screen), then (in pack countries) the submission pack, and last
+  // the application profile: the rest of what forms ask, by cards or conversation, now or later
+  const BASICS = 3;
+  const DOCS = 4;
+  const MAIL = 5;
   const PACK = props.pack ? 6 : -1;
-  const STEPS = [...BASE_STEPS.slice(0, 4), "The basics", ...(props.pack ? ["Your submissions"] : []), "Your application profile"];
-  const STEP_ICON = [...BASE_ICON.slice(0, 4), IdCard, ...(props.pack ? [Ticket] : []), Rows3];
-  const STEP_HINT = [...BASE_HINT.slice(0, 4), "Your name as schools need it", ...(props.pack ? ["Pay now or when you're ready"] : []), "Ivyward AI or quick cards"];
+  const STEPS = [...BASE_STEPS, ...(props.pack ? ["Your submissions"] : []), "Your application profile"];
+  const STEP_ICON = [...BASE_ICON, ...(props.pack ? [Ticket] : []), Rows3];
+  const STEP_HINT = [...BASE_HINT, ...(props.pack ? ["Pay now or when you're ready"] : []), "Quick cards or Ivyward AI"];
   const LAST = STEPS.length;
+  // the first chapter with something left in it (not always the second: someone coming back may have done it)
+  const firstOpen = (chapterStates(props.details, (props.level || null) as Level | null).find((c) => c.chapter.id !== "basics" && c.next.length) ?? { chapter: CHAPTERS[1] }).chapter;
   const router = useRouter();
   const reduce = useReducedMotion();
+  // whichever way they choose to finish the profile, the agents start now (the request outlives the page change)
+  const startAgents = () => void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
   const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), props.pack ? 7 : 6));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
@@ -300,7 +307,7 @@ export function Onboarding(props: {
               </div>
             )}
 
-            {step === 3 && (
+            {step === DOCS && (
               <div className="space-y-7">
                 <div>
                   <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Add your documents</h1>
@@ -320,7 +327,7 @@ export function Onboarding(props: {
                         <span className="min-w-0 flex-1">
                           <span className="block text-[14px] font-medium">
                             {label}
-                            {k === "cv" && <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">Start here</span>}
+                            {k === "cv" && <span className="ml-2 whitespace-nowrap rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">Start here</span>}
                           </span>
                           <span className="block truncate text-[12.5px] text-muted">{mine.length ? mine.map((m) => m.name).join(", ") : DOC_KIND_WHY[k]}</span>
                         </span>
@@ -349,12 +356,12 @@ export function Onboarding(props: {
                 {props.docCount ? <p className="flex items-center gap-2 text-sm text-muted"><Check className="size-4 text-go" aria-hidden />{props.docCount} document{props.docCount > 1 ? "s" : ""} added earlier</p> : null}
                 <div className="flex gap-3">
                   <Button size="lg" onClick={() => next()} disabled={!!uploading}>{uploaded.length || props.docCount ? "Continue" : "Skip for now"}</Button>
-                  <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(BASICS)}>Back</Button>
                 </div>
               </div>
             )}
 
-            {step === 4 && (
+            {step === MAIL && (
               <div className="space-y-8">
                 <div>
                   <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Connect your Gmail</h1>
@@ -380,7 +387,7 @@ export function Onboarding(props: {
                 {props.mailNotice && props.mailNotice !== "connected" ? <p className="text-sm text-stop">Gmail wasn&apos;t connected. Try again, and allow each permission on Google&apos;s screen.</p> : null}
                 <div className="flex gap-3">
                   <Button size="lg" variant={props.mailEmail ? "primary" : "secondary"} onClick={() => next()}>{props.mailEmail ? "Continue" : "Do this later"}</Button>
-                  <Button size="lg" variant="ghost" onClick={() => setStep(3)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(DOCS)}>Back</Button>
                 </div>
               </div>
             )}
@@ -393,7 +400,7 @@ export function Onboarding(props: {
                 </div>
                 <QuestionDeck initial={props.details} level={(level || null) as Level | null} chapterId="basics" only chatHref={false} onFinished={() => setStep((s) => s + 1)} />
                 <div className="flex gap-3">
-                  <Button size="lg" variant="ghost" onClick={() => setStep(4)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
                   <Button size="lg" variant="ghost" onClick={() => setStep((s) => s + 1)}>Do this later</Button>
                 </div>
               </div>
@@ -438,7 +445,7 @@ export function Onboarding(props: {
                       </Button>
                     </>
                   )}
-                  <Button size="lg" variant="ghost" onClick={() => setStep(BASICS)}>Back</Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(MAIL)}>Back</Button>
                 </div>
                 {!props.pack.justPaid && props.pack.credits === 0 && <p className="text-[13px] text-muted">You can buy a pack any time from Settings, or from an application when it&apos;s ready to submit.</p>}
               </div>
@@ -452,29 +459,16 @@ export function Onboarding(props: {
                     Every application form asks the same things: your family, your school record, visas, funding, your story. Answer them once, in short chapters, and the agents fill every form without stopping to ask. Do it now or any time from your profile.
                   </p>
                 </div>
-                <ol className="grid gap-2 sm:grid-cols-2">
-                  {chapterStates(props.details, (level || null) as Level | null)
-                    .filter((c) => c.chapter.id !== "basics")
-                    .map((c, i) => (
-                      <li key={c.chapter.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
-                        <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-accent/10 text-[12px] font-bold text-accent tabular">{i + 1}</span>
-                        <span>
-                          <span className="block text-[14.5px] font-semibold">{c.chapter.title}</span>
-                          <span className="block text-[12.5px] text-muted">{c.chapter.style === "story" ? "A conversation" : `${c.total} quick questions`}</span>
-                        </span>
-                      </li>
-                    ))}
-                </ol>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <a href={`/dashboard?chat=open&setup=1&say=${encodeURIComponent(`Let's do my profile chapter: ${CHAPTERS[1].title}`)}`} className="group rounded-2xl border border-accent/40 bg-accent/5 p-4 transition-colors hover:bg-accent/10">
+                  <a href={`/profile/chapters/${firstOpen.id}`} onClick={startAgents} className="group rounded-2xl border border-accent/40 bg-accent/5 p-4 transition-colors hover:bg-accent/10">
+                    <Rows3 className="size-5 text-accent" aria-hidden />
+                    <p className="mt-2 font-bold">Quick cards</p>
+                    <p className="mt-0.5 text-[13px] text-muted">One question at a time. Tap, next. The quickest way.</p>
+                  </a>
+                  <a href={`/dashboard?chat=open&setup=1&say=${encodeURIComponent(`Let's do my profile chapter: ${firstOpen.title}`)}`} onClick={startAgents} className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-accent/40">
                     <Mic className="size-5 text-accent" aria-hidden />
                     <p className="mt-2 font-bold">Talk it through</p>
                     <p className="mt-0.5 text-[13px] text-muted">Ivyward AI asks, by voice or text. Best for your story.</p>
-                  </a>
-                  <a href={`/profile/chapters/${CHAPTERS[1].id}`} className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-accent/40">
-                    <Rows3 className="size-5 text-accent" aria-hidden />
-                    <p className="mt-2 font-bold">Quick cards</p>
-                    <p className="mt-0.5 text-[13px] text-muted">One question at a time. Tap, next.</p>
                   </a>
                   <button
                     type="button"
@@ -491,6 +485,22 @@ export function Onboarding(props: {
                     <p className="mt-2 font-bold">{busy ? "Starting your agents…" : "Later: start my agents"}</p>
                     <p className="mt-0.5 text-[13px] text-muted">They ask for anything they need as they go.</p>
                   </button>
+                </div>
+                <div>
+                  <p className="mb-2 text-[13px] font-medium text-muted">The chapters</p>
+                <ol className="grid grid-cols-2 gap-2">
+                  {chapterStates(props.details, (level || null) as Level | null)
+                    .filter((c) => c.chapter.id !== "basics")
+                    .map((c, i) => (
+                      <li key={c.chapter.id} className="flex items-start gap-2.5 rounded-2xl border border-line bg-surface px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+                        <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-accent/10 text-[12px] font-bold text-accent tabular">{i + 1}</span>
+                        <span>
+                          <span className="block text-[13.5px] font-semibold leading-snug sm:text-[14.5px]">{c.chapter.title}</span>
+                          <span className="block text-[12.5px] text-muted">{c.chapter.style === "story" ? "A conversation" : `${c.total} quick questions`}</span>
+                        </span>
+                      </li>
+                    ))}
+                </ol>
                 </div>
                 <Button size="lg" variant="ghost" onClick={() => setStep((s) => s - 1)}>Back</Button>
               </div>

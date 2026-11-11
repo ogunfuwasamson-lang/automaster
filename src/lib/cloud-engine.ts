@@ -238,6 +238,10 @@ const CREATE_SUBMIT = /^(create( (an |my )?account)?|register|sign up|continue|s
 const LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
 const CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
 const VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
+// the navigator sometimes hands off a sign-up page by asking the applicant to "choose a password" or pick security
+// questions. that is never theirs to do: the agents make the password and keep it with the login. such a handoff is
+// treated as a sign-up the portal wouldn't take ("account"), which shows the applicant the login the agents made
+export const asksForPassword = (note: string) => /\b(choose|pick|select|reply with|send( us| me)?|provide|tell (us|me)|decide on|set|enter)\b.{0,80}\bpass(word|code)\b|\bpassword (you|they)('d| would)? (want|like|prefer)\b|\b(pick|choose|select|answer)\b.{0,40}\b(security|recovery) questions?\b/i.test(note);
 const CHANGE_PW = /(change (your )?password|must change|password (has )?expired|choose a new password|changer (votre )?mot de passe|nouveau mot de passe)/i;
 const SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
 const CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
@@ -688,7 +692,7 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
     if (!a || a.action === "done") break;
     if (a.action === "handoff") {
       log(`handoff: ${a.note}`);
-      const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+      const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : asksForPassword(a.note) ? "account" : "stuck";
       return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
     }
     const m = a.mark ? marks.find((x) => x.n === a.mark) : undefined;
@@ -1510,7 +1514,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
 
   if (a.action === "handoff") {
     log(`handoff: ${a.note}`);
-    return { kind: "needs_you", reason: "stuck", note: a.note.slice(0, 280) || fallback.note };
+    return { kind: "needs_you", reason: asksForPassword(a.note) ? "account" : "stuck", note: a.note.slice(0, 280) || fallback.note };
   }
   if (a.action === "wait_email") {
     log("wait for email");

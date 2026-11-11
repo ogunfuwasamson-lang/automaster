@@ -70,6 +70,7 @@ const LABELS: Record<string, string> = {
   "fee_waiver.granted": "a school waived your application fee",
   "fee_waiver.denied": "a school declined the fee waiver",
   "funding.offered": "a school offered funding",
+  "runner.answers_from_profile": "answered a form's questions from your profile instead of asking you",
   "runner.portal_found": "found the application portal",
   "runner.account_created": "created a portal account",
 };

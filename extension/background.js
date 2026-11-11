@@ -6278,7 +6278,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   var DIAL = ["1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98", "211", "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", "266", "267", "268", "269", "290", "291", "297", "298", "299", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "380", "381", "382", "383", "385", "386", "387", "389", "420", "421", "423", "852", "853", "855", "856", "880", "886", "960", "961", "962", "963", "964", "965", "966", "967", "968", "970", "971", "972", "973", "974", "975", "976", "977", "992", "993", "994", "995", "996", "998"].sort((a, b) => b.length - a.length);
   var LABEL_RULES = [
     // yes/no: is the mailing address another one (before the address-part rules below)
-    [/\b(mailing|postal|correspondence|current)\s+address\b.{0,40}\b(different|differ)\b|\bdifferent\s+(mailing|postal|correspondence)\s+address\b/i, "mailing_differs"],
+    [/\b(mailing|postal|correspondence|current)\s+address\b.{0,40}\b(different|differ)\b|\bdifferent\s+(mailing|postal|correspondence)\s+address\b|\b(living|live|residing|reside|staying)\b.{0,30}\bdifferent address\b/i, "mailing_differs"],
+    // before the address rules: a language question that mentions an address ("language spoken most frequently at
+    // your permanent address", mcgill) is about the language
+    [/\blanguage\b.{0,20}\b(spoken|used|speak)\b.{0,40}\b(home|address|household|family)\b|\b(spoken|speak)\b.{0,20}\bat home\b/i, "home_language"],
+    // a bare "Term" / "Intake" / "Semester" box on an application is the term applied for
+    [/^\*?\s*(term|intake|semester|session)(\s+\1)?\s*\*?\s*$/i, "entry_term"],
+    [/\b(ever|previously|before|already)\b.{0,25}\bstud(y|ied|ying)\b.{0,25}\b(in|at)\b|\bprevious(ly)? stud(y|ied) in\b/i, "studied_in_country_before"],
+    [/\b(taught|instruction|delivered|conducted|studied)\b.{0,25}\b(in|through|entirely in)\s+english\b|\benglish[- ]medium\b|\bmedium of instruction\b/i, "english_medium_education"],
+    [/\b(hold|have|taken|possess|completed)\b.{0,30}\benglish (language )?(qualification|test|proficiency test|exam)/i, "has_english_test"],
     [/\b(mailing|postal|correspondence)\s+address\b.{0,40}\bsame as\b|\bsame as (my |your )?(permanent|home|current|residential) address\b/i, "mailing_same"],
     // first, before the name rules: its label says "last name". a user id the portal wants built from the name: calgary's "eID first.last"
     [/\bfirst(\s*name)?\s*\.\s*last(\s*name)?\b|\bfirstname\.lastname\b/i, "username_first_last"],
@@ -6378,9 +6386,12 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (/name/i.test(l)) return `rec${n2}_name`;
       return null;
     }
-    for (const [re, key] of LABEL_RULES) if (re.test(l)) return key;
+    const asksYesNo = YES_NO_QUESTION.test(l);
+    for (const [re, key] of LABEL_RULES) if (re.test(l) && !(asksYesNo && TEXT_ONLY_KEY.test(key))) return key;
     return null;
   }
+  var YES_NO_QUESTION = /^\*?\s*(are|is|do|does|did|have|has|had|will|would|was|were|can|could|should)\b.*\?\s*\*?$/i;
+  var TEXT_ONLY_KEY = /^(address_line[12]|city|state|postal_code|country|phone|phone_.*|email|first_name|last_name|middle_name|full_name|preferred_name|linkedin|website|username.*|program|edu\d_(institution|major|degree)|work\d_(employer|title))$/;
 
   // src/lib/cloud-engine.ts
   var orOutage = (fallback) => (e) => {
@@ -6420,6 +6431,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   var LEAD_PAGE = /request[-_ ]?(more[-_ ])?info(rmation)?|\b(rfi|inquiry|enquiry|enquire|inquire|brochure|newsletter|subscribe|contact[-_ ]us|stay[-_ ]in[-_ ]touch|keep[-_ ]me[-_ ]informed)\b/i;
   var CREATE_LOOSE = /^(create|register|sign ?up|submit|continue|next|proceed|save|activate|finish|complete|confirm|get started|join|request)\b.{0,40}$|\b(create|register)\b.{0,20}\b(account|e-?id|profile|login|user)\b/i;
   var VERIFY_BTN = /^(verify|confirm|submit|continue|next|activate|log ?in|login|sign in)$/i;
+  var asksForPassword = (note) => /\b(choose|pick|select|reply with|send( us| me)?|provide|tell (us|me)|decide on|set|enter)\b.{0,80}\bpass(word|code)\b|\bpassword (you|they)('d| would)? (want|like|prefer)\b|\b(pick|choose|select|answer)\b.{0,40}\b(security|recovery) questions?\b/i.test(note);
   var CHANGE_PW = /(change (your )?password|must change|password (has )?expired|choose a new password|changer (votre )?mot de passe|nouveau mot de passe)/i;
   var SIGNUP_WORDS = /(create (an |your )?account|register|sign up|new user|confirm password|re-?enter password)/i;
   var CHECK_EMAIL = /(check your (e-?mail|inbox)|verify your e-?mail|we('ve| have) sent (you )?(an? )?(e-?mail|code|link)|activation (link|e-?mail)|confirm your e-?mail)/i;
@@ -6768,7 +6780,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (!a || a.action === "done") break;
       if (a.action === "handoff") {
         log(`handoff: ${a.note}`);
-        const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : "stuck";
+        const reason = /cloudflare|just a moment|security (check|verification)/i.test(a.note) ? "blocked" : /captcha|robot|human|bot check/i.test(a.note) ? "captcha" : /\b(pay|payment|fee|card)\b/i.test(a.note) ? "payment" : asksForPassword(a.note) ? "account" : "stuck";
         return { acted, outcome: { kind: "needs_you", reason, note: a.note.slice(0, 280) } };
       }
       const m = a.mark ? marks.find((x2) => x2.n === a.mark) : void 0;
@@ -7467,7 +7479,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     };
     if (a.action === "handoff") {
       log(`handoff: ${a.note}`);
-      return { kind: "needs_you", reason: "stuck", note: a.note.slice(0, 280) || fallback.note };
+      return { kind: "needs_you", reason: asksForPassword(a.note) ? "account" : "stuck", note: a.note.slice(0, 280) || fallback.note };
     }
     if (a.action === "wait_email") {
       log("wait for email");

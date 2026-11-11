@@ -31,7 +31,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   return (
     <Onboarding
       userId={uid}
-      initialStep={sp.step ? Number(sp.step) : sp.mail ? 4 : 1}
+      initialStep={sp.step ? Number(sp.step) : sp.mail ? 5 : 1}
       level={p.goals.study_level}
       fields={p.goals.fields ?? []}
       term={p.goals.target_term ?? prof?.target_term ?? null}
