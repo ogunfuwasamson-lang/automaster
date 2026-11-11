@@ -23,8 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      # two tests drive a real browser
-      - run: npm i --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      # two tests drive a real browser. the system packages come from ubuntu's mirrors, which some runners can't
+      # reach; the runner image already has what headless chromium needs, so fall back to the browser alone
+      - run: npm i --no-save playwright@1.63.0 && (timeout 300 npx playwright install --with-deps chromium || npx playwright install chromium)
       - run: npx tsc --noEmit -p .
       - run: npx eslint src --quiet
       - run: npx vitest run
