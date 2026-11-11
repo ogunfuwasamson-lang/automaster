@@ -171,10 +171,34 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
   const hasCodeBox = fields.some((x) => keyForLabel(x.label) === "phone_country_code" || (x.type === "select" && keyForOptions(x.options ?? []) === "phone_country_code"));
   const fills: Fill[] = [];
   const unresolved: PageField[] = [];
+  // three bare boxes "Year" / "Month" / "Day" on one page are a date of birth (calgary's eID sign-up). a day box
+  // is the giveaway: education and work dates ask month and year only
+  const bare = (f: PageField, w: RegExp) => w.test(cleanLabelLocal(f.label, f.options).trim());
+  const dobParts = new Map<string, string>();
+  const y = fields.filter((f) => bare(f, /^(year|yyyy)\b/i));
+  const m = fields.filter((f) => bare(f, /^(month|mm)\b/i));
+  const dd = fields.filter((f) => bare(f, /^(day|dd)\b/i));
+  if (y.length === 1 && m.length === 1 && dd.length === 1) {
+    dobParts.set(y[0].id, "dob_year");
+    dobParts.set(m[0].id, "dob_month");
+    dobParts.set(dd[0].id, "dob_day");
+  }
   for (const f of fields) {
+    const part = dobParts.get(f.id);
+    const rp = part ? resolve(f, part, sheet) : null;
+    if (rp) {
+      fills.push(rp);
+      continue;
+    }
     const text = `${f.label} ${f.name ?? ""}`;
     if (NEVER_FILL.test(text) || f.type === "password") {
       fills.push({ id: f.id, action: "skip", reason: "you fill this one" });
+      continue;
+    }
+    // "I don't have a UCID and wish to register a guest account": someone who never studied at the school has no
+    // number of its own (calgary refused the form until this was ticked)
+    if (f.type === "checkbox" && NO_SCHOOL_ID.test(f.label) && sheet.fields.has_school_id === "No") {
+      fills.push({ id: f.id, action: "check", source: "has_school_id" });
       continue;
     }
     if (f.type === "checkbox" && CERTIFY.test(f.label)) {
@@ -200,6 +224,11 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
       fills.push(ra);
       continue;
     }
+    const res = residency(f, sheet);
+    if (res) {
+      fills.push(res);
+      continue;
+    }
     let key = keyForLabel(f.label) ?? (f.name ? keyForLabel(f.name.replace(/[_\-.[\]]+/g, " ")) : null) ?? keyForOptions(f.options ?? []);
     // a date-of-birth dropdown known only by its field name ("createdobday" under a "My details" heading)
     if (!key && f.type === "select" && /dob|birth/i.test(`${f.name ?? ""}`) && datePart(f.options ?? [])) key = "date_of_birth";
@@ -213,6 +242,23 @@ export function mapByRules(fields: PageField[], sheet: FillSheet): { fills: Fill
   return { fills, unresolved };
 }
 
+// "will you be ordinarily resident in the UK for three years before the course begins?": someone who lives in
+// another country now can't have been. answered only when the place named is plainly not where they live
+const RESIDENT = /\b(ordinarily|normally|usually)\s+resident\s+in\s+(the\s+)?(uk|united kingdom|england|scotland|wales|great britain|eu|european union|eea|canada|ireland|australia|usa|united states)\b.*\b(three|3|five|5)\s+years\b/i;
+const PLACE: Record<string, RegExp> = { uk: /united kingdom|^uk$|england|scotland|wales|britain/i, eu: /austria|belgium|bulgaria|croatia|cyprus|czech|denmark|estonia|finland|france|germany|greece|hungary|ireland|italy|latvia|lithuania|luxembourg|malta|netherlands|poland|portugal|romania|slovakia|slovenia|spain|sweden/i };
+export function residency(f: PageField, sheet: FillSheet): Fill | null {
+  const m = f.label.match(RESIDENT);
+  const lives = sheet.fields.lives_in ?? sheet.fields.country;
+  if (!m || !lives || (f.type !== "radio" && f.type !== "select")) return null;
+  const place = m[3].toLowerCase().replace(/^(united kingdom|england|scotland|wales|great britain)$/, "uk").replace(/^(european union|eea)$/, "eu");
+  const here = (PLACE[place] ?? new RegExp(place.replace(/^usa$/, "united states"), "i")).test(lives);
+  if (here) return null; // they live there: how long is theirs to say
+  const no = (f.options ?? []).find((o) => /^\s*no\b/i.test(o));
+  return no ? { id: f.id, action: "choose", option: no, source: "lives_in" } : null;
+}
+
+const NO_SCHOOL_ID = /^\s*i\s+(do not|don't|dont)\s+have\s+(a|an|my)?\s*[\w .'&-]{0,30}\b(id|ucid|student\s*(number|id)|number|identifier|matricul\w*)\b/i;
+
 // turn a chosen sheet key into a fill for this field (or null if the sheet has no usable value)
 // a select labelled only "date of birth" is one part of a split date: tell which from its options
 export function datePart(options: string[]): "day" | "month" | "year" | null {
@@ -224,6 +270,12 @@ export function datePart(options: string[]): "day" | "month" | "year" | null {
   if (nums.length === 12 && Math.max(...nums) === 12) return "month";
   return null;
 }
+
+// options that are terms of entry: most name a season or month and a year
+export const termList = (options: string[]) => {
+  const o = options.filter((x) => x.trim() && !/^(select|choose|please|--)/i.test(x.trim()));
+  return o.length >= 2 && o.filter((x) => /\b(fall|autumn|automne|spring|printemps|summer|été|ete|winter|hiver|january|september|jan|sept?)\b.*\b20\d\d\b|\b20\d\d\b.*\b(fall|autumn|spring|summer|winter)\b/i.test(x)).length >= Math.ceil(o.length / 2);
+};
 
 const RELATED: Record<string, string[]> = {
   application_type: ["entry_term", "entry_start", "level", "degree", "study_mode"],
@@ -269,6 +321,13 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
     if (no && opts.some((o) => /^\s*yes\b/i.test(o)) && !opts.some((o) => /self|applicant|myself/i.test(o))) return { id: f.id, action: "choose", option: no, source: key };
   }
   if (f.type === "select" || f.type === "radio") {
+    // a list of terms under a label that says "type" (mcgill's "Application Type": "Fall / Automne 2027",
+    // "Postdoctoral ... Graduate Research Trainee"): the term decides it. matching "Graduate" against the words
+    // picked the postdoc option
+    if (key === "application_type" && termList(f.options ?? []) && sheet.fields.entry_term) {
+      const t = bestOption(sheet.fields.entry_term.replace(/-/g, " "), f.options ?? []);
+      return t ? { id: f.id, action: "choose", option: t, source: "entry_term" } : null;
+    }
     const opt = bestOption(value, f.options ?? []);
     if (opt) return { id: f.id, action: "choose", option: opt, source: key };
     // the label pointed at one key but the options speak about another: "Application type" whose options are
@@ -276,6 +335,11 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
     for (const k of RELATED[key] ?? []) {
       const alt = sheet.fields[k] ? bestOption(sheet.fields[k], f.options ?? []) : null;
       if (alt) return { id: f.id, action: "choose", option: alt, source: k };
+    }
+    // a language the list doesn't name ("Yoruba" against English / Français / Other): the list's "Other"
+    if (/language/.test(key) && !/^english_/.test(key)) {
+      const other = (f.options ?? []).find((o) => /^\s*(other|autre|another)\b/i.test(o));
+      if (other && !(f.options ?? []).some((o) => norm(fold(o)).includes(norm(fold(value))))) return { id: f.id, action: "choose", option: other, source: key };
     }
     // a US/Canada-style state list that doesn't have the applicant's state or region: its "not applicable" choice
     if (key === "state") {

@@ -212,6 +212,7 @@ find the application's written requirements (official prompts and limits), then 
       agent: "strategist",
       jobId: job.id,
       tier: "write",
+      think: "medium",
       promptVersion: "plan-v1",
       system: `turn the research notes into a structured application plan.${award ? " this is a scholarship application: list its own essays, and put eligibility conditions (e.g. 'needs a university offer first'), interview stages and the referee rules in other_requirements." : ""} references_needed: how many recommendation letters or referees it asks for, as digits ("" if none or unknown). essays: only ones the notes say this application asks for; prompt text verbatim where the notes have it; word_limit as digits ("" if none; convert character limits to roughly words/6 and say so in the title). if the notes found no prompts at all, include one ${fallback.kind} titled "${fallback.title}" with prompt "${fallback.prompt}" and word_limit "${fallback.limit}". brief: use only facts from this fact sheet ("[disputed figure]" = unconfirmed, don't use):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}. why_this_program must name real, specific things from the notes; if the notes have none, say "research didn't find program specifics" instead of inventing.`,
       prompt: `research notes:\n${found.text}`,
@@ -395,7 +396,9 @@ ${
       userId: job.user_id,
       agent: "redteam",
       jobId: job.id,
-      tier: "write",
+      // the fact check is what stands between a made-up claim and an admissions office: the strongest model, thinking
+      tier: "expert",
+      think: "medium",
       promptVersion: "review-v1",
       system: REDTEAM_SYSTEM,
       cachePrefix: `applicant fact sheet (the only source of facts; "[disputed figure]" means the applicant hasn't confirmed that number, so leave it out):\n${JSON.stringify(await safeFactSheet(job.user_id, profile))}`,

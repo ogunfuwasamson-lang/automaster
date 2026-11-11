@@ -4,6 +4,10 @@ import { admin } from "@/lib/supabase/admin";
 import { runsSince } from "@/lib/runs";
 import { categoryOf, monthStartUTC, CATEGORY_SHARE, type Category } from "@/lib/pricing";
 import { LessonsAdmin } from "@/components/learning/lessons-admin";
+import { RunEval } from "@/components/learning/evals-admin";
+import { QUESTIONS } from "@/evals/questions";
+import { PASS, scoreRules } from "@/evals/score";
+import { sampleSheet } from "@/evals/sample";
 import { MILESTONES, duration, summarize } from "@/lib/first-submission";
 import { STAGES, SUBMITTED, every, loadAdmin, scope, type AdminApp, type AdminData, type AdminUser, type Payment } from "./data";
 import { TeamToggle } from "./team-toggle";
@@ -1116,10 +1120,50 @@ export async function GrowthView({ everyone }: { everyone: boolean }) {
 // ---- learning ----
 
 export async function LearningView() {
+  // the rules' score is computed here and now; the models' scores are the last runs kept in events
+  const sheet = sampleSheet();
+  const rules = QUESTIONS.map((q) => scoreRules(q, sheet));
+  const { data: runs } = await admin().from("events").select("context, created_at").eq("action", "eval.model").order("created_at", { ascending: false }).limit(10);
+  type R = { tier: string; total: number; correct: number; wrong: number; asked_ok: number; filled_should_ask: number; left: number; detail: { id: string; stage: string; got?: string; ok: boolean }[] };
   return (
-    <Section title="Learning" note="Lessons the agents learned from stuck runs and edits. Portal notes apply at once; general lessons wait for your approval.">
-      <LessonsAdmin {...await lessonData()} />
-    </Section>
+    <>
+      <Section title="Evals" note="Questions real portals asked, answered for a made-up applicant. The rules run in every test; the model runs are kept here.">
+        <Card>
+          <div className="space-y-3 px-4 py-3 text-[13.5px]">
+            <p>
+              Rules: <b>{rules.filter((r) => PASS.includes(r.verdict)).length}</b> of {QUESTIONS.length} handled, {rules.filter((r) => r.verdict === "unresolved").length} left for the model,{" "}
+              <b className={rules.some((r) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(r.verdict)) ? "text-stop" : ""}>{rules.filter((r) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(r.verdict)).length} harmful</b>.
+            </p>
+            <RunEval />
+          </div>
+          <ul className="divide-y divide-line border-t border-line">
+            {(runs ?? []).map((e) => {
+              const r = e.context as R;
+              return (
+                <li key={e.created_at} className="px-4 py-2.5 text-[12.5px]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone={r.wrong || r.filled_should_ask ? "stop" : "go"}>{r.tier === "expert" ? "Opus" : "Sonnet"}</Pill>
+                    <span>
+                      {r.correct} right · {r.wrong} wrong · {r.filled_should_ask} filled that should be asked · {r.left} left to the applicant · {r.asked_ok} rightly asked (of {r.total})
+                    </span>
+                    <span className="text-muted">{ago(e.created_at)}</span>
+                  </div>
+                  {r.detail.some((d) => !d.ok) && (
+                    <p className="mt-1 text-muted">
+                      Missed: {r.detail.filter((d) => !d.ok).map((d) => `${d.id}${d.got ? ` (${d.got})` : ""}`).join(", ")}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+            {!runs?.length && <li className="px-4 py-3 text-[13.5px] text-muted">No model runs yet.</li>}
+          </ul>
+        </Card>
+      </Section>
+      <Section title="Learning" note="Lessons the agents learned from stuck runs and edits. Portal notes apply at once; general lessons wait for your approval.">
+        <LessonsAdmin {...await lessonData()} />
+      </Section>
+    </>
   );
 }
 

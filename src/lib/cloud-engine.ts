@@ -1,4 +1,5 @@
 // the cloud runner's brain: looks at a portal page and decides the next move, then does it.
+import { pageKey } from "@/lib/portal-platforms";
 // no db and no network of its own: everything outside the page comes in through deps, so the same
 // engine runs on vercel against browserbase and in tests against a local chromium.
 import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib/engine-page";
@@ -32,6 +33,15 @@ const orOutage = <T>(fallback: T) => (e: unknown): T => {
 
 export interface EngineState {
   steps: number;
+  // what was typed on the page in view (key: the page), read back before leaving it
+  pageFills?: { page: string; items: { id: string; label: string; type: string; value: string }[] };
+  // answers a portal shortened or changed, kept for the applicant's review
+  checks?: string[];
+  reviewed?: boolean; // the page before Submit was read against the signed packet
+  // the way through this portal, as it went on this run: on each page, the button that moved on
+  route?: { page: string; button: string }[];
+  lastClick?: { page: string; button: string };
+  reviewHeld?: string; // the problems it was held for (the same ones again after Try again: submit)
   navCalls?: number;
   totalSteps?: number; // across every run on this application
   navHistory?: string[];
@@ -173,6 +183,49 @@ export interface EngineDeps {
   signInYourself?(): boolean;
   // the applicant said yes to "start a new application for this program?" (the one started is for another)
   allowNewApp?(): Promise<boolean>;
+  // the last look before Submit: the page in view (usually the portal's review page) against the signed packet.
+  // problems found hold the submission for the applicant; no answer (a failed call) lets it go, as before
+  reviewSubmit?(page: { url: string; title: string; body: string }): Promise<{ ok: boolean; problems: string[] } | null>;
+  // the button that moved on from this page for applicants before (by page key), when the usual ones aren't there
+  knownStep?(pageKey: string): string | null;
+  // what the portal's server said when it last refused a save (read from its replies, not the page)
+  netErrors?(): Promise<string[]>;
+}
+
+// a click that may move to another page: remembered, and once the next look shows a different page, kept as a step
+function clicked(state: EngineState, s: Snapshot, label: string) {
+  const page = pageKey(s.url, s.title);
+  if (page && label) state.lastClick = { page, button: label.slice(0, 80) };
+}
+function arrived(state: EngineState, s: Snapshot) {
+  const lc = state.lastClick;
+  if (!lc) return;
+  const now = pageKey(s.url, s.title);
+  if (now && now !== lc.page) state.route = [...(state.route ?? []).filter((x) => x.page !== lc.page), lc].slice(-80);
+  state.lastClick = undefined;
+}
+
+// the one call before a submit button is pressed: once per application (state.reviewed), on the page in view
+async function reviewBeforeSubmit(page: Page, deps: EngineDeps, state: EngineState): Promise<Outcome | null> {
+  if (!deps.reviewSubmit || state.reviewed) return null;
+  const s = await snap(page).catch(() => null);
+  if (!s) return null;
+  const r = await deps.reviewSubmit({ url: s.url, title: s.title, body: s.body.slice(0, 12000) }).catch(() => null);
+  if (!r) return null;
+  state.reviewed = true;
+  if (r.ok || !r.problems.length) {
+    state.navHistory = [...(state.navHistory ?? []), "read the review page against your signed packet: it matches"].slice(-12);
+    return null;
+  }
+  // the same problems as last time, after the applicant chose Try again: they've looked and want it submitted
+  const sig = r.problems.map((p) => p.slice(0, 60)).sort().join("|");
+  if (state.reviewHeld === sig) {
+    state.navHistory = [...(state.navHistory ?? []), "you chose to submit after the review flagged something: submitting"].slice(-12);
+    return null;
+  }
+  state.reviewed = false; // looked at again after the applicant fixes it
+  state.reviewHeld = sig;
+  return { kind: "needs_you", reason: "review", note: `held before submitting: ${r.problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
 }
 
 export interface Mark {
@@ -470,6 +523,50 @@ function usernameBox(s: Snapshot) {
   return s.allFields.find((f) => f.type !== "password" && f.type !== "email" && !/e-?mail/i.test(f.label) && /\b(user ?name|e-?id|user ?id|login ?(id|name))\b/i.test(`${f.label} ${f.name ?? ""}`));
 }
 
+// before leaving a page: read back every answer typed on it. one the page dropped (a script cleared it, a redraw
+// lost it) is typed again; one the page cut short or changed is kept for the applicant's review. the commonest
+// cause of "the portal didn't accept this page" was a box that quietly lost what went in
+export type FillCheck = { id: string; label: string; issue: "dropped" | "cut" | "changed"; want: string; got: string };
+export function checkFills(items: { id: string; label: string; type: string; value: string }[], actual: Map<string, string>): FillCheck[] {
+  const out: FillCheck[] = [];
+  const an = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const it of items) {
+    if (!actual.has(it.id)) continue; // gone from the page (a section that closed): nothing to compare
+    const got = actual.get(it.id) ?? "";
+    const want = it.value;
+    if (!want.trim()) continue;
+    if (!got.trim()) out.push({ id: it.id, label: it.label, issue: "dropped", want, got });
+    else if (an(got) === an(want)) continue; // the page's own formatting ("+234 803..." -> "2348..."), same answer
+    else if (want.startsWith(got) || an(want).startsWith(an(got))) out.push({ id: it.id, label: it.label, issue: "cut", want, got });
+    // a phone or date the portal reformatted keeps the same digits
+    else if (/\d/.test(want) && an(want).replace(/\D/g, "").includes(an(got).replace(/\D/g, "")) && an(got).replace(/\D/g, "").length >= 4) continue;
+    else out.push({ id: it.id, label: it.label, issue: "changed", want, got });
+  }
+  return out;
+}
+
+async function checkBeforeNext(page: Page, state: EngineState): Promise<void> {
+  const pf = state.pageFills;
+  if (!pf || pf.page !== (await page.url()) || !pf.items.length) return;
+  const actual = new Map<string, string>();
+  for (const it of pf.items) {
+    const exists = await frameOf(page)
+      .evaluate((i: string) => !!(window as unknown as { __am?: { byId?(x: string): Element | null } }).__am?.byId?.(i), it.id)
+      .catch(() => false);
+    if (exists) actual.set(it.id, await valueOf(page, it.id));
+  }
+  const issues = checkFills(pf.items, actual);
+  let retyped = 0;
+  for (const c of issues) {
+    if (c.issue === "dropped") {
+      await fillText(page, c.id, c.want).catch(() => {});
+      if ((await valueOf(page, c.id)).trim()) retyped++;
+    } else state.checks = [...new Set([...(state.checks ?? []), `${c.label}: the portal ${c.issue === "cut" ? "shortened" : "changed"} it to "${c.got.slice(0, 60)}"`])].slice(-20);
+  }
+  if (retyped) state.navHistory = [...(state.navHistory ?? []), `checked the page before moving on: typed ${retyped} answer${retyped === 1 ? "" : "s"} again that the page had dropped`].slice(-12);
+  state.pageFills = undefined;
+}
+
 async function valueOf(page: Page, id: string): Promise<string> {
   return frameOf(page)
     .evaluate((i: string) => String(((window as unknown as { __am?: { byId?(x: string): Element | null } }).__am?.byId?.(i) as HTMLInputElement | null)?.value ?? ""), id)
@@ -716,6 +813,11 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
         state.reachedSubmit = true;
         const d = await deps.canSubmit();
         if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+        // follow-up jobs (a webinar form, a waiver request) have no packet to compare with
+        if (!deps.goal) {
+          const held = await reviewBeforeSubmit(page, deps, state);
+          if (held) return { acted, outcome: held };
+        }
         state.submitClicked = true;
       }
       // a button that starts or creates something (or an unlabelled submit) is pressed once per page: pressing
@@ -893,6 +995,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     await page.waitForLoadState("domcontentloaded").catch(() => {});
     await sleep(800);
     let s = await snap(page);
+    arrived(state, s);
     if (isBlockPage(s)) {
       // give an interstitial a moment to clear on its own
       await sleep(8000);
@@ -1067,7 +1170,9 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       for (const f of stillEmpty) if (!notAQuestion(state, f)) ask(state, f);
       if (state.missingDocs?.length) return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
       const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
-      const err = (s.errors ?? []).join("; ").slice(0, 160);
+      // nothing on the page says why: the server's reply often does
+      const net = (s.errors ?? []).length ? [] : ((await deps.netErrors?.().catch(() => [])) ?? []);
+      const err = [...(s.errors ?? []), ...net.map((x) => `(server) ${x}`)].join("; ").slice(0, 200);
       const stop: Outcome = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
       if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
       // the usual moves aren't working on this page: let the navigator look at it
@@ -1421,6 +1526,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       state.reachedSubmit = true;
       const d = await deps.canSubmit();
       if (!d.allowed) return { outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` }, state, filled };
+      const held = await reviewBeforeSubmit(page, deps, state);
+      if (held) return { outcome: held, state, filled };
       await deps.progress("submitting your signed packet");
       state.submitClicked = true;
       await click(page, submit.id);
@@ -1465,11 +1572,24 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     if (next) {
       // a page of the form (filled now, or filled before): not a landing page with a search box
       const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
+      if (formPage) await checkBeforeNext(page, state);
       if (formPage && deps.beforeNext && !(await deps.beforeNext({ label: clean(next.label), title: now.title, url: now.url }))) {
         return { outcome: { kind: "needs_you", reason: "review", note: "this page is filled in: check it, then approve it in the Ivyward side panel" }, state, filled };
       }
       if (next.href && next === apply) state.visited = [...(state.visited ?? []), here(next.href)].slice(-30);
+      clicked(state, now, clean(next.label));
       await click(page, next.id);
+      continue;
+    }
+    // the way other applicants got off this page: the button they pressed, if it's here, once per page per run
+    const known = deps.knownStep?.(pageKey(now.url, now.title));
+    const knownBtn = known ? now.buttons.find((b) => clean(b.label).toLowerCase() === known.toLowerCase() && !DANGEROUS.test(b.label) && !FINAL.test(clean(b.label))) : undefined;
+    const knownMark = `route|${pageKey(now.url, now.title)}`;
+    if (knownBtn && !(state.pressedAsked ?? []).includes(knownMark)) {
+      state.pressedAsked = [...(state.pressedAsked ?? []), knownMark].slice(-30);
+      state.navHistory = [...(state.navHistory ?? []), `pressed "${clean(knownBtn.label)}", the way through this page before`].slice(-12);
+      clicked(state, now, clean(knownBtn.label));
+      await click(page, knownBtn.id);
       continue;
     }
     if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
@@ -1569,6 +1689,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     return null;
   }
   const label = clean(b.label);
+  if (!DANGEROUS.test(label)) clicked(state, s, label);
   if (DANGEROUS.test(label)) {
     log(`refused "${label}"`);
     return { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` };
@@ -1577,6 +1698,8 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     state.reachedSubmit = true;
     const d = await deps.canSubmit();
     if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
+    const held = await reviewBeforeSubmit(page, deps, state);
+    if (held) return held;
     state.submitClicked = true;
   }
   // "Start a new application" pressed again makes a second application (seen on ut dallas): once per portal
@@ -1839,6 +1962,14 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
     } catch {
       /* a field we couldn't set stays empty and is reported as a question */
     } finally {
+      if (n > n0 && state && f.action === "fill") {
+        const fd = safe.find((x) => x.id === f.id);
+        if (fd && ["text", "email", "tel", "textarea", "number", "url"].includes(fd.type) && !fd.combo) {
+          const key = `${await page.url()}`;
+          const cur = state.pageFills?.page === key ? state.pageFills.items : [];
+          state.pageFills = { page: key, items: [...cur.filter((x) => x.id !== f.id), { id: f.id, label: cleanLabel(fd.label, fd.options).slice(0, 80), type: fd.type, value: f.value }].slice(-60) };
+        }
+      }
       if (n > n0 && deps.onFilled && f.action !== "skip") {
         const label = safe.find((x) => x.id === f.id)?.label ?? "";
         const value = f.action === "fill" ? f.value : f.action === "choose" ? f.option : f.action === "upload" ? f.file : "ticked";

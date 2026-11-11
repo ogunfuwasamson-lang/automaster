@@ -72,6 +72,9 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
         </Button>
       </div>
       <p className="text-sm leading-relaxed text-muted">
+        Runs in Chrome need Chrome open on your computer. Closed, nothing is lost: the work waits, and when an application is waiting for Chrome we email you.
+      </p>
+      <p className="text-sm leading-relaxed text-muted">
         Some portals refuse any browser running in the cloud. Connect your Chrome once and, whenever that happens, the agents carry on in a background tab on this computer: same answers, same documents, your own
         connection. The Ivyward side panel shows every answer as it goes in and asks you before anything is submitted. Bot checks
         and payment wait there for you; the agents never solve those themselves.

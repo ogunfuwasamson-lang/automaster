@@ -6,7 +6,7 @@ import { admin } from "@/lib/supabase/admin";
 // facts about the school only. every fact carries how many separate applicants it held for and when it was
 // last seen; agents treat it as a starting hint and still check the live page or inbox.
 
-export type Kind = "apply_url" | "portal" | "field" | "contact" | "waiver" | "prompt";
+export type Kind = "apply_url" | "portal" | "field" | "contact" | "waiver" | "prompt" | "route";
 
 export interface Fact {
   kind: Kind;
@@ -20,10 +20,10 @@ export interface Fact {
 
 // how long a fact stays usable without being seen again. prompts and apply links change every cycle; contacts
 // and how a portal behaves drift more slowly.
-const SHELF_DAYS: Record<Kind, number> = { apply_url: 300, prompt: 300, portal: 400, field: 540, contact: 540, waiver: 400 };
+const SHELF_DAYS: Record<Kind, number> = { apply_url: 300, prompt: 300, portal: 400, field: 540, contact: 540, waiver: 400, route: 300 };
 
 // how many separate applicants must agree before a fact is acted on without checking first
-const TRUST: Record<Kind, number> = { apply_url: 1, prompt: 1, portal: 2, field: 1, contact: 1, waiver: 1 };
+const TRUST: Record<Kind, number> = { apply_url: 1, prompt: 1, portal: 2, field: 1, contact: 1, waiver: 1, route: 1 };
 
 export const who = (userId: string) => createHash("sha256").update(`ivw-school-memory:${userId}`).digest("hex").slice(0, 16);
 
@@ -209,4 +209,15 @@ export async function learnPrompts(userId: string, schoolId: string | null | und
     const id = createHash("sha256").update(e.prompt.toLowerCase().replace(/\s+/g, " ").trim()).digest("hex").slice(0, 12);
     await learn(userId, schoolId, "prompt", `${programId}|${id}`, { title: e.title.slice(0, 120), prompt: e.prompt.slice(0, 2000), word_limit: e.word_limit, kind: e.kind });
   }
+}
+
+// the way through a portal: on each page (by its key, the same for every applicant), the button that moved on.
+// kept per school, read at the start of a run; the engine tries it when the usual buttons aren't there
+export async function knownRoute(schoolId: string | null | undefined): Promise<Record<string, string>> {
+  const facts = (await recall(schoolId, ["route"])).filter((f) => trusted(f));
+  return Object.fromEntries(facts.map((f) => [f.key, String(f.value.button ?? "")]).filter(([, b]) => b));
+}
+
+export async function learnRoute(userId: string, schoolId: string | null | undefined, steps: { page: string; button: string }[] | undefined) {
+  for (const s of (steps ?? []).slice(-60)) if (s.page && s.button) await learn(userId, schoolId, "route", s.page, { button: s.button.slice(0, 80) });
 }

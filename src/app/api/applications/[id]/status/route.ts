@@ -1,4 +1,6 @@
-import { resolve } from "@/lib/notify";
+import { extensionPaired } from "@/agents/runner";
+import { portalNeedsChrome } from "@/lib/school-memory";
+import { notify, resolve } from "@/lib/notify";
 import { NextResponse, after, type NextRequest } from "next/server";
 import { afterSubmitted } from "@/agents/runner";
 import * as z from "zod/v4";
@@ -88,6 +90,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const { count: waiting } = await admin().from("applications").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("status", "ready_for_review").neq("id", id);
       if (!waiting) await resolve(uid, /^review-waiting:/).catch(() => {});
       await logEvent({ userId: uid, actor: "user", action: "packet.approved", applicationId: id, programId: app.program_id, context: snapshot });
+      // the moment Chrome matters: a signed application is about to meet its portal, and some portals only let
+      // the applicant's own browser in. asked once, here, rather than as one of the setup steps
+      after(() => askForChrome(uid, id).catch(() => {}));
       return NextResponse.json({ ok: true });
     }
 
@@ -129,4 +134,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
   }
+}
+
+async function askForChrome(userId: string, applicationId: string) {
+  if (await extensionPaired(userId)) return;
+  const { data } = await admin().from("applications").select("portal_url, programs(url, school_id, schools(name))").eq("id", applicationId).maybeSingle();
+  const p = data?.programs as unknown as { url: string | null; school_id: string; schools: { name: string } } | null;
+  const portal = data?.portal_url ?? p?.url ?? "";
+  let host = "";
+  try {
+    host = portal ? new URL(portal).hostname.replace(/^www\./, "") : "";
+  } catch {
+    host = "";
+  }
+  const blocks = host && p ? await portalNeedsChrome(p.school_id, host).catch(() => null) : null;
+  await notify({
+    userId,
+    key: "chrome:connect",
+    kind: "setup",
+    urgent: !!blocks,
+    email: true,
+    title: blocks ? `${p?.schools.name ?? "This school"}'s portal needs your Chrome` : "Signed. One step so no portal can stop it",
+    body: blocks
+      ? `${p?.schools.name ?? "This school"}'s portal doesn't let cloud browsers in, so the agents finish it in your own Chrome. Connecting takes about two minutes on a computer.`
+      : "The agents take your signed application to the portal now. A few portals only let your own browser in; with Chrome connected they finish those too instead of stopping. About two minutes on a computer.",
+    href: "/connect-chrome",
+    actionLabel: "Connect Chrome",
+  });
 }

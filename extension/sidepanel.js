@@ -86,6 +86,34 @@ function renderAsks(d) {
   }
 }
 
+// one box for instructions, above the run cards (a redraw of the cards never touches what's being typed)
+function renderTell(d) {
+  const form = $("tell");
+  form.hidden = !d.runs.length;
+  const sel = $("tellRun");
+  const want = d.runs.map((r) => r.taskId).join(",");
+  if (sel.dataset.ids !== want) {
+    const keep = sel.value;
+    sel.replaceChildren(...d.runs.map((r) => el("option", { value: r.taskId, text: r.school })));
+    if (d.runs.some((r) => r.taskId === keep)) sel.value = keep;
+    sel.dataset.ids = want;
+  }
+  sel.hidden = d.runs.length < 2;
+}
+$("tell").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("tellText").value.trim();
+  const id = $("tellRun").value;
+  if (text.length < 3 || !id) return;
+  try {
+    await send({ type: "panel:instruct", id, text });
+    $("tellText").value = "";
+    say("Got it. The agents follow it from their next step.");
+  } catch (x) {
+    err(x);
+  }
+});
+
 function renderRuns(d) {
   const box = $("runs");
   const open = openKeys();
@@ -197,6 +225,7 @@ async function refresh() {
     if (sig === lastSig) return;
     lastSig = sig;
     renderAsks(d);
+    renderTell(d);
     renderRuns(d);
     renderQueue(d);
     renderSettings(d.settings);

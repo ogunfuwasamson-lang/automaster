@@ -14,7 +14,10 @@ import { assertAiAvailable, tripAi } from "@/lib/ai-health";
 // - chat:  the interviewer. conversational quality matters, calls are small.
 // - cheap: web research loops and turning notes into structured data. this is where the tokens go,
 //          so it runs on haiku (~20x cheaper than sonnet).
+// - expert: the few calls where a mistake loses an application: a portal page the other models gave up on, the last
+//           look before Submit, the fact check on essays. opus, thinking.
 export const MODELS = {
+  expert: process.env.AGENT_MODEL_EXPERT ?? "claude-opus-5-5",
   write: process.env.AGENT_MODEL_WRITE ?? "claude-sonnet-5-5",
   chat: process.env.AGENT_MODEL_CHAT ?? "claude-sonnet-5-5",
   cheap: process.env.AGENT_MODEL_CHEAP ?? "claude-haiku-5-5",
@@ -73,6 +76,9 @@ interface RunArgs<S extends z.ZodType> {
   maxTokens?: number;
   // the portal host or school the call is about, so lessons about that place come along
   topic?: string | null;
+  // think before answering, at this depth (adaptive thinking; the model decides how much). for judgement calls:
+  // ambiguous form questions, plans, fact checks. off by default: most calls are lookups and formatting
+  think?: "low" | "medium" | "high";
   // false for the learning loop's own calls
   lessons?: boolean;
 }
@@ -120,7 +126,7 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
   try {
     // stream so long outputs never hit http timeouts; parse ourselves so failures say why.
     // an answer cut off by the token limit comes back as unparseable json: ask once more with room to finish.
-    let limit = args.maxTokens ?? 8000;
+    let limit = (args.maxTokens ?? 8000) + (args.think && !model.includes("haiku") ? { low: 2000, medium: 6000, high: 12000 }[args.think] : 0);
     for (let attempt = 0; ; attempt++) {
       try {
         msg = await llm()
@@ -129,11 +135,12 @@ export async function runStructured<S extends z.ZodType>(args: RunArgs<S>): Prom
             max_tokens: limit,
             system: cachedSystem(args.system),
             messages: [{ role: "user", content }],
-            // sonnet/opus 5.5 think by default (and it eats max_tokens): turn it off. haiku doesn't take the setting.
-            ...(model.includes("haiku") ? {} : { thinking: { type: "between_tools" as const } }),
+            // sonnet/opus 5.5 think by default (and it eats max_tokens): off unless the call asks for it, at the depth
+            // it asks for. haiku doesn't take the setting.
+            ...(model.includes("haiku") ? {} : args.think ? { thinking: { type: "adaptive" as const } } : { thinking: { type: "between_tools" as const } }),
             // only the schema goes to the model; parsing is ours (below), so a label that comes back as "Reach" or
             // "United States" is repaired instead of failing the whole call
-            output_config: { format: { type: "json_schema" as const, schema: zodOutputFormat(args.schema).schema } },
+            output_config: { format: { type: "json_schema" as const, schema: zodOutputFormat(args.schema).schema }, ...(args.think && !model.includes("haiku") ? { effort: args.think } : {}) },
           })
           .finalMessage();
         if (msg.stop_reason === "max_tokens" && attempt === 0) throw new Error("Failed to parse structured output: cut off");

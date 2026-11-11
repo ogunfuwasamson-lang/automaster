@@ -14,9 +14,9 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
   );
 }
 
-export function Section({ title, description, action, children, className = "" }: { title: string; description?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
+export function Section({ title, description, action, children, className = "", id }: { title: string; description?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; id?: string }) {
   return (
-    <section className={`space-y-4 ${className}`}>
+    <section id={id} className={`scroll-mt-24 space-y-4 ${className}`}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="font-serif text-[22px] leading-snug">{title}</h2>

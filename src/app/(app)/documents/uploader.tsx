@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { uploadDocument } from "@/lib/upload-client";
 import { Select } from "@/components/ui/field";
 import { DOC_KINDS } from "@/lib/doc-kinds";
+import { DriveImport } from "./drive-import";
 
 const KINDS = DOC_KINDS;
 
@@ -54,7 +55,7 @@ export function Uploader({ userId }: { userId: string }) {
           <p className="font-bold">{busy ? `Uploading ${busy}…` : "Drop files here"}</p>
           <p className="mt-0.5 text-sm text-muted">PDF, Word, images or text, up to 10 MB each</p>
         </div>
-        <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row">
+        <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row">
           <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="What kind of document">
             {KINDS.map(([v, l]) => (
               <option key={v} value={v}>
@@ -70,6 +71,7 @@ export function Uploader({ userId }: { userId: string }) {
           >
             Choose files
           </button>
+          <DriveImport userId={userId} kind={kind} onDone={() => router.refresh()} />
         </div>
         <input ref={input} type="file" multiple accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => upload(e.target.files)} />
       </div>

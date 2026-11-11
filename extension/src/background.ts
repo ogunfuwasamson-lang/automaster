@@ -18,6 +18,8 @@
 import { runEngine, isBlockPage, classify, IDP_HOST, type EngineDeps, type EngineState, type Outcome, type Snapshot } from "@/lib/cloud-engine";
 import { chromePage, captureSmall } from "./chrome-page";
 import { DEFAULT_API, safeApi, root, backoff } from "./pure";
+import { pageKey } from "@/lib/portal-platforms";
+import { netError } from "@/lib/net-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const chrome: any;
@@ -290,7 +292,7 @@ chrome.webNavigation.onCommitted.addListener(async (d: { tabId: number; frameId:
 });
 
 // ---------- one run ----------
-function deps(taskId: string, start: { canReadMail: boolean; accountEmail: string }, tabId: number, s: Settings): EngineDeps {
+function deps(taskId: string, start: { canReadMail: boolean; accountEmail: string; routes?: Record<string, string> }, tabId: number, s: Settings): EngineDeps {
   const host = async () => new URL((await chrome.tabs.get(tabId)).url).hostname;
   let lastNote = "";
   const typed = new Map<string, string>();
@@ -348,6 +350,10 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
     loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : undefined,
     decide: async (fields, page) =>
       (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 4000), errors: (page.errors ?? []).slice(0, 20).map((e) => e.slice(0, 300)) } })).fills ?? [],
+    knownStep: (k) => (start.routes ?? {})[k] ?? null,
+    netErrors: () => readNet(tabId),
+    // opus reads the page before Submit against the signed packet (on Ivyward's side)
+    reviewSubmit: async (page) => (await eng(taskId, "review_submit", { page: { url: page.url.slice(0, 2000), title: page.title.slice(0, 300), body: page.body.slice(0, 12000) } })).review ?? null,
     resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : undefined,
     rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
     // screenshot steps: the picture goes to Ivyward, which picks the move (and the value to type, from the fill sheet)
@@ -498,6 +504,7 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
     const page = chromePage(tabId);
     await page.waitForLoadState("domcontentloaded", { timeout: 45_000 }).catch(() => {});
     let state: EngineState = start.state;
+    await watchNet(tabId);
     for (let round = 0; round < 20; round++) {
       let outcome: Outcome;
       let filled = 0;
@@ -529,9 +536,29 @@ async function runTask(task: Task, opts: { tabId?: number; claim?: boolean; focu
         } else if (c.why === "pause" || c.why === "takeover") {
           await eng(task.id, "save", { state, url: (await chrome.tabs.get(tabId).catch(() => null))?.url }).catch(() => {});
           await setPhase(task.id, c.why === "takeover" ? "you have the wheel: hand back in the side panel when you're done" : "paused: resume from the side panel", c.why === "takeover" ? "taken_over" : "paused");
-          // wait for Resume / Hand back (up to 2 hours); the tab stays as it is
+          // wait for Resume / Hand back (up to 2 hours); the tab stays as it is. while the applicant has the wheel,
+          // the button that takes them off each page is noted: the next run (theirs or another applicant's) can
+          // take the same way through
           const end = Date.now() + 2 * 3600_000;
-          while (c.stop && Date.now() < end && (await tabAlive(tabId))) await nap(2000);
+          const steps: { page: string; button: string }[] = [];
+          let seenUrl = "";
+          while (c.stop && Date.now() < end && (await tabAlive(tabId))) {
+            if (c.why === "takeover") {
+              const t = await chrome.tabs.get(tabId).catch(() => null);
+              const k = t?.url ? pageKey(t.url, t.title ?? "") : "";
+              const hc = humanClick.get(task.id);
+              if (hc && k && hc.page !== k) {
+                steps.push(hc);
+                humanClick.delete(task.id);
+              }
+              if (t?.url && t.url !== seenUrl && t.status === "complete") {
+                seenUrl = t.url;
+                await watchClicks(tabId);
+              }
+            }
+            await nap(2000);
+          }
+          if (steps.length) state = { ...state, route: [...(state.route ?? []).filter((x) => !steps.some((y) => y.page === x.page)), ...steps].slice(-80) };
           if (c.stop) {
             // still held after two hours, or the tab was closed: say so in Ivyward, or the queue starts it again
             // in a new tab a minute later
@@ -735,8 +762,106 @@ chrome.alarms.onAlarm.addListener((a: { name: string }) => {
 });
 
 // ---------- messages: the Ivyward site, the popup, the side panel, the page bar ----------
+// the portal's own replies: a save the server refused often says why ({"errors":[{"field":"phone",...}]}) while the
+// page says nothing. a small watcher in the run's tab notes refused replies (status and body, nothing sent);
+// the engine reads them when a page won't move on
+async function watchNet(tabId: number) {
+  await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: () => {
+        const w = window as unknown as { __ivwNet?: boolean; fetch: typeof fetch };
+        if (w.__ivwNet) return;
+        w.__ivwNet = true;
+        const push = (status: number, ct: string, text: string) => {
+          try {
+            const el = document.documentElement;
+            const a = JSON.parse(el.dataset.ivwNet || "[]");
+            a.push([status, ct, String(text).slice(0, 4000)]);
+            el.dataset.ivwNet = JSON.stringify(a.slice(-6));
+          } catch {
+            /* nothing to note */
+          }
+        };
+        const f = w.fetch;
+        w.fetch = async function (this: unknown, ...args: Parameters<typeof fetch>) {
+          const r = await f.apply(this, args);
+          if (r.status >= 400) r.clone().text().then((t) => push(r.status, r.headers.get("content-type") || "", t), () => {});
+          return r;
+        } as typeof fetch;
+        const send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, ...a: Parameters<XMLHttpRequest["send"]>) {
+          this.addEventListener("loadend", () => {
+            try {
+              if (this.status >= 400) push(this.status, this.getResponseHeader("content-type") || "", typeof this.response === "string" ? this.response : this.responseText || "");
+            } catch {
+              /* a binary reply */
+            }
+          });
+          return send.apply(this, a);
+        };
+      },
+    })
+    .catch(() => {});
+}
+async function readNet(tabId: number): Promise<string[]> {
+  const res = await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.documentElement;
+        const v = el.dataset.ivwNet || "[]";
+        delete el.dataset.ivwNet;
+        return v;
+      },
+    })
+    .catch(() => null);
+  try {
+    return (JSON.parse(res?.[0]?.result ?? "[]") as [number, string, string][]).map(([st, ct, t]) => netError(st, t, ct)).filter((x): x is string => !!x);
+  } catch {
+    return [];
+  }
+}
+chrome.webNavigation?.onCompleted.addListener((d: { tabId: number; frameId: number }) => {
+  if (d.frameId === 0 && [...runs.values()].some((r) => r.tabId === d.tabId)) void watchNet(d.tabId);
+});
+
+// the last button the applicant pressed in a run's tab while they had the wheel (task id -> page and label)
+const humanClick = new Map<string, { page: string; button: string }>();
+// a listener in the portal tab that reports which button or link was pressed (its visible label only; nothing typed)
+async function watchClicks(tabId: number) {
+  await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      func: () => {
+        const w = window as unknown as { __ivwClicks?: boolean };
+        if (w.__ivwClicks) return;
+        w.__ivwClicks = true;
+        document.addEventListener(
+          "click",
+          (e) => {
+            const el = (e.target as Element | null)?.closest?.("a, button, input[type=submit], input[type=button], [role=button]") as HTMLElement | null;
+            if (!el) return;
+            const label = ((el as HTMLInputElement).value && el.tagName === "INPUT" ? (el as HTMLInputElement).value : el.innerText || el.getAttribute("aria-label") || el.getAttribute("title") || "").replace(/\s+/g, " ").trim().slice(0, 80);
+            if (label) chrome.runtime.sendMessage({ type: "human:click", label }).catch(() => {});
+          },
+          true,
+        );
+      },
+    })
+    .catch(() => {});
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handle(msg: any, sender: any, internal = false) {
+  if (msg?.type === "human:click") {
+    // only from a run's own tab, only while the applicant has it
+    const r = [...runs.values()].find((x) => x.tabId === sender?.tab?.id && x.state === "taken_over");
+    const label = typeof msg.label === "string" ? msg.label.slice(0, 80) : "";
+    if (r && label && sender.tab.url) humanClick.set(r.taskId, { page: pageKey(sender.tab.url, sender.tab.title ?? ""), button: label });
+    return { ok: true };
+  }
   // the side panel's and popup's controls (approve, submit, settings) come only from the extension's own pages,
   // never from a script running in a web page. (the bar on the portal page may only pause and resume its own run:
   // those two are passed on from below with internal = true)
@@ -817,6 +942,13 @@ async function handle(msg: any, sender: any, internal = false) {
     c.stop = false;
     c.why = "";
     return { ok: true, learned };
+  }
+  if (msg.type === "panel:instruct") {
+    const text = typeof msg.text === "string" ? msg.text.trim().slice(0, 300) : "";
+    if (text.length < 3) throw new Error("say a little more");
+    const r = await eng(msg.id, "instruct", { text });
+    if ((r as { error?: string }).error) throw new Error((r as { error: string }).error);
+    return { ok: true };
   }
   if (msg.type === "panel:pause_all" || msg.type === "panel:resume_all") {
     let n = 0;

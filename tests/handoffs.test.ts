@@ -113,3 +113,23 @@ describe("weekly reminder for finished applications nobody came back to", () => 
     expect(isoWeek(new Date("2027-01-01T00:00:00Z"))).toBe("2026-W53");
   });
 });
+
+import { planFor } from "@/lib/app-plan";
+describe("an application's remaining steps", () => {
+  const base = { status: "ready_for_review", essaysTotal: 3, essaysApproved: 1, essaysWorking: false, attested: false, runnerStatus: null, runnerNote: null, openQuestions: 0, fee: 90, waiver: "requested", deadline: null };
+  it("puts the applicant's next step first when the essays are waiting for them", () => {
+    const p = planFor(base);
+    expect(p.find((s) => s.state === "now")).toMatchObject({ key: "approve", who: "you", detail: "1 of 3 approved" });
+    expect(p.filter((s) => s.state === "done").map((s) => s.key)).toEqual(["research", "write", "waiver"]);
+  });
+  it("hands the portal back to the applicant when the agents are stuck, and shows open questions first", () => {
+    const p = planFor({ ...base, status: "packet_approved", essaysApproved: 3, attested: true, runnerStatus: "needs_you", runnerNote: "a bot check on the sign-up page", openQuestions: 2, waiver: null });
+    expect(p.find((s) => s.state === "now")?.key).toBe("questions");
+    expect(p.find((s) => s.key === "submit")).toMatchObject({ who: "you", detail: "a bot check on the sign-up page" });
+    expect(p.find((s) => s.key === "waiver")?.state).toBe("next");
+  });
+  it("leaves the school's decision as the last step after submitting", () => {
+    const p = planFor({ ...base, status: "submitted", essaysApproved: 3, attested: true, runnerStatus: "submitted" });
+    expect(p.find((s) => s.state === "now")?.key).toBe("decision");
+  });
+});

@@ -1,4 +1,5 @@
 "use client";
+import { TellAgents } from "./tell-agents";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,6 +30,7 @@ export function RunnerPanel(props: {
   questions?: string[];
   mailConnected?: boolean;
   pageSaid?: string[];
+  told?: { id: string; text: string; via: string }[];
 }) {
   const { id, status, runnerStatus, note, portalUrl, liveUrl, fee, attested, hasLogin, missing, reason = null, mode = "cloud", school, paused = false, questions = [], mailConnected = true, pageSaid = [] } = props;
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -311,6 +313,8 @@ export function RunnerPanel(props: {
           </Link>
         </p>
       )}
+
+      <TellAgents id={id} initial={props.told ?? []} />
 
       <label htmlFor="portal-link" className="block text-[13px] font-medium leading-snug text-muted">
         Portal link <span className="font-normal">(optional: the agents find it themselves)</span>

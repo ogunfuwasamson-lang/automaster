@@ -7,6 +7,20 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
+  // src/lib/portal-platforms.ts
+  function pageKey(url, title) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return "";
+    }
+    const path = u.pathname.toLowerCase().replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, ":id").replace(/\/\d+(?=\/|$)/g, "/:n").replace(/[^a-z0-9/:._-]+/g, "").slice(0, 120);
+    const q = ["page", "cmd", "PAGE", "tab", "section", "step", "frm"].map((k) => u.searchParams.get(k)).filter(Boolean).join(",").toLowerCase().slice(0, 60);
+    const t = title.toLowerCase().replace(/\s+/g, " ").replace(/[^a-z /&-]+/g, "").trim().slice(0, 60);
+    return `${u.hostname.replace(/^www\./, "")}${path}${q ? `?${q}` : ""}#${t}`;
+  }
+
   // src/lib/labels.ts
   function stripMarkers(label) {
     return label.replace(/\(\s*(required|optional)\s*\)/gi, " ").replace(/\s[-–—]\s*(required|optional)\s*$/i, "").replace(/^\s*(required|optional)\s*[:*-]?\s+/i, "").replace(/\s+(required|optional)\s*\**\s*$/i, "").replace(/\s+/g, " ").trim();
@@ -6329,7 +6343,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     [/\bcitizenship|nationality\b/i, "citizenship"],
     [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
     [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
-    [/\b(application|applicant|admission|admit)\s+type\b|type of (application|applicant|admission)/i, "application_type"],
+    [/\b(application|applicant|admission|admit)\s+(sub\s*)?type\b|type of (application|applicant|admission)/i, "application_type"],
+    // in an education history: the result, and when it finished
+    [/^\*?\s*(overall |final )?grade\s*\*?\s*$/i, "edu1_grade"],
+    [/\b(graduation|graduated)\b.{0,30}\bmonth\b/i, "edu1_end_month"],
+    [/\b(graduation|graduated)\b.{0,30}\byear\b/i, "edu1_end_year"],
     [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent|who are you applying for/i, "applying_as"],
     [/\b(permanent code|code permanent)\b/i, "has_quebec_code"],
     [/\bdo you (have|hold) (a|an|your)?\s*[\w .'&-]{0,40}\b(student|id|identification|matriculation)\s*(number|no\.?|#)/i, "has_school_id"],
@@ -6421,6 +6439,37 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const qs = state.questions ?? [];
     if (!qs.length) return missingNote(state.missing ?? []);
     return `the portal asks ${qs.length === 1 ? "something" : `${qs.length} things`} your profile doesn't answer yet: ${qs.slice(0, 3).map((q) => q.label.slice(0, 60)).join("; ")}. Ivyward AI will ask you, and the agents carry on once you answer`;
+  }
+  function clicked(state, s2, label) {
+    const page = pageKey(s2.url, s2.title);
+    if (page && label) state.lastClick = { page, button: label.slice(0, 80) };
+  }
+  function arrived(state, s2) {
+    const lc = state.lastClick;
+    if (!lc) return;
+    const now = pageKey(s2.url, s2.title);
+    if (now && now !== lc.page) state.route = [...(state.route ?? []).filter((x) => x.page !== lc.page), lc].slice(-80);
+    state.lastClick = void 0;
+  }
+  async function reviewBeforeSubmit(page, deps2, state) {
+    if (!deps2.reviewSubmit || state.reviewed) return null;
+    const s2 = await snap(page).catch(() => null);
+    if (!s2) return null;
+    const r = await deps2.reviewSubmit({ url: s2.url, title: s2.title, body: s2.body.slice(0, 12e3) }).catch(() => null);
+    if (!r) return null;
+    state.reviewed = true;
+    if (r.ok || !r.problems.length) {
+      state.navHistory = [...state.navHistory ?? [], "read the review page against your signed packet: it matches"].slice(-12);
+      return null;
+    }
+    const sig = r.problems.map((p) => p.slice(0, 60)).sort().join("|");
+    if (state.reviewHeld === sig) {
+      state.navHistory = [...state.navHistory ?? [], "you chose to submit after the review flagged something: submitting"].slice(-12);
+      return null;
+    }
+    state.reviewed = false;
+    state.reviewHeld = sig;
+    return { kind: "needs_you", reason: "review", note: `held before submitting: ${r.problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
   }
   var FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
   var NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
@@ -6605,6 +6654,42 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   var USERNAME_TAKEN = /^(?!.*e-?mail).*((user ?name|e-?id|user ?id|login( ?id| ?name)?|account name)\b.{0,60}\b(already (been )?(taken|exists?|in use|registered|used)|(is )?(not available|unavailable|taken))|already (taken|in use))/i;
   function usernameBox(s2) {
     return s2.allFields.find((f) => f.type !== "password" && f.type !== "email" && !/e-?mail/i.test(f.label) && /\b(user ?name|e-?id|user ?id|login ?(id|name))\b/i.test(`${f.label} ${f.name ?? ""}`));
+  }
+  function checkFills(items, actual) {
+    const out = [];
+    const an = (x) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+    for (const it of items) {
+      if (!actual.has(it.id)) continue;
+      const got = actual.get(it.id) ?? "";
+      const want = it.value;
+      if (!want.trim()) continue;
+      if (!got.trim()) out.push({ id: it.id, label: it.label, issue: "dropped", want, got });
+      else if (an(got) === an(want)) continue;
+      else if (want.startsWith(got) || an(want).startsWith(an(got))) out.push({ id: it.id, label: it.label, issue: "cut", want, got });
+      else if (/\d/.test(want) && an(want).replace(/\D/g, "").includes(an(got).replace(/\D/g, "")) && an(got).replace(/\D/g, "").length >= 4) continue;
+      else out.push({ id: it.id, label: it.label, issue: "changed", want, got });
+    }
+    return out;
+  }
+  async function checkBeforeNext(page, state) {
+    const pf = state.pageFills;
+    if (!pf || pf.page !== await page.url() || !pf.items.length) return;
+    const actual = /* @__PURE__ */ new Map();
+    for (const it of pf.items) {
+      const exists = await frameOf(page).evaluate((i) => !!window.__am?.byId?.(i), it.id).catch(() => false);
+      if (exists) actual.set(it.id, await valueOf(page, it.id));
+    }
+    const issues = checkFills(pf.items, actual);
+    let retyped = 0;
+    for (const c of issues) {
+      if (c.issue === "dropped") {
+        await fillText(page, c.id, c.want).catch(() => {
+        });
+        if ((await valueOf(page, c.id)).trim()) retyped++;
+      } else state.checks = [.../* @__PURE__ */ new Set([...state.checks ?? [], `${c.label}: the portal ${c.issue === "cut" ? "shortened" : "changed"} it to "${c.got.slice(0, 60)}"`])].slice(-20);
+    }
+    if (retyped) state.navHistory = [...state.navHistory ?? [], `checked the page before moving on: typed ${retyped} answer${retyped === 1 ? "" : "s"} again that the page had dropped`].slice(-12);
+    state.pageFills = void 0;
   }
   async function valueOf(page, id) {
     return frameOf(page).evaluate((i) => String(window.__am?.byId?.(i)?.value ?? ""), id).catch(() => "");
@@ -6804,12 +6889,16 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           state.reachedSubmit = true;
           const d = await deps2.canSubmit();
           if (!d.allowed) return { acted, outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` } };
+          if (!deps2.goal) {
+            const held = await reviewBeforeSubmit(page, deps2, state);
+            if (held) return { acted, outcome: held };
+          }
           state.submitClicked = true;
         }
         if ((a.action === "click" || a.action === "double_click") && (/\b(start|create|begin|register|sign ?up|new application)\b/i.test(label) || !label && /submit/i.test(m?.type ?? ""))) {
-          const pageKey = (state.lastFingerprint ?? "").slice(0, 60);
-          const k = `${pageKey}|${label || m?.type}`;
-          if ((state.createClicks ?? []).some((c) => c.startsWith(`${pageKey}|`))) {
+          const pageKey2 = (state.lastFingerprint ?? "").slice(0, 60);
+          const k = `${pageKey2}|${label || m?.type}`;
+          if ((state.createClicks ?? []).some((c) => c.startsWith(`${pageKey2}|`))) {
             log(`didn't press "${label || "submit"}" again: it was pressed already`);
             idle++;
             continue;
@@ -6962,6 +7051,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       });
       await sleep(800);
       let s2 = await snap(page);
+      arrived(state, s2);
       if (isBlockPage(s2)) {
         await sleep(8e3);
         s2 = await snap(page);
@@ -7104,7 +7194,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         for (const f of stillEmpty) if (!notAQuestion(state, f)) ask(state, f);
         if (state.missingDocs?.length) return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
         const fix = (state.missing ?? []).length || stillEmpty.length ? questionNote(state) : "";
-        const err = (s2.errors ?? []).join("; ").slice(0, 160);
+        const net = (s2.errors ?? []).length ? [] : await deps2.netErrors?.().catch(() => []) ?? [];
+        const err = [...s2.errors ?? [], ...net.map((x) => `(server) ${x}`)].join("; ").slice(0, 200);
         const stop = { kind: "needs_you", reason: fix ? "question" : "stuck", note: fix || (err ? `the portal says: ${err}` : req.length ? `the portal wants: ${req.slice(0, 3).join("; ")}` : "the portal didn't accept this page") };
         if (fix || state.samePageCount >= 6) return { outcome: stop, state, filled };
         const o2 = await stuckStep(page, deps2, s2, state, `the same page came back ${state.samePageCount} times after the usual steps${err ? `; the portal shows: ${err}` : ""}`, stop);
@@ -7394,6 +7485,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         state.reachedSubmit = true;
         const d = await deps2.canSubmit();
         if (!d.allowed) return { outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` }, state, filled };
+        const held = await reviewBeforeSubmit(page, deps2, state);
+        if (held) return { outcome: held, state, filled };
         await deps2.progress("submitting your signed packet");
         state.submitClicked = true;
         await click(page, submit.id);
@@ -7426,11 +7519,23 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       }
       if (next) {
         const formPage = now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && !/\bsearch\b/i.test(f.label)).length >= 2;
+        if (formPage) await checkBeforeNext(page, state);
         if (formPage && deps2.beforeNext && !await deps2.beforeNext({ label: clean(next.label), title: now.title, url: now.url })) {
           return { outcome: { kind: "needs_you", reason: "review", note: "this page is filled in: check it, then approve it in the Ivyward side panel" }, state, filled };
         }
         if (next.href && next === apply) state.visited = [...state.visited ?? [], here(next.href)].slice(-30);
+        clicked(state, now, clean(next.label));
         await click(page, next.id);
+        continue;
+      }
+      const known = deps2.knownStep?.(pageKey(now.url, now.title));
+      const knownBtn = known ? now.buttons.find((b) => clean(b.label).toLowerCase() === known.toLowerCase() && !DANGEROUS.test(b.label) && !FINAL.test(clean(b.label))) : void 0;
+      const knownMark = `route|${pageKey(now.url, now.title)}`;
+      if (knownBtn && !(state.pressedAsked ?? []).includes(knownMark)) {
+        state.pressedAsked = [...state.pressedAsked ?? [], knownMark].slice(-30);
+        state.navHistory = [...state.navHistory ?? [], `pressed "${clean(knownBtn.label)}", the way through this page before`].slice(-12);
+        clicked(state, now, clean(knownBtn.label));
+        await click(page, knownBtn.id);
         continue;
       }
       if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
@@ -7530,6 +7635,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       return null;
     }
     const label = clean(b.label);
+    if (!DANGEROUS.test(label)) clicked(state, s2, label);
     if (DANGEROUS.test(label)) {
       log(`refused "${label}"`);
       return { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` };
@@ -7538,6 +7644,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       state.reachedSubmit = true;
       const d = await deps2.canSubmit();
       if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
+      const held = await reviewBeforeSubmit(page, deps2, state);
+      if (held) return held;
       state.submitClicked = true;
     }
     if (NEW_APP.test(label) && !markNewApp(state, label)) {
@@ -7757,6 +7865,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         if (ok && (f.action === "choose" || f.action === "check")) await settle2(page);
       } catch {
       } finally {
+        if (n2 > n0 && state && f.action === "fill") {
+          const fd = safe.find((x) => x.id === f.id);
+          if (fd && ["text", "email", "tel", "textarea", "number", "url"].includes(fd.type) && !fd.combo) {
+            const key = `${await page.url()}`;
+            const cur = state.pageFills?.page === key ? state.pageFills.items : [];
+            state.pageFills = { page: key, items: [...cur.filter((x) => x.id !== f.id), { id: f.id, label: cleanLabel(fd.label, fd.options).slice(0, 80), type: fd.type, value: f.value }].slice(-60) };
+          }
+        }
         if (n2 > n0 && deps2.onFilled && f.action !== "skip") {
           const label = safe.find((x) => x.id === f.id)?.label ?? "";
           const value = f.action === "fill" ? f.value : f.action === "choose" ? f.option : f.action === "upload" ? f.file : "ticked";
@@ -8153,6 +8269,52 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   };
   var backoff = (n2) => Math.min(30, [1, 2, 5, 15][Math.min(n2, 4) - 1] ?? 30) * 6e4;
 
+  // src/lib/net-errors.ts
+  var MSG_KEYS = ["message", "error_description", "errorMessage", "detail", "title", "error", "msg", "reason", "description"];
+  function fromJson(j, out, depth = 0) {
+    if (depth > 4 || out.length >= 4 || j == null) return;
+    if (typeof j === "string") {
+      if (j.length > 2 && j.length < 300 && /[a-z]/i.test(j)) out.push(j);
+      return;
+    }
+    if (Array.isArray(j)) {
+      for (const x of j.slice(0, 6)) fromJson(x, out, depth + 1);
+      return;
+    }
+    if (typeof j === "object") {
+      const o = j;
+      const field = ["field", "fieldName", "property", "path", "name", "param"].map((k) => o[k]).find((v) => typeof v === "string");
+      for (const k of MSG_KEYS) {
+        const v = o[k];
+        if (typeof v === "string" && v.trim() && v.length < 300) {
+          out.push(field && !v.toLowerCase().includes(field.toLowerCase()) ? `${field}: ${v.trim()}` : v.trim());
+          return;
+        }
+      }
+      for (const k of ["errors", "fieldErrors", "validationErrors", "details", "data", "error"]) if (o[k] && typeof o[k] === "object") fromJson(o[k], out, depth + 1);
+      if (!out.length) {
+        for (const [k, v] of Object.entries(o).slice(0, 8)) if (Array.isArray(v) && typeof v[0] === "string") out.push(`${k}: ${v[0]}`);
+      }
+    }
+  }
+  function netError(status, body, contentType = "") {
+    if (status < 400 || status === 401 || status === 403 || status === 404 || status === 429) return null;
+    const t = body.trim();
+    const out = [];
+    if (/json/i.test(contentType) || /^[[{]/.test(t)) {
+      try {
+        fromJson(JSON.parse(t), out);
+      } catch {
+      }
+    }
+    if (!out.length && /html|text/i.test(contentType)) {
+      const text = t.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (text && text.length < 240 && !/<html/i.test(t.slice(0, 200))) out.push(text);
+    }
+    const line = [...new Set(out.map((x) => x.replace(/\s+/g, " ").trim()))].filter((x) => !/^(error|bad request|unprocessable entity|internal server error)$/i.test(x)).slice(0, 3).join("; ");
+    return line ? line.slice(0, 240) : null;
+  }
+
   // extension/src/background.ts
   var RUN_MS = 15 * 6e4;
   var VERSION = chrome.runtime.getManifest().version;
@@ -8434,6 +8596,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       fillFromKey: async (field, key) => (await eng(taskId, "fill_key", { field: { id: field.id, label: field.label.slice(0, 400), type: field.type, name: field.name, options: field.options?.slice(0, 300), required: field.required }, key })).fill,
       loginFromMail: start.canReadMail ? async (since) => (await eng(taskId, "login_mail", { host: await host(), since })).login : void 0,
       decide: async (fields, page) => (await eng(taskId, "decide", { fields: fields.slice(0, 60).map((f) => ({ id: f.id, label: f.label.slice(0, 400), type: f.type, name: f.name?.slice(0, 200), options: f.options?.slice(0, 300).map((o) => o.slice(0, 200)), required: f.required })), page: { url: page.url.slice(0, 2e3), title: page.title.slice(0, 300), body: page.body.slice(0, 4e3), errors: (page.errors ?? []).slice(0, 20).map((e) => e.slice(0, 300)) } })).fills ?? [],
+      knownStep: (k) => (start.routes ?? {})[k] ?? null,
+      netErrors: () => readNet(tabId),
+      // opus reads the page before Submit against the signed packet (on Ivyward's side)
+      reviewSubmit: async (page) => (await eng(taskId, "review_submit", { page: { url: page.url.slice(0, 2e3), title: page.title.slice(0, 300), body: page.body.slice(0, 12e3) } })).review ?? null,
       resetLink: start.canReadMail ? async (since) => (await eng(taskId, "reset_link", { host: await host(), since })).link : void 0,
       rotatePassword: async () => (await eng(taskId, "rotate", { host: await host() })).login,
       // screenshot steps: the picture goes to Ivyward, which picks the move (and the value to type, from the fill sheet)
@@ -8571,6 +8737,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       await page.waitForLoadState("domcontentloaded", { timeout: 45e3 }).catch(() => {
       });
       let state = start.state;
+      await watchNet(tabId);
       for (let round = 0; round < 20; round++) {
         let outcome;
         let filled = 0;
@@ -8603,7 +8770,25 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             });
             await setPhase(task.id, c.why === "takeover" ? "you have the wheel: hand back in the side panel when you're done" : "paused: resume from the side panel", c.why === "takeover" ? "taken_over" : "paused");
             const end = Date.now() + 2 * 36e5;
-            while (c.stop && Date.now() < end && await tabAlive(tabId)) await nap(2e3);
+            const steps = [];
+            let seenUrl = "";
+            while (c.stop && Date.now() < end && await tabAlive(tabId)) {
+              if (c.why === "takeover") {
+                const t = await chrome.tabs.get(tabId).catch(() => null);
+                const k = t?.url ? pageKey(t.url, t.title ?? "") : "";
+                const hc = humanClick.get(task.id);
+                if (hc && k && hc.page !== k) {
+                  steps.push(hc);
+                  humanClick.delete(task.id);
+                }
+                if (t?.url && t.url !== seenUrl && t.status === "complete") {
+                  seenUrl = t.url;
+                  await watchClicks(tabId);
+                }
+              }
+              await nap(2e3);
+            }
+            if (steps.length) state = { ...state, route: [...(state.route ?? []).filter((x) => !steps.some((y) => y.page === x.page)), ...steps].slice(-80) };
             if (c.stop) {
               const gone = !await tabAlive(tabId);
               await eng(task.id, "finish", { state, outcome: { kind: "needs_you", reason: "stopped", note: gone ? "the portal tab was closed while it was paused. Choose Run in my Chrome to carry on" : "paused in Chrome for two hours. Choose Run in my Chrome to carry on" } }).catch(() => {
@@ -8794,7 +8979,93 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (a.name === "checkins") checkins().catch(() => {
     });
   });
+  async function watchNet(tabId) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: () => {
+        const w = window;
+        if (w.__ivwNet) return;
+        w.__ivwNet = true;
+        const push = (status, ct, text) => {
+          try {
+            const el = document.documentElement;
+            const a = JSON.parse(el.dataset.ivwNet || "[]");
+            a.push([status, ct, String(text).slice(0, 4e3)]);
+            el.dataset.ivwNet = JSON.stringify(a.slice(-6));
+          } catch {
+          }
+        };
+        const f = w.fetch;
+        w.fetch = async function(...args) {
+          const r = await f.apply(this, args);
+          if (r.status >= 400) r.clone().text().then((t) => push(r.status, r.headers.get("content-type") || "", t), () => {
+          });
+          return r;
+        };
+        const send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(...a) {
+          this.addEventListener("loadend", () => {
+            try {
+              if (this.status >= 400) push(this.status, this.getResponseHeader("content-type") || "", typeof this.response === "string" ? this.response : this.responseText || "");
+            } catch {
+            }
+          });
+          return send.apply(this, a);
+        };
+      }
+    }).catch(() => {
+    });
+  }
+  async function readNet(tabId) {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.documentElement;
+        const v = el.dataset.ivwNet || "[]";
+        delete el.dataset.ivwNet;
+        return v;
+      }
+    }).catch(() => null);
+    try {
+      return JSON.parse(res?.[0]?.result ?? "[]").map(([st, ct, t]) => netError(st, t, ct)).filter((x) => !!x);
+    } catch {
+      return [];
+    }
+  }
+  chrome.webNavigation?.onCompleted.addListener((d) => {
+    if (d.frameId === 0 && [...runs.values()].some((r) => r.tabId === d.tabId)) void watchNet(d.tabId);
+  });
+  var humanClick = /* @__PURE__ */ new Map();
+  async function watchClicks(tabId) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const w = window;
+        if (w.__ivwClicks) return;
+        w.__ivwClicks = true;
+        document.addEventListener(
+          "click",
+          (e) => {
+            const el = e.target?.closest?.("a, button, input[type=submit], input[type=button], [role=button]");
+            if (!el) return;
+            const label = (el.value && el.tagName === "INPUT" ? el.value : el.innerText || el.getAttribute("aria-label") || el.getAttribute("title") || "").replace(/\s+/g, " ").trim().slice(0, 80);
+            if (label) chrome.runtime.sendMessage({ type: "human:click", label }).catch(() => {
+            });
+          },
+          true
+        );
+      }
+    }).catch(() => {
+    });
+  }
   async function handle(msg, sender, internal = false) {
+    if (msg?.type === "human:click") {
+      const r = [...runs.values()].find((x) => x.tabId === sender?.tab?.id && x.state === "taken_over");
+      const label = typeof msg.label === "string" ? msg.label.slice(0, 80) : "";
+      if (r && label && sender.tab.url) humanClick.set(r.taskId, { page: pageKey(sender.tab.url, sender.tab.title ?? ""), button: label });
+      return { ok: true };
+    }
     if (!internal && /^(panel|popup):/.test(String(msg?.type)) && !String(sender?.url ?? "").startsWith(chrome.runtime.getURL(""))) throw new Error("not allowed from a web page");
     if (msg.type === "bridge:hello") {
       const c = await cfg();
@@ -8867,6 +9138,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       c.stop = false;
       c.why = "";
       return { ok: true, learned };
+    }
+    if (msg.type === "panel:instruct") {
+      const text = typeof msg.text === "string" ? msg.text.trim().slice(0, 300) : "";
+      if (text.length < 3) throw new Error("say a little more");
+      const r = await eng(msg.id, "instruct", { text });
+      if (r.error) throw new Error(r.error);
+      return { ok: true };
     }
     if (msg.type === "panel:pause_all" || msg.type === "panel:resume_all") {
       let n2 = 0;

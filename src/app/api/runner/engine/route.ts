@@ -1,3 +1,4 @@
+import { addInstruction, instructions } from "@/lib/instructions";
 import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
@@ -10,7 +11,7 @@ import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents
 import { REPEAT_NOTE, stuckBudget, stuckMark } from "@/lib/runner-guard";
 import { recordQuestions } from "@/lib/portal-questions";
 import { askToPay, paymentNeeded } from "@/lib/billing";
-import { learn } from "@/lib/school-memory";
+import { learn, knownRoute, learnRoute } from "@/lib/school-memory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +46,8 @@ const Body = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("rotate"), application: z.string().uuid(), host: z.string().max(253) }),
   z.object({ op: z.literal("allow_new_app"), application: z.string().uuid() }),
+  z.object({ op: z.literal("instruct"), application: z.string().uuid(), text: z.string().min(3).max(300) }),
+  z.object({ op: z.literal("review_submit"), application: z.string().uuid(), page: z.object({ url: z.string().max(2000), title: z.string().max(300), body: z.string().max(12000) }) }),
   z.object({ op: z.literal("save"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional() }),
   z.object({ op: z.literal("finish"), application: z.string().uuid(), state: z.record(z.string(), z.any()), url: z.string().max(2000).optional(), filled: z.number().int().min(0).max(5000).optional(), host: z.string().max(253).optional(), outcome: Outcome }),
 ]);
@@ -120,12 +123,23 @@ export async function POST(req: NextRequest) {
       canReadMail: await canReadMail(uid).catch(() => false),
       accountEmail: sheet.fields.email ?? "",
       school: sheet.school,
+      // the way through this school's portal from earlier runs (page key -> the button that moved on)
+      routes: await knownRoute((app.programs as unknown as { school_id: string }).school_id).catch(() => ({})),
     });
   }
 
   const readMail = await canReadMail(uid).catch(() => false);
   const host = "host" in b && b.host ? b.host : "";
-  const deps = serverDeps({ userId: uid, applicationId: b.application, jobId: null, sheet, readMail, host: () => host });
+  if (b.op === "instruct") {
+    try {
+      await addInstruction(uid, b.application, b.text, "chrome");
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      return NextResponse.json({ error: String((e as Error).message ?? e) }, { status: 400 });
+    }
+  }
+  const told = ["navigate", "decide", "see"].includes(b.op) ? await instructions(b.application).catch(() => []) : [];
+  const deps = serverDeps({ userId: uid, applicationId: b.application, jobId: null, sheet, readMail, host: () => host, instructions: told });
 
   if (b.op === "login_get") return NextResponse.json({ login: await deps.existingLogin() });
   if (b.op === "login_create") return NextResponse.json({ login: await deps.createLogin(b.email || deps.accountEmail) });
@@ -142,11 +156,13 @@ export async function POST(req: NextRequest) {
   }
   if (b.op === "rotate") return NextResponse.json({ login: await deps.rotatePassword!() });
   if (b.op === "allow_new_app") return NextResponse.json({ allow: deps.allowNewApp ? await deps.allowNewApp() : false });
+  if (b.op === "review_submit") return NextResponse.json({ review: deps.reviewSubmit ? await deps.reviewSubmit(b.page).catch(() => null) : null });
 
   // finish: one run of the engine in chrome ended
   const o = b.outcome;
   const prev = (row?.runner_state ?? {}) as RunnerState;
   const state: RunnerState = { ...prev, ...(b.state as RunnerState), picks: { ...(prev.picks ?? {}), ...((b.state as RunnerState).picks ?? {}) }, last_url: b.url ?? prev.last_url };
+  if (b.op === "finish") await learnRoute(uid, (app.programs as unknown as { school_id: string }).school_id, (state.route ?? []).filter((x) => !(prev.route ?? []).some((y) => y.page === x.page && y.button === x.button))).catch(() => {});
   if (b.host && state.accountAt && state.signedIn && !prev.signedIn) await learn(uid, (app.programs as unknown as { school_id: string }).school_id, "portal", `${b.host.replace(/^www\./, "")}:signup_ok`, {}).catch(() => {});
   if (b.host) {
     const login = await getLogin(uid, b.host, b.application).catch(() => null);

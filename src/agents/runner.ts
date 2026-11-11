@@ -8,8 +8,11 @@ import { enqueue, otherRunActive, otherRunOnPortal } from "@/lib/queue";
 import { logEvent, recordOutcome } from "@/lib/events";
 import { research } from "@/lib/research";
 import { runStructured } from "@/lib/llm";
-import { decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, submitDecision, type MapMemory } from "@/lib/runner";
-import { bareLink, fieldHints, host as hostOf, knownApplyUrl, learn, learnWaiver, portalNeedsChrome } from "@/lib/school-memory";
+import { playbookFor } from "@/lib/portal-platforms";
+import { netError } from "@/lib/net-errors";
+import { instructionBlock, instructions } from "@/lib/instructions";
+import { reviewSubmit, decideFields, loadApp, loadSheet, looseSheet, mapFields, sheetFile, submitDecision, type MapMemory } from "@/lib/runner";
+import { bareLink, fieldHints, host as hostOf, knownApplyUrl, knownRoute, learn, learnRoute, learnWaiver, portalNeedsChrome } from "@/lib/school-memory";
 import { createLogin, getLogin, markLogin, rotatePassword, saveIssuedLogin } from "@/lib/vault";
 import { canReadMail, recentMail } from "@/lib/gmail";
 import { extractCredentials, extractVerification, fromPortal, hostRoot } from "@/lib/verify-mail";
@@ -105,17 +108,17 @@ const SeeOut = z.object({
   note: z.string(),
 });
 
-function navPrompt(n: NavInput, sheet: FillSheet, goal?: string) {
+function navPrompt(n: NavInput, sheet: FillSheet, goal?: string, told: { text: string }[] = []) {
   const s = n.snapshot;
   const fields = s.fields.slice(0, 60).map((f) => `${f.id} | ${f.type}${f.required ? " required" : ""} | ${f.label.slice(0, 90)}${f.options?.length ? ` | options: ${f.options.slice(0, 10).join(" / ").slice(0, 160)}` : ""}`);
   const buttons = s.buttons.slice(0, 80).map((b) => `${b.id} | ${b.label.slice(0, 60)}${b.href ? ` | ${b.href.slice(0, 100)}` : ""}`);
-  return `${goal ? `task: ${goal}\n` : ""}program: ${sheet.program} at ${sheet.school}
+  return `${goal ? `task: ${goal}\n` : ""}${instructionBlock(told)}program: ${sheet.program} at ${sheet.school}
 why you're being asked: ${n.why}
 signed in: ${n.signedIn ? "yes" : "not yet"}; login on file: ${n.haveLogin ? "yes" : "no"}
 recent steps: ${n.history.join(" → ") || "none"}
 
 page: ${s.title} (${s.url})
-portal errors: ${(s.errors ?? []).join("; ") || "none"}
+${playbookFor(s.url, s.body) ? `how this portal's system works: ${playbookFor(s.url, s.body)}\n` : ""}portal errors: ${(s.errors ?? []).join("; ") || "none"}
 page text: ${s.body.slice(0, 1800)}
 
 empty fields:
@@ -177,11 +180,19 @@ export interface DepsCtx {
   host: () => string;
   goal?: string; // a follow-up job rather than the application itself
   memory?: MapMemory; // field labels learned on this portal, and the model's picks this run
+  routes?: Record<string, string>; // the way through this school's portal, from earlier runs
+  instructions?: { text: string }[]; // what the applicant told the agents about this application
 }
 // the navigator has repeated itself in its last few steps, or has been at it a long while on this page
 export const navCircling = (history: string[]) => {
   const last = history.slice(-4);
   return (last.length >= 3 && new Set(last).size < last.length) || history.length >= 8;
+};
+// which model starts this step: 0 small, 1 mid (circling), 2 opus (circling and the mid model's steps haven't moved it)
+export const navLevel = (history: string[]) => {
+  if (!navCircling(history)) return 0;
+  const last = history.slice(-8);
+  return last.length >= 6 && new Set(last).size <= last.length / 2 ? 2 : 1;
 };
 
 export function serverDeps(c: DepsCtx): EngineDeps {
@@ -221,27 +232,36 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       // the small model does the routine steps. when it's going in circles, or wants to give the page to the
       // applicant, the stronger model looks before anyone is bothered: most "can't find the next step" stops
       // were pages a more careful reader gets through
-      const ask = (tier: "cheap" | "chat") =>
+      const ask = (tier: "cheap" | "chat" | "expert") =>
         runStructured({
           userId: c.userId,
           agent: "runner",
           jobId: c.jobId ?? undefined,
-          promptVersion: tier === "cheap" ? "nav-v1" : "nav-v1-careful",
+          promptVersion: tier === "cheap" ? "nav-v1" : tier === "chat" ? "nav-v1-careful" : "nav-v1-expert",
           topic: hostOf(`https://${c.host()}`),
           tier,
+          ...(tier === "expert" ? { think: "high" as const } : {}),
           system: NAV_SYSTEM,
           cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(c.sheet)}`,
-          prompt: navPrompt(n, c.sheet, c.goal),
+          prompt: navPrompt(n, c.sheet, c.goal, c.instructions),
           schema: NavOut,
           maxTokens: 400,
         }).then((r) => r.output);
-      const circling = navCircling(n.history);
-      const first = await ask(circling ? "chat" : "cheap");
-      if (first.action === "handoff" && !circling) return ask("chat").catch(() => first);
-      return first;
+      // routine steps on the small model; going in circles, the mid model; still stuck, or about to give the page
+      // to the applicant for anything but a bot check or a payment, opus thinks it through first
+      const level = navLevel(n.history);
+      const ladder = (["cheap", "chat", "expert"] as const).slice(level);
+      let out = await ask(ladder[0]);
+      for (const next of ladder.slice(1)) {
+        if (out.action !== "handoff" || /captcha|robot|human|bot check|cloudflare|\b(pay|payment|card)\b/i.test(out.note)) break;
+        out = await ask(next).catch(() => out);
+      }
+      return out;
     },
     fillFromKey: (f, key) => resolve(f, key, c.sheet),
-    decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined),
+    decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined, { instructions: c.instructions }),
+    knownStep: (k) => c.routes?.[k] ?? null,
+    reviewSubmit: c.goal ? undefined : (page) => reviewSubmit(c.userId, c.sheet, page, c.jobId ?? undefined),
     sheetValue: (key) => c.sheet.fields[key] ?? null,
     hasValue: (label) => {
       const k = keyForLabel(cleanLabel(label));
@@ -469,7 +489,7 @@ export async function handOffToChrome(userId: string, applicationId: string, sta
   if (!online) {
     const { data } = await admin().from("applications").select("programs(schools(name))").eq("id", applicationId).maybeSingle();
     const school = (data?.programs as unknown as { schools: { name: string } } | null)?.schools.name ?? "a school";
-    await notify({ userId, key: `chrome:${applicationId}`, kind: "info", title: `Open Chrome to finish ${school}`, body: `${school}'s portal blocks cloud browsers, so the agents will finish it in your Chrome. Open Chrome on the computer where you connected Ivyward and they carry on by themselves.`, href: `/applications/${applicationId}`, actionLabel: "See the application" }).catch(() => {});
+    await notify({ userId, key: `chrome:${applicationId}`, kind: "info", title: `Open Chrome to finish ${school}`, body: `${school}'s portal blocks cloud browsers, so the agents will finish it in your Chrome. Open Chrome on the computer where you connected Ivyward and they carry on by themselves.`, href: `/applications/${applicationId}`, actionLabel: "See the application", urgent: true, email: true }).catch(() => {});
   }
 }
 
@@ -744,8 +764,19 @@ export const runner: Record<string, Handler> = {
         await handOffToChrome(job.user_id, applicationId, state, why);
         return { outcome: "moved_to_chrome", why: "school memory" };
       }
+      // known to refuse cloud browsers and no Chrome connected: a cloud attempt only burns a run and ends at the
+      // same wall. say so now, with the one thing that gets it through
+      if (why) {
+        const note = "this school's portal only lets your own browser in. Connect Chrome on a computer (about two minutes) and the agents finish it there";
+        await setRunner(applicationId, { runner_status: "needs_you", runner_note: note, runner_state: { ...state, reason: "blocked" } });
+        await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.needs_you", applicationId, channel: "portal", context: { reason: "blocked", note, via: "school memory" } });
+        await notify({ userId: job.user_id, key: "chrome:connect", kind: "setup", urgent: true, email: true, title: `${sheet.school}'s portal needs your Chrome`, body: `${sheet.school}'s portal doesn't let cloud browsers in, so the agents finish it in your own Chrome. Connecting takes about two minutes on a computer.`, href: "/connect-chrome", actionLabel: "Connect Chrome" }).catch(() => {});
+        return { outcome: "needs_you", reason: "blocked" };
+      }
     }
     const memory: MapMemory = { hints: await fieldHints(schoolId, portalHost).catch(() => new Map()), picks: { ...(state.picks ?? {}) } };
+    const routes = await knownRoute(schoolId).catch(() => ({}));
+    const told = await instructions(applicationId).catch(() => []);
 
     await setRunner(applicationId, { runner_status: "running", runner_note: "working on the portal" });
     state.leadBacks = 0;
@@ -775,7 +806,22 @@ export const runner: Record<string, Handler> = {
       // expired: past the budget plus two minutes, stop, keep the state, and try again shortly (three times at most)
       let lastProgress = "";
       let timedOut = false;
-      const engineDeps = serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host, memory });
+      // the portal's replies that refused something, newest last (what the page didn't show)
+      const refused: string[] = [];
+      page.on("response", (r) => {
+        const kind = r.request().resourceType();
+        if (r.status() < 400 || !["xhr", "fetch", "document"].includes(kind)) return;
+        void r
+          .text()
+          .then((t) => netError(r.status(), t.slice(0, 20_000), r.headers()["content-type"] ?? ""))
+          .then((m) => {
+            if (m) refused.push(m);
+            if (refused.length > 6) refused.shift();
+          })
+          .catch(() => {});
+      });
+      const engineDeps = serverDeps({ userId: job.user_id, applicationId, jobId: job.id, sheet, readMail, host, memory, routes, instructions: told });
+      engineDeps.netErrors = async () => refused.splice(0);
       const progress = engineDeps.progress;
       engineDeps.progress = async (n: string) => {
         lastProgress = n;
@@ -798,10 +844,16 @@ export const runner: Record<string, Handler> = {
       ]);
       if (!timedOut) next.hangs = 0;
       (next as RunnerState).picks = memory.picks;
+      // answers the portal shortened or changed on the way (read back before each Next): told once, so the applicant
+      // can check them on the portal's review page
+      const newChecks = (next.checks ?? []).filter((c) => !(state.checks ?? []).includes(c));
+      if (newChecks.length) await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.answers_changed", applicationId, channel: "portal", context: { checks: newChecks } });
       // what this run showed about the portal itself (not about the applicant)
       if (outcome.kind === "needs_you" && outcome.reason === "account") await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:signup_blocked`, {}).catch(() => {});
       if (outcome.kind === "needs_you" && (outcome.reason === "captcha" || outcome.reason === "blocked")) await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:cloud_blocked`, {}).catch(() => {});
       if (next.signedIn && next.accountAt && !state.signedIn) await learn(job.user_id, schoolId, "portal", `${hostOf(page.url())}:signup_ok`, {}).catch(() => {});
+      // the way through the portal this run found, for the next applicant (and this one's next run)
+      await learnRoute(job.user_id, schoolId, (next.route ?? []).filter((x) => !(state.route ?? []).some((y) => y.page === x.page && y.button === x.button))).catch(() => {});
 
       const halted = await userHalted(applicationId);
       if (halted) {
@@ -816,6 +868,23 @@ export const runner: Record<string, Handler> = {
         .screenshot({ type: "jpeg", quality: 50, timeout: 8_000 })
         .then((jpg) => db.storage.from("documents").upload(`${job.user_id}/runner-debug/${applicationId}.jpg`, jpg, { contentType: "image/jpeg", upsert: true }))
         .catch(() => {});
+      // and the page itself, for the eval set: the structure of the form with every typed value removed, so a stop
+      // can be rebuilt offline as a test case (evals/). same private folder, replaced each run
+      if (outcome.kind === "needs_you" || outcome.kind === "failed")
+        await page
+          .evaluate(() => {
+            const doc = document.documentElement.cloneNode(true) as HTMLElement;
+            doc.querySelectorAll("script, style, noscript, svg, img, iframe, link, meta").forEach((e) => e.remove());
+            doc.querySelectorAll("input, textarea").forEach((e) => {
+              e.removeAttribute("value");
+              if (e.tagName === "TEXTAREA") e.textContent = "";
+            });
+            doc.querySelectorAll("option[selected]").forEach((e) => e.removeAttribute("selected"));
+            doc.querySelectorAll("input[checked]").forEach((e) => e.removeAttribute("checked"));
+            return `<!-- ${location.href.split("?")[0]} -->\n${doc.outerHTML.slice(0, 400_000)}`;
+          })
+          .then((html) => db.storage.from("documents").upload(`${job.user_id}/runner-debug/${applicationId}.html`, new TextEncoder().encode(html), { contentType: "text/html", upsert: true }))
+          .catch(() => {});
 
       const saved: RunnerState & { debug?: unknown } = {
         ...next,

@@ -32,3 +32,29 @@ describe("extension: retrying a run that couldn't start", () => {
     expect([1, 2, 3, 4, 5, 9].map((n) => backoff(n) / 60_000)).toEqual([1, 2, 5, 15, 15, 15]);
   });
 });
+
+import { navLevel } from "@/agents/runner";
+describe("which model takes a navigation step", () => {
+  it("starts small, moves up when it repeats itself, and reaches opus only when the mid model hasn't moved it", () => {
+    expect(navLevel(["filled", "clicked Next"])).toBe(0);
+    expect(navLevel(["a", "clicked Next", "filled", "clicked Next"])).toBe(1);
+    expect(navLevel(["clicked Next", "filled", "clicked Next", "filled", "clicked Next", "filled", "clicked Next", "filled"])).toBe(2);
+  });
+});
+
+import { pageKey, platformOf } from "@/lib/portal-platforms";
+describe("portal systems and page keys", () => {
+  it("knows the common application systems", () => {
+    expect(platformOf("https://gradapply.georgetown.edu/apply/?sr=abc")).toBe("slate");
+    expect(platformOf("https://eforms.manchester.ac.uk/psc/OAAPRD/EMPLOYEE/SA/c/X.GBL")).toBe("peoplesoft");
+    expect(platformOf("https://gradcas.liaisoncas.com/applicant-ux/")).toBe("liaison_cas");
+    expect(platformOf("https://utdallas.my.site.com/s/application")).toBe("salesforce");
+    expect(platformOf("https://www.example.edu/news")).toBeNull();
+  });
+  it("gives the same step of a portal the same key, whoever is on it", () => {
+    const a = pageKey("https://apply.school.edu/apply/form/3f2a9c1e-1111-2222-3333-444455556666/page/12?cmd=personal&x=1", "Personal Information | School");
+    const b = pageKey("https://apply.school.edu/apply/form/9d8e7f6a-aaaa-bbbb-cccc-ddddeeeeffff/page/12?cmd=personal&x=2", "Personal Information | School");
+    expect(a).toBe(b);
+    expect(pageKey("https://apply.school.edu/apply/form/x?cmd=education", "Education")).not.toBe(a);
+  });
+});

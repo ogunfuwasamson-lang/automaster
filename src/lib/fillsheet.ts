@@ -323,7 +323,11 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\bcitizenship|nationality\b/i, "citizenship"],
   [/\b(country|region)\s*(\/\s*region\s*)?of\s*birth|birth\s*(country|place)|place of birth/i, "country_of_birth"],
   [/\bpermanent\s*residen|country\s*of\s*domicile|domicile/i, "country_of_residence"],
-  [/\b(application|applicant|admission|admit)\s+type\b|type of (application|applicant|admission)/i, "application_type"],
+  [/\b(application|applicant|admission|admit)\s+(sub\s*)?type\b|type of (application|applicant|admission)/i, "application_type"],
+  // in an education history: the result, and when it finished
+  [/^\*?\s*(overall |final )?grade\s*\*?\s*$/i, "edu1_grade"],
+  [/\b(graduation|graduated)\b.{0,30}\bmonth\b/i, "edu1_end_month"],
+  [/\b(graduation|graduated)\b.{0,30}\byear\b/i, "edu1_end_year"],
   [/applying (for myself|using an (education )?agent|through an agent)|education agent|use an agent|who are you applying for/i, "applying_as"],
   [/\b(permanent code|code permanent)\b/i, "has_quebec_code"],
   [/\bdo you (have|hold) (a|an|your)?\s*[\w .'&-]{0,40}\b(student|id|identification|matriculation)\s*(number|no\.?|#)/i, "has_school_id"],
