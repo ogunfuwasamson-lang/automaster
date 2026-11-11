@@ -2,7 +2,7 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { notify } from "@/lib/notify";
-import { dueBucket, essaysReady, type PieceState } from "@/lib/writing";
+import { dueBucket, essaysReady, isoWeek, waitingSummary, type PieceState } from "@/lib/writing";
 
 // the writing agents are done with an application: say so. the status moves to "ready for you" (it used to stay
 // on "agents are preparing it" forever) and the applicant gets a notice and one email with the deadline.
@@ -61,6 +61,31 @@ export async function nudgeReviews(): Promise<number> {
       actionLabel: "Review and sign",
       email: true,
     }).catch(() => {});
+    n++;
+  }
+  return n;
+}
+
+// finished applications nobody has come back to: one reminder a week per applicant, covering all of them (not one
+// email per application). the deadline reminders above are separate and keep their own timing
+export async function nudgeWaiting(now = new Date()): Promise<number> {
+  const db = admin();
+  const { data } = await db.from("applications").select("id, user_id, target_deadline, programs(schools(name))").eq("status", "ready_for_review").limit(1000);
+  if (!data?.length) return 0;
+  const { data: notices } = await db.from("notifications").select("user_id, dedupe_key, created_at").like("dedupe_key", "review:%").in("user_id", [...new Set(data.map((a) => a.user_id as string))]);
+  const since = new Map((notices ?? []).map((n) => [`${n.user_id}:${(n.dedupe_key as string).slice(7)}`, n.created_at as string]));
+  const by = new Map<string, { school: string; readySince: string; deadline: string | null }[]>();
+  for (const a of data) {
+    const readySince = since.get(`${a.user_id}:${a.id}`);
+    if (!readySince) continue;
+    const school = (a.programs as unknown as { schools: { name: string } } | null)?.schools?.name ?? "Your application";
+    by.set(a.user_id as string, [...(by.get(a.user_id as string) ?? []), { school, readySince, deadline: (a.target_deadline as string | null) ?? null }]);
+  }
+  let n = 0;
+  for (const [userId, apps] of by) {
+    const s = waitingSummary(apps, now);
+    if (!s) continue;
+    await notify({ userId, key: `review-waiting:${isoWeek(now)}`, kind: "reminder", title: s.title, body: s.body, href: "/applications", actionLabel: "Review and sign", email: true }).catch(() => {});
     n++;
   }
   return n;

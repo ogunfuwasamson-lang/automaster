@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, CircleAlert, CircleCheck, Lightbulb, LoaderCircle, Wand2 } from "lucide-react";
 import { Clamp } from "@/components/ui/clamp";
@@ -197,6 +197,22 @@ export function EssayTabs({ essays }: { essays: EssayData[] }) {
   const firstOpen = essays.findIndex((x) => !x.approved);
   const [i, setI] = useState(firstOpen >= 0 ? firstOpen : 0);
   const cur = essays[Math.min(i, essays.length - 1)];
+  // a piece was just approved: go to the next one that isn't, or up to the signature when none is left, so the
+  // applicant never has to work out what comes next
+  const done = essays.filter((x) => x.approved).length;
+  const before = useRef(done);
+  useEffect(() => {
+    if (done > before.current) {
+      const next = essays.findIndex((x) => !x.approved && !x.working && x.kind !== "video_or_interview");
+      if (next >= 0) setI(next);
+      else {
+        const sign = document.getElementById("sign");
+        sign?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+        (sign?.querySelector("input[type=checkbox]") as HTMLElement | null)?.focus({ preventScroll: true });
+      }
+    }
+    before.current = done;
+  }, [done, essays]);
   return (
     <div className="space-y-3">
       <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Essays">

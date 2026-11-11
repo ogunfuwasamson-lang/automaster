@@ -111,3 +111,27 @@ export function officialEmail(email: string, evidence: string): string {
   if (!/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(e)) return "";
   return evidence.toLowerCase().includes(e.toLowerCase()) ? e : "";
 }
+
+// the week a date falls in ("2026-W46"), for things that should happen at most once a week
+export function isoWeek(d: Date): string {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = Date.UTC(t.getUTCFullYear(), 0, 1);
+  return `${t.getUTCFullYear()}-W${String(Math.ceil(((t.getTime() - yearStart) / 86_400_000 + 1) / 7)).padStart(2, "0")}`;
+}
+
+// applications that have sat ready for the applicant for two days or more, as one line for a weekly reminder.
+// null when there is nothing old enough to mention
+export function waitingSummary(apps: { school: string; readySince: string; deadline: string | null }[], now = new Date()): { title: string; body: string; count: number } | null {
+  const old = apps.filter((a) => now.getTime() - Date.parse(a.readySince) >= 2 * 86_400_000);
+  if (!old.length) return null;
+  const names = [...new Set(old.map((a) => a.school))];
+  const soonest = old.map((a) => a.deadline).filter((d): d is string => !!d && d >= now.toISOString().slice(0, 10)).sort()[0];
+  const list = names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`;
+  return {
+    count: old.length,
+    title: old.length === 1 ? `${names[0]} is still waiting for your sign-off` : `${old.length} applications are still waiting for your sign-off`,
+    body: `The essays are written and checked for ${list}. Reading and approving one takes about ten minutes; the agents submit as soon as you sign.${soonest ? ` The nearest deadline is ${soonest}.` : ""}`,
+  };
+}

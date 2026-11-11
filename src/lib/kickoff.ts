@@ -123,7 +123,7 @@ export async function autoPrepare(userId: string): Promise<number> {
   }
   // every portal emails a code or a link on the way: without gmail, each one waits for the applicant
   if (n && !(await canReadMail(userId).catch(() => true))) {
-    await notify({ userId, key: "connect-gmail", kind: "setup", urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on; without it, each one waits for you.", href: "/settings", actionLabel: "Connect Gmail" }).catch(() => {});
+    await notify({ userId, key: "setup:gmail", kind: "setup", urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on; without it, each one waits for you.", href: "/settings", actionLabel: "Connect Gmail" }).catch(() => {});
   }
   return n;
 }

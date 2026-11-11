@@ -31,7 +31,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
     const left = essaysTotal - essaysApproved;
     const pct = essaysTotal ? Math.round((essaysApproved / essaysTotal) * 100) : 0;
     return (
-      <Panel className="space-y-4 p-5" tone={left === 0 && essaysTotal ? "signal" : "plain"}>
+      <Panel id="sign" className="scroll-mt-24 space-y-4 p-5" tone={left === 0 && essaysTotal ? "signal" : "plain"}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex items-center gap-2 font-semibold">
             <PenLine className="size-4" aria-hidden />

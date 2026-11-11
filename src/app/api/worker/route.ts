@@ -15,7 +15,7 @@ import { appUrl } from "@/lib/gmail";
 import { SITE } from "@/lib/site";
 import { aiPausedUntil, ensureAiWorks } from "@/lib/ai-health";
 import { autoPrepare, startShortlist } from "@/lib/kickoff";
-import { markReadyForReview, nudgeReviews } from "@/lib/review-ready";
+import { markReadyForReview, nudgeReviews, nudgeWaiting } from "@/lib/review-ready";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -49,6 +49,8 @@ async function handle(req: NextRequest) {
   if (tick) await autoPrepareBackfillOnce().catch(() => null);
   // applications waiting on the applicant's sign-off with a deadline inside a week: remind them (once per step)
   if (tick) await nudgeReviews().catch(() => 0);
+  // once an hour is plenty: the notice key lets it through once a week per applicant
+  if (tick && new Date().getUTCMinutes() === 7) await nudgeWaiting().catch(() => 0);
   // once: people the old flow left behind (essays finished but never handed over; setup left before the shortlist)
   if (tick) await handoffBackfillOnce().catch(() => null);
   if (tick && new Date().getUTCHours() === 4 && new Date().getUTCMinutes() < 5) {

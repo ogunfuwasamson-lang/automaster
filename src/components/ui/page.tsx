@@ -38,7 +38,7 @@ export function Card({ children, className = "", hover = false, id }: { children
   );
 }
 
-export function Panel({ children, className = "", tone = "plain" }: { children: ReactNode; className?: string; tone?: "plain" | "signal" | "go" | "stop" | "accent" }) {
+export function Panel({ children, className = "", tone = "plain", id }: { children: ReactNode; className?: string; id?: string; tone?: "plain" | "signal" | "go" | "stop" | "accent" }) {
   const t = {
     plain: "border-line bg-surface",
     signal: "border-signal/25 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]",
@@ -46,7 +46,7 @@ export function Panel({ children, className = "", tone = "plain" }: { children: 
     stop: "border-stop/25 bg-[color-mix(in_oklab,var(--stop)_6%,var(--surface))]",
     accent: "border-accent/25 bg-[color-mix(in_oklab,var(--accent)_6%,var(--surface))]",
   }[tone];
-  return <div className={`rounded-3xl border shadow-card ${t} ${className}`}>{children}</div>;
+  return <div id={id} className={`rounded-3xl border shadow-card ${t} ${className}`}>{children}</div>;
 }
 
 export function Empty({ title, body, action, icon }: { title: string; body?: ReactNode; action?: ReactNode; icon?: ReactNode }) {

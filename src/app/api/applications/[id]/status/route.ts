@@ -84,6 +84,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
       }
       await resolve(uid, new RegExp(`^review(-due)?:${id}`)).catch(() => {});
+      // nothing else waiting on them: the weekly "still waiting" reminder is answered too
+      const { count: waiting } = await admin().from("applications").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("status", "ready_for_review").neq("id", id);
+      if (!waiting) await resolve(uid, /^review-waiting:/).catch(() => {});
       await logEvent({ userId: uid, actor: "user", action: "packet.approved", applicationId: id, programId: app.program_id, context: snapshot });
       return NextResponse.json({ ok: true });
     }

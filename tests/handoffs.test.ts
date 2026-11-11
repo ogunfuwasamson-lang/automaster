@@ -81,3 +81,35 @@ describe("the shortlist starts as soon as the agents can search well", () => {
     expect(state.enqueued).toHaveLength(0);
   });
 });
+
+import { isoWeek, waitingSummary } from "@/lib/writing";
+describe("weekly reminder for finished applications nobody came back to", () => {
+  const now = new Date("2026-11-13T10:00:00Z");
+  it("waits two days, then covers every waiting application in one line", () => {
+    expect(waitingSummary([{ school: "ETH Zurich", readySince: "2026-11-12T10:00:00Z", deadline: null }], now)).toBeNull();
+    const s = waitingSummary(
+      [
+        { school: "ETH Zurich", readySince: "2026-11-10T23:45:00Z", deadline: "2026-12-15" },
+        { school: "EPFL", readySince: "2026-11-10T23:45:00Z", deadline: "2026-12-01" },
+        { school: "TU Delft", readySince: "2026-11-12T23:45:00Z", deadline: "2026-11-20" },
+      ],
+      now,
+    )!;
+    expect(s.count).toBe(2);
+    expect(s.title).toBe("2 applications are still waiting for your sign-off");
+    expect(s.body).toContain("ETH Zurich, EPFL");
+    expect(s.body).toContain("2026-12-01");
+    expect(s.body).not.toContain("TU Delft");
+  });
+  it("names the school when there is one, and skips deadlines that have passed", () => {
+    const s = waitingSummary([{ school: "HEC Paris", readySince: "2026-11-01T00:00:00Z", deadline: "2026-11-05" }], now)!;
+    expect(s.title).toBe("HEC Paris is still waiting for your sign-off");
+    expect(s.body).not.toContain("nearest deadline");
+  });
+  it("is keyed by the week, so it goes out at most once a week", () => {
+    expect(isoWeek(new Date("2026-11-13T10:00:00Z"))).toBe("2026-W46");
+    expect(isoWeek(new Date("2026-11-15T23:00:00Z"))).toBe("2026-W46");
+    expect(isoWeek(new Date("2026-11-16T00:00:00Z"))).toBe("2026-W47");
+    expect(isoWeek(new Date("2027-01-01T00:00:00Z"))).toBe("2026-W53");
+  });
+});
