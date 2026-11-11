@@ -120,8 +120,9 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 
 ## Posting runs, step by step (12pm, 6pm)
 
-1. Read `items` for today (and yesterday, for anything approved late) with `status: "approved"` and `slot` ≤ now.
-   Nothing approved: write a short `runs` entry and stop.
+1. Read `items` for today with `status: "approved"` and this run's slot (the noon run posts `12:00` items, the evening run
+   `18:00` items; the evening run also posts any `12:00` items approved after noon). Runs start up to half an hour early;
+   that's fine. Nothing approved: write a short `runs` entry and stop.
 2. In Chrome as the Ivyward Page, for each item in `order`:
    - **page_post:** facebook.com/tryivyward → "Photo/video" → `file_upload` the mp4 → paste the text (`edited` if set,
      else `text`) → Post.
