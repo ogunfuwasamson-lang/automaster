@@ -55,7 +55,10 @@ export function GoogleButton({ next, onError, fallback }: { next: string; onErro
       s.src = "https://accounts.google.com/gsi/client";
       s.async = true;
       s.onload = () => void start();
-      s.onerror = () => !dead && setFailed(true); // blocked by an extension or the network: the plain button still works
+      // blocked by an extension or the network: the plain button still works
+      s.onerror = () => {
+        if (!dead) setFailed(true);
+      };
       document.head.appendChild(s);
     }
     return () => {
