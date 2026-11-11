@@ -1,0 +1,7 @@
+{ "scenes": [
+  { "kind": "hook", "title": "Applying to 8 universities shouldn't cost you 8 weekends.", "sub": "Here's how Ivyward does the work." },
+  { "kind": "point", "title": "Tell us about yourself once.", "body": "Upload your CV and transcript. The agents read them into one profile every application draws from." },
+  { "kind": "list", "title": "Then the agents:", "items": ["Shortlist programs that fit you", "Find scholarships and fee waivers", "Draft essays for you to approve", "Fill in every portal"] },
+  { "kind": "card", "step": "The one rule", "title": "Nothing goes to a school until you sign.", "body": "You review every essay and every form first." },
+  { "kind": "cta" }
+] }
