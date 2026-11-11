@@ -29,8 +29,9 @@ page needs no approval (he asked for ≥10 a day).
 
 ## Brand and honesty rules (apply to every word)
 
-1. Facts about Ivyward come only from `src/lib/site.ts` (`FACTS`, `PLAN_OFFERS`). Prices: preparing is free; in Africa ₦10,000
-   for 5 submissions; elsewhere the first 3 are free and Pro is $20/month. Don't invent features, numbers, users or results.
+1. Facts about Ivyward come only from `src/lib/site.ts` (`FACTS`). Don't invent features, numbers, users or results.
+   **Never mention price in any post, comment, reply or video**: no amounts, no currencies, no plans or packs.
+   "Start for free at tryivyward.com" is fine. If someone asks what it costs, point them to tryivyward.com.
 2. Facts about scholarships, deadlines, fees and visas are checked the same day against the official source (the
    scholarship's or university's own site). If a post states a deadline or amount, it names the source. If you can't verify
    it, leave it out.

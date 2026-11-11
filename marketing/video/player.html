@@ -103,7 +103,7 @@ function build(spec) {
     } else if (s.kind === "cta") {
       html += a(`<div class="mark">${MARK}</div>`, 0.3);
       html += a(`<h1>${esc(s.title || "Your university applications, done for you.")}</h1>`);
-      html += a(`<p class="sub">${esc(s.sub || "Start free at tryivyward.com")}</p>`);
+      html += a(`<p class="sub">${esc(s.sub || "Start for free at tryivyward.com")}</p>`);
     }
     el.innerHTML = html;
     root.appendChild(el);
