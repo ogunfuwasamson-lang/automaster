@@ -10,7 +10,7 @@ import { DriveImport } from "./drive-import";
 
 const KINDS = DOC_KINDS;
 
-export function Uploader({ userId }: { userId: string }) {
+export function Uploader({ userId, pickerKey = "" }: { userId: string; pickerKey?: string }) {
   const [kind, setKind] = useState<string>("cv");
   const [busy, setBusy] = useState<string | null>(null);
   const [over, setOver] = useState(false);
@@ -71,7 +71,7 @@ export function Uploader({ userId }: { userId: string }) {
           >
             Choose files
           </button>
-          <DriveImport userId={userId} kind={kind} onDone={() => router.refresh()} />
+          <DriveImport userId={userId} kind={kind} onDone={() => router.refresh()} pickerKey={pickerKey} />
         </div>
         <input ref={input} type="file" multiple accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => upload(e.target.files)} />
       </div>

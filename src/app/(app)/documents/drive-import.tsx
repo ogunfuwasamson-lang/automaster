@@ -6,8 +6,7 @@ import { GOOGLE_CLIENT_ID } from "@/components/google-button";
 
 // pick files straight from Google Drive (a transcript or certificate that lives there, often on a phone where the
 // file itself isn't). google's own picker, with the narrowest access: only the files picked, read once, in this
-// browser. shown only when the picker key is set for the site.
-const KEY = process.env.NEXT_PUBLIC_GOOGLE_PICKER_KEY ?? "";
+// browser. shown only when the site has a picker key (GOOGLE_PICKER_KEY, read on the server at request time).
 const APP = GOOGLE_CLIENT_ID.split("-")[0]; // the cloud project's number
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 const TYPES = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "text/plain", "application/vnd.google-apps.document"];
@@ -31,9 +30,10 @@ function script(src: string) {
   });
 }
 
-export function DriveImport({ userId, kind, onDone }: { userId: string; kind: string; onDone: () => void }) {
+export function DriveImport({ userId, kind, onDone, pickerKey }: { userId: string; kind: string; onDone: () => void; pickerKey: string }) {
   const [busy, setBusy] = useState(false);
-  if (!KEY) return null;
+  if (!pickerKey) return null;
+  const KEY = pickerKey;
 
   const token = () =>
     new Promise<string>((ok, bad) => {

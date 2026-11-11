@@ -6,6 +6,7 @@
 # optional single-value secrets that replace the same line in AGENT37_ENV, so changing one key doesn't mean
 # pasting the whole file again (a secret's contents can't be read back from GitHub):
 #   COMPOSIO_API_KEY
+#   GOOGLE_PICKER_KEY    the browser key for "Import from Google Drive" on the documents page (restricted to the site)
 name: Deploy to Agent37
 on:
   push:
@@ -34,11 +35,12 @@ jobs:
           AGENT37_INSTANCE_ID: ${{ secrets.AGENT37_INSTANCE_ID }}
           ENV_FILE: ${{ secrets.AGENT37_ENV }}
           OVERRIDE_COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+          OVERRIDE_GOOGLE_PICKER_KEY: ${{ secrets.GOOGLE_PICKER_KEY }}
         run: |
           umask 077
           printf '%s\n' "$ENV_FILE" > deploy/agent37/env.production
           # a separately saved key wins over the one inside AGENT37_ENV
-          for name in COMPOSIO_API_KEY; do
+          for name in COMPOSIO_API_KEY GOOGLE_PICKER_KEY; do
             val=$(printenv "OVERRIDE_$name" || true)
             [ -z "$val" ] && continue
             grep -v "^$name=" deploy/agent37/env.production > deploy/agent37/env.tmp || true

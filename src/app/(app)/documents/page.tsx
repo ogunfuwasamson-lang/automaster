@@ -33,7 +33,7 @@ export default async function Documents() {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="min-w-0 space-y-8">
-          <Uploader userId={auth.user.id} />
+          <Uploader userId={auth.user.id} pickerKey={process.env.GOOGLE_PICKER_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PICKER_KEY ?? ""} />
 
           <Section title={list.length ? `Your files (${list.length})` : "Your files"}>
             {list.length ? (
