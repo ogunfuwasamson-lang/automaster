@@ -107,7 +107,7 @@ function build(spec) {
     }
     el.innerHTML = html;
     root.appendChild(el);
-    const dur = s.dur ?? autoDur(s);
+    const dur = Math.max(s.dur ?? autoDur(s), s.minDur ?? 0);
     const scene = { el, kind: s.kind, start: t, dur, parts: [...el.querySelectorAll(".a")].map((p) => ({ p, d: Number(p.dataset.d) })), stat: el.querySelector("[data-count]"), card: el.querySelector(".card") };
     t += dur;
     return scene;

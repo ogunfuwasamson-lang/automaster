@@ -58,8 +58,10 @@ Never work around a block, CAPTCHA or checkpoint.
 
 - **Chrome (the Claude in Chrome extension)** is signed in to Facebook as the Ivyward Page and is the browser for posting,
   because its `file_upload` tool can attach videos. Load the `chrome-browser` skill first. Open your own tab; close it at the end.
-- **Videos must sit in a folder Samson connected to the session** (Chrome can only attach files from there). Copy each video
-  to `<connected folder>/Ivyward videos/` with `device_commit_files` (stagedPath under `/mnt/user-data/outputs/`). A posting
+- **Videos must sit in the folder Samson connected: `/Users/sam/Documents/ivyward video`** (Chrome can only attach files
+  from there). Copy each video into it with `device_commit_files` (stagedPath under `/mnt/user-data/outputs/`), then
+  `file_upload` it from that path. If Chrome refuses the path ("only files this session is allowed to read"), mark the
+  item `failed` with that note and tell the user; don't try other routes. A posting
   run that doesn't have the mp4 gets it from the review page: `Artifact` action `read` with `url` = the review page and
   `path` = the item's `video.assetId`, then copy it to `/mnt/user-data/outputs/` and commit it to the folder. If no
   folder is connected (`get_device_info` → `connectedFolders` empty), post nothing that needs a video: mark those items
@@ -100,6 +102,8 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 ## Morning run, step by step (7am)
 
 1. Read `groups`, the last 7 days of `items` and the last few `runs`. Note which groups had a post in the last 7 days.
+   Items for today may already exist (drafted the evening before): count them and draft only what's missing to reach
+   today's targets. Never redo or overwrite an item that exists.
 2. **Join ≥10** groups or pages as the Ivyward Page, a minute apart (`sleep 60` with Bash in the background between joins,
    or `computer` waits). Search Facebook groups for: scholarships (fully funded, country-specific: UK, Canada, USA,
    Germany, Netherlands, Australia, Ireland), named scholarships (Chevening, Commonwealth, DAAD, Erasmus Mundus, Fulbright,
@@ -139,13 +143,17 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 
 ## Videos
 
-Renderer: `node marketing/video/render.mjs spec.json out.mp4 --stills dir` (1080×1350, about 2 minutes to render 35s).
+Renderer: `node marketing/video/render.mjs spec.json out.mp4 --stills dir` (1080×1350 with voice and music, about 2 minutes per 35s video). Needs `pip install kokoro-onnx soundfile scipy` if missing.
 Look at the stills before using a video. Specs are JSON scene lists; see the header of `render.mjs` for scene kinds.
 
 - **Animated explainer** (default for group posts): `hook` → 2–4 `point`/`list`/`stat` scenes → `cta`. 25–40s.
 - **Animated tip cards** (good for checklists): `hook` → 3–6 `card` scenes with `step: "Tip 2 of 5"` → `cta`.
 - **Ivyward screen recording**: real product walkthroughs need a demo account with sample data; until Samson provides one,
   use explainers and tip cards. Never record a real applicant's data.
-- The video repeats the post's key point in a few words per scene; it must stand alone with the sound off.
+- **Every video has sound: a voiceover and background music.** Give every scene a `say` line (what the voice says over
+  it, 1–3 short sentences, written how it should sound: "M I T", "U K", "C V", "twenty twenty-seven"). The renderer
+  stretches scenes to fit the voice and adds original music made for each video (`audio.py`); never post a silent video.
+  The voice model downloads once from GitHub on first use (~350 MB, into ~/.cache/ivyward-tts).
+- On screen, each scene repeats the key point in a few words, so the video also works with the sound off.
 - `stat` scenes only show real, sourced numbers. A `step` label only when the scenes really are a sequence.
 - Name files `<item id>.mp4`. Keep each under 10 MB (Chrome's upload limit); the renderer's output is ~1–3 MB.

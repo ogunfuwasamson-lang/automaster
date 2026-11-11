@@ -7,11 +7,15 @@
 //   stat  { value, prefix?, suffix?, title, body? }   a number that counts up (only real, sourced numbers)
 //   card  { title, body?, step? }          tip card that slides in ("Tip 2 of 5")
 //   cta   { title?, sub? }                 closing card with the mark and tryivyward.com
-// output: 1080x1350 H.264, 30 fps, with a silent audio track (facebook plays feed video muted first).
+// every scene can also carry "say": the line the voiceover speaks over it (scenes stretch to fit the line).
+// output: 1080x1350 H.264, 30 fps, always with sound: the voiceover (when scenes have "say") over original music
+// made for the video by audio.py. top-level "voice" / "speed" pick the Kokoro voice (default af_heart, 1.0).
 // --stills writes a JPEG of the busiest moment of each scene, to look at before posting.
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { readFileSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, renameSync, writeFileSync, rmSync, mkdtempSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,6 +30,14 @@ if (!specPath || !outPath) {
 const stillsDir = rest[0] === "--stills" ? rest[1] : null;
 const spec = JSON.parse(readFileSync(specPath, "utf8"));
 const FPS = 30;
+const work = mkdtempSync(join(tmpdir(), "ivw-video-"));
+const py = (...args) => execFileSync("python3", [join(here, "audio.py"), ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+
+// voiceover first: each spoken line sets how long its scene must stay up
+if (spec.scenes.some((s) => s.say)) {
+  const { durs } = JSON.parse(py("voice", resolve(specPath), work));
+  spec.scenes.forEach((s, i) => { if (durs[i]) s.minDur = durs[i] + 1.0; });
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1080, height: 1350 } });
@@ -43,15 +55,13 @@ if (stillsDir) {
   }
 }
 
+const silent = join(work, "silent.mp4");
 const tmp = outPath.replace(/\.mp4$/, "") + ".part.mp4";
 const ff = spawn("ffmpeg", [
   "-y", "-loglevel", "error",
   "-f", "image2pipe", "-framerate", String(FPS), "-c:v", "mjpeg", "-i", "-",
-  "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-  "-shortest", "-map", "0:v", "-map", "1:a",
-  "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-  "-c:a", "aac", "-b:a", "64k",
-  tmp,
+  "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+  silent,
 ], { stdio: ["pipe", "inherit", "inherit"] });
 const done = new Promise((ok, bad) => ff.on("close", (code) => (code === 0 ? ok() : bad(new Error(`ffmpeg exited ${code}`)))));
 
@@ -64,5 +74,8 @@ for (let i = 0; i < frames; i++) {
 ff.stdin.end();
 await done;
 await browser.close();
+// sound is not optional: voiceover (if any) over music, mixed and loudness-matched
+const sound = JSON.parse(py("mix", resolve(specPath), work, silent, resolve(tmp), "--starts", scenes.map((s) => s.start.toFixed(3)).join(",")));
 renameSync(tmp, outPath);
-console.log(JSON.stringify({ out: resolve(outPath), seconds: Number(total.toFixed(2)), frames }));
+rmSync(work, { recursive: true, force: true });
+console.log(JSON.stringify({ out: resolve(outPath), seconds: Number(total.toFixed(2)), frames, ...sound }));
