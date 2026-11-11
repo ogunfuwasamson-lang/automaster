@@ -51,6 +51,26 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
 
   return (
     <div className="space-y-4">
+      {/* the runner is a desktop Chrome extension: on a phone the two steps below can't be done */}
+      <div className="rounded-2xl border border-signal/30 bg-signal/[0.06] p-4 text-sm md:hidden" role="note">
+        <p className="font-semibold">This step needs a computer.</p>
+        <p className="mt-1 leading-relaxed text-muted">The Ivyward runner works in Chrome, Edge or Brave on a laptop or desktop. Open this page there to connect it. Everything else works on your phone.</p>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="mt-3"
+          onClick={async () => {
+            const url = window.location.href;
+            if (navigator.share) await navigator.share({ title: "Connect Chrome to Ivyward", url }).catch(() => {});
+            else {
+              await navigator.clipboard?.writeText(url).catch(() => {});
+              toast.success("Link copied. Open it on your computer.");
+            }
+          }}
+        >
+          <Copy className="size-3.5" aria-hidden /> Send this page to my computer
+        </Button>
+      </div>
       <p className="text-sm leading-relaxed text-muted">
         Some portals refuse any browser running in the cloud. Connect your Chrome once and, whenever that happens, the agents carry on in a background tab on this computer: same answers, same documents, your own
         connection. The Ivyward side panel shows every answer as it goes in and asks you before anything is submitted. Bot checks

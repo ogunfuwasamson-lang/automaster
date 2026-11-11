@@ -28,3 +28,11 @@ describe("guides", () => {
     }
   });
 });
+
+import { FAQ as HOME_FAQ } from "@/lib/faq";
+describe("home page questions", () => {
+  it("asks each question once (a repeated question breaks the list and the FAQ markup search engines read)", () => {
+    const qs = HOME_FAQ.map(([q]) => q);
+    expect(new Set(qs).size).toBe(qs.length);
+  });
+});

@@ -177,11 +177,12 @@ export default async function Dashboard() {
   const next = list.find((a) => (daysUntil(a.target_deadline) ?? -1) >= 0 && ["shortlisted", "preparing", "ready_for_review", "packet_approved"].includes(a.status));
   const nextDays = next ? daysUntil(next.target_deadline) : null;
   const count = (sts: string[]) => list.filter((a) => sts.includes(a.status)).length;
-  const stats: [typeof Layers, string, number, string][] = [
-    [Layers, "Programs tracked", list.length, "text-muted"],
-    [FilePenLine, "Essays in progress", count(["preparing", "ready_for_review"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
-    [FileSignature, "Packets signed", count(["packet_approved"]), "text-muted"],
-    [Send, "Submitted", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+  // label, and a one-word form for a phone, where the four sit on one row so "Needs you" stays near the top
+  const stats: [typeof Layers, string, string, number, string][] = [
+    [Layers, "Programs tracked", "Tracked", list.length, "text-muted"],
+    [FilePenLine, "Essays in progress", "Writing", count(["preparing", "ready_for_review"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
+    [FileSignature, "Packets signed", "Signed", count(["packet_approved"]), "text-muted"],
+    [Send, "Submitted", "Sent", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   ];
 
   const asks = (await openQuestions(auth.user.id).catch(() => [])).map(toAsk);
@@ -306,14 +307,15 @@ export default async function Dashboard() {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4 lg:col-span-6">
-            {stats.map(([Icon, label, n, tone]) => (
-              <Link key={label} href="/applications" className="group flex flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-700">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-2 sm:gap-4 lg:col-span-6">
+            {stats.map(([Icon, label, short, n, tone]) => (
+              <Link key={label} href="/applications" aria-label={`${label}: ${n}`} className="group flex flex-col justify-between rounded-xl border border-line bg-surface p-3 shadow-card transition-colors hover:border-neutral-300 sm:rounded-2xl sm:p-5 dark:hover:border-neutral-700">
                 <span className="flex items-center justify-between">
-                  <span className="label-mono">{label}</span>
-                  <Icon className={`size-4 ${tone}`} aria-hidden />
+                  <span className="label-mono hidden sm:inline">{label}</span>
+                  <span className="text-[11.5px] font-medium text-muted sm:hidden">{short}</span>
+                  <Icon className={`hidden size-4 sm:block ${tone}`} aria-hidden />
                 </span>
-                <Count value={n} className="mt-8 block font-serif text-[48px] leading-none tabular" />
+                <Count value={n} className="mt-2 block font-serif text-[28px] leading-none tabular sm:mt-8 sm:text-[48px]" />
               </Link>
             ))}
           </div>
@@ -380,7 +382,7 @@ export default async function Dashboard() {
           <Card className="p-5 sm:p-6 lg:col-span-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-[-0.02em]">Your applications</h2>
-              <Link href="/applications" className="text-[13px] font-bold text-brand hover:underline">
+              <Link href="/applications" className="tap text-[13px] font-bold text-brand hover:underline">
                 See all
               </Link>
             </div>
@@ -407,7 +409,7 @@ export default async function Dashboard() {
                             <span className={`shrink-0 text-[11.5px] font-medium ${f.status === "needs_you" ? "text-signal" : f.status === "done" ? "text-go" : "text-muted"}`}>{state}</span>
                           </span>
                           <span className="mt-0.5 block text-[12px] text-muted">
-                            {f.event_start ? <LocalTime iso={f.event_start} /> : f.deadline ? `Due ${f.deadline}` : ""}
+                            {f.event_start ? <LocalTime iso={f.event_start} /> : f.deadline ? `Due ${new Date(`${f.deadline}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : ""}
                             {f.why ? `${f.event_start || f.deadline ? ". " : ""}${f.why}` : ""}
                           </span>
                         </a>

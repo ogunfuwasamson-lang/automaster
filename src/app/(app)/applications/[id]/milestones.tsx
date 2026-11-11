@@ -41,7 +41,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
             {essaysApproved} of {essaysTotal} pieces approved
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-label="Essays approved" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
           <div className="h-full rounded-full bg-bar-gradient transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-sm text-muted">

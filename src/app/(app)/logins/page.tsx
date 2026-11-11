@@ -78,7 +78,7 @@ export default async function Logins() {
                 </div>
                 <div className="flex items-center gap-2 lg:flex-col lg:items-end">
                   <Tag tone={tone}>{label}</Tag>
-                  <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand hover:underline">
+                  <a href={url} target="_blank" rel="noreferrer" className="tap gap-1 text-[12.5px] font-semibold text-brand hover:underline">
                     Open portal <ExternalLink className="size-3.5" aria-hidden />
                   </a>
                 </div>

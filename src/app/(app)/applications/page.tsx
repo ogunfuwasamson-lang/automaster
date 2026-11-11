@@ -82,7 +82,7 @@ export default async function Applications() {
                           <Deadline date={r.target_deadline} urgent={urgent} />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline gap-2">
-                              <span className="truncate font-bold tracking-[-0.01em]">{r.programs.schools.name}</span>
+                              <span className="line-clamp-2 font-bold leading-snug tracking-[-0.01em] sm:line-clamp-1">{r.programs.schools.name}</span>
                               {r.programs.degree === "Scholarship" && <span className="label-mono shrink-0 !text-[10px] !text-brand">Scholarship</span>}
                             </span>
                             <span className="block truncate text-sm text-muted">{r.programs.name}</span>

@@ -150,7 +150,7 @@ export function Onboarding(props: {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto grid max-w-6xl gap-6 px-4 pb-20 sm:px-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-8">
+      <main id="main" tabIndex={-1} className="relative z-10 mx-auto grid max-w-6xl gap-6 px-4 pb-20 sm:px-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-8">
         {/* the route: every step with what it's for, done ones ticked */}
         <aside className="hidden lg:block">
           <div className="glass sticky top-6 rounded-2xl border border-white/80 p-5 shadow-card dark:border-white/[0.07]">
@@ -205,8 +205,8 @@ export function Onboarding(props: {
             className="glass rounded-2xl border border-white/80 p-6 shadow-lift sm:p-10 dark:border-white/[0.07]"
           >
             {step === 1 && (
-              <div className="space-y-8">
-                <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">What are you applying for?</h1>
+              <div className="space-y-6 sm:space-y-8">
+                <h1 className="text-[30px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">What are you applying for?</h1>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {LEVELS.map(([k, label, hint]) => {
                     const LI = LEVEL_ICON[k];
@@ -214,14 +214,16 @@ export function Onboarding(props: {
                     <button
                       key={k}
                       onClick={() => setLevel(k)}
-                      className={`rounded-2xl border p-5 text-left transition-all duration-200 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
+                      className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition-all duration-200 sm:block sm:p-5 ${level === k ? "border-transparent bg-accent/8 ring-2 ring-accent" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:shadow-lift"}`}
                       aria-pressed={level === k}
                     >
-                      <span className={`mb-5 grid size-11 place-items-center rounded-2xl transition-all ${level === k ? "bg-hero-gradient text-white" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
+                      <span className={`grid size-11 shrink-0 place-items-center rounded-2xl transition-all sm:mb-5 ${level === k ? "bg-hero-gradient text-white" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
                         <LI className="size-5" aria-hidden />
                       </span>
-                      <span className={`block text-xl font-bold tracking-[-0.03em] ${level === k ? "text-accent" : ""}`}>{label}</span>
-                      <span className="mt-1 block text-sm text-muted">{hint}</span>
+                      <span className="min-w-0">
+                        <span className={`block text-lg font-bold tracking-[-0.03em] sm:text-xl ${level === k ? "text-accent" : ""}`}>{label}</span>
+                        <span className="block text-sm text-muted sm:mt-1">{hint}</span>
+                      </span>
                     </button>
                     );
                   })}
@@ -232,7 +234,7 @@ export function Onboarding(props: {
                     {fields.map((f) => (
                       <span key={f} className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 py-1.5 pl-3.5 pr-2 text-sm font-semibold text-accent ring-1 ring-accent/25">
                         {f}
-                        <button onClick={() => setFields(fields.filter((x) => x !== f))} aria-label={`Remove ${f}`} className="rounded-full p-0.5 hover:bg-accent/15">
+                        <button onClick={() => setFields(fields.filter((x) => x !== f))} aria-label={`Remove ${f}`} className="grid size-6 place-items-center rounded-full hover:bg-accent/15">
                           <X className="size-3.5" />
                         </button>
                       </span>

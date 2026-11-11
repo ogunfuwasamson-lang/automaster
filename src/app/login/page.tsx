@@ -178,7 +178,7 @@ export default function Login() {
         <Wordmark />
         <ThemeButton />
       </header>
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-16">
+      <main id="main" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-[420px]">
           <div
             className="rise glass rounded-2xl border border-white/80 p-7 shadow-lift sm:p-9 dark:border-white/[0.07]"

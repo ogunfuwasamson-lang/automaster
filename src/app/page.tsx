@@ -51,7 +51,7 @@ export default async function Home() {
       <SiteJsonLd faq={FAQ} />
       <SiteHeader signedIn={signedIn} />
 
-      <main>
+      <main id="main" tabIndex={-1}>
         <section className="relative" aria-labelledby="hero">
           <CampusInk className="absolute inset-x-0 top-0 h-[660px] w-full" />
           <div className="relative mx-auto max-w-4xl px-5 pb-16 pt-16 text-center sm:pt-24">

@@ -67,8 +67,27 @@ const LABELS: Record<string, string> = {
   "inbox.account_or_verification": "a portal emailed login or verification details",
   "inbox.submission_receipt": "a school confirmed it received your application",
   "inbox.info_or_marketing": "a school sent general information",
+  "fee_waiver.granted": "a school waived your application fee",
+  "fee_waiver.denied": "a school declined the fee waiver",
+  "funding.offered": "a school offered funding",
   "runner.portal_found": "found the application portal",
   "runner.account_created": "created a portal account",
+};
+
+// status changes in the words the rest of the app uses for them
+const STAGE: Record<string, string> = {
+  shortlisted: "added to your shortlist",
+  preparing: "essays started",
+  ready_for_review: "essays ready for you to read",
+  packet_approved: "you signed the application packet",
+  submitted: "application submitted",
+  under_review: "application under review at the school",
+  interview: "interview stage",
+  waitlisted: "placed on the waitlist",
+  admitted: "admitted",
+  rejected: "not admitted",
+  withdrawn: "application withdrawn",
+  "fee_waiver.granted": "application fee waived",
 };
 
 const ACTOR: Record<string, string> = {
@@ -85,7 +104,7 @@ export function describe(e: EventRow): string | null {
   // internal plumbing stays out of the user's feed
   if (e.action.startsWith("guard.")) return null;
   if (e.action.startsWith("decision.")) return `you recorded a decision: ${e.action.slice(9)}`;
-  if (e.action.startsWith("application.") && !LABELS[e.action]) return `application moved to ${e.action.slice(12).replace(/_/g, " ")}`;
+  if (e.action.startsWith("application.") && !LABELS[e.action]) return STAGE[e.action.slice(12)] ?? `application moved to ${e.action.slice(12).replace(/_/g, " ")}`;
   const title = typeof e.context?.title === "string" ? ` (${e.context.title})` : "";
   return (LABELS[e.action] ?? e.action.replace(/[._]/g, " ")) + title;
 }

@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <PageInk />
-      <main className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-7 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">{children}</main>
+      <main id="main" tabIndex={-1} className="relative z-10 mx-auto max-w-[1320px] px-4 pb-32 pt-7 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">{children}</main>
       <TabBar needsYou={needsYou} unread={unread} />
       <UserJot user={{ id: user.id, email: user.email ?? "", firstName, lastName: rest.join(" ") || undefined, signature: ujSignature }} />
       <Suspense>

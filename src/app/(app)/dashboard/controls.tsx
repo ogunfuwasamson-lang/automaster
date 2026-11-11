@@ -30,7 +30,7 @@ export function StopButton({ paused, compact = false }: { paused: boolean; compa
   };
   if (compact)
     return (
-      <button onClick={go} disabled={busy} className={`inline-flex items-center gap-1 font-medium underline decoration-current/30 underline-offset-4 hover:decoration-current disabled:opacity-50 ${paused ? "text-stop" : "text-muted hover:text-foreground"}`}>
+      <button onClick={go} disabled={busy} className={`tap gap-1 font-medium underline decoration-current/30 underline-offset-4 hover:decoration-current disabled:opacity-50 ${paused ? "text-stop" : "text-muted hover:text-foreground"}`}>
         {paused ? <CirclePlay className="size-3.5" aria-hidden /> : <CirclePause className="size-3.5" aria-hidden />}
         {busy ? (paused ? "Resuming…" : "Pausing…") : paused ? "Resume" : "Pause all"}
       </button>
@@ -101,7 +101,7 @@ export function RetryRunner({ count }: { count: number }) {
       }}
     >
       <RotateCcw className="size-3.5" aria-hidden />
-      Try {count} again
+      {count === 1 ? "Try the stuck one again" : `Try all ${count} stuck again`}
     </Button>
   );
 }

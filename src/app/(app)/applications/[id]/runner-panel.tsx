@@ -153,12 +153,12 @@ export function RunnerPanel(props: {
     submitted: "Submitted",
   }[runnerStatus] ?? runnerStatus;
 
-  return (
-    <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
-      {!mailConnected && (
+  // the Gmail ask sits under the step that is actually blocking, unless the block is about an email or a code
+  const mailFirst = !mailConnected && /e-?mail|inbox|code|verif|link/i.test(note ?? "");
+  const gmailCard = mailConnected ? null : (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-signal/30 bg-[color-mix(in_oklab,var(--signal)_8%,var(--surface))] p-3">
           <Mail className="size-4 shrink-0 text-signal" aria-hidden />
-          <p className="min-w-0 flex-1 text-sm">
+          <p className="min-w-0 flex-1 basis-56 text-sm">
             <span className="font-semibold">Connect Gmail so the agents don&apos;t stop at your inbox.</span>{" "}
             <span className="text-muted">Portals email a code or link when the agents create your account or reset a password. Without Gmail, each one waits for you.</span>
           </p>
@@ -166,7 +166,11 @@ export function RunnerPanel(props: {
             Connect Gmail
           </ButtonLink>
         </div>
-      )}
+  );
+
+  return (
+    <section className={`space-y-4 rounded-3xl border p-5 shadow-card sm:p-6 ${stuck ? "border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))]" : "border-line bg-surface"}`}>
+      {mailFirst && gmailCard}
       <div className="flex items-start gap-3">
         <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${stuck ? "bg-signal text-white" : "bg-accent/10 text-accent"}`}>
           {working ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : stuck ? <TriangleAlert className="size-4" aria-hidden /> : paused ? <Pause className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
@@ -308,8 +312,11 @@ export function RunnerPanel(props: {
         </p>
       )}
 
+      <label htmlFor="portal-link" className="block text-[13px] font-medium leading-snug text-muted">
+        Portal link <span className="font-normal">(optional: the agents find it themselves)</span>
+      </label>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Portal link (optional, the agents find it)" aria-label="Portal link" />
+        <Input id="portal-link" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://apply.school.edu" />
         {working ? null : paused ? (
           <Button disabled={busy || !attested} onClick={() => act("resume")}>
             <Play className="size-4" aria-hidden />
@@ -322,6 +329,8 @@ export function RunnerPanel(props: {
           </Button>
         )}
       </div>
+
+      {!mailFirst && gmailCard}
 
       <details className="text-sm text-muted">
         <summary className="cursor-pointer select-none hover:text-foreground">What the agents do here</summary>

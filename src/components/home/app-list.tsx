@@ -72,7 +72,7 @@ export function AppList({ rows }: { rows: AppRow[] }) {
                 <span className="flex min-w-0 items-center gap-3">
                   <SchoolTile name={r.school} />
                   <span className="min-w-0">
-                    <span className="block truncate text-[14px] font-bold tracking-[-0.01em]">{r.school}</span>
+                    <span className="line-clamp-2 text-[14px] font-bold leading-snug tracking-[-0.01em] sm:line-clamp-1">{r.school}</span>
                     <span className="block truncate text-[12.5px] text-muted">{r.program}</span>
                   </span>
                 </span>

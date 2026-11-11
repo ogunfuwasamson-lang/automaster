@@ -80,7 +80,7 @@ export function ReportBody({ id, r, onDismiss }: { id: string; r: WeeklyReport; 
                         onDismiss?.(i);
                         fetch(`/api/reports/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dismiss: i }) }).catch(() => {});
                       }}
-                      className="inline-flex items-center gap-1.5 text-[14px] text-muted hover:text-foreground"
+                      className="tap gap-1.5 text-[14px] text-muted hover:text-foreground"
                     >
                       <X className="size-3.5" aria-hidden /> Not relevant
                     </button>
@@ -193,7 +193,7 @@ export function WeeklyReportDialog({ id, r, created }: { id: string; r: WeeklyRe
                 <ArrowUp className="size-4" aria-hidden />
               </button>
             </div>
-            <button type="button" onClick={close} className="shrink-0 px-2 text-[14px] text-muted hover:text-foreground">
+            <button type="button" onClick={close} className="tap shrink-0 px-2 text-[14px] text-muted hover:text-foreground">
               Dismiss
             </button>
           </form>

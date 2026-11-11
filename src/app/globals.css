@@ -13,13 +13,13 @@
   --background: #fafafa;
   --surface: #ffffff;
   --foreground: #09090b;
-  --muted: #71717a;
+  --muted: #6b6b74;
   --line: #e4e4e7;
   --accent: #27272a; /* interactive accents stay ink-grey */
   --accent-2: #27272a;
   --accent-3: #27272a;
   --brand: #9b2c4e; /* oxblood: the logo, links and the odd small mark */
-  --signal: #c2410c; /* needs you */
+  --signal: #b93c0a; /* needs you */
   --go: #047857; /* submitted, admitted, done */
   --stop: #b91c1c; /* urgent, errors */
   --focus: #71717a;
@@ -333,4 +333,20 @@ select:focus-visible {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.1em 0.35em;
+}
+
+/* a standalone text link or text button: at least the 24px target WCAG 2.2 (2.5.8) asks for, roomier on touch */
+.tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+@media (pointer: coarse) {
+  .tap {
+    min-height: 32px;
+  }
+}
+
+main:focus-visible {
+  outline: none;
 }

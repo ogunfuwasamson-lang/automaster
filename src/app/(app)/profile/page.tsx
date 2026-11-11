@@ -67,7 +67,7 @@ function Item({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex gap-4 py-2.5 text-[13.5px]">
       <dt className="w-32 shrink-0 text-muted">{k}</dt>
-      <dd className={`min-w-0 flex-1 ${empty ? "text-neutral-400" : "font-medium leading-relaxed"}`}>{empty ? "Not yet" : Array.isArray(v) ? v.join(", ") : v}</dd>
+      <dd className={`min-w-0 flex-1 ${empty ? "text-muted" : "font-medium leading-relaxed"}`}>{empty ? "Not yet" : Array.isArray(v) ? v.join(", ") : v}</dd>
     </div>
   );
 }
@@ -100,8 +100,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         </div>
         <div className="flex flex-wrap items-end gap-4 px-5 pb-4 sm:px-6">
           <span className="-mt-9 grid size-[72px] shrink-0 place-items-center rounded-full border-4 border-surface bg-hero-gradient font-serif text-2xl text-white">{initials || "?"}</span>
-          <div className="min-w-0 flex-1 pt-3">
-            <h1 className="truncate text-2xl font-bold leading-tight tracking-[-0.04em]">{name}</h1>
+          <div className="min-w-0 flex-1 basis-[calc(100%-88px)] pt-3 sm:basis-0">
+            <h1 className="break-words text-2xl font-bold leading-tight tracking-[-0.04em]">{name}</h1>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
               {current && (
                 <span className="inline-flex items-center gap-1.5">
@@ -120,7 +120,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex w-full items-center gap-4 sm:w-auto">
             <div className="flex items-center gap-3">
               <Ring pct={pct} />
               <span className="text-[12.5px] leading-snug text-muted">

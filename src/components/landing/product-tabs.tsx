@@ -37,7 +37,7 @@ function Body({ tab }: { tab: Tab }) {
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-line bg-background px-3 py-2 text-[13px] text-muted">
           <Search className="size-3.5" aria-hidden /> Business analytics and finance masters, UK, Canada, Europe, Asia. Funding matters.
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Sample table, scroll sideways">
           <table className="w-full min-w-[560px] text-left text-[13px]">
             <thead className="text-[11.5px] text-muted">
               <tr className="border-b border-line">
