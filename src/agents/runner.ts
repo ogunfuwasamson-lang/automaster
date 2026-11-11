@@ -178,6 +178,12 @@ export interface DepsCtx {
   goal?: string; // a follow-up job rather than the application itself
   memory?: MapMemory; // field labels learned on this portal, and the model's picks this run
 }
+// the navigator has repeated itself in its last few steps, or has been at it a long while on this page
+export const navCircling = (history: string[]) => {
+  const last = history.slice(-4);
+  return (last.length >= 3 && new Set(last).size < last.length) || history.length >= 8;
+};
+
 export function serverDeps(c: DepsCtx): EngineDeps {
   let lastNote = "";
   // the applicant can pause or cancel at any time: running engines notice within a few seconds
@@ -212,20 +218,27 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     // gmail, or emails the applicant pastes into Ivyward (read the same way): the agents wait for either
     canReadMail: true,
     navigate: async (n) => {
-      const { output } = await runStructured({
-        userId: c.userId,
-        agent: "runner",
-        jobId: c.jobId ?? undefined,
-        promptVersion: "nav-v1",
-        topic: hostOf(`https://${c.host()}`),
-        tier: "cheap",
-        system: NAV_SYSTEM,
-        cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(c.sheet)}`,
-        prompt: navPrompt(n, c.sheet, c.goal),
-        schema: NavOut,
-        maxTokens: 400,
-      });
-      return output;
+      // the small model does the routine steps. when it's going in circles, or wants to give the page to the
+      // applicant, the stronger model looks before anyone is bothered: most "can't find the next step" stops
+      // were pages a more careful reader gets through
+      const ask = (tier: "cheap" | "chat") =>
+        runStructured({
+          userId: c.userId,
+          agent: "runner",
+          jobId: c.jobId ?? undefined,
+          promptVersion: tier === "cheap" ? "nav-v1" : "nav-v1-careful",
+          topic: hostOf(`https://${c.host()}`),
+          tier,
+          system: NAV_SYSTEM,
+          cachePrefix: `fill sheet keys (fill only from these):\n${keyMenu(c.sheet)}`,
+          prompt: navPrompt(n, c.sheet, c.goal),
+          schema: NavOut,
+          maxTokens: 400,
+        }).then((r) => r.output);
+      const circling = navCircling(n.history);
+      const first = await ask(circling ? "chat" : "cheap");
+      if (first.action === "handoff" && !circling) return ask("chat").catch(() => first);
+      return first;
     },
     fillFromKey: (f, key) => resolve(f, key, c.sheet),
     decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined),
