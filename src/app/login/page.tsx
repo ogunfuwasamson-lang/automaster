@@ -26,7 +26,7 @@ function LoginForm() {
   const onToken = (t: string | null) => {
     token.current = t;
   };
-  const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used, has expired, or was opened in a different browser from the one you asked in. Enter your email for a fresh one and open it here." : "");
+  const [err, setErr] = useState(params.get("error") === "link" ? "That sign-in link was already used or has expired. Enter your email for a fresh one." : "");
 
   // "Continue with Google" appears only when Google sign-in is switched on for this project
   const [google, setGoogle] = useState(false);
@@ -81,7 +81,7 @@ function LoginForm() {
         </motion.span>
         <h1 className="text-3xl font-bold tracking-[-0.04em]">Check your inbox</h1>
         <p className="text-[15px] leading-relaxed text-muted">
-          We sent a sign-in link to <span className="font-semibold text-foreground">{email}</span>. Open it in this same browser. It works once and expires in an hour. Nothing after a
+          We sent a sign-in link to <span className="font-semibold text-foreground">{email}</span>. It works once and expires in an hour. Nothing after a
           minute? Check spam, and that the address is spelled right.
         </p>
         <button onClick={() => setState("idle")} className="inline-flex items-center gap-1.5 text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
