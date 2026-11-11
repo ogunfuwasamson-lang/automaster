@@ -58,7 +58,9 @@ Never work around a block, CAPTCHA or checkpoint.
 - **Chrome (the Claude in Chrome extension)** is signed in to Facebook as the Ivyward Page and is the browser for posting,
   because its `file_upload` tool can attach videos. Load the `chrome-browser` skill first. Open your own tab; close it at the end.
 - **Videos must sit in a folder Samson connected to the session** (Chrome can only attach files from there). Copy each video
-  to `<connected folder>/Ivyward videos/` with `device_commit_files` (stagedPath under `/mnt/user-data/outputs/`). If no
+  to `<connected folder>/Ivyward videos/` with `device_commit_files` (stagedPath under `/mnt/user-data/outputs/`). A posting
+  run that doesn't have the mp4 gets it from the review page: `Artifact` action `read` with `url` = the review page and
+  `path` = the item's `video.assetId`, then copy it to `/mnt/user-data/outputs/` and commit it to the folder. If no
   folder is connected (`get_device_info` → `connectedFolders` empty), post nothing that needs a video: mark those items
   `failed` with note "No connected folder for videos", and say so in the run log.
 - The built-in browser pane is also signed in to Facebook; use it for reading, searching and joining if Chrome isn't connected.
