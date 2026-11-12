@@ -40,6 +40,8 @@ export interface AdminUser {
   submitted: number;
   waiting: number; // applications the agents stopped on for this user
   docs: number;
+  docKinds: Record<string, number>; // document kind -> how many
+  deactivated: boolean; // staff turned the account off: no sign-in, agents stopped
   gmail: { email: string; status: string } | null;
   budget: number; // this month's AI allowance
   payments: Payment[];
@@ -98,16 +100,22 @@ export async function every<T>(page: (from: number, to: number) => Page<T>, cap 
 }
 
 // when each account last signed in (auth keeps it; profiles don't)
-async function signIns(): Promise<Map<string, string>> {
+// last sign-in per account, and which accounts are deactivated (banned in auth)
+async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string> }> {
   const out = new Map<string, string>();
+  const banned = new Set<string>();
   const auth = admin().auth.admin;
   for (let page = 1; page < 200; page++) {
     const { data, error } = await auth.listUsers({ page, perPage: 1000 });
     if (error || !data?.users?.length) break;
-    for (const u of data.users) if (u.last_sign_in_at) out.set(u.id, u.last_sign_in_at);
+    for (const u of data.users) {
+      if (u.last_sign_in_at) out.set(u.id, u.last_sign_in_at);
+      const until = (u as { banned_until?: string | null }).banned_until;
+      if (until && Date.parse(until) > Date.now()) banned.add(u.id);
+    }
     if (data.users.length < 1000) break;
   }
-  return out;
+  return { out, banned };
 }
 
 const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
@@ -119,26 +127,33 @@ export async function loadAdmin() {
   const db = admin();
   const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const month = monthStartUTC();
-  const [team, profiles, apps, steps, activity, logins, mail, docs, pays] = await Promise.all([
+  const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
     teamIds(),
     every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
     every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
     // what the user did: their own actions, plus each message they sent the interviewer
     every<{ user_id: string; created_at: string }>((a, b) => db.from("events").select("user_id, created_at").or("actor.eq.user,action.eq.interview.turn").gte("created_at", monthAgo).order("created_at", { ascending: false }).range(a, b)),
-    signIns().catch(() => new Map<string, string>()),
+    signIns().catch(() => ({ out: new Map<string, string>(), banned: new Set<string>() })),
     every<{ user_id: string; email: string; status: string }>((a, b) => db.from("mail_accounts").select("user_id, email, status").range(a, b)),
-    every<{ user_id: string }>((a, b) => db.from("documents").select("user_id").range(a, b)),
+    every<{ user_id: string; kind: string }>((a, b) => db.from("documents").select("user_id, kind").range(a, b)),
     every<{ user_id: string; kind: string; amount: number | null; currency: string | null; created_at: string }>((a, b) => db.from("billing_events").select("user_id, kind, amount, currency, created_at").order("created_at", { ascending: false }).range(a, b)),
   ]);
 
+  const logins = signin.out;
   const last = new Map<string, string>();
   for (const e of activity) if (!last.has(e.user_id)) last.set(e.user_id, e.created_at);
   const trips = new Map(journeys(profiles.map((p) => ({ id: p.id, email: p.email, created_at: p.created_at })), steps).map((j) => [j.userId, j]));
   const email = new Map(profiles.map((p) => [p.id, p.email]));
   const gmail = new Map(mail.map((m) => [m.user_id, { email: m.email, status: m.status }]));
   const docCount = new Map<string, number>();
-  for (const d of docs) docCount.set(d.user_id, (docCount.get(d.user_id) ?? 0) + 1);
+  const docKinds = new Map<string, Record<string, number>>();
+  for (const d of docs) {
+    docCount.set(d.user_id, (docCount.get(d.user_id) ?? 0) + 1);
+    const k = docKinds.get(d.user_id) ?? {};
+    k[d.kind] = (k[d.kind] ?? 0) + 1;
+    docKinds.set(d.user_id, k);
+  }
   const payments: Payment[] = pays.map((p) => ({ userId: p.user_id, kind: p.kind, amount: p.amount != null ? Number(p.amount) : null, currency: p.currency, at: p.created_at }));
 
   const allApps: AdminApp[] = apps.map((a) => {
@@ -190,6 +205,8 @@ export async function loadAdmin() {
       submitted: mine.filter((a) => SUBMITTED.has(a.status)).length,
       waiting: mine.filter((a) => a.runner === "needs_you" || a.runner === "failed").length,
       docs: docCount.get(p.id) ?? 0,
+      docKinds: docKinds.get(p.id) ?? {},
+      deactivated: signin.banned.has(p.id),
       gmail: gmail.get(p.id) ?? null,
       budget: budgetFor(
         { plan: p.plan, plan_until: p.plan_until, monthly_budget_usd: p.monthly_budget_usd, is_admin: p.is_admin },

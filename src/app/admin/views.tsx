@@ -9,11 +9,15 @@ import { QUESTIONS } from "@/evals/questions";
 import { PASS, scoreRules } from "@/evals/score";
 import { sampleSheet } from "@/evals/sample";
 import { MILESTONES, duration, summarize } from "@/lib/first-submission";
-import { STAGES, SUBMITTED, every, loadAdmin, scope, type AdminApp, type AdminData, type AdminUser, type Payment } from "./data";
+import { STAGES, SUBMITTED, every, loadAdmin, scope, type AdminApp, type AdminUser, type Payment } from "./data";
 import { TeamToggle } from "./team-toggle";
+import { AccountActions } from "./account-actions";
+import { DOC_KINDS } from "@/lib/doc-kinds";
+import { href, inRange, type Range } from "./range";
 
-// the operator console's views. each loads its own data, so switching views stays quick. every number says
-// which period it covers, and leaves out team and test accounts unless the operator asks for everyone.
+// the operator console's views. each loads its own data, so switching views stays quick. every number follows the
+// period in the range bar (and says so), and leaves out team and test accounts unless the operator asks for everyone.
+// long lists scroll inside their own panel, so a view fits on a screen or two instead of one long page.
 
 const $ = (n: number) => `$${n.toFixed(2)}`;
 const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n.toLocaleString());
@@ -42,35 +46,41 @@ function money(ps: Payment[]) {
 
 // ---- building blocks ----
 
-function Section({ title, note, action, children }: { title: string; note?: ReactNode; action?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-[17px] font-semibold">{title}</h2>
-          {note && <p className="mt-0.5 text-[13.5px] text-muted">{note}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</div>;
+}
+
+// a titled panel; `scroll` caps its height and lets the body scroll, so long lists don't stretch the page
+const SCROLL = { sm: "max-h-[16rem]", md: "max-h-[24rem]", lg: "max-h-[34rem]", xl: "max-h-[70vh]" } as const;
+function Panel({ title, note, action, scroll, className = "", children }: { title: ReactNode; note?: ReactNode; action?: ReactNode; scroll?: keyof typeof SCROLL; className?: string; children: ReactNode }) {
+  return (
+    <section className={`flex min-w-0 flex-col rounded-2xl border border-line bg-surface shadow-card ${className}`}>
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
+        <div className="min-w-0">
+          <h2 className="text-[14.5px] font-semibold">{title}</h2>
+          {note && <p className="text-[12.5px] text-muted">{note}</p>}
+        </div>
+        {action && <div className="text-[13px]">{action}</div>}
+      </header>
+      <div className={`min-h-0 ${scroll ? `${SCROLL[scroll]} overflow-y-auto overscroll-contain` : ""}`}>{children}</div>
+    </section>
+  );
 }
 
 type Tone = "go" | "stop" | "signal" | undefined;
 const toneText = (t: Tone) => (t === "go" ? "text-go" : t === "stop" ? "text-stop" : t === "signal" ? "text-signal" : "");
 const dot = (t: Tone) => (t === "go" ? "bg-go" : t === "stop" ? "bg-stop" : t === "signal" ? "bg-signal" : "bg-neutral-400");
 
+function Kpis({ children }: { children: ReactNode }) {
+  return <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{children}</dl>;
+}
+
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: ReactNode; tone?: Tone }) {
   return (
-    <Card className="p-4">
-      <dt className="text-[12.5px] text-muted">{label}</dt>
-      <dd className={`mt-1 font-serif text-[30px] leading-none tabular-nums ${toneText(tone)}`}>{value}</dd>
-      {sub && <dd className="mt-1.5 text-[12.5px] text-muted">{sub}</dd>}
+    <Card className="px-3.5 py-3">
+      <dt className="truncate text-[12px] text-muted">{label}</dt>
+      <dd className={`mt-0.5 font-serif text-[24px] leading-tight tabular-nums ${toneText(tone)}`}>{value}</dd>
+      {sub && <dd className="mt-0.5 line-clamp-2 text-[12px] text-muted">{sub}</dd>}
     </Card>
   );
 }
@@ -80,11 +90,12 @@ function Pill({ tone, children }: { tone?: Tone; children: ReactNode }) {
   return <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] ${cls}`}>{children}</span>;
 }
 
+// a table whose header stays put while the panel around it scrolls
 function Table({ head, children, min = "40rem" }: { head: string[]; children: ReactNode; min?: string }) {
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full text-[14px]" style={{ minWidth: min }}>
-        <thead>
+    <div className="overflow-x-auto">
+      <table className="w-full text-[13.5px]" style={{ minWidth: min }}>
+        <thead className="sticky top-0 z-[1] bg-surface">
           <tr className="border-b border-line">
             {head.map((h) => (
               <th key={h} className={th}>
@@ -95,14 +106,14 @@ function Table({ head, children, min = "40rem" }: { head: string[]; children: Re
         </thead>
         <tbody className="divide-y divide-line">{children}</tbody>
       </table>
-    </Card>
+    </div>
   );
 }
 
 function Empty({ cols, children }: { cols: number; children: ReactNode }) {
   return (
     <tr>
-      <td className="px-4 py-3 text-[13.5px] text-muted" colSpan={cols}>
+      <td className="px-4 py-3 text-[13px] text-muted" colSpan={cols}>
         {children}
       </td>
     </tr>
@@ -111,17 +122,18 @@ function Empty({ cols, children }: { cols: number; children: ReactNode }) {
 
 function Bar({ share, tone }: { share: number; tone?: Tone }) {
   return (
-    <span className="mt-1 block h-1 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+    <span className="mt-1 block h-1 w-20 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
       <span className={`block h-full ${tone === "stop" ? "bg-stop" : "bg-foreground/70"}`} style={{ width: `${Math.max(0, Math.min(1, share)) * 100}%` }} />
     </span>
   );
 }
 
 function Bars({ rows, total }: { rows: [string, number][]; total: number }) {
+  if (!rows.length) return <p className="px-4 py-3 text-[13px] text-muted">Nothing in this period.</p>;
   return (
-    <ul className="space-y-2.5 px-4 py-4">
+    <ul className="space-y-2 px-4 py-3">
       {rows.map(([label, n]) => (
-        <li key={label} className="grid grid-cols-[minmax(0,11rem)_1fr_2.5rem] items-center gap-3 text-[13.5px]">
+        <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_2.5rem] items-center gap-3 text-[13px]">
           <span className="truncate">{label}</span>
           <span className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
             <span className="block h-full rounded-full bg-foreground/70" style={{ width: `${total ? (n / total) * 100 : 0}%` }} />
@@ -133,25 +145,33 @@ function Bars({ rows, total }: { rows: [string, number][]; total: number }) {
   );
 }
 
-// one column per day for the last 30 days
-function Daily({ values, label, fmt = String }: { values: Map<string, number>; label: string; fmt?: (n: number) => string }) {
-  const days = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (29 - i) * DAY).toISOString().slice(0, 10));
-  const counts = days.map((d) => values.get(d) ?? 0);
-  const max = Math.max(...counts);
-  const total = counts.reduce((a, b) => a + b, 0);
+// one column per day across the period (a week per column when the period is longer than about three months)
+function Daily({ values, label, range, fmt = String }: { values: Map<string, number>; label: string; range: Range; fmt?: (n: number) => string }) {
+  const first = range.allTime ? [...values.keys()].sort()[0] ?? range.to.slice(0, 10) : range.from.slice(0, 10);
+  const span = Math.max(1, Math.round((Date.parse(range.to.slice(0, 10)) - Date.parse(first)) / DAY) + 1);
+  const step = span > 92 ? 7 : 1;
+  const cols = Math.ceil(span / step);
+  const buckets = Array.from({ length: cols }, (_, i) => {
+    const start = new Date(Date.parse(first) + i * step * DAY).toISOString().slice(0, 10);
+    let n = 0;
+    for (let d = 0; d < step; d++) n += values.get(new Date(Date.parse(first) + (i * step + d) * DAY).toISOString().slice(0, 10)) ?? 0;
+    return [start, n] as const;
+  });
+  const max = Math.max(0, ...buckets.map(([, n]) => n));
+  const total = buckets.reduce((a, [, n]) => a + n, 0);
   return (
-    <div className="px-4 pb-3 pt-4">
-      <div className="flex h-24 items-end gap-[3px]" role="img" aria-label={`${label}, last 30 days: ${fmt(total)} in total`}>
-        {counts.map((c, i) => (
-          <span key={days[i]} title={`${days[i]}: ${fmt(c)}`} className={`flex-1 rounded-t-sm ${c ? "bg-foreground/70" : "bg-neutral-200 dark:bg-neutral-800"}`} style={{ height: `${c && max ? Math.max(8, (c / max) * 100) : 4}%` }} />
+    <div className="px-4 pb-3 pt-3">
+      <div className={`flex h-24 items-end ${cols > 60 ? "gap-px" : "gap-[3px]"}`} role="img" aria-label={`${label}, ${range.label}: ${fmt(total)} in total`}>
+        {buckets.map(([d, c]) => (
+          <span key={d} title={`${step > 1 ? "Week of " : ""}${d}: ${fmt(c)}`} className={`flex-1 rounded-t-sm ${c ? "bg-foreground/70" : "bg-neutral-200 dark:bg-neutral-800"}`} style={{ height: `${c && max ? Math.max(8, (c / max) * 100) : 4}%` }} />
         ))}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11.5px] text-muted">
-        <span>{date(days[0])}</span>
+      <div className="mt-1.5 flex justify-between gap-2 text-[11.5px] text-muted">
+        <span>{date(first)}</span>
         <span>
-          {fmt(total)} in 30 days, peak {fmt(max)} a day
+          {fmt(total)} in all, peak {fmt(max)} {step > 1 ? "a week" : "a day"}
         </span>
-        <span>today</span>
+        <span>{date(range.to)}</span>
       </div>
     </div>
   );
@@ -165,15 +185,36 @@ const byDay = (dates: string[]) => {
 
 const linkCls = "underline decoration-current/30 underline-offset-4 hover:text-foreground";
 
-function UserLink({ u, everyone }: { u: { id: string; email: string }; everyone?: boolean }) {
+// document kinds in words; short forms for the users table
+const DOC_LABEL: Record<string, string> = Object.fromEntries(DOC_KINDS);
+const DOC_SHORT: Record<string, string> = { cv: "CV", transcript: "Transcript", degree_certificate: "Degree", test_score: "Test score", passport: "Passport", reference_letter: "Reference", old_essay: "Old essay", award: "Award", portfolio: "Portfolio", financial: "Financial", other: "Other" };
+const docLabel = (k: string) => DOC_LABEL[k] ?? k.replace(/_/g, " ");
+function DocKinds({ kinds }: { kinds: Record<string, number> }) {
+  const list = Object.entries(kinds).sort((a, b) => b[1] - a[1]);
+  if (!list.length) return <span className="text-muted">·</span>;
   return (
-    <Link href={`/admin?view=user&id=${u.id}${everyone ? "&all=1" : ""}`} className="decoration-current/30 underline-offset-4 hover:underline">
+    <span className="flex max-w-[15rem] flex-wrap gap-1">
+      {list.map(([k, n]) => (
+        <span key={k} title={docLabel(k)} className="whitespace-nowrap rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11.5px] dark:bg-neutral-800">
+          {DOC_SHORT[k] ?? docLabel(k)}
+          {n > 1 ? ` ×${n}` : ""}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function UserLink({ u, r, everyone }: { u: { id: string; email: string }; r: Range; everyone?: boolean }) {
+  return (
+    <Link href={href("user", r, !!everyone, { id: u.id })} className="decoration-current/30 underline-offset-4 hover:underline">
       {u.email}
     </Link>
   );
 }
 
+
 // ---- shared data ----
+
 
 async function health() {
   const db = admin();
@@ -319,83 +360,87 @@ const EVENT: Record<string, string> = {
   "billing.pack_paid": "Paid for a pack",
   "job.failed": "A background job failed",
   "references.requested": "Asked referees for letters",
+  "account.deactivated": "Staff deactivated the account",
+  "account.reactivated": "Staff reactivated the account",
 };
 // machine chatter: left out of activity feeds
 const NOISE = ["runner.page", "runner.status_checked", "runner.resumed", "guard.allow", "guard.allow_with_undo", "system.pinged", "program.researching", "artifact.revised", "artifact.sent_back", "lesson.approve"];
 const eventLabel = (a: string) => EVENT[a] ?? a.replace(/[._]/g, " ");
 const actorLabel = (a: string) => (a === "user" ? "applicant" : a.replace(/^agent:/, ""));
 
-function ScopeNote({ d, hidden, everyone, view }: { d: AdminData; hidden: number; everyone: boolean; view: string }) {
-  const base = view === "overview" ? "/admin" : `/admin?view=${view}`;
-  const join = base.includes("?") ? "&" : "?";
-  const marked = d.users.filter((u) => u.team && !u.admin).length;
+type Ev = { user_id: string; actor: string; action: string; application_id: string | null; created_at: string };
+
+function Activity({ rows, apps, users, r, everyone, showUser = true }: { rows: Ev[]; apps: Map<string, AdminApp>; users: Map<string, AdminUser>; r: Range; everyone: boolean; showUser?: boolean }) {
   return (
-    <p className="text-[13px] text-muted">
-      {everyone ? "Every account, team and test accounts included. " : `Real users only: ${hidden} team or test account${hidden === 1 ? "" : "s"} left out${marked ? "" : " (only admins so far)"}. `}
-      <Link href={everyone ? base : `${base}${join}all=1`} className={linkCls}>
-        {everyone ? "Show real users only" : "Include them"}
-      </Link>
-      {". "}
-      <Link href="/admin?view=users&all=1" className={linkCls}>
-        Mark your own test accounts as team
-      </Link>
-    </p>
+    <ul className="divide-y divide-line">
+      {rows.length ? (
+        rows.map((e, i) => {
+          const u = users.get(e.user_id);
+          const app = e.application_id ? apps.get(e.application_id) : undefined;
+          return (
+            <li key={i} className="grid gap-x-3 gap-y-0.5 px-4 py-2 text-[13px] sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,12rem)]">
+              <span className="text-[12px] text-muted" title={stamp(e.created_at)}>
+                {ago(e.created_at)}
+              </span>
+              <span className="min-w-0">
+                {eventLabel(e.action)}
+                {app && <span className="text-muted">: {app.school}</span>}
+                <span className="ml-2 text-[12px] text-muted">by {actorLabel(e.actor)}</span>
+              </span>
+              {showUser && <span className="truncate text-[12px] text-muted sm:text-right">{u ? <UserLink u={u} r={r} everyone={everyone} /> : "deleted account"}</span>}
+            </li>
+          );
+        })
+      ) : (
+        <li className="px-4 py-3 text-[13px] text-muted">Nothing in this period.</li>
+      )}
+    </ul>
   );
 }
 
-function Activity({ rows, apps, users, everyone, showUser = true }: { rows: { user_id: string; actor: string; action: string; application_id: string | null; created_at: string }[]; apps: Map<string, AdminApp>; users: Map<string, AdminUser>; everyone: boolean; showUser?: boolean }) {
-  return (
-    <Card>
-      <ul className="divide-y divide-line">
-        {rows.length ? (
-          rows.map((e, i) => {
-            const u = users.get(e.user_id);
-            const app = e.application_id ? apps.get(e.application_id) : undefined;
-            return (
-              <li key={i} className="grid gap-x-4 gap-y-0.5 px-4 py-2.5 text-[13.5px] sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,14rem)]">
-                <span className="text-[12.5px] text-muted" title={stamp(e.created_at)}>
-                  {ago(e.created_at)}
-                </span>
-                <span className="min-w-0">
-                  {eventLabel(e.action)}
-                  {app && <span className="text-muted">: {app.school}</span>}
-                  <span className="ml-2 text-[12px] text-muted">by {actorLabel(e.actor)}</span>
-                </span>
-                {showUser && <span className="truncate text-[12.5px] text-muted sm:text-right">{u ? <UserLink u={u} everyone={everyone} /> : "deleted account"}</span>}
-              </li>
-            );
-          })
-        ) : (
-          <li className="px-4 py-3 text-[13.5px] text-muted">Nothing yet.</li>
-        )}
-      </ul>
-    </Card>
-  );
-}
-
-async function recentEvents(ids: string[], limit: number) {
+async function recentEvents(ids: string[], r: Range, limit: number) {
   if (!ids.length) return [];
   const { data } = await admin()
     .from("events")
     .select("user_id, actor, action, application_id, created_at")
     .in("user_id", ids.slice(0, 200))
     .not("action", "in", `(${NOISE.join(",")})`)
+    .gte("created_at", r.from)
+    .lte("created_at", r.to)
     .order("created_at", { ascending: false })
     .limit(limit);
-  return (data ?? []) as { user_id: string; actor: string; action: string; application_id: string | null; created_at: string }[];
+  return (data ?? []) as Ev[];
+}
+
+// agent runs inside the period (runsSince reads from a date; the end is cut here)
+async function runsIn<T extends { started_at: string }>(cols: string, r: Range, userId?: string) {
+  const rows = await runsSince<T>(cols.includes("started_at") ? cols : `${cols}, started_at`, r.from, userId);
+  return rows.filter((x) => x.started_at <= r.to);
+}
+
+function ScopeNote({ hidden, everyone, r, view }: { hidden: number; everyone: boolean; r: Range; view: string }) {
+  if (everyone || !hidden) return null;
+  return (
+    <p className="text-[12.5px] text-muted">
+      {hidden} team or test account{hidden === 1 ? "" : "s"} left out.{" "}
+      <Link href={href(view, r, true)} className={linkCls}>
+        Include them
+      </Link>
+    </p>
+  );
 }
 
 // ---- overview ----
 
 type Attention = { tone: Tone; title: string; detail?: ReactNode; href?: string };
 
-export async function OverviewView({ since, everyone }: { since: string; everyone: boolean }) {
+export async function OverviewView({ range: r, everyone }: { range: Range; everyone: boolean }) {
   const db = admin();
   const dayAgo = new Date(Date.now() - DAY).toISOString();
   const [h, d, runs, { data: failedJobs }] = await Promise.all([
     health(),
     loadAdmin(),
-    runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", since),
+    runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r),
     db.from("jobs").select("user_id, agent, task, last_error").eq("status", "failed").gte("finished_at", dayAgo).limit(1000),
   ]);
   // gmail connections that failed (any account: a setup problem hits everyone)
@@ -403,24 +448,25 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
   const { users, ids, apps, payments, hidden } = scope(d, everyone);
   const userMap = new Map(d.users.map((u) => [u.id, u]));
   const appMap = new Map(d.apps.map((a) => [a.id, a]));
-  const feed = await recentEvents([...ids], 25);
+  const feed = await recentEvents([...ids], r, 80);
   const within = (iso: string | null, ms: number) => !!iso && Date.now() - Date.parse(iso) < ms;
 
   // the bill is the bill: the headline is everything spent; the split says how much went on these users
-  const spent = runs.reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
-  const cost = runs.filter((r) => ids.has(r.user_id)).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
-  const reached = (key: string) => users.filter((u) => u.journey.at[key as keyof typeof u.journey.at]).length;
-  const submittedApps = apps.filter((a) => SUBMITTED.has(a.status));
-  const submitters = new Set(submittedApps.map((a) => a.userId)).size;
-  const monthPays = payments.filter((p) => p.at >= since);
-  const payers = new Set(payments.map((p) => p.userId)).size;
-  const byStage = STAGES.map((s) => [s.label, users.filter((u) => u.stage === s.key).length] as [string, number]);
+  const spent = runs.reduce((s, x) => s + (Number(x.cost_usd) || 0), 0);
+  const cost = runs.filter((x) => ids.has(x.user_id)).reduce((s, x) => s + (Number(x.cost_usd) || 0), 0);
+  const joined = users.filter((u) => inRange(u.joined, r));
+  const active = users.filter((u) => inRange(u.lastActive, r));
+  const reachedIn = (key: string) => users.filter((u) => inRange(u.journey.at[key as keyof typeof u.journey.at] ?? null, r)).length;
+  const submittedIn = apps.filter((a) => SUBMITTED.has(a.status) && inRange(a.submittedAt, r));
+  const pays = payments.filter((p) => inRange(p.at, r));
+  const cohort = r.allTime ? users : joined;
+  const byStage = STAGES.map((s) => [s.label, cohort.filter((u) => u.stage === s.key).length] as [string, number]).filter(([, n]) => n);
   const statusRows = STATUS_ORDER.map((st) => [STATUS_LABEL[st], apps.filter((a) => a.status === st).length] as [string, number]).filter(([, n]) => n);
   const sources = new Map<string, number>();
-  for (const u of users) sources.set(u.source, (sources.get(u.source) ?? 0) + 1);
+  for (const u of cohort) sources.set(u.source, (sources.get(u.source) ?? 0) + 1);
   const stageLabel = (key: string) => STAGES.find((s) => s.key === key)?.label ?? key;
 
-  // what to look at first
+  // what to look at first: live, whatever the period
   const att: Attention[] = [];
   const workerStale = !h.lastLock || Date.now() - Date.parse(h.lastLock) > 20 * 60_000;
   if (h.credit) att.push({ tone: "stop", title: "The agents can't work: Anthropic credit is empty", detail: `Nothing has run since ${ago(h.lastOk)}. ${h.queued} job${h.queued === 1 ? "" : "s"} waiting. Top up at console.anthropic.com; the worker picks up within 15 minutes.` });
@@ -428,92 +474,92 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
   if (mailFails?.length) {
     const why = String((mailFails[0].context as { error?: string } | null)?.error ?? "");
     const setup = /permission|api key|unauthori[sz]ed|403|401|auth config/i.test(why);
-    att.push({
-      tone: "stop",
-      title: `Gmail connection failed ${mailFails.length} time${mailFails.length === 1 ? "" : "s"} in the last 24 hours, for ${new Set(mailFails.map((m) => m.user_id)).size} user${new Set(mailFails.map((m) => m.user_id)).size === 1 ? "" : "s"}`,
-      detail: setup ? `A setup problem, so nobody can connect: ${why.slice(0, 220)}` : `Latest: ${why.slice(0, 220)}`,
-    });
+    const who = new Set(mailFails.map((m) => m.user_id)).size;
+    att.push({ tone: "stop", title: `Gmail connection failed ${mailFails.length} time${mailFails.length === 1 ? "" : "s"} in 24 hours, for ${who} user${who === 1 ? "" : "s"}`, detail: setup ? `A setup problem, so nobody can connect: ${why.slice(0, 220)}` : `Latest: ${why.slice(0, 220)}` });
   }
-  if (workerStale && h.queued) att.push({ tone: "stop", title: "The job worker has stopped", detail: `No job picked up for ${ago(h.lastLock)}, with ${h.queued} due.`, href: "/admin?view=system" });
+  if (workerStale && h.queued) att.push({ tone: "stop", title: "The job worker has stopped", detail: `No job picked up for ${ago(h.lastLock)}, with ${h.queued} due.`, href: href("system", r, everyone) });
   const myFailed = (failedJobs ?? []).filter((j) => ids.has(j.user_id));
   if (myFailed.length) {
     const kinds = new Map<string, number>();
     for (const j of myFailed) kinds.set(`${j.agent}.${j.task}`, (kinds.get(`${j.agent}.${j.task}`) ?? 0) + 1);
-    att.push({ tone: "stop", title: `${myFailed.length} job${myFailed.length === 1 ? "" : "s"} failed in the last 24 hours`, detail: [...kinds.entries()].map(([kk, n]) => `${kk}${n > 1 ? ` ×${n}` : ""}`).join(", "), href: "/admin?view=system" });
+    att.push({ tone: "stop", title: `${myFailed.length} job${myFailed.length === 1 ? "" : "s"} failed in 24 hours`, detail: [...kinds.entries()].map(([kk, n]) => `${kk}${n > 1 ? ` ×${n}` : ""}`).join(", "), href: href("system", r, everyone) });
   }
   const stopped = apps.filter((a) => a.runner === "needs_you" || a.runner === "failed");
   const reasons = new Map<string, number>();
   for (const a of stopped) reasons.set(a.reason ?? "other", (reasons.get(a.reason ?? "other") ?? 0) + 1);
-  if (stopped.length)
-    att.push({
-      tone: "signal",
-      title: `${stopped.length} application${stopped.length === 1 ? "" : "s"} stopped, across ${new Set(stopped.map((a) => a.userId)).size} user${new Set(stopped.map((a) => a.userId)).size === 1 ? "" : "s"}`,
-      detail: [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${reasonLabel(r)} ${n}`).join(", "),
-      href: `/admin?view=portals${everyone ? "&all=1" : ""}`,
-    });
+  if (stopped.length) {
+    const who = new Set(stopped.map((a) => a.userId)).size;
+    att.push({ tone: "signal", title: `${stopped.length} application${stopped.length === 1 ? "" : "s"} stopped, across ${who} user${who === 1 ? "" : "s"}`, detail: [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([x, n]) => `${reasonLabel(x)} ${n}`).join(", "), href: href("portals", r, everyone) });
+  }
   for (const u of users.filter((x) => within(x.joined, 2 * DAY)))
-    att.push({ tone: undefined, title: `New sign-up: ${u.email}`, detail: `Joined ${ago(u.joined)} from ${u.source}. Furthest step: ${stageLabel(u.stage).toLowerCase()}.`, href: `/admin?view=user&id=${u.id}` });
+    att.push({ tone: undefined, title: `New sign-up: ${u.email}`, detail: `Joined ${ago(u.joined)} from ${u.source}. Furthest step: ${stageLabel(u.stage).toLowerCase()}.`, href: href("user", r, everyone, { id: u.id }) });
   const stalled = users.filter((u) => !u.submitted && !within(u.lastActive, 3 * DAY) && !within(u.joined, 2 * DAY)).sort((a, b) => (b.lastActive ?? b.joined).localeCompare(a.lastActive ?? a.joined));
   for (const u of stalled.slice(0, 5))
-    att.push({ tone: "signal", title: `${u.email} has gone quiet`, detail: `Last active ${ago(u.lastActive ?? u.joined)}, stopped at "${stageLabel(u.stage).toLowerCase()}"${u.waiting ? `, ${u.waiting} application${u.waiting === 1 ? "" : "s"} waiting on them` : ""}.`, href: `/admin?view=user&id=${u.id}` });
-  if (stalled.length > 5) att.push({ tone: "signal", title: `${stalled.length - 5} more users have gone quiet`, href: `/admin?view=users${everyone ? "&all=1" : ""}` });
+    att.push({ tone: "signal", title: `${u.email} has gone quiet`, detail: `Last active ${ago(u.lastActive ?? u.joined)}, stopped at "${stageLabel(u.stage).toLowerCase()}"${u.waiting ? `, ${u.waiting} application${u.waiting === 1 ? "" : "s"} waiting on them` : ""}.`, href: href("user", r, everyone, { id: u.id }) });
+  if (stalled.length > 5) att.push({ tone: "signal", title: `${stalled.length - 5} more users have gone quiet`, href: href("users", r, everyone) });
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-4">
       <HealthStrip h={h} />
-      <ScopeNote d={d} hidden={hidden} everyone={everyone} view="overview" />
+      <Kpis>
+        <Stat label="New accounts" value={`${joined.length}`} sub={`${users.length} in all`} />
+        <Stat label="Active" value={`${active.length}`} sub="signed in or did something" />
+        <Stat label="Signed a packet" value={`${reachedIn("signed")}`} sub={`${reachedIn("shortlist")} built a shortlist`} />
+        <Stat label="Submitted" value={`${submittedIn.length}`} sub={`application${submittedIn.length === 1 ? "" : "s"} for ${new Set(submittedIn.map((a) => a.userId)).size} user${new Set(submittedIn.map((a) => a.userId)).size === 1 ? "" : "s"}`} tone={submittedIn.length ? "go" : undefined} />
+        <Stat label="Revenue" value={pays.length ? money(pays) : "0"} sub={`${new Set(pays.map((p) => p.userId)).size} paying user${new Set(pays.map((p) => p.userId)).size === 1 ? "" : "s"}`} />
+        <Stat label="AI cost" value={$(spent)} sub={`${$(cost)} on ${everyone ? "these" : "real"} users`} />
+      </Kpis>
+      <p className="text-[12.5px] text-muted">
+        Numbers above are for {r.label}.{" "}
+        {!everyone && hidden ? (
+          <>
+            {hidden} team or test account{hidden === 1 ? "" : "s"} left out.{" "}
+            <Link href={href("overview", r, true)} className={linkCls}>
+              Include them
+            </Link>
+          </>
+        ) : null}
+      </p>
 
-      <Section title="Needs your attention" note={att.length ? undefined : "Nothing right now."}>
-        {att.length > 0 && (
-          <Card>
-            <ul className="divide-y divide-line">
-              {att.map((a, i) => (
-                <li key={i} className="flex items-start gap-3 px-4 py-3">
-                  <span aria-hidden className={`mt-2 size-2 shrink-0 rounded-full ${dot(a.tone)}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[14.5px] font-medium">{a.href ? <Link href={a.href} className="decoration-current/30 underline-offset-4 hover:underline">{a.title}</Link> : a.title}</p>
-                    {a.detail && <p className="mt-0.5 text-[13px] text-muted">{a.detail}</p>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-      </Section>
-
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
-        <Stat label="Accounts, all time" value={`${users.length}`} sub={`${users.filter((u) => within(u.joined, 7 * DAY)).length} new in 7 days`} />
-        <Stat label="Active, last 7 days" value={`${users.filter((u) => within(u.lastActive, 7 * DAY)).length}`} sub="signed in or did something" />
-        <Stat label="Have a shortlist" value={`${reached("shortlist")}`} sub={`${pct(reached("shortlist"), users.length)} of accounts`} />
-        <Stat label="Signed a packet" value={`${reached("signed")}`} sub={`${pct(reached("signed"), users.length)} of accounts`} />
-        <Stat label="Submitted, all time" value={`${submittedApps.length}`} sub={`application${submittedApps.length === 1 ? "" : "s"} for ${submitters} user${submitters === 1 ? "" : "s"}`} tone={submittedApps.length ? "go" : undefined} />
-        <Stat label="Revenue, this month" value={monthPays.length ? money(monthPays) : "0"} sub={`${payers} paying user${payers === 1 ? "" : "s"} all time`} />
-        <Stat label="AI cost, this month" value={$(spent)} sub={`${$(cost)} on ${everyone ? "these" : "real"} users, ${$(spent - cost)} on team and test`} />
-      </dl>
-
-      <Section title="Latest activity" note="What applicants and agents did, newest first. Background retries left out.">
-        <Activity rows={feed} apps={appMap} users={userMap} everyone={everyone} />
-      </Section>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Where users are" note="Each account's furthest step.">
-          <Card>
-            <Bars rows={byStage} total={users.length} />
-          </Card>
-        </Section>
-        <Section title="Applications by status" note={`${apps.length} across ${new Set(apps.map((a) => a.userId)).size} users, all time.`}>
-          <Card>{statusRows.length ? <Bars rows={statusRows} total={apps.length} /> : <p className="px-4 py-4 text-[13.5px] text-muted">No applications yet.</p>}</Card>
-        </Section>
-        <Section title="Sign-ups per day">
-          <Card>
-            <Daily values={byDay(users.map((u) => u.joined))} label="Sign-ups" />
-          </Card>
-        </Section>
-        <Section title="Where sign-ups come from" note="First-touch source, all time." action={<Link href={`/admin?view=growth${everyone ? "&all=1" : ""}`} className={`text-[13.5px] text-muted ${linkCls}`}>How each source converts</Link>}>
-          <Card>
-            <Bars rows={[...sources.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)} total={users.length} />
-          </Card>
-        </Section>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 content-start gap-4">
+          <Panel title="Needs your attention" note="Live, whatever the period." scroll="md">
+            {att.length ? (
+              <ul className="divide-y divide-line">
+                {att.map((a, i) => (
+                  <li key={i} className="flex items-start gap-3 px-4 py-2.5">
+                    <span aria-hidden className={`mt-1.5 size-2 shrink-0 rounded-full ${dot(a.tone)}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13.5px] font-medium">{a.href ? <Link href={a.href} className="decoration-current/30 underline-offset-4 hover:underline">{a.title}</Link> : a.title}</p>
+                      {a.detail && <p className="mt-0.5 text-[12.5px] text-muted">{a.detail}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-4 py-3 text-[13px] text-muted">Nothing right now.</p>
+            )}
+          </Panel>
+          <Panel title="Activity" note={`What applicants and agents did in ${r.label}, newest first (latest 80).`} scroll="lg">
+            <Activity rows={feed} apps={appMap} users={userMap} r={r} everyone={everyone} />
+          </Panel>
+        </div>
+        <div className="grid min-w-0 content-start gap-4">
+          <Panel title="Sign-ups" note={r.label}>
+            <Daily values={byDay(users.map((u) => u.joined))} label="Sign-ups" range={r} />
+          </Panel>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <Panel title="Where they got to" note={r.allTime ? "Each account's furthest step." : "Accounts that joined in this period."}>
+              <Bars rows={byStage} total={cohort.length} />
+            </Panel>
+            <Panel title="Where they came from" note={r.allTime ? "First-touch source." : "Sign-ups in this period."} action={<Link href={href("growth", r, everyone)} className={`text-muted ${linkCls}`}>Conversion</Link>}>
+              <Bars rows={[...sources.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)} total={cohort.length} />
+            </Panel>
+          </div>
+          <Panel title="Applications by status" note={`${apps.length} across ${new Set(apps.map((a) => a.userId)).size} users, as they stand now.`}>
+            <Bars rows={statusRows} total={apps.length} />
+          </Panel>
+        </div>
       </div>
     </div>
   );
@@ -521,328 +567,701 @@ export async function OverviewView({ since, everyone }: { since: string; everyon
 
 // ---- users ----
 
-export async function UsersView({ since, everyone }: { since: string; everyone: boolean }) {
-  const [d, runs] = await Promise.all([loadAdmin(), runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", since)]);
+export async function UsersView({ range: r, everyone, q }: { range: Range; everyone: boolean; q: string }) {
+  const [d, runs] = await Promise.all([loadAdmin(), runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r)]);
   const spend = new Map<string, number>();
-  for (const r of runs) spend.set(r.user_id, (spend.get(r.user_id) ?? 0) + (Number(r.cost_usd) || 0));
+  for (const x of runs) spend.set(x.user_id, (spend.get(x.user_id) ?? 0) + (Number(x.cost_usd) || 0));
   const { users, hidden } = scope(d, everyone);
+  const needle = q.trim().toLowerCase();
+  // in the period: joined or did something in it (all time: everyone)
+  const shown = users
+    .filter((u) => r.allTime || inRange(u.joined, r) || inRange(u.lastActive, r))
+    .filter((u) => !needle || u.email.toLowerCase().includes(needle) || (u.name ?? "").toLowerCase().includes(needle))
+    .sort((a, b) => b.joined.localeCompare(a.joined));
   const stageLabel = (key: string) => STAGES.find((s) => s.key === key)?.label ?? key;
   const dash = <span className="text-muted">·</span>;
   return (
-    <div className="space-y-4">
-      <ScopeNote d={d} hidden={hidden} everyone={everyone} view="users" />
-      <Section title={`Users (${users.length})`} note="Newest first. Open an account for its applications and history. Mark your own and test accounts as team so the numbers show real applicants.">
-        <Table head={["User", "Counted as", "Joined", "Source", "Last active", "Furthest step", "Applications", "Submitted", "Stopped", "Docs", "Gmail", "AI this month"]} min="78rem">
-          {users.length ? (
-            [...users]
-              .sort((a, b) => b.joined.localeCompare(a.joined))
-              .map((u) => (
-                <tr key={u.id}>
-                  <td className="max-w-[16rem] px-4 py-3">
-                    <span className="block truncate">
-                      <UserLink u={u} everyone={everyone} />
-                    </span>
-                    <span className="block truncate text-[12px] text-muted">
-                      {[u.name, u.plan !== "free" ? u.plan : null].filter(Boolean).join(", ") || "no name yet"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <TeamToggle userId={u.id} team={u.team} admin={u.admin} />
-                  </td>
-                  <td className="px-4 py-3 text-muted">{date(u.joined)}</td>
-                  <td className="px-4 py-3 text-muted">{u.source}</td>
-                  <td className="px-4 py-3 text-muted">{ago(u.lastActive)}</td>
-                  <td className="px-4 py-3">{stageLabel(u.stage)}</td>
-                  <td className={td}>{u.appCount || dash}</td>
-                  <td className={`${td} ${u.submitted ? "font-medium text-go" : ""}`}>{u.submitted || dash}</td>
-                  <td className={`${td} ${u.waiting ? "text-signal" : ""}`}>{u.waiting || dash}</td>
-                  <td className={td}>{u.docs || dash}</td>
-                  <td className="px-4 py-3">{u.gmail?.status === "active" ? <Pill tone="go">Connected</Pill> : dash}</td>
-                  <td className={td}>
-                    {$(spend.get(u.id) ?? 0)}
-                    <Bar share={(spend.get(u.id) ?? 0) / Math.max(0.01, u.budget)} tone={(spend.get(u.id) ?? 0) > u.budget * 0.9 ? "stop" : undefined} />
-                  </td>
-                </tr>
-              ))
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <form method="get" action="/admin" className="flex items-center gap-2" role="search">
+          <input type="hidden" name="view" value="users" />
+          {r.key === "custom" ? (
+            <>
+              <input type="hidden" name="from" value={r.from.slice(0, 10)} />
+              <input type="hidden" name="to" value={r.to.slice(0, 10)} />
+            </>
+          ) : r.key !== "30d" ? (
+            <input type="hidden" name="range" value={r.key} />
+          ) : null}
+          {everyone && <input type="hidden" name="all" value="1" />}
+          <label htmlFor="user-q" className="sr-only">
+            Find a user
+          </label>
+          <input id="user-q" name="q" defaultValue={q} placeholder="Find by email or name" className="w-64 max-w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13.5px]" />
+          <button className="tap rounded-lg border border-line px-3 py-1.5 text-[13px] hover:border-foreground/40">Find</button>
+          {q && (
+            <Link href={href("users", r, everyone)} className={`text-[13px] text-muted ${linkCls}`}>
+              Clear
+            </Link>
+          )}
+        </form>
+        <ScopeNote hidden={hidden} everyone={everyone} r={r} view="users" />
+      </div>
+      <Panel
+        title={`Users (${shown.length})`}
+        note={`${r.allTime ? "Every account" : `Joined or active in ${r.label}`}, newest first. AI spend is for the same period. Mark your own and test accounts as team so the numbers show real applicants.`}
+        scroll="xl"
+      >
+        <Table head={["User", "Counted as", "Joined", "Source", "Last active", "Furthest step", "Apps", "Submitted", "Stopped", "Documents", "Gmail", "AI spend"]} min="82rem">
+          {shown.length ? (
+            shown.map((u) => (
+              <tr key={u.id}>
+                <td className="max-w-[16rem] px-4 py-2.5">
+                  <span className="block truncate">
+                    <UserLink u={u} r={r} everyone={everyone} />
+                  </span>
+                  <span className="block truncate text-[12px] text-muted">{[u.name, u.plan !== "free" ? u.plan : null].filter(Boolean).join(", ") || "no name yet"}</span>
+                  {u.deactivated && <Pill tone="stop">Deactivated</Pill>}
+                </td>
+                <td className="px-4 py-2.5">
+                  <TeamToggle userId={u.id} team={u.team} admin={u.admin} />
+                </td>
+                <td className="px-4 py-2.5 text-muted">{date(u.joined)}</td>
+                <td className="px-4 py-2.5 text-muted">{u.source}</td>
+                <td className="px-4 py-2.5 text-muted">{ago(u.lastActive)}</td>
+                <td className="px-4 py-2.5">{stageLabel(u.stage)}</td>
+                <td className={td}>{u.appCount || dash}</td>
+                <td className={`${td} ${u.submitted ? "font-medium text-go" : ""}`}>{u.submitted || dash}</td>
+                <td className={`${td} ${u.waiting ? "text-signal" : ""}`}>{u.waiting || dash}</td>
+                <td className="px-4 py-2.5">
+                  <DocKinds kinds={u.docKinds} />
+                </td>
+                <td className="px-4 py-2.5">{u.gmail?.status === "active" ? <Pill tone="go">Connected</Pill> : dash}</td>
+                <td className={td}>
+                  {$(spend.get(u.id) ?? 0)}
+                  <Bar share={(spend.get(u.id) ?? 0) / Math.max(0.01, u.budget)} tone={(spend.get(u.id) ?? 0) > u.budget * 0.9 ? "stop" : undefined} />
+                </td>
+              </tr>
+            ))
           ) : (
-            <Empty cols={12}>No real users yet.</Empty>
+            <Empty cols={12}>{needle ? `No user matches "${q}" in ${r.label}.` : `Nobody joined or was active in ${r.label}.`}</Empty>
           )}
         </Table>
-      </Section>
+      </Panel>
     </div>
   );
 }
 
 // ---- one user ----
 
-export async function UserView({ id, since, everyone }: { id: string; since: string; everyone: boolean }) {
+export async function UserView({ id, range: r, everyone }: { id: string; range: Range; everyone: boolean }) {
   const db = admin();
   const d = await loadAdmin();
   const u = d.users.find((x) => x.id === id);
   if (!u) return <p className="text-muted">No account with that id. It may have been deleted.</p>;
-  const [runs, { data: events }, { data: errors }, { data: jobs }] = await Promise.all([
-    runsSince<{ agent: string; cost_usd: number | null; status: string }>("agent, cost_usd, status", since, id),
-    db.from("events").select("user_id, actor, action, application_id, created_at").eq("user_id", id).not("action", "in", `(${NOISE.join(",")})`).order("created_at", { ascending: false }).limit(60),
-    db.from("agent_runs").select("agent, error, started_at").eq("user_id", id).eq("status", "failed").not("error", "is", null).order("started_at", { ascending: false }).limit(200),
+  const [runs, { data: events }, { data: errors }, { data: jobs }, { data: docs }] = await Promise.all([
+    runsIn<{ agent: string; cost_usd: number | null; status: string; started_at: string }>("agent, cost_usd, status, started_at", r, id),
+    db.from("events").select("user_id, actor, action, application_id, created_at").eq("user_id", id).not("action", "in", `(${NOISE.join(",")})`).gte("created_at", r.from).lte("created_at", r.to).order("created_at", { ascending: false }).limit(150),
+    db.from("agent_runs").select("agent, error, started_at").eq("user_id", id).eq("status", "failed").not("error", "is", null).gte("started_at", r.from).lte("started_at", r.to).order("started_at", { ascending: false }).limit(200),
     db.from("jobs").select("agent, task, status, last_error, attempts, run_at, finished_at").eq("user_id", id).in("status", ["queued", "running", "failed"]).order("created_at", { ascending: false }).limit(50),
+    db.from("documents").select("id, kind, filename, status, created_at").eq("user_id", id).order("created_at", { ascending: false }).limit(200),
   ]);
   const mine = d.apps.filter((a) => a.userId === id).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
   const appMap = new Map(d.apps.map((a) => [a.id, a]));
-  const spent = runs.reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+  const spent = runs.reduce((s, x) => s + (Number(x.cost_usd) || 0), 0);
   const cats: Record<Category, number> = { research: 0, writing: 0, core: 0 };
-  for (const r of runs) cats[categoryOf(r.agent)] += Number(r.cost_usd) || 0;
+  for (const x of runs) cats[categoryOf(x.agent)] += Number(x.cost_usd) || 0;
   const errGroups = groupErrors(errors ?? []);
-  const back = `/admin?view=users${everyone ? "&all=1" : ""}`;
 
   return (
-    <div className="space-y-10">
-      <div className="space-y-2">
-        <Link href={back} className={`text-[13px] text-muted ${linkCls}`}>
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <Link href={href("users", r, everyone)} className={`text-[13px] text-muted ${linkCls}`}>
           All users
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-serif text-[28px] leading-tight">{u.name || u.email}</h2>
+          <h2 className="font-serif text-[26px] leading-tight">{u.name || u.email}</h2>
           <TeamToggle userId={u.id} team={u.team} admin={u.admin} />
+          {u.deactivated && <Pill tone="stop">Deactivated: can&apos;t sign in, agents stopped</Pill>}
         </div>
-        <p className="text-[13.5px] text-muted">
+        <p className="text-[13px] text-muted">
           {u.name ? `${u.email}. ` : ""}Joined {stamp(u.joined)} from {u.source}
           {u.invited ? " (invited)" : ""}. Plan: {u.plan}. Last signed in {ago(u.lastSignIn)}, last active {ago(u.lastActive)}.
         </p>
+        {!u.admin && <AccountActions userId={u.id} email={u.email} deactivated={u.deactivated} usersHref={href("users", r, everyone)} />}
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <Kpis>
         <Stat label="Applications" value={`${u.appCount}`} sub={`${u.submitted} submitted`} tone={u.submitted ? "go" : undefined} />
         <Stat label="Stopped" value={`${u.waiting}`} sub="waiting on them or failed" tone={u.waiting ? "signal" : undefined} />
-        <Stat label="Documents" value={`${u.docs}`} sub="uploaded" />
+        <Stat label="Documents" value={`${u.docs}`} sub={Object.keys(u.docKinds).map((kk) => DOC_SHORT[kk] ?? docLabel(kk)).join(", ") || "none uploaded"} />
         <Stat label="Gmail" value={u.gmail?.status === "active" ? "On" : "Off"} sub={u.gmail ? `${u.gmail.email}${u.gmail.status !== "active" ? `, ${u.gmail.status}` : ""}` : "not connected"} />
-        <Stat label="AI, this month" value={$(spent)} sub={`of ${$(u.budget)} budget. Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
+        <Stat label={`AI, ${r.label}`} value={$(spent)} sub={`Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}. Monthly budget ${$(u.budget)}`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
         <Stat label="Paid, all time" value={u.payments.length ? money(u.payments) : "0"} sub={`${u.payments.length} payment${u.payments.length === 1 ? "" : "s"}`} />
-      </dl>
+      </Kpis>
 
-      <Section title="Journey" note="When this account first reached each step.">
-        <Table head={["Step", "When", "After sign-up"]} min="30rem">
-          {MILESTONES.map((m) => {
-            const at = u.journey.at[m.key];
-            return (
-              <tr key={m.key}>
-                <td className="px-4 py-3">{m.label}</td>
-                <td className="px-4 py-3 text-muted">{at ? stamp(at) : "not yet"}</td>
-                <td className={td}>{at ? duration(Date.parse(at) - Date.parse(u.joined)) : <span className="text-muted">·</span>}</td>
-              </tr>
-            );
-          })}
-        </Table>
-      </Section>
-
-      <Section title={`Applications (${mine.length})`} note="Most recently worked on first.">
-        <Table head={["School", "Status", "Agents", "What they said", "Portal", "Updated"]} min="60rem">
+      <Panel title={`Applications (${mine.length})`} note="Most recently worked on first." scroll="md">
+        <Table head={["School", "Status", "Agents", "What they said", "Portal", "Updated"]} min="58rem">
           {mine.length ? (
             mine.map((a) => (
               <tr key={a.id}>
-                <td className="max-w-[16rem] px-4 py-3">
+                <td className="max-w-[16rem] px-4 py-2.5">
                   <span className="block truncate">{a.school}</span>
                   {a.program && <span className="block truncate text-[12px] text-muted">{a.program}</span>}
                 </td>
-                <td className="px-4 py-3">{STATUS_LABEL[a.status] ?? a.status}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">{STATUS_LABEL[a.status] ?? a.status}</td>
+                <td className="px-4 py-2.5">
                   <Pill tone={runnerTone(a.runner)}>{RUNNER_LABEL[a.runner] ?? a.runner}</Pill>
                   {a.reason && a.reason !== "failed" && <span className="mt-1 block text-[12px] text-muted">{reasonLabel(a.reason)}</span>}
                 </td>
-                <td className="max-w-[22rem] px-4 py-3 text-[12.5px] text-muted">
-                  <span className="line-clamp-3">{a.note || "·"}</span>
+                <td className="max-w-[22rem] px-4 py-2.5 text-[12.5px] text-muted">
+                  <span className="line-clamp-2">{a.note || "·"}</span>
                 </td>
-                <td className="max-w-[10rem] truncate px-4 py-3 font-mono text-[12px] text-muted">{a.host ?? "·"}</td>
-                <td className="px-4 py-3 text-muted">{ago(a.updated)}</td>
+                <td className="max-w-[10rem] truncate px-4 py-2.5 font-mono text-[12px] text-muted">{a.host ?? "·"}</td>
+                <td className="px-4 py-2.5 text-muted">{ago(a.updated)}</td>
               </tr>
             ))
           ) : (
             <Empty cols={6}>No applications yet.</Empty>
           )}
         </Table>
-      </Section>
+      </Panel>
 
-      {((jobs ?? []).length > 0 || errGroups.length > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Section title="Open and failed jobs">
-            <Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="History" note={`What happened on this account in ${r.label} (latest 150).`} scroll="lg">
+          <Activity rows={(events ?? []) as Ev[]} apps={appMap} users={new Map([[u.id, u]])} r={r} everyone={everyone} showUser={false} />
+        </Panel>
+        <div className="grid content-start gap-4">
+          <Panel title={`Documents (${(docs ?? []).length})`} note="What they uploaded, newest first, and whether the agents have read it." scroll="sm">
+            <Table head={["Type", "File", "Read", "Uploaded"]} min="30rem">
+              {(docs ?? []).length ? (
+                (docs ?? []).map((dd) => (
+                  <tr key={dd.id}>
+                    <td className="whitespace-nowrap px-4 py-2">{docLabel(dd.kind)}</td>
+                    <td className="max-w-[14rem] truncate px-4 py-2 text-muted" title={dd.filename}>
+                      {dd.filename}
+                    </td>
+                    <td className="px-4 py-2">
+                      <Pill tone={dd.status === "extracted" ? "go" : dd.status === "failed" ? "stop" : undefined}>{dd.status === "extracted" ? "Read" : dd.status === "failed" ? "Couldn't read" : dd.status === "extracting" ? "Reading" : "Waiting"}</Pill>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-muted">{date(dd.created_at)}</td>
+                  </tr>
+                ))
+              ) : (
+                <Empty cols={4}>No documents uploaded.</Empty>
+              )}
+            </Table>
+          </Panel>
+          <Panel title="Journey" note="When this account first reached each step.">
+            <Table head={["Step", "When", "After sign-up"]} min="26rem">
+              {MILESTONES.map((m) => {
+                const at = u.journey.at[m.key];
+                return (
+                  <tr key={m.key}>
+                    <td className="px-4 py-2">{m.label}</td>
+                    <td className="px-4 py-2 text-muted">{at ? stamp(at) : "not yet"}</td>
+                    <td className="px-4 py-2 tabular-nums">{at ? duration(Date.parse(at) - Date.parse(u.joined)) : <span className="text-muted">·</span>}</td>
+                  </tr>
+                );
+              })}
+            </Table>
+          </Panel>
+          {(jobs ?? []).length > 0 && (
+            <Panel title="Open and failed jobs" note="As they stand now." scroll="sm">
               <ul className="divide-y divide-line">
-                {(jobs ?? []).length ? (
-                  (jobs ?? []).map((j, i) => (
-                    <li key={i} className="px-4 py-2.5 text-[13px]">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-[12.5px]">
-                          {j.agent}.{j.task}
-                        </span>
-                        <Pill tone={j.status === "failed" ? "stop" : undefined}>
-                          {j.status === "queued" ? `due ${ago(j.run_at)}` : j.status}
-                          {j.attempts ? `, ${j.attempts} tries` : ""}
-                        </Pill>
-                      </div>
-                      {j.last_error && <p className="mt-1 break-words font-mono text-[11.5px] text-muted">{String(j.last_error).slice(0, 240)}</p>}
-                    </li>
-                  ))
-                ) : (
-                  <li className="px-4 py-3 text-[13.5px] text-muted">None.</li>
-                )}
+                {(jobs ?? []).map((j, i) => (
+                  <li key={i} className="px-4 py-2 text-[13px]">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[12.5px]">
+                        {j.agent}.{j.task}
+                      </span>
+                      <Pill tone={j.status === "failed" ? "stop" : undefined}>
+                        {j.status === "queued" ? `due ${ago(j.run_at)}` : j.status}
+                        {j.attempts ? `, ${j.attempts} tries` : ""}
+                      </Pill>
+                    </div>
+                    {j.last_error && <p className="mt-1 break-words font-mono text-[11.5px] text-muted">{String(j.last_error).slice(0, 240)}</p>}
+                  </li>
+                ))}
               </ul>
-            </Card>
-          </Section>
-          <Section title="AI calls that failed" note="Grouped by cause, latest 200.">
-            <ErrorList groups={errGroups} />
-          </Section>
+            </Panel>
+          )}
+          {errGroups.length > 0 && (
+            <Panel title="AI calls that failed" note={`In ${r.label}, grouped by cause.`} scroll="sm">
+              <ErrorList groups={errGroups} />
+            </Panel>
+          )}
         </div>
-      )}
-
-      <Section title="History" note="The latest 60 things that happened on this account. Background retries left out.">
-        <Activity rows={(events ?? []) as Parameters<typeof Activity>[0]["rows"]} apps={appMap} users={new Map([[u.id, u]])} everyone={everyone} showUser={false} />
-      </Section>
+      </div>
     </div>
   );
 }
 
 // ---- submissions ----
 
-export async function SubmissionsView({ everyone }: { everyone: boolean }) {
+export async function SubmissionsView({ range: r, everyone }: { range: Range; everyone: boolean }) {
   const d = await loadAdmin();
   const { users, apps, hidden } = scope(d, everyone);
-  const trips = users.map((u) => u.journey).sort((a, b) => b.signedUp.localeCompare(a.signedUp));
-  const funnel = summarize(trips);
-  const done = apps.filter((a) => SUBMITTED.has(a.status)).sort((a, b) => (b.submittedAt ?? b.updated ?? "").localeCompare(a.submittedAt ?? a.updated ?? ""));
+  // the funnel follows the people who signed up in the period; the list, the applications submitted in it
+  const cohort = (r.allTime ? users : users.filter((u) => inRange(u.joined, r))).map((u) => u.journey).sort((a, b) => b.signedUp.localeCompare(a.signedUp));
+  const funnel = summarize(cohort);
+  const done = apps.filter((a) => SUBMITTED.has(a.status) && (r.allTime || inRange(a.submittedAt, r))).sort((a, b) => (b.submittedAt ?? b.updated ?? "").localeCompare(a.submittedAt ?? a.updated ?? ""));
   const userMap = new Map(d.users.map((u) => [u.id, u]));
   return (
-    <div className="space-y-10">
-      <ScopeNote d={d} hidden={hidden} everyone={everyone} view="submissions" />
-      <Section title="Time to first submission" note="From sign-up to the first application the agents submitted. All time.">
-        <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label="Users who submitted" value={`${funnel.submitted} of ${funnel.users}`} tone={funnel.submitted ? "go" : undefined} />
-          <Stat label="Median time" value={duration(funnel.medianToSubmitMs)} />
-          <Stat label="Within 24 hours" value={`${funnel.within24h}`} />
-          <Stat label="Within 7 days" value={`${funnel.within7d}`} />
-        </dl>
-      </Section>
-      <Section title={`Submitted applications (${done.length})`} note="Newest first.">
-        <Table head={["School", "User", "Status", "Submitted"]} min="40rem">
-          {done.length ? (
-            done.map((a) => (
-              <tr key={a.id}>
-                <td className="max-w-[18rem] px-4 py-3">
-                  <span className="block truncate">{a.school}</span>
-                  {a.program && <span className="block truncate text-[12px] text-muted">{a.program}</span>}
+    <div className="space-y-4">
+      <ScopeNote hidden={hidden} everyone={everyone} r={r} view="submissions" />
+      <Kpis>
+        <Stat label="Submitted in period" value={`${done.length}`} sub={`for ${new Set(done.map((a) => a.userId)).size} user${new Set(done.map((a) => a.userId)).size === 1 ? "" : "s"}`} tone={done.length ? "go" : undefined} />
+        <Stat label="Sign-ups who submitted" value={`${funnel.submitted} of ${funnel.users}`} sub={r.allTime ? "all accounts" : `who joined in ${r.label}`} />
+        <Stat label="Median time to submit" value={duration(funnel.medianToSubmitMs)} sub="from sign-up" />
+        <Stat label="Within 24 hours" value={`${funnel.within24h}`} />
+        <Stat label="Within 7 days" value={`${funnel.within7d}`} />
+      </Kpis>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title={`Submitted applications (${done.length})`} note={`Submitted in ${r.label}, newest first.`} scroll="md">
+          <Table head={["School", "User", "Status", "Submitted"]} min="36rem">
+            {done.length ? (
+              done.map((a) => (
+                <tr key={a.id}>
+                  <td className="max-w-[16rem] px-4 py-2.5">
+                    <span className="block truncate">{a.school}</span>
+                    {a.program && <span className="block truncate text-[12px] text-muted">{a.program}</span>}
+                  </td>
+                  <td className="max-w-[12rem] truncate px-4 py-2.5 text-muted">{userMap.get(a.userId) ? <UserLink u={userMap.get(a.userId)!} r={r} everyone={everyone} /> : a.email}</td>
+                  <td className="px-4 py-2.5">{STATUS_LABEL[a.status] ?? a.status}</td>
+                  <td className="px-4 py-2.5 text-muted">{a.submittedAt ? stamp(a.submittedAt) : "date not recorded"}</td>
+                </tr>
+              ))
+            ) : (
+              <Empty cols={4}>No submissions in {r.label}.</Empty>
+            )}
+          </Table>
+        </Panel>
+        <Panel title="Where people stop" note={`Of the ${funnel.users} who ${r.allTime ? "signed up" : `joined in ${r.label}`}: how many reached each step, and how long it took (medians).`} scroll="md">
+          <Table head={["Step", "Reached it", "From sign-up", "From the step before"]} min="34rem">
+            {funnel.steps.map((x) => (
+              <tr key={x.key}>
+                <td className="px-4 py-2.5">{x.label}</td>
+                <td className={td}>
+                  {x.users} <span className="text-muted">({pct(x.users, funnel.users)})</span>
+                  <Bar share={funnel.users ? x.users / funnel.users : 0} />
                 </td>
-                <td className="max-w-[14rem] truncate px-4 py-3 text-muted">{userMap.get(a.userId) ? <UserLink u={userMap.get(a.userId)!} everyone={everyone} /> : a.email}</td>
-                <td className="px-4 py-3">{STATUS_LABEL[a.status] ?? a.status}</td>
-                <td className="px-4 py-3 text-muted">{a.submittedAt ? stamp(a.submittedAt) : "date not recorded"}</td>
+                <td className={td}>{duration(x.medianFromSignupMs)}</td>
+                <td className={td}>{duration(x.medianFromPreviousMs)}</td>
+              </tr>
+            ))}
+          </Table>
+        </Panel>
+      </div>
+      <Panel title={`Each user (${cohort.length})`} note="Time from sign-up to each step." scroll="lg">
+        <Table head={["User", "Signed up", ...MILESTONES.map((m) => m.label)]} min="64rem">
+          {cohort.length ? (
+            cohort.map((j) => (
+              <tr key={j.userId}>
+                <td className="max-w-[14rem] truncate px-4 py-2.5">
+                  <UserLink u={{ id: j.userId, email: j.email }} r={r} everyone={everyone} />
+                </td>
+                <td className={td}>{date(j.signedUp)}</td>
+                {MILESTONES.map((m) => (
+                  <td key={m.key} className={`${td} ${m.key === "submitted" && j.at.submitted ? "font-medium text-go" : ""}`}>
+                    {j.at[m.key] ? duration(Date.parse(j.at[m.key]!) - Date.parse(j.signedUp)) : <span className="text-muted">·</span>}
+                  </td>
+                ))}
               </tr>
             ))
           ) : (
-            <Empty cols={4}>No submissions yet.</Empty>
+            <Empty cols={2 + MILESTONES.length}>Nobody signed up in {r.label}.</Empty>
           )}
         </Table>
-      </Section>
-      <Section title="Where people stop" note="How many users reached each step, and how long it took (medians).">
-        <Table head={["Step", "Users who reached it", "From sign-up", "From the step before"]}>
-          {funnel.steps.map((x) => (
-            <tr key={x.key}>
-              <td className="px-4 py-3">{x.label}</td>
-              <td className={td}>
-                {x.users} <span className="text-muted">({pct(x.users, funnel.users)})</span>
-                <Bar share={funnel.users ? x.users / funnel.users : 0} />
-              </td>
-              <td className={td}>{duration(x.medianFromSignupMs)}</td>
-              <td className={td}>{duration(x.medianFromPreviousMs)}</td>
-            </tr>
-          ))}
-        </Table>
-      </Section>
-      <Section title="Each user" note="Time from sign-up to each step.">
-        <Table head={["User", "Signed up", ...MILESTONES.map((m) => m.label)]} min="64rem">
-          {trips.map((j) => (
-            <tr key={j.userId}>
-              <td className="max-w-[14rem] truncate px-4 py-3">
-                <UserLink u={{ id: j.userId, email: j.email }} everyone={everyone} />
-              </td>
-              <td className={td}>{date(j.signedUp)}</td>
-              {MILESTONES.map((m) => (
-                <td key={m.key} className={`${td} ${m.key === "submitted" && j.at.submitted ? "font-medium text-go" : ""}`}>
-                  {j.at[m.key] ? duration(Date.parse(j.at[m.key]!) - Date.parse(j.signedUp)) : <span className="text-muted">·</span>}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </Table>
-      </Section>
+      </Panel>
     </div>
   );
 }
 
 // ---- portals ----
 
-export async function PortalsView({ everyone }: { everyone: boolean }) {
+export async function PortalsView({ range: r, everyone }: { range: Range; everyone: boolean }) {
   const d = await loadAdmin();
   const { apps, hidden } = scope(d, everyone);
-  const worked = apps.filter((a) => a.runner !== "idle" || SUBMITTED.has(a.status));
-  // per school, across every user: how often the agents get through
+  // applications the agents worked on in the period (their last run fell in it)
+  const worked = apps.filter((a) => (a.runner !== "idle" || SUBMITTED.has(a.status)) && (r.allTime || inRange(a.updated ?? a.submittedAt, r)));
   const bySchool = new Map<string, { school: string; host: string | null; total: number; submitted: number; stopped: number; running: number; reasons: Map<string, number>; last: string | null }>();
   for (const a of worked) {
-    const r = bySchool.get(a.school) ?? { school: a.school, host: a.host, total: 0, submitted: 0, stopped: 0, running: 0, reasons: new Map(), last: null };
-    r.total++;
-    if (SUBMITTED.has(a.status) || a.runner === "submitted") r.submitted++;
+    const row = bySchool.get(a.school) ?? { school: a.school, host: a.host, total: 0, submitted: 0, stopped: 0, running: 0, reasons: new Map(), last: null };
+    row.total++;
+    if (SUBMITTED.has(a.status) || a.runner === "submitted") row.submitted++;
     else if (a.runner === "needs_you" || a.runner === "failed") {
-      r.stopped++;
+      row.stopped++;
       const why = a.reason ?? "other";
-      r.reasons.set(why, (r.reasons.get(why) ?? 0) + 1);
-    } else if (a.runner === "running" || a.runner === "ready") r.running++;
-    r.host ??= a.host;
-    if (a.updated && (!r.last || a.updated > r.last)) r.last = a.updated;
-    bySchool.set(a.school, r);
+      row.reasons.set(why, (row.reasons.get(why) ?? 0) + 1);
+    } else if (a.runner === "running" || a.runner === "ready") row.running++;
+    row.host ??= a.host;
+    if (a.updated && (!row.last || a.updated > row.last)) row.last = a.updated;
+    bySchool.set(a.school, row);
   }
   const rows = [...bySchool.values()].sort((a, b) => (b.last ?? "").localeCompare(a.last ?? ""));
-  const totals = rows.reduce((s, r) => ({ total: s.total + r.total, submitted: s.submitted + r.submitted, stopped: s.stopped + r.stopped, running: s.running + r.running }), { total: 0, submitted: 0, stopped: 0, running: 0 });
-  const ids = worked.sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? "")).map((a) => a.id).slice(0, 150);
+  const totals = rows.reduce((s, x) => ({ total: s.total + x.total, submitted: s.submitted + x.submitted, stopped: s.stopped + x.stopped, running: s.running + x.running }), { total: 0, submitted: 0, stopped: 0, running: 0 });
+  const ids = [...worked].sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? "")).map((a) => a.id).slice(0, 150);
   const { data } = ids.length
     ? await admin().from("applications").select("id, user_id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name))").in("id", ids).order("runner_updated_at", { ascending: false })
     : { data: [] };
   const email = new Map(d.users.map((u) => [u.id, u.email]));
   return (
-    <div className="space-y-10">
-      <ScopeNote d={d} hidden={hidden} everyone={everyone} view="portals" />
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Applications the agents worked on" value={`${totals.total}`} sub={`at ${rows.length} school${rows.length === 1 ? "" : "s"}, all time`} />
+    <div className="space-y-4">
+      <ScopeNote hidden={hidden} everyone={everyone} r={r} view="portals" />
+      <Kpis>
+        <Stat label="Worked on" value={`${totals.total}`} sub={`at ${rows.length} school${rows.length === 1 ? "" : "s"} in ${r.label}`} />
         <Stat label="Submitted" value={`${totals.submitted}`} sub={`${pct(totals.submitted, totals.total)} of them`} tone={totals.submitted ? "go" : undefined} />
         <Stat label="Stopped" value={`${totals.stopped}`} sub="waiting on the applicant or failed" tone={totals.stopped ? "signal" : undefined} />
         <Stat label="In progress" value={`${totals.running}`} sub="running or queued" />
-      </dl>
-      <Section title="By school" note="Most recently worked on first.">
-        <Table head={["School", "Portal", "Applications", "Submitted", "Stopped", "In progress", "Why they stopped", "Last run"]} min="62rem">
-          {rows.length ? (
-            rows.map((r) => (
-              <tr key={r.school}>
-                <td className="max-w-[16rem] truncate px-4 py-3">{r.school}</td>
-                <td className="max-w-[12rem] truncate px-4 py-3 font-mono text-[12px] text-muted">{r.host ?? "·"}</td>
-                <td className={td}>{r.total}</td>
-                <td className={`${td} ${r.submitted ? "font-medium text-go" : ""}`}>{r.submitted}</td>
-                <td className={`${td} ${r.stopped ? "text-signal" : ""}`}>{r.stopped}</td>
-                <td className={td}>{r.running}</td>
-                <td className="px-4 py-3 text-[12.5px] text-muted">{[...r.reasons.entries()].map(([why, n]) => `${reasonLabel(why)}${n > 1 ? ` ×${n}` : ""}`).join(", ") || "·"}</td>
-                <td className="px-4 py-3 text-muted">{ago(r.last)}</td>
-              </tr>
-            ))
-          ) : (
-            <Empty cols={8}>The agents haven&apos;t worked on any portal yet.</Empty>
-          )}
-        </Table>
-      </Section>
-      <Section title="Each run" note="Newest first, latest 150. Open one for what the page said, the last steps and the raw page details.">
-        <RunList rows={(data ?? []) as Record<string, unknown>[]} email={email} everyone={everyone} />
-      </Section>
+      </Kpis>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <Panel title={`By school (${rows.length})`} note="Most recently worked on first." scroll="xl">
+          <Table head={["School", "Apps", "Submitted", "Stopped", "Running", "Why they stopped", "Last run"]} min="46rem">
+            {rows.length ? (
+              rows.map((x) => (
+                <tr key={x.school}>
+                  <td className="max-w-[15rem] px-4 py-2.5">
+                    <span className="block truncate">{x.school}</span>
+                    <span className="block truncate font-mono text-[11.5px] text-muted">{x.host ?? "·"}</span>
+                  </td>
+                  <td className={td}>{x.total}</td>
+                  <td className={`${td} ${x.submitted ? "font-medium text-go" : ""}`}>{x.submitted}</td>
+                  <td className={`${td} ${x.stopped ? "text-signal" : ""}`}>{x.stopped}</td>
+                  <td className={td}>{x.running}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-muted">{[...x.reasons.entries()].map(([why, n]) => `${reasonLabel(why)}${n > 1 ? ` ×${n}` : ""}`).join(", ") || "·"}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-muted">{ago(x.last)}</td>
+                </tr>
+              ))
+            ) : (
+              <Empty cols={7}>The agents didn&apos;t work on any portal in {r.label}.</Empty>
+            )}
+          </Table>
+        </Panel>
+        <Panel title="Each run" note="Newest first, latest 150. Open one for what the page said, the last steps and the raw page details." scroll="xl">
+          <div className="p-3">
+            <RunList rows={(data ?? []) as Record<string, unknown>[]} email={email} r={r} everyone={everyone} />
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
 
-function RunList({ rows, email, everyone }: { rows: Record<string, unknown>[]; email: Map<string, string>; everyone: boolean }) {
+// ---- costs ----
+
+export async function CostsView({ range: r, everyone }: { range: Range; everyone: boolean }) {
+  type Run = { user_id: string; agent: string; model: string; cost_usd: number | null; input_tokens: number | null; output_tokens: number | null; started_at: string };
+  const [d, all] = await Promise.all([loadAdmin(), runsIn<Run>("user_id, agent, model, cost_usd, input_tokens, output_tokens, started_at", r)]);
+  const { ids } = scope(d, everyone);
+  // a call the api turned away (no credit, overloaded) never reached the model and cost nothing: count it apart
+  const billedRun = (x: Run) => x.cost_usd != null || (x.input_tokens ?? 0) > 0;
+  const runs = all.filter(billedRun);
+  const refused = all.length - runs.length;
+  const perDay = new Map<string, number>();
+  for (const x of runs) perDay.set(x.started_at.slice(0, 10), (perDay.get(x.started_at.slice(0, 10)) ?? 0) + (Number(x.cost_usd) || 0));
+
+  type Row = { cost: number; cat: Record<Category, number>; calls: number };
+  const perUser = new Map<string, Row>();
+  const perAgent = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
+  for (const x of runs) {
+    const c = Number(x.cost_usd) || 0;
+    const u = perUser.get(x.user_id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 };
+    u.cost += c;
+    u.cat[categoryOf(x.agent)] += c;
+    u.calls++;
+    perUser.set(x.user_id, u);
+    const key = `${x.agent}|${x.model}`;
+    const a = perAgent.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
+    a.cost += c;
+    a.calls++;
+    a.inTok += x.input_tokens ?? 0;
+    a.outTok += x.output_tokens ?? 0;
+    perAgent.set(key, a);
+  }
+  const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
+  const real = [...perUser.entries()].filter(([id]) => !d.team.has(id)).reduce((s, [, u]) => s + u.cost, 0);
+  const realUsers = d.users.filter((u) => !u.team).length;
+  const agents = [...perAgent.entries()].sort((a, b) => b[1].cost - a[1].cost);
+  const top = agents[0]?.[1].cost || 1;
+  const days = r.allTime ? Math.max(1, perDay.size) : r.days;
+  const shown = d.users.filter((u) => ids.has(u.id) || perUser.has(u.id)).filter((u) => everyone || !u.team || (perUser.get(u.id)?.cost ?? 0) > 0).filter((u) => perUser.has(u.id));
+
+  return (
+    <div className="space-y-4">
+      <Kpis>
+        <Stat label="AI cost" value={$(total)} sub={`${r.label}. Real users ${$(real)}, team and test ${$(total - real)}`} />
+        <Stat label="Per day" value={$(total / days)} sub={r.allTime ? "over the days with spend" : `over ${days} day${days === 1 ? "" : "s"}`} />
+        <Stat label="Per real user" value={$(real / Math.max(1, realUsers))} sub={`${realUsers} real account${realUsers === 1 ? "" : "s"}`} />
+        <Stat label="Billed calls" value={k(runs.length)} sub={`${$(total / Math.max(1, runs.length))} each${refused ? `. ${k(refused)} turned away, not billed` : ""}`} />
+        <Stat label="Most expensive agent" value={agents[0]?.[0].split("|")[0] ?? "none"} sub={agents[0] ? `${$(agents[0][1].cost)}, ${pct(agents[0][1].cost, total)} of spend` : undefined} />
+      </Kpis>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Spend per day" note={`Billed calls, every account, ${r.label}.`}>
+          <Daily values={perDay} label="AI spend" range={r} fmt={$} />
+        </Panel>
+        <Panel title="By agent and model" note="Every account." scroll="sm">
+          <Table head={["Agent", "Model", "Calls", "Tokens in / out", "Cost", "Per call"]} min="40rem">
+            {agents.length ? (
+              agents.map(([key, a]) => {
+                const [agent, model] = key.split("|");
+                return (
+                  <tr key={key}>
+                    <td className="px-4 py-2.5 font-medium">{agent}</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px] text-muted">{model}</td>
+                    <td className={td}>{k(a.calls)}</td>
+                    <td className={td}>
+                      {k(a.inTok)} / {k(a.outTok)}
+                    </td>
+                    <td className={td}>
+                      {$(a.cost)}
+                      <Bar share={a.cost / top} />
+                    </td>
+                    <td className={td}>{$(a.cost / Math.max(1, a.calls))}</td>
+                  </tr>
+                );
+              })
+            ) : (
+              <Empty cols={6}>No billed calls in {r.label}.</Empty>
+            )}
+          </Table>
+        </Panel>
+      </div>
+      <Panel title={`By user (${shown.length})`} note="Spend in the period. The budget is monthly (plan, paid submissions and any override)." scroll="lg">
+        <Table head={["User", "Plan", "Spent", "Research", "Writing", "Core", "Calls"]} min="50rem">
+          {shown.length ? (
+            shown
+              .map((u) => ({ u, row: perUser.get(u.id)! }))
+              .sort((a, b) => b.row.cost - a.row.cost)
+              .map(({ u, row }) => {
+                const share = u.budget ? row.cost / u.budget : 0;
+                return (
+                  <tr key={u.id}>
+                    <td className="max-w-[14rem] truncate px-4 py-2.5">
+                      <UserLink u={u} r={r} everyone={everyone} />
+                      {u.team && <span className="ml-2 text-[12px] text-muted">team</span>}
+                    </td>
+                    <td className="px-4 py-2.5 capitalize">{u.admin ? "staff" : u.plan}</td>
+                    <td className={td}>
+                      <span className={share > 0.9 ? "font-medium text-stop" : ""}>
+                        {$(row.cost)} <span className="text-muted">of {$(u.budget)}/mo</span>
+                      </span>
+                      <Bar share={share} tone={share > 0.9 ? "stop" : undefined} />
+                    </td>
+                    {(["research", "writing", "core"] as const).map((c) => (
+                      <td key={c} className={td}>
+                        {$(row.cat[c])} <span className="text-muted">of {$(u.budget * CATEGORY_SHARE[c])}</span>
+                      </td>
+                    ))}
+                    <td className={td}>{k(row.calls)}</td>
+                  </tr>
+                );
+              })
+          ) : (
+            <Empty cols={7}>No spend in {r.label}.</Empty>
+          )}
+        </Table>
+      </Panel>
+    </div>
+  );
+}
+
+// ---- growth ----
+
+export async function GrowthView({ range: r, everyone }: { range: Range; everyone: boolean }) {
+  const db = admin();
+  const [d, alerts, { data: ambassadors }] = await Promise.all([
+    loadAdmin(),
+    db.from("alert_subscribers").select("id", { count: "exact", head: true }).not("confirmed_at", "is", null).is("unsubscribed_at", null),
+    db.from("ambassador_applications").select("name, email, country, institution, audience, channels, created_at").gte("created_at", r.from).lte("created_at", r.to).order("created_at", { ascending: false }).limit(100),
+  ]);
+  const { users, hidden } = scope(d, everyone);
+  const cohort = r.allTime ? users : users.filter((u) => inRange(u.joined, r));
+  const paying = cohort.filter((u) => u.payments.length).length;
+  // how each source converts, step by step, for the people who joined in the period
+  const bySource = new Map<string, AdminUser[]>();
+  for (const u of cohort) bySource.set(u.source, [...(bySource.get(u.source) ?? []), u]);
+  const steps = ["profile", "shortlist", "signed", "submitted"] as const;
+  const rows = [...bySource.entries()].sort((a, b) => b[1].length - a[1].length);
+  return (
+    <div className="space-y-4">
+      <ScopeNote hidden={hidden} everyone={everyone} r={r} view="growth" />
+      <Kpis>
+        <Stat label="Sign-ups" value={`${cohort.length}`} sub={`${users.length} accounts in all`} />
+        <Stat label="By invite" value={`${cohort.filter((u) => u.invited).length}`} />
+        <Stat label="Have an application" value={`${cohort.filter((u) => u.appCount).length}`} sub={`${pct(cohort.filter((u) => u.appCount).length, cohort.length)} of sign-ups`} />
+        <Stat label="Submitted" value={`${cohort.filter((u) => u.submitted).length}`} sub={`${pct(cohort.filter((u) => u.submitted).length, cohort.length)} of sign-ups`} />
+        <Stat label="Paying" value={`${paying}`} />
+        <Stat label="Deadline alerts" value={alerts.error ? "n/a" : `${alerts.count ?? 0}`} sub="confirmed subscribers, now" />
+      </Kpis>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="grid content-start gap-4">
+          <Panel title="Sign-ups" note={r.label}>
+            <Daily values={byDay(users.map((u) => u.joined))} label="Sign-ups" range={r} />
+          </Panel>
+          <Panel title="How each source converts" note={`Accounts that joined in ${r.label}, by first-touch source, and how many reached each step.`} scroll="md">
+            <Table head={["Source", "Sign-ups", "Profile", "Shortlist", "Signed", "Submitted", "Paying"]} min="42rem">
+              {rows.length ? (
+                rows.map(([src, us]) => (
+                  <tr key={src}>
+                    <td className="px-4 py-2.5">{src}</td>
+                    <td className={td}>{us.length}</td>
+                    {steps.map((s) => {
+                      const n = us.filter((u) => u.journey.at[s]).length;
+                      return (
+                        <td key={s} className={td}>
+                          {n} <span className="text-muted">({pct(n, us.length)})</span>
+                        </td>
+                      );
+                    })}
+                    <td className={td}>{us.filter((u) => u.payments.length).length}</td>
+                  </tr>
+                ))
+              ) : (
+                <Empty cols={7}>No sign-ups in {r.label}.</Empty>
+              )}
+            </Table>
+          </Panel>
+        </div>
+        <Panel title={`Ambassador applications (${(ambassadors ?? []).length})`} note={`Received in ${r.label}, newest first.`} scroll="xl">
+          <ul className="divide-y divide-line text-[13.5px]">
+            {(ambassadors ?? []).length ? (
+              (ambassadors ?? []).map((a) => (
+                <li key={a.email + a.created_at} className="px-4 py-2.5">
+                  <p className="font-medium">
+                    {a.name} <span className="font-normal text-muted">{a.email}</span>
+                    <span className="ml-2 text-[12px] text-muted">{ago(a.created_at)}</span>
+                  </p>
+                  <p className="text-muted">{[a.country, a.institution].filter(Boolean).join(", ")}</p>
+                  {a.audience && <p className="mt-0.5">{a.audience}</p>}
+                  {a.channels && <p className="mt-0.5 break-all text-muted">{a.channels}</p>}
+                </li>
+              ))
+            ) : (
+              <li className="px-4 py-3 text-muted">None in this period.</li>
+            )}
+          </ul>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+// ---- learning ----
+
+export async function LearningView() {
+  // the rules' score is computed here and now; the models' scores are the last runs kept in events
+  const sheet = sampleSheet();
+  const rules = QUESTIONS.map((q) => scoreRules(q, sheet));
+  const { data: runs } = await admin().from("events").select("context, created_at").eq("action", "eval.model").order("created_at", { ascending: false }).limit(10);
+  type R = { tier: string; total: number; correct: number; wrong: number; asked_ok: number; filled_should_ask: number; left: number; detail: { id: string; stage: string; got?: string; ok: boolean }[] };
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+      <Panel title="Evals" note="Questions real portals asked, answered for a made-up applicant. The rules run in every test; the model runs are kept here." scroll="xl">
+        <div className="space-y-3 border-b border-line px-4 py-3 text-[13.5px]">
+          <p>
+            Rules: <b>{rules.filter((x) => PASS.includes(x.verdict)).length}</b> of {QUESTIONS.length} handled, {rules.filter((x) => x.verdict === "unresolved").length} left for the model,{" "}
+            <b className={rules.some((x) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(x.verdict)) ? "text-stop" : ""}>{rules.filter((x) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(x.verdict)).length} harmful</b>.
+          </p>
+          <RunEval />
+        </div>
+        <ul className="divide-y divide-line">
+          {(runs ?? []).map((e) => {
+            const x = e.context as R;
+            return (
+              <li key={e.created_at} className="px-4 py-2.5 text-[12.5px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Pill tone={x.wrong || x.filled_should_ask ? "stop" : "go"}>{x.tier === "expert" ? "Opus" : "Sonnet"}</Pill>
+                  <span>
+                    {x.correct} right · {x.wrong} wrong · {x.filled_should_ask} filled that should be asked · {x.left} left to the applicant · {x.asked_ok} rightly asked (of {x.total})
+                  </span>
+                  <span className="text-muted">{ago(e.created_at)}</span>
+                </div>
+                {x.detail.some((dd) => !dd.ok) && (
+                  <p className="mt-1 text-muted">
+                    Missed: {x.detail.filter((dd) => !dd.ok).map((dd) => `${dd.id}${dd.got ? ` (${dd.got})` : ""}`).join(", ")}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+          {!runs?.length && <li className="px-4 py-3 text-[13px] text-muted">No model runs yet.</li>}
+        </ul>
+      </Panel>
+      <Panel title="Lessons" note="What the agents learned from stuck runs and edits. Portal notes apply at once; general lessons wait for your approval." scroll="xl">
+        <div className="p-4">
+          <LessonsAdmin {...await lessonData()} />
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+// ---- system ----
+
+export async function SystemView({ range: r }: { range: Range }) {
+  const db = admin();
+  const [h, failedRuns, open, failedJobs] = await Promise.all([
+    health(),
+    every<{ agent: string; error: string | null; started_at: string }>((a, b) => db.from("agent_runs").select("agent, error, started_at").eq("status", "failed").gte("started_at", r.from).lte("started_at", r.to).order("started_at", { ascending: false }).range(a, b), 20_000),
+    every<{ agent: string; task: string; status: string; run_at: string }>((a, b) => db.from("jobs").select("agent, task, status, run_at").in("status", ["queued", "running"]).order("id").range(a, b)),
+    every<{ agent: string; task: string; last_error: string | null; finished_at: string }>((a, b) => db.from("jobs").select("agent, task, last_error, finished_at").eq("status", "failed").gte("finished_at", r.from).lte("finished_at", r.to).order("finished_at", { ascending: false }).range(a, b), 5_000),
+  ]);
+  const byJob = new Map<string, { queued: number; due: number; running: number; oldest: string | null }>();
+  const now = new Date().toISOString();
+  for (const j of open) {
+    const key = `${j.agent}.${j.task}`;
+    const row = byJob.get(key) ?? { queued: 0, due: 0, running: 0, oldest: null };
+    if (j.status === "running") row.running++;
+    else {
+      row.queued++;
+      if (j.run_at <= now) {
+        row.due++;
+        if (!row.oldest || j.run_at < row.oldest) row.oldest = j.run_at;
+      }
+    }
+    byJob.set(key, row);
+  }
+  const jobErrors = groupErrors(failedJobs.map((j) => ({ agent: `${j.agent}.${j.task}`, error: j.last_error, started_at: j.finished_at })));
+  return (
+    <div className="space-y-4">
+      <HealthStrip h={h} />
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Job queue" note="Waiting or running now. Due means its start time has passed." scroll="lg">
+          <Table head={["Job", "Waiting", "Due", "Oldest due", "Running"]} min="30rem">
+            {byJob.size ? (
+              [...byJob.entries()]
+                .sort((a, b) => b[1].due - a[1].due || b[1].queued - a[1].queued)
+                .map(([key, row]) => (
+                  <tr key={key}>
+                    <td className="px-4 py-2.5 font-mono text-[12px]">{key}</td>
+                    <td className={td}>{row.queued}</td>
+                    <td className={`${td} ${row.due ? "text-signal" : ""}`}>{row.due}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-muted">{row.oldest ? ago(row.oldest) : "·"}</td>
+                    <td className={td}>{row.running}</td>
+                  </tr>
+                ))
+            ) : (
+              <Empty cols={5}>The queue is empty.</Empty>
+            )}
+          </Table>
+        </Panel>
+        <Panel title={`Failed jobs (${failedJobs.length})`} note={`In ${r.label}, grouped by cause.`} scroll="lg">
+          <ErrorList groups={jobErrors} />
+        </Panel>
+        <Panel title={`Failed AI calls (${k(failedRuns.length)})`} note={`In ${r.label}, grouped by cause.`} scroll="lg">
+          <ErrorList groups={groupErrors(failedRuns)} />
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+
+function RunList({ rows, email, r, everyone }: { rows: Record<string, unknown>[]; email: Map<string, string>; r: Range; everyone: boolean }) {
   return (
     <div className="space-y-2">
-      {rows.length === 0 && <p className="text-[13.5px] text-muted">No runs yet.</p>}
+      {rows.length === 0 && <p className="px-1 text-[13px] text-muted">No runs in this period.</p>}
       {rows.map((a) => {
         const st = (a.runner_state ?? {}) as {
           last_url?: string;
@@ -888,7 +1307,7 @@ function RunList({ rows, email, everyone }: { rows: Record<string, unknown>[]; e
                 </div>
                 <div>
                   <dt className="inline text-muted">Applicant: </dt>
-                  <dd className="inline">{email.get(uid) ? <UserLink u={{ id: uid, email: email.get(uid)! }} everyone={everyone} /> : "deleted account"}</dd>
+                  <dd className="inline">{email.get(uid) ? <UserLink u={{ id: uid, email: email.get(uid)! }} r={r} everyone={everyone} /> : "deleted account"}</dd>
                 </div>
                 {dbg?.title && (
                   <div className="truncate">
@@ -923,251 +1342,7 @@ function RunList({ rows, email, everyone }: { rows: Record<string, unknown>[]; e
   );
 }
 
-// ---- costs ----
-
-export async function CostsView({ since, everyone }: { since: string; everyone: boolean }) {
-  const monthAgo = new Date(Date.now() - 30 * DAY).toISOString();
-  const from = since < monthAgo ? since : monthAgo;
-  type Run = { user_id: string; agent: string; model: string; cost_usd: number | null; input_tokens: number | null; output_tokens: number | null; started_at: string };
-  const [d, recent] = await Promise.all([loadAdmin(), runsSince<Run>("user_id, agent, model, cost_usd, input_tokens, output_tokens, started_at", from)]);
-  const { ids } = scope(d, everyone);
-  // a call the api turned away (no credit, overloaded) never reached the model and cost nothing: count it apart
-  const billedRun = (r: Run) => r.cost_usd != null || (r.input_tokens ?? 0) > 0;
-  const all = recent.filter((r) => r.started_at >= since);
-  const runs = all.filter(billedRun);
-  const refused = all.length - runs.length;
-  const perDay = new Map<string, number>();
-  for (const r of recent) if (billedRun(r)) perDay.set(r.started_at.slice(0, 10), (perDay.get(r.started_at.slice(0, 10)) ?? 0) + (Number(r.cost_usd) || 0));
-
-  type Row = { cost: number; cat: Record<Category, number>; calls: number };
-  const perUser = new Map<string, Row>();
-  const perAgent = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
-  for (const r of runs) {
-    const c = Number(r.cost_usd) || 0;
-    const u = perUser.get(r.user_id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 };
-    u.cost += c;
-    u.cat[categoryOf(r.agent)] += c;
-    u.calls++;
-    perUser.set(r.user_id, u);
-    const key = `${r.agent}|${r.model}`;
-    const a = perAgent.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
-    a.cost += c;
-    a.calls++;
-    a.inTok += r.input_tokens ?? 0;
-    a.outTok += r.output_tokens ?? 0;
-    perAgent.set(key, a);
-  }
-  const total = [...perUser.values()].reduce((s, u) => s + u.cost, 0);
-  const real = [...perUser.entries()].filter(([id]) => !d.team.has(id)).reduce((s, [, u]) => s + u.cost, 0);
-  const realUsers = d.users.filter((u) => !u.team).length;
-  const agents = [...perAgent.entries()].sort((a, b) => b[1].cost - a[1].cost);
-  const top = agents[0]?.[1].cost || 1;
-  const days = Math.max(1, (Date.now() - Date.parse(since)) / DAY);
-  const shown = d.users.filter((u) => ids.has(u.id) || perUser.has(u.id)).filter((u) => everyone || !u.team || (perUser.get(u.id)?.cost ?? 0) > 0);
-
-  return (
-    <div className="space-y-10">
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="AI cost, this month" value={$(total)} sub={`${$(total / days)} a day. Real users ${$(real)}, team and test ${$(total - real)}`} />
-        <Stat label="Per real user, this month" value={$(real / Math.max(1, realUsers))} sub={`${realUsers} real account${realUsers === 1 ? "" : "s"}`} />
-        <Stat label="Billed calls, this month" value={k(runs.length)} sub={`${$(total / Math.max(1, runs.length))} each${refused ? `. ${k(refused)} more turned away by the API, not billed` : ""}`} />
-        <Stat label="Most expensive agent" value={agents[0]?.[0].split("|")[0] ?? "none"} sub={agents[0] ? `${$(agents[0][1].cost)}, ${pct(agents[0][1].cost, total)} of spend` : undefined} />
-      </dl>
-      <Section title="Spend per day" note="Billed calls only, every account.">
-        <Card>
-          <Daily values={perDay} label="AI spend" fmt={$} />
-        </Card>
-      </Section>
-      <Section title="By agent and model" note="This month, every account.">
-        <Table head={["Agent", "Model", "Calls", "Tokens in / out", "Cost", "Per call"]}>
-          {agents.length ? (
-            agents.map(([key, a]) => {
-              const [agent, model] = key.split("|");
-              return (
-                <tr key={key}>
-                  <td className="px-4 py-3 font-medium">{agent}</td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-muted">{model}</td>
-                  <td className={td}>{k(a.calls)}</td>
-                  <td className={td}>
-                    {k(a.inTok)} / {k(a.outTok)}
-                  </td>
-                  <td className={td}>
-                    {$(a.cost)}
-                    <Bar share={a.cost / top} />
-                  </td>
-                  <td className={td}>{$(a.cost / Math.max(1, a.calls))}</td>
-                </tr>
-              );
-            })
-          ) : (
-            <Empty cols={6}>No billed calls this month.</Empty>
-          )}
-        </Table>
-      </Section>
-      <Section title="By user" note="This month, against the budget the agents are held to (plan, paid submissions, and any override).">
-        <Table head={["User", "Plan", "Spent of budget", "Research", "Writing", "Core", "Calls"]} min="52rem">
-          {shown
-            .map((u) => ({ u, r: perUser.get(u.id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 } }))
-            .sort((a, b) => b.r.cost - a.r.cost)
-            .map(({ u, r }) => {
-              const share = u.budget ? r.cost / u.budget : 0;
-              return (
-                <tr key={u.id}>
-                  <td className="max-w-[14rem] truncate px-4 py-3">
-                    <UserLink u={u} everyone={everyone} />
-                    {u.team && <span className="ml-2 text-[12px] text-muted">team</span>}
-                  </td>
-                  <td className="px-4 py-3 capitalize">{u.admin ? "staff" : u.plan}</td>
-                  <td className={td}>
-                    <span className={share > 0.9 ? "font-medium text-stop" : ""}>
-                      {$(r.cost)} <span className="text-muted">of {$(u.budget)}</span>
-                    </span>
-                    <Bar share={share} tone={share > 0.9 ? "stop" : undefined} />
-                  </td>
-                  {(["research", "writing", "core"] as const).map((c) => (
-                    <td key={c} className={td}>
-                      {$(r.cat[c])} <span className="text-muted">of {$(u.budget * CATEGORY_SHARE[c])}</span>
-                    </td>
-                  ))}
-                  <td className={td}>{k(r.calls)}</td>
-                </tr>
-              );
-            })}
-        </Table>
-      </Section>
-    </div>
-  );
-}
-
-// ---- growth ----
-
-export async function GrowthView({ everyone }: { everyone: boolean }) {
-  const db = admin();
-  const [d, alerts, { data: ambassadors }] = await Promise.all([
-    loadAdmin(),
-    db.from("alert_subscribers").select("id", { count: "exact", head: true }).not("confirmed_at", "is", null).is("unsubscribed_at", null),
-    db.from("ambassador_applications").select("name, email, country, institution, audience, channels, created_at").order("created_at", { ascending: false }).limit(30),
-  ]);
-  const { users, hidden } = scope(d, everyone);
-  const within = (iso: string, days: number) => Date.now() - Date.parse(iso) < days * DAY;
-  const paying = new Set(users.filter((u) => u.payments.length).map((u) => u.id)).size;
-  // how each source converts, step by step
-  const bySource = new Map<string, AdminUser[]>();
-  for (const u of users) bySource.set(u.source, [...(bySource.get(u.source) ?? []), u]);
-  const steps = ["profile", "shortlist", "signed", "submitted"] as const;
-  const rows = [...bySource.entries()].sort((a, b) => b[1].length - a[1].length);
-  return (
-    <div className="space-y-10">
-      <ScopeNote d={d} hidden={hidden} everyone={everyone} view="growth" />
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Stat label="Accounts, all time" value={`${users.length}`} />
-        <Stat label="New today" value={`${users.filter((u) => within(u.joined, 1)).length}`} />
-        <Stat label="New, 7 days" value={`${users.filter((u) => within(u.joined, 7)).length}`} />
-        <Stat label="New, 30 days" value={`${users.filter((u) => within(u.joined, 30)).length}`} />
-        <Stat label="Joined by invite" value={`${users.filter((u) => u.invited).length}`} />
-        <Stat label="Have an application" value={`${users.filter((u) => u.appCount).length}`} />
-        <Stat label="Paying" value={`${paying}`} />
-        <Stat label="Deadline alerts" value={alerts.error ? "n/a" : `${alerts.count ?? 0}`} sub="confirmed subscribers" />
-      </dl>
-      <Section title="How each source converts" note="Accounts by first-touch source, and how many reached each step. All time.">
-        <Table head={["Source", "Sign-ups", "Started profile", "Shortlist", "Signed", "Submitted", "Paying"]} min="44rem">
-          {rows.length ? (
-            rows.map(([src, us]) => (
-              <tr key={src}>
-                <td className="px-4 py-3">{src}</td>
-                <td className={td}>{us.length}</td>
-                {steps.map((s) => {
-                  const n = us.filter((u) => u.journey.at[s]).length;
-                  return (
-                    <td key={s} className={td}>
-                      {n} <span className="text-muted">({pct(n, us.length)})</span>
-                    </td>
-                  );
-                })}
-                <td className={td}>{us.filter((u) => u.payments.length).length}</td>
-              </tr>
-            ))
-          ) : (
-            <Empty cols={7}>No sign-ups yet.</Empty>
-          )}
-        </Table>
-      </Section>
-      <Section title="Ambassador applications" note="Newest first.">
-        <Card>
-          <ul className="divide-y divide-line text-[14px]">
-            {(ambassadors ?? []).length ? (
-              (ambassadors ?? []).map((a) => (
-                <li key={a.email + a.created_at} className="px-4 py-3">
-                  <p className="font-medium">
-                    {a.name} <span className="font-normal text-muted">{a.email}</span>
-                    <span className="ml-2 text-[12px] text-muted">{ago(a.created_at)}</span>
-                  </p>
-                  <p className="text-muted">{[a.country, a.institution].filter(Boolean).join(", ")}</p>
-                  {a.audience && <p className="mt-0.5">{a.audience}</p>}
-                  {a.channels && <p className="mt-0.5 break-all text-muted">{a.channels}</p>}
-                </li>
-              ))
-            ) : (
-              <li className="px-4 py-3 text-muted">None yet.</li>
-            )}
-          </ul>
-        </Card>
-      </Section>
-    </div>
-  );
-}
-
-// ---- learning ----
-
-export async function LearningView() {
-  // the rules' score is computed here and now; the models' scores are the last runs kept in events
-  const sheet = sampleSheet();
-  const rules = QUESTIONS.map((q) => scoreRules(q, sheet));
-  const { data: runs } = await admin().from("events").select("context, created_at").eq("action", "eval.model").order("created_at", { ascending: false }).limit(10);
-  type R = { tier: string; total: number; correct: number; wrong: number; asked_ok: number; filled_should_ask: number; left: number; detail: { id: string; stage: string; got?: string; ok: boolean }[] };
-  return (
-    <>
-      <Section title="Evals" note="Questions real portals asked, answered for a made-up applicant. The rules run in every test; the model runs are kept here.">
-        <Card>
-          <div className="space-y-3 px-4 py-3 text-[13.5px]">
-            <p>
-              Rules: <b>{rules.filter((r) => PASS.includes(r.verdict)).length}</b> of {QUESTIONS.length} handled, {rules.filter((r) => r.verdict === "unresolved").length} left for the model,{" "}
-              <b className={rules.some((r) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(r.verdict)) ? "text-stop" : ""}>{rules.filter((r) => ["wrong", "filled_should_ask", "shown_should_hide"].includes(r.verdict)).length} harmful</b>.
-            </p>
-            <RunEval />
-          </div>
-          <ul className="divide-y divide-line border-t border-line">
-            {(runs ?? []).map((e) => {
-              const r = e.context as R;
-              return (
-                <li key={e.created_at} className="px-4 py-2.5 text-[12.5px]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Pill tone={r.wrong || r.filled_should_ask ? "stop" : "go"}>{r.tier === "expert" ? "Opus" : "Sonnet"}</Pill>
-                    <span>
-                      {r.correct} right · {r.wrong} wrong · {r.filled_should_ask} filled that should be asked · {r.left} left to the applicant · {r.asked_ok} rightly asked (of {r.total})
-                    </span>
-                    <span className="text-muted">{ago(e.created_at)}</span>
-                  </div>
-                  {r.detail.some((d) => !d.ok) && (
-                    <p className="mt-1 text-muted">
-                      Missed: {r.detail.filter((d) => !d.ok).map((d) => `${d.id}${d.got ? ` (${d.got})` : ""}`).join(", ")}
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-            {!runs?.length && <li className="px-4 py-3 text-[13.5px] text-muted">No model runs yet.</li>}
-          </ul>
-        </Card>
-      </Section>
-      <Section title="Learning" note="Lessons the agents learned from stuck runs and edits. Portal notes apply at once; general lessons wait for your approval.">
-        <LessonsAdmin {...await lessonData()} />
-      </Section>
-    </>
-  );
-}
-
-// ---- system ----
+// ---- errors ----
 
 // one line per cause: the same error with different ids, urls or numbers is one problem
 function groupErrors(rows: { agent: string; error: string | null; started_at: string }[]) {
@@ -1191,8 +1366,7 @@ function groupErrors(rows: { agent: string; error: string | null; started_at: st
 
 function ErrorList({ groups }: { groups: ReturnType<typeof groupErrors> }) {
   return (
-    <Card>
-      <ul className="divide-y divide-line">
+    <ul className="divide-y divide-line">
         {groups.length ? (
           groups.map((g) => (
             <li key={g.sig} className="px-4 py-2.5 text-[12.5px]">
@@ -1207,67 +1381,7 @@ function ErrorList({ groups }: { groups: ReturnType<typeof groupErrors> }) {
         ) : (
           <li className="px-4 py-3 text-[13.5px] text-muted">None.</li>
         )}
-      </ul>
-    </Card>
-  );
-}
-
-export async function SystemView({ since }: { since: string }) {
-  const db = admin();
-  const weekAgo = new Date(Date.now() - 7 * DAY).toISOString();
-  const [h, failedRuns, open, { data: failedJobs }] = await Promise.all([
-    health(),
-    every<{ agent: string; error: string | null; started_at: string }>((a, b) => db.from("agent_runs").select("agent, error, started_at").eq("status", "failed").gte("started_at", since).order("started_at", { ascending: false }).range(a, b), 20_000),
-    every<{ agent: string; task: string; status: string; run_at: string }>((a, b) => db.from("jobs").select("agent, task, status, run_at").in("status", ["queued", "running"]).order("id").range(a, b)),
-    db.from("jobs").select("agent, task, last_error, attempts, finished_at, user_id").eq("status", "failed").gte("finished_at", weekAgo).order("finished_at", { ascending: false }).limit(200),
-  ]);
-  const byJob = new Map<string, { queued: number; due: number; running: number; oldest: string | null }>();
-  const now = new Date().toISOString();
-  for (const j of open) {
-    const key = `${j.agent}.${j.task}`;
-    const r = byJob.get(key) ?? { queued: 0, due: 0, running: 0, oldest: null };
-    if (j.status === "running") r.running++;
-    else {
-      r.queued++;
-      if (j.run_at <= now) {
-        r.due++;
-        if (!r.oldest || j.run_at < r.oldest) r.oldest = j.run_at;
-      }
-    }
-    byJob.set(key, r);
-  }
-  const jobErrors = groupErrors((failedJobs ?? []).map((j) => ({ agent: `${j.agent}.${j.task}`, error: j.last_error, started_at: j.finished_at })));
-  return (
-    <div className="space-y-10">
-      <HealthStrip h={h} />
-      <Section title="Job queue" note="Jobs waiting or running now, by agent and task. Due means its start time has passed.">
-        <Table head={["Job", "Waiting", "Due now", "Oldest due", "Running"]} min="34rem">
-          {byJob.size ? (
-            [...byJob.entries()]
-              .sort((a, b) => b[1].due - a[1].due || b[1].queued - a[1].queued)
-              .map(([key, r]) => (
-                <tr key={key}>
-                  <td className="px-4 py-3 font-mono text-[12.5px]">{key}</td>
-                  <td className={td}>{r.queued}</td>
-                  <td className={`${td} ${r.due ? "text-signal" : ""}`}>{r.due}</td>
-                  <td className="px-4 py-3 text-muted">{r.oldest ? ago(r.oldest) : "·"}</td>
-                  <td className={td}>{r.running}</td>
-                </tr>
-              ))
-          ) : (
-            <Empty cols={5}>The queue is empty.</Empty>
-          )}
-        </Table>
-      </Section>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Failed jobs" note="Last 7 days, grouped by cause.">
-          <ErrorList groups={jobErrors} />
-        </Section>
-        <Section title="Failed AI calls" note={`This month: ${k(failedRuns.length)} in all, grouped by cause.`}>
-          <ErrorList groups={groupErrors(failedRuns)} />
-        </Section>
-      </div>
-    </div>
+    </ul>
   );
 }
 
