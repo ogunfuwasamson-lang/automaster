@@ -143,8 +143,18 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 
 ## Videos
 
-Renderer: `node marketing/video/render.mjs spec.json out.mp4 --stills dir` (1080×1350 with voice and music, about 2 minutes per 35s video). Needs `pip install kokoro-onnx soundfile scipy` if missing.
-Look at the stills before using a video. Specs are JSON scene lists; see the header of `render.mjs` for scene kinds.
+**Renderer: raea** (Samson's choice). Once per run: `bash marketing/video/raea/install.sh && export PATH=$HOME/.local/bin:$PATH`
+(installs raea from its GitHub release, checksum-verified), and `pip install --break-system-packages kokoro-onnx soundfile scipy`
+if `python3 -c "import kokoro_onnx"` fails. Then per video:
+
+    node marketing/video/raea/make.mjs spec.json out.mp4 --stills dir
+
+1080×1350, Kokoro voiceover, original Tone.js music ducked under the voice, mastered to -14 LUFS, AAC sound; about
+1–2 minutes per 35s video. Then `raea check out.mp4 --shape 4:5` and fix every error and warn (a "frozen" warn means a
+scene holds too long with nothing moving: shorten its text or split it). Look at the stills before using a video.
+Specs are JSON scene lists; scene kinds are in the header of `marketing/video/render.mjs`. If raea won't install or
+render, fall back to `node marketing/video/render.mjs spec.json out.mp4 --stills dir` (same specs, also with sound)
+and say so in the run log.
 
 - **Animated explainer** (default for group posts): `hook` → 2–4 `point`/`list`/`stat` scenes → `cta`. 25–40s.
 - **Animated tip cards** (good for checklists): `hook` → 3–6 `card` scenes with `step: "Tip 2 of 5"` → `cta`.
