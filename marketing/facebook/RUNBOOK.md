@@ -143,6 +143,18 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 
 ## Videos
 
+**The standard (Samson approved it, Nov 2026): every Ivyward video looks and sounds like the ads in
+`marketing/video/ads/` and the social videos from `marketing/video/raea/`.** Hold every new video to it:
+- Look: light paper ground, the campus ink drawing at the foot, oxblood (#9b2c4e) accents and logo tile, Frank Ruhl
+  Libre headlines over Roboto Flex, the thin progress bar at the top, "Ivyward" top-left, the tryivyward.com tag.
+  Calm and editorial: words rise in as they're spoken, cards slide in, a slow push-in. Never dark, busy or chaotic.
+- Voice: Kokoro `af_heart` (the default) at speed 1.0. Never another voice, never sped up.
+- Sound: raea's Tone.js score (soft pad, plucked arpeggio, round bass; a light beat is fine for ads), ducked under the
+  voice, small effects in key (ticks, chimes), mastered to -14 LUFS by raea. Never the numpy-synth music or harsh
+  effects (buzzes, noise bursts).
+- Ads and anything with product screens: `node marketing/video/ads/make-ad.mjs ad.json out.mp4 --size WxH` (an HTML
+  page per ad, sound from `ads/sound.tsx`). Social posts: the raea renderer below.
+
 **Renderer: raea** (Samson's choice). Once per run: `bash marketing/video/raea/install.sh && export PATH=$HOME/.local/bin:$PATH`
 (installs raea from its GitHub release, checksum-verified), and `pip install --break-system-packages kokoro-onnx soundfile scipy`
 if `python3 -c "import kokoro_onnx"` fails. Then per video:
