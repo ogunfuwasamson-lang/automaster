@@ -83,11 +83,22 @@ ff.stdin.end();
 await done;
 await browser.close();
 
-// the voice wavs live in the cache; copy them beside the mix
-for (let i = 0; i < beats.length; i++) if (existsSync(join(cache, `vo_${i}.wav`))) writeFileSync(join(work, `vo_${i}.wav`), readFileSync(join(cache, `vo_${i}.wav`)));
-writeFileSync(join(work, "cues.json"), JSON.stringify({ total, starts: beats.map((b) => b.start), ...cues }));
+// the sound, rendered by raea the way Ivyward's social videos are: voice, Tone.js score, effects, mastered to -14 LUFS
+const snd = join(work, "snd");
+mkdirSync(join(snd, "media"), { recursive: true });
+const voices = [];
+beats.forEach((b, i) => {
+  if (!existsSync(join(cache, `vo_${i}.wav`))) return;
+  writeFileSync(join(snd, "media", `vo_${i}.wav`), readFileSync(join(cache, `vo_${i}.wav`)));
+  voices.push({ file: `vo_${i}.wav`, from: Math.round((b.start + lead) * FPS) });
+});
+writeFileSync(join(snd, "spec.gen.ts"), `export const SPEC = ${JSON.stringify({ fps: FPS, frames, voices, ...cues })} as any;\n`);
+writeFileSync(join(snd, "sound.tsx"), readFileSync(join(here, "sound.tsx")));
+const wav = join(work, "mix.wav");
+execFileSync(process.env.RAEA_BIN || "raea", ["render", join(snd, "sound.tsx"), "-o", wav], { stdio: ["ignore", "inherit", "inherit"] });
 const tmp = outPath.replace(/\.mp4$/, "") + ".part.mp4";
-const sound = JSON.parse(py("mix", resolve(specPath), work, silent, resolve(tmp), join(work, "cues.json")));
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-i", wav, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-shortest", "-movflags", "+faststart", tmp]);
+const sound = { voice: voices.length, sfx: (cues.sfx || []).length };
 renameSync(tmp, outPath);
 rmSync(work, { recursive: true, force: true });
 console.log(JSON.stringify({ out: resolve(outPath), size: `${W}x${H}`, seconds: Number(total.toFixed(2)), frames, ...sound }));

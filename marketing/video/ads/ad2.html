@@ -4,61 +4,73 @@
 <meta charset="utf-8">
 <title>Ivyward ad 2</title>
 <style>
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
   @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-500-normal.woff2) format("woff2"); font-weight: 500; }
   @font-face { font-family: "Flex"; src: url(fonts/roboto-flex-latin-wght-normal.woff2) format("woff2"); font-weight: 100 1000; }
-  :root { --bg: #f6f3ef; --ink: #0f0f12; --muted: #6b6b74; --line: #e4e1dc; --ox: #9b2c4e; --rose: #f7d6e1; --go: #047857; --gobg: #e3f4ec; --stop: #b91c1c; --stopbg: #fdecec; --u: 1vw; }
+  /* Ivyward's social-video look: paper, the campus ink drawing, oxblood, Frank Ruhl Libre over Roboto Flex */
+  :root { --bg: #fafafa; --ink: #09090b; --body: #27272a; --muted: #52525b; --line: #e4e4e7; --ox: #9b2c4e; --rose: #f6e7ec; --go: #047857; --gobg: #e6f4ee; --stop: #b91c1c; --stopbg: #fdecec; --dark: #18181b; --u: 1vw; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); font-family: "Flex", system-ui, sans-serif; }
-  .abs { position: absolute; }
+  .serif { font-family: "Frank", Georgia, serif; font-weight: 400; letter-spacing: -0.02em; }
   .scene { position: absolute; inset: 0; display: none; }
-  .bold { font-weight: 850; letter-spacing: -0.025em; }
+  .bold { font-family: "Frank", Georgia, serif; font-weight: 400; letter-spacing: -0.02em; }
   .w { display: inline-block; opacity: 0; }
-  #ask .q { position: absolute; left: 7vw; right: 7vw; top: 37vh; font-size: calc(var(--u)*10.4); line-height: 1.02; }
+  .ink { position: absolute; left: -22vw; width: 144vw; bottom: -1vh; opacity: .9; transform-origin: 50% 100%; }
+  #pbar { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u)*.75); background: var(--line); z-index: 20; }
+  #pbar div { height: 100%; background: var(--ox); }
+  .brandrow { position: absolute; left: 7.4vw; top: 3.4vh; display: flex; align-items: center; gap: calc(var(--u)*1.3); z-index: 3; }
+  .brandrow img { width: calc(var(--u)*4.3); height: calc(var(--u)*4.3); }
+  .brandrow span { font-family: "Frank", Georgia, serif; font-size: calc(var(--u)*3.9); }
+  #ask .q { position: absolute; left: 7.4vw; right: 7.4vw; top: 16vh; font-size: calc(var(--u)*10.6); line-height: 1.04; }
   .ox { color: var(--ox); }
-  .note { position: absolute; padding: calc(var(--u)*2.4) calc(var(--u)*3); background: #ffe680; color: #3b3000; font-weight: 750; font-size: calc(var(--u)*4.2); box-shadow: 0 calc(var(--u)*1.2) calc(var(--u)*3) rgba(60,40,0,.18); border-radius: calc(var(--u)*.6); }
-  .note.pink { background: #ffd1df; color: #4a0f22; }
-  .note.blue { background: #cfe6ff; color: #0b2a4a; }
-  /* split */
+  .note { position: absolute; padding: calc(var(--u)*1.8) calc(var(--u)*3); background: #fff; border: 2px solid var(--line); color: var(--body); font-size: calc(var(--u)*3.6); border-radius: 999px; box-shadow: 0 calc(var(--u)*2) calc(var(--u)*4) calc(var(--u)*-2) rgba(9,9,11,.25); white-space: nowrap; }
+  .note.pink, .note.blue { }
   #split { position: absolute; inset: 0; display: none; }
   .half { position: absolute; left: 0; right: 0; height: 50vh; overflow: hidden; }
-  #top { top: 0; background: #ebe7e2; }
-  #bot { top: 50vh; background: #fbfaf8; }
-  .tag { position: absolute; left: 5vw; top: 3.2vh; display: inline-flex; align-items: center; gap: calc(var(--u)*1.6); padding: calc(var(--u)*1.4) calc(var(--u)*2.8); border-radius: 999px; font-weight: 800; font-size: calc(var(--u)*3.6); }
-  #top .tag { background: #fff; color: var(--stop); border: 2px solid rgba(185,28,28,.25); }
-  #bot .tag { background: var(--ink); color: #fff; top: 4.4vh; }
-  #bot .tag img { width: calc(var(--u)*4.6); height: calc(var(--u)*4.6); }
-  .win { position: absolute; left: 5vw; right: 5vw; top: 10vh; height: 36vh; background: #fff; border-radius: calc(var(--u)*2.6); box-shadow: 0 calc(var(--u)*1.5) calc(var(--u)*5) rgba(0,0,0,.12); overflow: hidden; }
-  .tabs { display: flex; gap: calc(var(--u)*.6); padding: calc(var(--u)*1.6) calc(var(--u)*1.6) 0; background: #f0eeeb; height: calc(var(--u)*7); overflow: hidden; }
-  .tabx { flex: 0 0 auto; width: calc(var(--u)*9); height: calc(var(--u)*5.4); background: #e2dfda; border-radius: calc(var(--u)*1.2) calc(var(--u)*1.2) 0 0; }
+  #top { top: 0; background: #efeff1; }
+  #bot { top: 50vh; background: #fafafa; }
+  .tag { position: absolute; left: 6vw; top: 3.4vh; display: inline-flex; align-items: center; gap: calc(var(--u)*1.4); padding: calc(var(--u)*1.3) calc(var(--u)*2.8); border-radius: 999px; font-weight: 650; font-size: calc(var(--u)*3.4); }
+  #top .tag { background: #fff; color: var(--muted); border: 2px solid var(--line); }
+  #bot .tag { background: var(--ox); color: #fff; top: 4.4vh; }
+  #bot .tag img { width: calc(var(--u)*4.4); height: calc(var(--u)*4.4); }
+  .win { position: absolute; left: 6vw; right: 6vw; top: 10.5vh; height: 35vh; background: #fff; border: 2px solid var(--line); border-radius: calc(var(--u)*4); box-shadow: 0 calc(var(--u)*3) calc(var(--u)*6) calc(var(--u)*-3) rgba(9,9,11,.25); overflow: hidden; }
+  .tabs { display: flex; gap: calc(var(--u)*.6); padding: calc(var(--u)*1.6) calc(var(--u)*1.6) 0; background: #f4f4f5; height: calc(var(--u)*7); overflow: hidden; }
+  .tabx { flex: 0 0 auto; width: calc(var(--u)*9); height: calc(var(--u)*5.4); background: #e4e4e7; border-radius: calc(var(--u)*1.2) calc(var(--u)*1.2) 0 0; }
   .tabx.on { background: #fff; }
-  .winbody { padding: calc(var(--u)*3.4); }
-  .big { font-size: calc(var(--u)*5.4); font-weight: 800; letter-spacing: -0.02em; }
-  .meta { font-size: calc(var(--u)*3.4); color: var(--muted); margin-top: calc(var(--u)*1); }
-  .bar { height: calc(var(--u)*2); background: #ebe8e3; border-radius: 99px; margin-top: calc(var(--u)*2.2); }
-  .modal { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); width: 78%; background: #fff; border: 3px solid var(--stop); border-radius: calc(var(--u)*2.4); padding: calc(var(--u)*3.4); box-shadow: 0 calc(var(--u)*2) calc(var(--u)*6) rgba(185,28,28,.25); text-align: center; }
-  .modal .t { color: var(--stop); font-weight: 850; font-size: calc(var(--u)*5); }
-  .modal .s { color: var(--muted); font-size: calc(var(--u)*3.3); margin-top: calc(var(--u)*1); }
-  .clock { position: absolute; right: 5vw; top: 3.2vh; font-weight: 850; font-size: calc(var(--u)*4.4); color: var(--stop); font-variant-numeric: tabular-nums; }
-  .list { position: absolute; left: 5vw; right: 5vw; top: 12vh; }
-  .item { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u)*2); background: #fff; border: 1px solid var(--line); border-radius: calc(var(--u)*2.2); padding: calc(var(--u)*3.4) calc(var(--u)*3.4); margin-bottom: calc(var(--u)*2.2); box-shadow: 0 calc(var(--u)*.6) calc(var(--u)*2) rgba(0,0,0,.05); }
-  .item .nm { font-weight: 750; font-size: calc(var(--u)*4.6); }
-  .item .ct { color: var(--muted); font-size: calc(var(--u)*3.4); margin-top: calc(var(--u)*.5); }
-  .pill { font-size: calc(var(--u)*2.8); font-weight: 800; padding: calc(var(--u)*1) calc(var(--u)*2); border-radius: 999px; white-space: nowrap; }
+  .winbody { padding: calc(var(--u)*3.6); }
+  .big { font-family: "Frank", Georgia, serif; font-size: calc(var(--u)*5.6); letter-spacing: -0.02em; }
+  .meta { font-size: calc(var(--u)*3.3); color: var(--muted); margin-top: calc(var(--u)*1); }
+  .bar { height: calc(var(--u)*2); background: #efeff1; border-radius: 99px; margin-top: calc(var(--u)*2.2); }
+  .modal { position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%); width: 80%; background: #fff; border: 2px solid rgba(185,28,28,.35); border-radius: calc(var(--u)*3); padding: calc(var(--u)*3.4); box-shadow: 0 calc(var(--u)*3) calc(var(--u)*7) calc(var(--u)*-2) rgba(185,28,28,.3); text-align: center; }
+  .modal .t { color: var(--stop); font-family: "Frank", Georgia, serif; font-size: calc(var(--u)*5.4); }
+  .modal .s { color: var(--muted); font-size: calc(var(--u)*3.2); margin-top: calc(var(--u)*1); }
+  .clock { position: absolute; right: 6vw; top: 3.6vh; font-weight: 650; font-size: calc(var(--u)*4); color: var(--stop); font-variant-numeric: tabular-nums; }
+  .list { position: absolute; left: 6vw; right: 6vw; top: 12vh; }
+  .item { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u)*2); background: #fff; border: 2px solid var(--line); border-radius: calc(var(--u)*3.4); padding: calc(var(--u)*3.2) calc(var(--u)*3.6); margin-bottom: calc(var(--u)*2); box-shadow: 0 calc(var(--u)*2) calc(var(--u)*4) calc(var(--u)*-2) rgba(9,9,11,.18); }
+  .item .nm { font-weight: 600; font-size: calc(var(--u)*4.4); }
+  .item .ct { color: var(--muted); font-size: calc(var(--u)*3.3); margin-top: calc(var(--u)*.5); }
+  .pill { font-size: calc(var(--u)*2.8); font-weight: 650; padding: calc(var(--u)*1) calc(var(--u)*2); border-radius: 999px; white-space: nowrap; }
   .pill.go { color: var(--go); background: var(--gobg); }
   .pill.ox { color: var(--ox); background: var(--rose); }
-  .tick { width: calc(var(--u)*6); height: calc(var(--u)*6); border-radius: 50%; background: var(--go); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: calc(var(--u)*3.6); flex: none; }
-  .spin { width: calc(var(--u)*6); height: calc(var(--u)*6); border-radius: 50%; border: calc(var(--u)*.9) solid #ddd; border-top-color: var(--muted); flex: none; }
-  #cap { position: absolute; left: 50%; top: 50vh; transform: translate(-50%, -50%); z-index: 5; background: var(--ink); color: #fff; font-weight: 800; font-size: calc(var(--u)*4.6); padding: calc(var(--u)*2) calc(var(--u)*3.6); border-radius: 999px; white-space: nowrap; text-align: center; max-width: 92vw; }
-  #cap .y { color: #ffd1df; }
-  #cta { background: var(--ink); color: #fff; }
-  #cta .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 8vw; }
-  .serif { font-family: "Frank", Georgia, serif; font-weight: 500; }
-  .btn { margin-top: calc(var(--u)*7); padding: calc(var(--u)*3.6) calc(var(--u)*8); background: #f0a3bd; color: #2a0a16; border-radius: 999px; font-weight: 850; font-size: calc(var(--u)*6.4); }
+  .tick { width: calc(var(--u)*6); height: calc(var(--u)*6); border-radius: 50%; background: var(--rose); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .tick::after { content: ""; width: 60%; height: 60%; background: url(check.svg) center/contain no-repeat; }
+  .spin { width: calc(var(--u)*5.4); height: calc(var(--u)*5.4); border-radius: 50%; border: calc(var(--u)*.8) solid #e4e4e7; border-top-color: var(--ox); flex: none; }
+  #cap { position: absolute; left: 50%; top: 50vh; transform: translate(-50%, -50%); z-index: 5; background: var(--dark); color: #fff; font-weight: 600; font-size: calc(var(--u)*4.4); padding: calc(var(--u)*2) calc(var(--u)*3.8); border-radius: calc(var(--u)*2.4); white-space: nowrap; text-align: center; max-width: 92vw; }
+  #cap .y { color: #f3b6c9; }
+  #cta { background: var(--bg); color: var(--ink); }
+  #cta .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 27vh 8vw 0; text-align: center; }
+  .btn { margin-top: calc(var(--u)*6); padding: calc(var(--u)*3.2) calc(var(--u)*7.5); background: var(--ox); color: #fff; border-radius: 999px; font-weight: 650; font-size: calc(var(--u)*5.6); }
+  .tile { width: calc(var(--u)*19); height: calc(var(--u)*19); border-radius: calc(var(--u)*4.5); background: var(--ox); display: flex; align-items: center; justify-content: center; }
+  .tile img { width: 72%; height: 72%; }
+  .urlpill { position: absolute; left: 50%; transform: translateX(-50%); bottom: 6.5vh; background: var(--dark); color: #fff; font-weight: 600; font-size: calc(var(--u)*3.4); padding: calc(var(--u)*1.7) calc(var(--u)*3.4); border-radius: calc(var(--u)*1.9); }
 </style>
 </head>
 <body>
+<div id="pbar"><div></div></div>
 
 <section class="scene" id="ask">
+  <img class="ink" src="ink.png" alt="">
+  <div class="brandrow"><img src="mark.svg" alt=""><span>Ivyward</span></div>
   <div id="notes"></div>
   <div class="q bold" id="askt"></div>
 </section>
@@ -85,13 +97,15 @@
 </section>
 
 <section class="scene" id="cta">
+  <img class="ink" src="ink.png" alt="">
+  <div class="brandrow"><img src="mark.svg" alt=""><span>Ivyward</span></div>
   <div class="c">
-    <img id="cm" src="mark-light.svg" alt="" style="width:calc(var(--u)*22);height:calc(var(--u)*22)">
-    <div class="serif" id="cn" style="font-size:calc(var(--u)*17);margin-top:calc(var(--u)*3)">Ivyward</div>
-    <div id="cs" style="font-size:calc(var(--u)*5.2);color:#d4d4d8;margin-top:calc(var(--u)*2.6);line-height:1.25">Your university applications,<br>done for you.</div>
+    <div class="tile" id="cm"><img src="mark-light.svg" alt=""></div>
+    <div class="serif" id="cn" style="font-size:calc(var(--u)*9.6);line-height:1.04;margin-top:calc(var(--u)*5)">Your university applications, done for you.</div>
     <div class="btn" id="cb">Start for free</div>
-    <div id="cu" style="font-size:calc(var(--u)*5.4);margin-top:calc(var(--u)*3.4);font-weight:700">tryivyward.com</div>
+    <div id="cs"></div>
   </div>
+  <div class="urlpill" id="cu">tryivyward.com</div>
 </section>
 
 <script>
@@ -99,7 +113,7 @@ const B = Object.fromEntries((window.BEATS || []).map((b) => [b.id, b]));
 const $ = (s) => document.querySelector(s);
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
-const back = (x) => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const back = (x) => { x = clamp(x); const c = 1.2; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 const VW = innerWidth / 100;
 
 function words(el, html) {
@@ -118,7 +132,7 @@ function words(el, html) {
   return [...el.querySelectorAll(".w")];
 }
 const askw = words($("#askt"), `Planning your <span class="ox">master's abroad</span>, but don't know where to start?`);
-const NOTES = [["Which school?", "", 6, 9, -6], ["Funding??", "pink", 58, 7, 5], ["SOP", "blue", 64, 22, -4], ["Deadline?!", "pink", 8, 24, 4], ["IELTS?", "", 60, 72, 6], ["12 forms", "blue", 8, 74, -5], ["Visa?", "", 40, 86, 3]];
+const NOTES = [["Which school?", "", 7.4, 47, -3], ["Where's the funding?", "", 46, 52, 3], ["Statement of purpose?", "", 7.4, 57.5, 2], ["IELTS or TOEFL?", "", 52, 63, -2], ["12 application forms", "", 7.4, 68, -2], ["Deadline: 15 January", "", 44, 73.5, 2]];
 const notes = NOTES.map(([t, c, x, y, a]) => { const d = document.createElement("div"); d.className = "note " + c; d.textContent = t; d.style.left = x + "vw"; d.style.top = y + "vh"; d.dataset.a = a; $("#notes").appendChild(d); return d; });
 for (let i = 0; i < 9; i++) { const t = document.createElement("div"); t.className = "tabx" + (i === 8 ? " on" : ""); $("#tabs").appendChild(t); }
 
@@ -144,6 +158,8 @@ const CAPS = {
 };
 
 function renderAt(t) {
+  $("#pbar div").style.width = Math.min(100, (t / window.TOTAL) * 100) + "%";
+  document.querySelectorAll(".ink").forEach((el) => (el.style.transform = `translateX(${Math.sin(t * 0.25) * 1.3 * VW}px) scale(${1 + 0.05 * t / window.TOTAL})`));
   const b = (window.BEATS || []).find((x) => t >= x.start && t < x.start + x.dur) || window.BEATS[window.BEATS.length - 1];
   const s = t - b.start, d = b.dur;
   $("#ask").style.display = b.id === "ask" ? "block" : "none";
@@ -152,8 +168,8 @@ function renderAt(t) {
 
   if (b.id === "ask") {
     const span = b.voice * 0.9;
-    askw.forEach((w, i) => { const k = back((s - 0.1 - (i / askw.length) * span) / 0.25); w.style.opacity = clamp(k * 1.4); w.style.transform = `translateY(${(1 - clamp(k)) * 0.4}em) scale(${0.8 + 0.2 * k})`; });
-    notes.forEach((n, i) => { const k = back((s - 0.3 - i * 0.32) / 0.3); n.style.opacity = clamp(k); n.style.transform = `rotate(${n.dataset.a}deg) scale(${k})`; });
+    askw.forEach((w, i) => { const k = ease((s - 0.15 - (i / askw.length) * span) / 0.3); w.style.opacity = k; w.style.transform = `translateY(${(1 - k) * 0.32}em)`; });
+    notes.forEach((n, i) => { const k = back((s - 0.6 - i * (b.voice * 0.55 / NOTES.length)) / 0.4); n.style.opacity = clamp(k); n.style.transform = `rotate(${n.dataset.a * clamp(k)}deg) translateY(${(1 - clamp(k)) * 3 * VW}px) scale(${0.85 + 0.15 * k})`; });
     // the whole screen slides up as the split arrives
     $("#ask").style.transform = `translateY(${-ease((s - (d - 0.25)) / 0.25) * 100}vh)`;
   }
@@ -197,24 +213,21 @@ function renderAt(t) {
   if (b.id === "cta") {
     const k = (x, w = 0.4) => back((s - x) / w);
     $("#cm").style.transform = `scale(${k(0)})`;
-    [["#cn", 0.2], ["#cs", 0.4], ["#cb", 0.7], ["#cu", 0.9]].forEach(([q, at]) => { const v = k(at); $(q).style.opacity = clamp(v); $(q).style.transform = `translateY(${(1 - clamp(v)) * VW * 4}px) scale(${q === "#cb" ? 0.9 + 0.1 * v + (s > 1.5 ? 0.025 * Math.sin((s - 1.5) * 5) : 0) : 1})`; });
+    [["#cn", 0.3], ["#cb", 0.75]].forEach(([q, at]) => { const v = k(at); $(q).style.opacity = clamp(v); $(q).style.transform = `translateY(${(1 - clamp(v)) * VW * 4}px) scale(${q === "#cb" ? 0.9 + 0.1 * v + (s > 1.5 ? 0.025 * Math.sin((s - 1.5) * 5) : 0) : 1})`; });
   }
 }
 
 function cues() {
   const sfx = [];
-  NOTES.forEach((n, i) => sfx.push({ t: B.ask.start + 0.3 + i * 0.32, kind: "pop", gain: 0.55 }));
-  sfx.push({ t: B.alone.start - 0.15, kind: "whoosh", gain: 0.9 });
-  sfx.push({ t: B.alone.start + 0.3, kind: "type", gain: 0.6 });
-  sfx.push({ t: B.alone.start + 1.1, kind: "buzz", gain: 0.9 });
-  sfx.push({ t: B.with.start, kind: "whoosh", gain: 0.7 });
-  sfx.push({ t: B.with.start + 0.1, kind: "ping", gain: 0.7 });
-  for (const id of ["find", "essay", "form"]) [0, 1, 2].forEach((i) => sfx.push({ t: B[id].start + 0.25 + i * 0.28, kind: id === "find" ? "tick" : "success", gain: id === "find" ? 0.9 : 0.55 }));
-  sfx.push({ t: B.form.start + 0.5, kind: "buzz", gain: 0.6 });
-  sfx.push({ t: B.form.start + 0.25 + 3 * 0.28, kind: "success", gain: 0.9 });
-  sfx.push({ t: B.cta.start - 0.2, kind: "whoosh", gain: 0.9 });
-  sfx.push({ t: B.cta.start + 0.05, kind: "hit", gain: 0.8 });
-  return { sfx, music: { style: "afro", breaks: [[B.alone.start, B.with.start]] } };
+  NOTES.forEach((n, i) => sfx.push({ t: B.ask.start + 0.6 + i * (B.ask.voice * 0.55 / NOTES.length), kind: "tick", gain: 0.5 }));
+  sfx.push({ t: B.alone.start - 0.1, kind: "whoosh", gain: 0.6 });
+  sfx.push({ t: B.alone.start + 1.1, kind: "error", gain: 0.6 });
+  sfx.push({ t: B.with.start, kind: "rise", gain: 0.8 });
+  for (const id of ["find", "essay", "form"]) [0, 1, 2].forEach((i) => sfx.push({ t: B[id].start + 0.25 + i * 0.28, kind: "tick", gain: 0.5 }));
+  sfx.push({ t: B.form.start + 0.5, kind: "error", gain: 0.45 });
+  sfx.push({ t: B.form.start + 0.25 + 3 * 0.28, kind: "chime", gain: 0.8 });
+  sfx.push({ t: B.cta.start - 0.1, kind: "whoosh", gain: 0.6 });
+  return { sfx, music: { bpm: 100, key: "F", drumsFrom: B.with.start, endCard: B.cta.start } };
 }
 window.renderAt = renderAt; window.cues = cues;
 </script>

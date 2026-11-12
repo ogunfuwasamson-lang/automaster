@@ -4,369 +4,321 @@
 <meta charset="utf-8">
 <title>Ivyward ad 1</title>
 <style>
-  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-500-normal.woff2) format("woff2"); font-weight: 500; }
   @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-500-normal.woff2) format("woff2"); font-weight: 500; }
   @font-face { font-family: "Flex"; src: url(fonts/roboto-flex-latin-wght-normal.woff2) format("woff2"); font-weight: 100 1000; }
-  :root {
-    --bg: #0b0b0c; --surface: #141416; --surface2: #1b1b1e; --line: #2a2a2e; --fg: #f4f4f5; --muted: #a1a1aa;
-    --rose: #f0a3bd; --ox: #9b2c4e; --go: #34d399; --signal: #fb923c; --u: 1.3vmin;
-  }
+  /* the look of Ivyward's social videos: paper ground, the campus ink drawing at the foot, oxblood, Frank Ruhl Libre over Roboto Flex */
+  :root { --paper: #fafafa; --ink: #09090b; --body: #27272a; --muted: #52525b; --line: #e4e4e7; --brand: #9b2c4e; --blush: #f6e7ec; --card: #fff; --dark: #18181b; --go: #047857; --gobg: #e6f4ee; --sig: #b93c0a; --sigbg: #fdf0e8; --u: 1vmin; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--fg); font-family: "Flex", system-ui, sans-serif; }
-  #glow { position: absolute; inset: -20%; background: radial-gradient(closest-side at 50% 55%, rgba(155,44,78,.42), rgba(155,44,78,0) 70%); opacity: .6; }
-  #grain { position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size: calc(var(--u) * 2.4) calc(var(--u) * 2.4); opacity: .5; }
-  .scene { position: absolute; inset: 0; display: none; }
-  .serif { font-family: "Frank", Georgia, serif; font-weight: 500; letter-spacing: -0.01em; }
-  .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 calc(var(--u) * 8); }
-  .w { display: inline-block; opacity: 0; transform: translateY(0.35em); }
-  .h1 { font-size: calc(var(--u)*8.6); line-height: 1.04; }
-  .rose { color: var(--rose); }
-  .under { position: relative; }
-  .under::after { content: ""; position: absolute; left: 0; right: .22em; bottom: -.06em; height: .07em; background: var(--rose); transform-origin: left; transform: scaleX(var(--k, 0)); }
-  .chip { position: absolute; padding: calc(var(--u)*1.1) calc(var(--u)*1.9); border-radius: 999px; background: var(--surface2); border: 1px solid var(--line); font-size: calc(var(--u)*2.2); color: #d4d4d8; white-space: nowrap; box-shadow: 0 calc(var(--u)*1) calc(var(--u)*3) rgba(0,0,0,.45); }
-  .chip b { color: var(--fg); font-weight: 600; }
-  .tag { position: absolute; font-size: calc(var(--u)*2.2); color: rgba(240,163,189,.5); letter-spacing: .02em; white-space: nowrap; }
-  #mark { width: calc(var(--u)*16); height: calc(var(--u)*16); }
-  .ring { position: absolute; border-radius: 50%; border: 2px solid rgba(240,163,189,.6); }
-  /* feature stage */
-  #stage { position: absolute; inset: 0; display: none; }
-  #label { position: absolute; }
-  #label .eyebrow { font-size: calc(var(--u)*2.6); color: var(--rose); font-weight: 600; letter-spacing: .01em; margin-bottom: calc(var(--u)*1.4); display: flex; align-items: center; gap: calc(var(--u)*1.2); }
-  #label .eyebrow img { width: calc(var(--u)*3.6); height: calc(var(--u)*3.6); }
-  #label .big { font-size: calc(var(--u)*6.4); line-height: 1.06; }
-  .card { position: absolute; background: var(--surface); border: 1px solid var(--line); border-radius: calc(var(--u)*2.4); box-shadow: 0 calc(var(--u)*4) calc(var(--u)*10) rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset; padding: calc(var(--u)*3); overflow: hidden; }
-  .card h3 { font-size: calc(var(--u)*3); font-weight: 650; }
-  .card .sub { font-size: calc(var(--u)*2.1); color: var(--muted); margin-top: calc(var(--u)*.5); }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u)*2); padding: calc(var(--u)*1.7) 0; border-top: 1px solid var(--line); font-size: calc(var(--u)*2.4); }
-  .row:first-of-type { margin-top: calc(var(--u)*2); }
-  .row .nm { font-weight: 600; }
-  .row .ct { color: var(--muted); font-size: calc(var(--u)*2); margin-top: calc(var(--u)*.3); }
-  .pill { font-size: calc(var(--u)*1.8); padding: calc(var(--u)*.6) calc(var(--u)*1.3); border-radius: 999px; border: 1px solid; white-space: nowrap; font-weight: 600; }
-  .pill.go { color: var(--go); border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); }
-  .pill.rose { color: var(--rose); border-color: rgba(240,163,189,.4); background: rgba(240,163,189,.08); }
-  .pill.sig { color: var(--signal); border-color: rgba(251,146,60,.45); background: rgba(251,146,60,.08); }
-  .bar { height: calc(var(--u)*1.25); border-radius: 99px; background: #2c2c31; margin: calc(var(--u)*1.25) 0; transform-origin: left; }
-  .check { display: flex; align-items: center; gap: calc(var(--u)*1.2); font-size: calc(var(--u)*2.3); margin-top: calc(var(--u)*1.2); }
-  .check i { width: calc(var(--u)*3); height: calc(var(--u)*3); border-radius: 50%; background: var(--go); display: inline-flex; align-items: center; justify-content: center; color: #052e1f; font-style: normal; font-weight: 900; font-size: calc(var(--u)*2); }
-  .stamp { position: absolute; right: calc(var(--u)*3); top: calc(var(--u)*3); font-size: calc(var(--u)*2.4); font-weight: 800; color: var(--go); border: 3px solid var(--go); padding: calc(var(--u)*.6) calc(var(--u)*1.6); border-radius: calc(var(--u)*1); letter-spacing: .06em; }
-  .field { margin-top: calc(var(--u)*1.8); }
-  .field .lab { font-size: calc(var(--u)*1.8); color: var(--muted); }
-  .field .box { margin-top: calc(var(--u)*.6); height: calc(var(--u)*5); border-radius: calc(var(--u)*1); border: 1px solid var(--line); background: #0f0f11; display: flex; align-items: center; padding: 0 calc(var(--u)*1.6); font-size: calc(var(--u)*2.3); overflow: hidden; white-space: nowrap; }
-  .field .box.on { border-color: rgba(240,163,189,.7); box-shadow: 0 0 0 3px rgba(240,163,189,.15); }
-  .prog { height: calc(var(--u)*.9); background: #26262b; border-radius: 99px; margin-top: calc(var(--u)*1.6); overflow: hidden; }
-  .prog > div { height: 100%; background: var(--rose); }
-  .btn { display: inline-flex; align-items: center; justify-content: center; padding: calc(var(--u)*1.3) calc(var(--u)*2.6); border-radius: calc(var(--u)*1.2); background: var(--fg); color: var(--bg); font-weight: 700; font-size: calc(var(--u)*2.4); }
-  .toast { position: absolute; left: 50%; bottom: calc(var(--u)*3); transform: translateX(-50%); background: #0f2a20; border: 1px solid rgba(52,211,153,.5); color: var(--go); padding: calc(var(--u)*1.2) calc(var(--u)*2.4); border-radius: 999px; font-weight: 700; font-size: calc(var(--u)*2.3); white-space: nowrap; }
-  .mail { display: flex; gap: calc(var(--u)*1.6); align-items: flex-start; padding: calc(var(--u)*1.8) calc(var(--u)*1.2); border-top: 1px solid var(--line); }
-  .mail .av { width: calc(var(--u)*4.4); height: calc(var(--u)*4.4); border-radius: 50%; background: #2c2c31; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(var(--u)*1.9); color: var(--muted); }
-  .mail .from { font-weight: 650; font-size: calc(var(--u)*2.3); }
-  .mail .subj { color: var(--muted); font-size: calc(var(--u)*2); margin-top: calc(var(--u)*.4); }
-  .mail.hl { background: rgba(240,163,189,.07); border-radius: calc(var(--u)*1.2); }
-  .cursor { position: absolute; width: calc(var(--u)*3.4); height: calc(var(--u)*3.4); }
-  .line3 { font-size: calc(var(--u)*7.6); line-height: 1.12; }
-  .sub2 { font-size: calc(var(--u)*3.2); color: #d4d4d8; margin-top: calc(var(--u)*2.6); }
-  .cta-btn { margin-top: calc(var(--u)*4); display: inline-flex; align-items: center; gap: calc(var(--u)*1.4); padding: calc(var(--u)*1.9) calc(var(--u)*3.8); border-radius: 999px; background: var(--rose); color: #2a0a16; font-weight: 800; font-size: calc(var(--u)*3.4); }
-  .url { margin-top: calc(var(--u)*2.2); font-size: calc(var(--u)*3); color: var(--fg); letter-spacing: .01em; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--paper); color: var(--ink); font-family: "Flex", system-ui, sans-serif; }
+  .serif { font-family: "Frank", Georgia, serif; font-weight: 400; letter-spacing: -0.02em; }
+  #ink { position: absolute; bottom: -1vh; transform-origin: 50% 100%; opacity: .9; }
+  #bar { position: absolute; left: 0; top: 0; right: 0; height: calc(var(--u)*.75); background: var(--line); z-index: 9; }
+  #bar div { height: 100%; background: var(--brand); }
+  #brand { position: absolute; display: flex; align-items: center; gap: calc(var(--u)*1.3); z-index: 9; }
+  #brand img { width: calc(var(--u)*4.3); height: calc(var(--u)*4.3); }
+  #brand span { font-family: "Frank", Georgia, serif; font-size: calc(var(--u)*3.9); letter-spacing: -0.02em; }
+  #url { position: absolute; left: 50%; transform: translateX(-50%); background: var(--dark); color: #fff; font-weight: 600; font-size: calc(var(--u)*3.1); padding: calc(var(--u)*1.5) calc(var(--u)*3.1); border-radius: calc(var(--u)*1.7); z-index: 9; }
+  .scene { position: absolute; display: none; }
+  .w { display: inline-block; opacity: 0; }
+  .hook { font-size: calc(var(--u)*9.4); line-height: 1.04; }
+  .q2 { font-size: calc(var(--u)*7.6); line-height: 1.06; }
+  .brandc { color: var(--brand); }
+  .under { background-image: linear-gradient(var(--brand), var(--brand)); background-repeat: no-repeat; background-position: 0 92%; background-size: var(--k, 0%) .07em; }
+  .chip { position: absolute; background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: calc(var(--u)*1.3) calc(var(--u)*2.4); font-size: calc(var(--u)*2.9); color: var(--body); white-space: nowrap; box-shadow: 0 calc(var(--u)*2) calc(var(--u)*4) calc(var(--u)*-2) rgba(9,9,11,.25); }
+  .chip b { color: var(--brand); font-weight: 650; }
+  .tile { width: calc(var(--u)*16); height: calc(var(--u)*16); border-radius: calc(var(--u)*3.7); background: var(--brand); display: flex; align-items: center; justify-content: center; }
+  .tile img { width: 72%; height: 72%; }
+  #flabel { position: absolute; }
+  .eyebrow { font-weight: 600; font-size: calc(var(--u)*3.3); color: var(--brand); display: flex; align-items: center; gap: calc(var(--u)*1.2); }
+  .eyebrow img { width: calc(var(--u)*3.6); height: calc(var(--u)*3.6); }
+  .ftitle { font-size: calc(var(--u)*7.2); line-height: 1.07; margin-top: calc(var(--u)*2); }
+  .card { position: absolute; background: var(--card); border: 2px solid var(--line); border-radius: calc(var(--u)*4); padding: calc(var(--u)*4.2); box-shadow: 0 calc(var(--u)*3) calc(var(--u)*6) calc(var(--u)*-3) rgba(9,9,11,.28); overflow: hidden; }
+  .card h3 { font-family: "Frank", Georgia, serif; font-weight: 500; font-size: calc(var(--u)*4.2); letter-spacing: -0.015em; }
+  .card .sub { font-size: calc(var(--u)*2.6); color: var(--muted); margin-top: calc(var(--u)*.6); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u)*2); padding: calc(var(--u)*2.1) 0; border-top: 2px solid #f0f0f2; }
+  .row:first-of-type { margin-top: calc(var(--u)*2.4); }
+  .row .nm { font-weight: 600; font-size: calc(var(--u)*3); }
+  .row .ct { color: var(--muted); font-size: calc(var(--u)*2.4); margin-top: calc(var(--u)*.4); }
+  .pill { font-size: calc(var(--u)*2.2); font-weight: 650; padding: calc(var(--u)*.8) calc(var(--u)*1.7); border-radius: 999px; white-space: nowrap; }
+  .pill.go { color: var(--go); background: var(--gobg); }
+  .pill.br { color: var(--brand); background: var(--blush); }
+  .pill.sig { color: var(--sig); background: var(--sigbg); }
+  .bars .b { height: calc(var(--u)*1.5); border-radius: 99px; background: #eeeef0; margin-top: calc(var(--u)*1.6); transform-origin: left; }
+  .check { display: flex; align-items: center; gap: calc(var(--u)*1.4); font-size: calc(var(--u)*2.8); margin-top: calc(var(--u)*1.6); color: var(--body); }
+  .check i { width: calc(var(--u)*4); height: calc(var(--u)*4); border-radius: 50%; background: var(--blush); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .check i img { width: 60%; height: 60%; }
+  .stamp { position: absolute; right: calc(var(--u)*4); top: calc(var(--u)*4); font-weight: 750; font-size: calc(var(--u)*2.6); color: var(--go); background: var(--gobg); padding: calc(var(--u)*1) calc(var(--u)*2); border-radius: 999px; }
+  .field { margin-top: calc(var(--u)*2); }
+  .field .lab { font-size: calc(var(--u)*2.3); color: var(--muted); }
+  .field .box { margin-top: calc(var(--u)*.7); height: calc(var(--u)*6); border-radius: calc(var(--u)*1.4); border: 2px solid var(--line); display: flex; align-items: center; padding: 0 calc(var(--u)*2); font-size: calc(var(--u)*2.8); white-space: nowrap; overflow: hidden; }
+  .field .box.on { border-color: var(--brand); box-shadow: 0 0 0 calc(var(--u)*.6) var(--blush); }
+  .prog { height: calc(var(--u)*1); background: #eeeef0; border-radius: 99px; margin-top: calc(var(--u)*2); overflow: hidden; }
+  .prog div { height: 100%; background: var(--brand); }
+  .btn { display: inline-flex; padding: calc(var(--u)*1.5) calc(var(--u)*3); border-radius: calc(var(--u)*1.6); background: var(--dark); color: #fff; font-weight: 650; font-size: calc(var(--u)*2.8); }
+  .done { position: absolute; left: 50%; bottom: calc(var(--u)*4); transform: translateX(-50%); background: var(--gobg); color: var(--go); padding: calc(var(--u)*1.4) calc(var(--u)*2.8); border-radius: 999px; font-weight: 700; font-size: calc(var(--u)*2.8); white-space: nowrap; }
+  .mail { display: flex; gap: calc(var(--u)*1.8); align-items: center; padding: calc(var(--u)*2) calc(var(--u)*1.4); border-top: 2px solid #f0f0f2; }
+  .mail .av { width: calc(var(--u)*5.4); height: calc(var(--u)*5.4); border-radius: 50%; background: #f1f1f3; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(var(--u)*2.2); color: var(--muted); }
+  .mail .from { font-weight: 650; font-size: calc(var(--u)*2.9); }
+  .mail .subj { color: var(--muted); font-size: calc(var(--u)*2.4); margin-top: calc(var(--u)*.4); }
+  .mail.hl { background: var(--blush); border-radius: calc(var(--u)*2); border-top-color: transparent; }
+  .big3 { font-size: calc(var(--u)*8.6); line-height: 1.1; }
+  .cta-btn { display: inline-flex; padding: calc(var(--u)*2.2) calc(var(--u)*5); border-radius: 999px; background: var(--brand); color: #fff; font-weight: 650; font-size: calc(var(--u)*3.8); }
 </style>
 </head>
 <body>
-<div id="glow"></div><div id="grain"></div>
+<img id="ink" src="ink.png" alt="">
+<div id="bar"><div></div></div>
+<div id="brand"><img src="mark.svg" alt=""><span>Ivyward</span></div>
+<div id="url">tryivyward.com</div>
 
-<section class="scene" id="q1">
-  <div id="tags"></div>
-  <div class="center"><div class="h1 serif" id="q1t"></div></div>
-</section>
+<section class="scene" id="q1"><div class="hook serif" id="q1t"></div></section>
 
-<section class="scene" id="q2">
-  <div id="chips"></div>
-  <div class="center"><div class="h1 serif" id="q2t" style="font-size:calc(var(--u)*7.6)"></div></div>
-</section>
+<section class="scene" id="q2"><div class="q2 serif" id="q2t"></div><div id="chips"></div></section>
 
 <section class="scene" id="reveal">
-  <div class="center">
-    <div style="position:relative;display:flex;align-items:center;justify-content:center">
-      <div class="ring" id="ring1"></div><div class="ring" id="ring2"></div>
-      <img id="mark" src="mark-light.svg" alt="">
-    </div>
-    <div class="serif" id="revt" style="font-size:calc(var(--u)*6.6);line-height:1.1;margin-top:calc(var(--u)*4);max-width:calc(var(--u)*120)"></div>
+  <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div class="tile" id="rtile"><img src="mark-light.svg" alt=""></div>
+    <div class="serif" id="revt" style="font-size:calc(var(--u)*7.4);line-height:1.08;margin-top:calc(var(--u)*4.5)"></div>
   </div>
 </section>
 
-<section id="stage">
-  <div id="label">
-    <div class="eyebrow"><img src="mark-light.svg" alt="">Ivyward AI</div>
-    <div class="big serif" id="labt"></div>
-  </div>
-  <!-- find -->
+<section class="scene" id="feat">
+  <div id="flabel"><div class="eyebrow"><img src="mark.svg" alt="">Ivyward AI</div><div class="ftitle serif" id="ftitle"></div></div>
   <div class="card" id="c-find">
-    <h3>Matches for you</h3><div class="sub">From your profile: grades, budget and goals</div>
+    <h3>Matches for you</h3><div class="sub">From your grades, budget and goals</div>
     <div class="row"><div><div class="nm">MSc Data Science</div><div class="ct">United Kingdom</div></div><span class="pill go">Scholarship match</span></div>
-    <div class="row"><div><div class="nm">MA Public Policy</div><div class="ct">Canada</div></div><span class="pill rose">Fully funded option</span></div>
+    <div class="row"><div><div class="nm">MA Public Policy</div><div class="ct">Canada</div></div><span class="pill br">Fully funded option</span></div>
     <div class="row"><div><div class="nm">MSc Public Health</div><div class="ct">Netherlands</div></div><span class="pill go">Scholarship match</span></div>
     <div class="row"><div><div class="nm">MSc Engineering Management</div><div class="ct">Germany</div></div><span class="pill sig">Fee waiver available</span></div>
   </div>
-  <!-- essay -->
   <div class="card" id="c-essay">
-    <h3>Statement of purpose</h3><div class="sub">MSc Data Science · draft 1</div>
-    <div id="bars"></div>
-    <div id="checks">
-      <div class="check"><i>✓</i>Answers the school's prompt</div>
-      <div class="check"><i>✓</i>Within the word limit</div>
-      <div class="check"><i>✓</i>Written for this programme</div>
+    <h3>Statement of purpose</h3><div class="sub">MSc Data Science</div>
+    <div class="bars" id="ebars"></div>
+    <div id="checks" style="margin-top:calc(var(--u)*2.4)">
+      <div class="check"><i><img src="check.svg" alt=""></i>Answers the school's question</div>
+      <div class="check"><i><img src="check.svg" alt=""></i>Within the word limit</div>
+      <div class="check"><i><img src="check.svg" alt=""></i>Written for this programme</div>
     </div>
-    <div class="stamp" id="stamp">CHECKED</div>
+    <div class="stamp" id="stamp">Checked</div>
   </div>
-  <!-- form -->
-  <div class="card" id="c-form" style="padding-bottom:calc(var(--u)*10)">
+  <div class="card" id="c-form" style="padding-bottom:calc(var(--u)*12)">
     <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Application form</h3><span class="sub" id="pg">Page 1 of 12</span></div>
     <div class="prog"><div id="pgbar"></div></div>
     <div class="field"><div class="lab">Full name</div><div class="box" id="f1"></div></div>
     <div class="field"><div class="lab">Previous degree</div><div class="box" id="f2"></div></div>
-    <div class="field"><div class="lab">Grade (GPA)</div><div class="box" id="f3"></div></div>
-    <div class="field"><div class="lab">Transcript</div><div class="box" id="f4"></div></div>
-    <div class="toast" id="formdone">✓ Form complete</div>
+    <div class="field"><div class="lab">Transcript</div><div class="box" id="f3"></div></div>
+    <div class="done" id="formdone">Form complete</div>
   </div>
-  <!-- waiver -->
-  <div class="card" id="c-waiver" style="padding-bottom:calc(var(--u)*10)">
+  <div class="card" id="c-waiver" style="padding-bottom:calc(var(--u)*12)">
     <h3>New email</h3>
     <div class="field"><div class="lab">To</div><div class="box">Graduate admissions office</div></div>
     <div class="field"><div class="lab">Subject</div><div class="box" id="wsub"></div></div>
-    <div id="wbars" style="margin-top:calc(var(--u)*1.6)"></div>
-    <div style="margin-top:calc(var(--u)*2);display:flex;justify-content:flex-end"><span class="btn" id="send">Send</span></div>
-    <div class="toast" id="sent">✓ Request sent</div>
+    <div class="bars" id="wbars"></div>
+    <div style="margin-top:calc(var(--u)*2.4);display:flex;justify-content:flex-end"><span class="btn" id="send">Send</span></div>
+    <div class="done" id="sent">Request sent</div>
   </div>
-  <!-- inbox -->
   <div class="card" id="c-inbox">
     <div style="display:flex;justify-content:space-between;align-items:baseline"><h3>Your inbox</h3><span class="sub">Watched by Ivyward AI</span></div>
-    <div id="mails" style="margin-top:calc(var(--u)*1.6)">
+    <div id="mails" style="margin-top:calc(var(--u)*2)">
       <div class="mail"><div class="av">GA</div><div><div class="from">Graduate admissions</div><div class="subj">We've received your application</div></div></div>
-      <div class="mail hl" id="flag"><div class="av" style="background:rgba(240,163,189,.25);color:var(--rose)">SO</div><div style="flex:1"><div class="from">Scholarship office</div><div class="subj">One more document needed for your scholarship</div></div><span class="pill sig">Needs you</span></div>
-      <div class="mail"><div class="av">FA</div><div><div class="from">Finance office</div><div class="subj">Your fee waiver request: reply</div></div></div>
+      <div class="mail hl" id="flag"><div class="av" style="background:#fff;color:var(--brand)">SO</div><div style="flex:1"><div class="from">Scholarship office</div><div class="subj">One more document needed</div></div><span class="pill sig">Needs you</span></div>
+      <div class="mail"><div class="av">FO</div><div><div class="from">Finance office</div><div class="subj">Re: your fee waiver request</div></div></div>
     </div>
   </div>
 </section>
 
 <section class="scene" id="sign">
-  <div class="center">
-    <div class="line3 serif" id="l1">You review.</div>
-    <div class="line3 serif" id="l2">You sign.</div>
-    <div class="line3 serif" id="l3"><span class="rose">Ivyward AI</span> submits.</div>
-    <div id="subs" style="display:flex;gap:calc(var(--u)*1.6);margin-top:calc(var(--u)*4);flex-wrap:wrap;justify-content:center">
-      <span class="pill go" style="font-size:calc(var(--u)*2.3)">✓ Submitted · United Kingdom</span>
-      <span class="pill go" style="font-size:calc(var(--u)*2.3)">✓ Submitted · Canada</span>
-      <span class="pill go" style="font-size:calc(var(--u)*2.3)">✓ Submitted · Netherlands</span>
+  <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div class="big3 serif" id="l1">You review.</div>
+    <div class="big3 serif" id="l2">You sign.</div>
+    <div class="big3 serif" id="l3"><span class="brandc">Ivyward AI</span> submits.</div>
+    <div id="subs" style="display:flex;gap:calc(var(--u)*1.6);margin-top:calc(var(--u)*4.4);flex-wrap:wrap;justify-content:center">
+      <span class="pill go" style="font-size:calc(var(--u)*2.7);padding:calc(var(--u)*1.1) calc(var(--u)*2.2)">Submitted · United Kingdom</span>
+      <span class="pill go" style="font-size:calc(var(--u)*2.7);padding:calc(var(--u)*1.1) calc(var(--u)*2.2)">Submitted · Canada</span>
+      <span class="pill go" style="font-size:calc(var(--u)*2.7);padding:calc(var(--u)*1.1) calc(var(--u)*2.2)">Submitted · Netherlands</span>
     </div>
   </div>
 </section>
 
 <section class="scene" id="cta">
-  <div class="center">
-    <img src="mark-light.svg" alt="" id="ctamark" style="width:calc(var(--u)*13);height:calc(var(--u)*13)">
-    <div class="serif" id="ctaname" style="font-size:calc(var(--u)*11);margin-top:calc(var(--u)*2)">Ivyward</div>
-    <div class="sub2" id="ctasub">Your university applications, done for you.</div>
-    <div class="cta-btn" id="ctabtn">Start for free</div>
-    <div class="url" id="ctaurl">tryivyward.com</div>
+  <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div class="tile" id="ctile"><img src="mark-light.svg" alt=""></div>
+    <div class="serif" id="ct1" style="font-size:calc(var(--u)*8.6);line-height:1.04;margin-top:calc(var(--u)*4)">Your university applications,<br>done for you.</div>
+    <div class="cta-btn" id="ct2" style="margin-top:calc(var(--u)*4.4)">Start for free</div>
   </div>
 </section>
 
 <script>
-const B = Object.fromEntries((window.BEATS || []).map((b) => [b.id, b]));
+const BEATS = window.BEATS || [];
+const B = Object.fromEntries(BEATS.map((b) => [b.id, b]));
 const $ = (s) => document.querySelector(s);
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
-const easeIO = (x) => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-const back = (x) => { x = clamp(x); const c = 1.70158; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
-let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const soft = (x) => { x = clamp(x); return 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2); }; // a gentle overshoot
 const portrait = innerHeight > innerWidth;
 const U = Math.min(innerWidth, innerHeight) / 100;
+const W = innerWidth, H = innerHeight;
+const PAD = portrait ? 7.4 * U : 7.4 * U; // side margin
 
-// words revealed in step with the voice: word i lands at its share of the spoken line
+// frame furniture, placed for the shape
+$("#brand").style.left = PAD + "px"; $("#brand").style.top = (portrait ? 6 : 6) * U + "px";
+$("#url").style.bottom = (portrait ? 6.5 : 4.5) * U + "px";
+const inkW = portrait ? W * 1.45 : W * 1.02;
+Object.assign($("#ink").style, { width: inkW + "px", left: (W - inkW) / 2 + "px" });
+
+// content areas
+function place(el, box) { Object.assign(el.style, { left: box[0] + "px", top: box[1] + "px", width: box[2] + "px" }); }
+const AREA = portrait ? [PAD, H * 0.2, W - 2 * PAD] : [PAD, H * 0.2, W - 2 * PAD];
+
 function words(el, html) {
   el.innerHTML = html;
-  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  const nodes = [];
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [];
   while (walk.nextNode()) nodes.push(walk.currentNode);
   for (const n of nodes) {
-    const frag = document.createDocumentFragment();
-    for (const part of n.textContent.split(/(\s+)/)) {
-      if (!part) continue;
-      if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(" ")); continue; }
-      const w = document.createElement("span"); w.className = "w"; w.textContent = part; frag.appendChild(w);
+    const f = document.createDocumentFragment();
+    for (const p of n.textContent.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { f.appendChild(document.createTextNode(" ")); continue; }
+      const w = document.createElement("span"); w.className = "w"; w.textContent = p; f.appendChild(w);
     }
-    n.replaceWith(frag);
+    n.replaceWith(f);
   }
   return [...el.querySelectorAll(".w")];
 }
-function reveal(ws, s, beat, lead = 0.12, speed = 1) {
-  const span = Math.max(0.6, (beat.voice || beat.dur) * 0.92) / speed;
-  ws.forEach((w, i) => {
-    const k = ease((s - lead - (i / ws.length) * span) / 0.28);
-    w.style.opacity = k; w.style.transform = `translateY(${(1 - k) * 0.35}em)`;
-  });
+// each word rises in as the voice reaches it
+function reveal(ws, s, beat, lead = 0.2) {
+  const span = Math.max(0.6, beat.voice * 0.88);
+  ws.forEach((w, i) => { const k = ease((s - lead - (i / ws.length) * span) / 0.3); w.style.opacity = k; w.style.transform = `translateY(${(1 - k) * 0.32}em)`; });
 }
+const q1w = words($("#q1t"), `Looking for a <span class="brandc under" id="ff">fully funded</span> master's programme abroad?`);
+const q2w = words($("#q2t"), `Or planning your master's abroad, but don't know <span class="brandc">where to start?</span>`);
+const revw = words($("#revt"), portrait ? `Let <span class="brandc">Ivyward AI</span> handle your university applications for you.` : `Let <span class="brandc">Ivyward AI</span> handle your<br>university applications for you.`);
 
-const q1w = words($("#q1t"), `Looking for a<br><span class="rose under" id="ff">fully funded</span><br>master's abroad?`);
-const q2w = words($("#q2t"), `Or planning your master's abroad,<br>but don't know <span class="rose">where to start?</span>`);
-const revw = words($("#revt"), `Let <span class="rose">Ivyward AI</span> handle your<br>university applications for you.`);
+// the worries: a calm column of questions, not a mess
+const WORRIES = ["Which country?", "<b>IELTS</b> or TOEFL?", "Which programmes fit me?", "Where's the funding?", "Statement of purpose?", "Deadline: <b>15 January</b>"];
+const chips = WORRIES.map((t) => { const d = document.createElement("div"); d.className = "chip"; d.innerHTML = t; $("#chips").appendChild(d); return d; });
 
-// background tags (q1) and worries (q2)
-const tagWords = ["Scholarship", "Tuition covered", "Monthly stipend", "Fee waiver", "Research funding", "Travel grant", "Full scholarship", "Assistantship"];
-const tags = tagWords.map((t) => { const d = document.createElement("div"); d.className = "tag"; d.textContent = t; d.dataset.x = rnd(); d.dataset.y = rnd(); d.dataset.v = 0.4 + rnd() * 0.6; $("#tags").appendChild(d); return d; });
-const chipWords = ["Which country?", "<b>IELTS</b> or TOEFL?", "Statement of purpose", "Deadline: <b>15 Jan</b>", "References", "Transcript", "Funding?", "Application fee", "Which school?", "CV format?", "<b>12</b> forms", "Student visa?", "Scholarships?", "Essay v5 FINAL.docx"];
-const chips = chipWords.map((t, i) => { const d = document.createElement("div"); d.className = "chip"; d.innerHTML = t; d.dataset.x = rnd(); d.dataset.y = rnd(); d.dataset.a = (rnd() - .5) * 14; d.dataset.i = i; $("#chips").appendChild(d); return d; });
+for (let i = 0; i < 6; i++) { const b = document.createElement("div"); b.className = "b"; b.style.width = [100, 94, 97, 76, 92, 60][i] + "%"; $("#ebars").appendChild(b); }
+for (let i = 0; i < 3; i++) { const b = document.createElement("div"); b.className = "b"; b.style.width = [96, 88, 52][i] + "%"; $("#wbars").appendChild(b); }
 
-// essay lines and email body bars
-for (let i = 0; i < 6; i++) { const b = document.createElement("div"); b.className = "bar"; b.style.width = [96, 88, 92, 70, 94, 58][i] + "%"; $("#bars").appendChild(b); }
-for (let i = 0; i < 4; i++) { const b = document.createElement("div"); b.className = "bar"; b.style.width = [92, 84, 90, 46][i] + "%"; $("#wbars").appendChild(b); }
-
-// layout of the feature stage for the shape
-const cardW = portrait ? innerWidth * 0.88 : innerWidth * 0.47;
-const lab = $("#label");
-if (portrait) { lab.style.left = "6vw"; lab.style.right = "6vw"; lab.style.top = "12vh"; }
-else { lab.style.left = "6vw"; lab.style.width = "37vw"; lab.style.top = "50%"; }
-const cards = ["find", "essay", "form", "waiver", "inbox"].map((id) => $("#c-" + id));
-cards.forEach((c) => { c.style.width = cardW + "px"; c.style.left = portrait ? (innerWidth - cardW) / 2 + "px" : innerWidth * 0.465 + "px"; });
-const LABELS = {
-  find: `Finds programmes and <span class="rose">scholarships</span> that match you`,
-  essay: `Writes and checks <span class="rose">every essay</span>`,
-  form: `Fills every <span class="rose">application form</span>`,
-  waiver: `Asks schools for <span class="rose">fee waivers</span>`,
-  inbox: `Watches your inbox <span class="rose">for replies</span>`,
+const FEATS = ["find", "essay", "form", "waiver", "inbox"];
+const TITLES = {
+  find: `Finds programmes and <span class="brandc">scholarships</span> that match your profile`,
+  essay: `Writes and checks <span class="brandc">every essay</span>`,
+  form: `Fills every <span class="brandc">application form</span>`,
+  waiver: `Asks schools for <span class="brandc">fee waivers</span>`,
+  inbox: `Watches your inbox <span class="brandc">for replies</span>`,
 };
+const cards = Object.fromEntries(FEATS.map((id) => [id, $("#c-" + id)]));
+const cardW = portrait ? W - 2 * PAD : W * 0.44;
+for (const c of Object.values(cards)) { c.style.width = cardW + "px"; c.style.left = (portrait ? PAD : W - PAD - cardW) + "px"; }
+const flabel = $("#flabel");
+if (portrait) place(flabel, [PAD, H * 0.15, W - 2 * PAD]); else place(flabel, [PAD, 0, W * 0.40]);
 
-function show(id, on) { $("#" + id).style.display = on ? "block" : "none"; }
-function fade(el, s, dur, inT = 0.25, outT = 0.22) { el.style.opacity = Math.min(ease(s / inT), ease((dur - s) / outT)); }
-function typed(el, text, k) { const n = Math.round(text.length * clamp(k)); el.textContent = text.slice(0, n); el.classList.toggle("on", k > 0 && k < 1); }
+function typed(el, text, k) { el.textContent = text.slice(0, Math.round(text.length * clamp(k))); el.classList.toggle("on", k > 0 && k < 1); }
+function sceneBox(el) { el.style.display = "block"; }
 
 function renderAt(t) {
-  const glow = $("#glow");
-  for (const id of ["q1", "q2", "reveal", "sign", "cta"]) show(id, false);
-  $("#stage").style.display = "none";
-  const cur = (window.BEATS || []).find((b) => t >= b.start && t < b.start + b.dur) || window.BEATS[window.BEATS.length - 1];
-  const s = t - cur.start, d = cur.dur;
-  glow.style.opacity = 0.35 + 0.25 * Math.sin(t * 0.6) * 0.5 + (cur.id === "reveal" || cur.id === "cta" ? 0.4 : 0);
+  const total = window.TOTAL;
+  $("#bar div").style.width = Math.min(100, (t / total) * 100) + "%";
+  $("#ink").style.transform = `translateX(${Math.sin(t * 0.25) * 1.3 * U}px) scale(${1 + 0.05 * t / total})`;
+  for (const id of ["q1", "q2", "reveal", "feat", "sign", "cta"]) $("#" + id).style.display = "none";
+  const b = BEATS.find((x) => t >= x.start && t < x.start + x.dur) || BEATS[BEATS.length - 1];
+  const s = t - b.start, d = b.dur;
+  const fade = (el, inT = 0.2, outT = 0.3) => { el.style.opacity = Math.min(ease(s / inT), b.id === "cta" ? 1 : ease((d - s) / outT)); };
+  // a slow push-in on every scene, so nothing ever sits still while the voice reads
+  const push = (el, origin = "30% 50%") => { el.style.transformOrigin = origin; el.style.transform = `translateY(${(0.5 - s / d) * 1.8 * U}px) scale(${1 + 0.04 * s / d})`; };
 
-  if (cur.id === "q1") {
-    show("q1", true); fade($("#q1"), s, d, 0.3);
-    reveal(q1w, s, cur);
-    $("#ff").style.setProperty("--k", ease((s - cur.voice * 0.55) / 0.5));
-    tags.forEach((g, i) => {
-      const x = +g.dataset.x * innerWidth * 0.85, yy = (+g.dataset.y + t * 0.02 * g.dataset.v) % 1, y = (yy < 0.5 ? yy * 0.6 : 0.7 + (yy - 0.5) * 0.6) * innerHeight;
-      g.style.transform = `translate(${x}px, ${innerHeight - y}px)`; g.style.opacity = 0.5 * ease((s - i * 0.12) / 0.6);
-    });
-    $("#q1t").style.transform = `scale(${1 + s * 0.012})`;
+  if (b.id === "q1") {
+    const el = $("#q1"); sceneBox(el); place(el, portrait ? [PAD, H * 0.3, W - 2 * PAD] : [PAD, H * 0.27, W * 0.72]); fade(el); push(el);
+    reveal(q1w, s, b);
+    $("#ff").style.setProperty("--k", ease((s - b.voice * 0.55) / 0.5) * 100 + "%");
   }
-  if (cur.id === "q2") {
-    show("q2", true); fade($("#q2"), s, d, 0.2, 0.15);
-    reveal(q2w, s, cur, 0.4);
-    chips.forEach((c) => {
-      const i = +c.dataset.i, at = 0.05 + i * (cur.voice * 0.75 / chips.length);
-      const k = back((s - at) / 0.35);
-      // a jittered grid above and below the headline band, so chips don't pile on each other
-      const cols = portrait ? 2 : 4, per = Math.ceil(chips.length / 2);
-      const above = i < per, k2 = above ? i : i - per, gx = k2 % cols, gy = Math.floor(k2 / cols);
-      const rows = Math.ceil(per / cols);
-      const cx = (gx + 0.08 + +c.dataset.x * 0.3) / cols * (portrait ? 0.66 : 0.86) + (portrait ? 0.1 : 0.02);
-      const band = portrait ? 0.26 : 0.24, rowH = band / rows;
-      const y = (above ? 0.04 : 1 - 0.06 - band) + gy * rowH + +c.dataset.y * rowH * 0.3;
-      const shake = s > cur.voice * 0.6 ? Math.sin(t * 40 + i) * U * 0.25 : 0;
-      c.style.transform = `translate(${cx * innerWidth + shake}px, ${y * innerHeight}px) rotate(${c.dataset.a * (1 - k * 0.5)}deg) scale(${k})`;
-      c.style.opacity = clamp(k);
+  if (b.id === "q2") {
+    const el = $("#q2"); sceneBox(el); el.style.left = "0"; el.style.top = "0"; el.style.width = W + "px"; el.style.height = H + "px"; fade(el, 0.25);
+    const tx = $("#q2t"); Object.assign(tx.style, { position: "absolute", left: PAD + "px", top: (portrait ? H * 0.17 : H * 0.24) + "px", width: (portrait ? W - 2 * PAD : W * 0.5) + "px" });
+    reveal(q2w, s, b, 0.25);
+    chips.forEach((c, i) => {
+      const at = 0.5 + i * (b.voice * 0.6 / chips.length), k = soft((s - at) / 0.4);
+      const x = portrait ? PAD + (i % 2) * (W * 0.42) : W * 0.6 + (i % 2) * W * 0.05;
+      const y = portrait ? H * 0.47 + Math.floor(i / 2) * 8.6 * U + (i % 2) * 3 * U : H * 0.2 + i * 8.6 * U;
+      c.style.opacity = clamp(k); c.style.transform = `translate(${x}px, ${y + (1 - clamp(k)) * 3 * U}px) scale(${0.85 + 0.15 * k})`;
     });
   }
-  if (cur.id === "reveal") {
-    show("reveal", true); fade($("#reveal"), s, d, 0.12);
-    const m = back(s / 0.55);
-    $("#mark").style.transform = `scale(${m})`;
-    [["#ring1", 0], ["#ring2", 0.25]].forEach(([r, o]) => {
-      const k = clamp((s - o) / 1.4), size = U * (16 + k * 40);
-      Object.assign($(r).style, { width: size + "px", height: size + "px", opacity: (1 - k) * 0.8 });
-    });
-    reveal(revw, s, cur, 0.5);
+  if (b.id === "reveal") {
+    const el = $("#reveal"); sceneBox(el); place(el, [PAD, portrait ? H * 0.3 : H * 0.22, W - 2 * PAD]); fade(el, 0.25); push(el, "50% 50%");
+    const k = soft(s / 0.5); $("#rtile").style.transform = `scale(${k})`; $("#rtile").style.opacity = clamp(k * 2);
+    reveal(revw, s, b, 0.45);
   }
-  const FEAT = ["find", "essay", "form", "waiver", "inbox"];
-  if (FEAT.includes(cur.id)) {
-    $("#stage").style.display = "block";
-    const fi = FEAT.indexOf(cur.id);
-    // label: slides in per feature
-    $("#labt").innerHTML = LABELS[cur.id];
-    const lk = ease(s / 0.4);
-    lab.style.opacity = Math.min(lk, ease((d - s) / 0.2) + (fi < 4 ? 0 : 1));
-    lab.style.transform = `translateY(${portrait ? 0 : -lab.offsetHeight / 2}px) translateX(${(1 - lk) * -3 * U}px)`;
-    $("#stage .eyebrow").style.opacity = 1;
-    cards.forEach((c, i) => {
-      const rel = i - fi;
-      const enter = ease(s / 0.5);
-      let x = 0, z = 0, op = 0, ry = portrait ? 0 : -12, rx = portrait ? 8 : 4;
-      if (rel === 0) { x = (1 - enter) * U * 30; op = enter; }
-      else if (rel === -1) { x = -enter * U * 22; z = -enter * 300; op = (1 - enter) * 0.9; }
-      else op = 0;
-      c.style.top = portrait ? innerHeight * 0.34 + "px" : "50%";
-      c.style.opacity = op;
-      c.style.transform = `translateY(${portrait ? 0 : -50}%) perspective(1600px) translateX(${x}px) translateZ(${z}px) rotateY(${ry * (1 - (rel === 0 ? 0.5 * ease(s / 2) : 0))}deg) rotateX(${rx}deg)`;
-      c.style.display = op > 0.01 ? "block" : "none";
-    });
-    if (cur.id === "find") {
-      [...$("#c-find").querySelectorAll(".row")].forEach((r, i) => { const k = ease((s - 0.35 - i * 0.32) / 0.35); r.style.opacity = k; r.style.transform = `translateY(${(1 - k) * U * 2}px)`; });
+  if (FEATS.includes(b.id)) {
+    const el = $("#feat"); sceneBox(el); Object.assign(el.style, { left: 0, top: 0, width: W + "px", height: H + "px", opacity: 1, transform: "none" });
+    $("#ftitle").innerHTML = TITLES[b.id];
+    const lk = ease(s / 0.45);
+    flabel.style.opacity = Math.min(lk, ease((d - s) / 0.25));
+    const lh = flabel.offsetHeight;
+    flabel.style.top = (portrait ? H * 0.14 : (H - lh) / 2 - 2 * U) + "px";
+    flabel.style.transform = `translateY(${(1 - lk) * 2.5 * U}px)`;
+    for (const id of FEATS) {
+      const c = cards[id];
+      if (id !== b.id) { c.style.display = "none"; continue; }
+      c.style.display = "block";
+      // the card slides in from the right, like the tip cards, then drifts gently
+      const k = ease(s / 0.45), out = ease((s - (d - 0.3)) / 0.3);
+      const top = portrait ? H * 0.36 : (H - c.offsetHeight) / 2;
+      c.style.top = top + "px";
+      c.style.opacity = Math.min(k, 1 - out);
+      c.style.transform = `translateX(${(1 - k) * 14 * U - out * 6 * U}px) translateY(${(0.5 - s / d) * 1.5 * U}px) scale(${1 + 0.02 * s / d})`;
     }
-    if (cur.id === "essay") {
-      [...$("#bars").children].forEach((b, i) => { b.style.transform = `scaleX(${ease((s - 0.25 - i * 0.18) / 0.22)})`; });
-      [...$("#checks").children].forEach((c, i) => { const k = back((s - 1.45 - i * 0.22) / 0.3); c.style.opacity = clamp(k); c.style.transform = `scale(${0.9 + 0.1 * k})`; });
-      const st = back((s - 2.05) / 0.3); $("#stamp").style.opacity = clamp(st); $("#stamp").style.transform = `rotate(-8deg) scale(${1.6 - 0.6 * st})`;
+    if (b.id === "find") [...cards.find.querySelectorAll(".row")].forEach((r, i) => { const k = ease((s - 0.45 - i * 0.35) / 0.35); r.style.opacity = k; r.style.transform = `translateY(${(1 - k) * 2 * U}px)`; });
+    if (b.id === "essay") {
+      [...$("#ebars").children].forEach((x, i) => (x.style.transform = `scaleX(${ease((s - 0.3 - i * 0.16) / 0.25)})`));
+      [...$("#checks").children].forEach((x, i) => { const k = soft((s - 1.35 - i * 0.22) / 0.35); x.style.opacity = clamp(k); x.style.transform = `translateX(${(1 - clamp(k)) * 2 * U}px)`; });
+      const st = soft((s - 2.0) / 0.35); $("#stamp").style.opacity = clamp(st); $("#stamp").style.transform = `scale(${0.7 + 0.3 * st})`;
     }
-    if (cur.id === "form") {
-      const k = (x) => clamp((s - x) / 0.35);
-      typed($("#f1"), "Your full name", k(0.3)); typed($("#f2"), "BSc Computer Science", k(0.7)); typed($("#f3"), "4.2 / 5.0", k(1.1)); typed($("#f4"), "transcript.pdf  ✓ uploaded", k(1.45));
-      const pg = Math.min(12, 1 + Math.floor(clamp((s - 0.2) / 1.8) * 11)); $("#pg").textContent = `Page ${pg} of 12`;
-      $("#pgbar").style.width = (pg / 12) * 100 + "%";
-      const dn = back((s - 2.0) / 0.3); $("#formdone").style.opacity = clamp(dn); $("#formdone").style.transform = `translateX(-50%) scale(${0.85 + 0.15 * dn})`;
+    if (b.id === "form") {
+      const k = (x) => clamp((s - x) / 0.4);
+      typed($("#f1"), "Your full name", k(0.35)); typed($("#f2"), "BSc Computer Science", k(0.8)); typed($("#f3"), "transcript.pdf, uploaded", k(1.25));
+      const pg = Math.min(12, 1 + Math.floor(clamp((s - 0.3) / 1.6) * 11)); $("#pg").textContent = `Page ${pg} of 12`; $("#pgbar").style.width = (pg / 12) * 100 + "%";
+      const dn = soft((s - 1.9) / 0.35); $("#formdone").style.opacity = clamp(dn); $("#formdone").style.transform = `translateX(-50%) scale(${0.85 + 0.15 * dn})`;
     }
-    if (cur.id === "waiver") {
-      typed($("#wsub"), "Request for an application fee waiver", clamp((s - 0.25) / 0.6));
-      [...$("#wbars").children].forEach((b, i) => { b.style.transform = `scaleX(${ease((s - 0.8 - i * 0.15) / 0.2)})`; });
-      const press = s > 1.55 && s < 1.75; $("#send").style.transform = `scale(${press ? 0.92 : 1})`;
-      const sn = back((s - 1.75) / 0.3); $("#sent").style.opacity = clamp(sn); $("#sent").style.transform = `translateX(-50%) scale(${0.85 + 0.15 * sn})`;
+    if (b.id === "waiver") {
+      typed($("#wsub"), "Request for an application fee waiver", clamp((s - 0.3) / 0.6));
+      [...$("#wbars").children].forEach((x, i) => (x.style.transform = `scaleX(${ease((s - 0.85 - i * 0.15) / 0.25)})`));
+      $("#send").style.transform = `scale(${s > 1.5 && s < 1.68 ? 0.93 : 1})`;
+      const sn = soft((s - 1.7) / 0.35); $("#sent").style.opacity = clamp(sn); $("#sent").style.transform = `translateX(-50%) scale(${0.85 + 0.15 * sn})`;
     }
-    if (cur.id === "inbox") {
-      [...$("#mails").children].forEach((m, i) => { const k = ease((s - 0.3 - i * 0.35) / 0.35); m.style.opacity = k; m.style.transform = `translateX(${(1 - k) * U * 6}px)`; });
-      const f = $("#flag"); const pulse = s > 1.3 ? 0.5 + 0.5 * Math.sin((s - 1.3) * 7) : 0; f.style.boxShadow = `0 0 0 ${2 + pulse * 3}px rgba(240,163,189,${0.25 + pulse * 0.35})`;
+    if (b.id === "inbox") {
+      [...$("#mails").children].forEach((m, i) => { const k = ease((s - 0.4 - i * 0.35) / 0.35); m.style.opacity = k; m.style.transform = `translateY(${(1 - k) * 2 * U}px)`; });
+      const p = s > 1.4 ? 0.5 + 0.5 * Math.sin((s - 1.4) * 6) : 0; $("#flag").style.boxShadow = `0 0 0 ${p * 0.6 * U}px rgba(155,44,78,.18)`;
     }
   }
-  if (cur.id === "sign") {
-    show("sign", true); fade($("#sign"), s, d, 0.15);
-    const at = [0.1, cur.voice * 0.33, cur.voice * 0.6];
-    ["#l1", "#l2", "#l3"].forEach((q, i) => { const k = back((s - at[i]) / 0.35); $(q).style.opacity = clamp(k); $(q).style.transform = `translateY(${(1 - clamp(k)) * U * 3}px) scale(${0.96 + 0.04 * k})`; });
-    [...$("#subs").children].forEach((p, i) => { const k = back((s - cur.voice * 0.85 - i * 0.18) / 0.3); p.style.opacity = clamp(k); p.style.transform = `scale(${0.8 + 0.2 * k})`; });
+  if (b.id === "sign") {
+    const el = $("#sign"); sceneBox(el); place(el, [PAD, portrait ? H * 0.3 : H * 0.2, W - 2 * PAD]); fade(el); push(el, "50% 50%");
+    const at = [0.15, b.voice * 0.33, b.voice * 0.6];
+    ["#l1", "#l2", "#l3"].forEach((q, i) => { const k = ease((s - at[i]) / 0.35); $(q).style.opacity = k; $(q).style.transform = `translateY(${(1 - k) * 2.5 * U}px)`; });
+    [...$("#subs").children].forEach((p, i) => { const k = soft((s - b.voice * 0.82 - i * 0.18) / 0.35); p.style.opacity = clamp(k); p.style.transform = `scale(${0.85 + 0.15 * k})`; });
   }
-  if (cur.id === "cta") {
-    show("cta", true); $("#cta").style.opacity = ease(s / 0.2);
-    const k = (x, w = 0.4) => back((s - x) / w);
-    $("#ctamark").style.transform = `scale(${k(0)})`;
-    [["#ctaname", 0.25], ["#ctasub", 0.5], ["#ctabtn", 0.85], ["#ctaurl", 1.05]].forEach(([q, at]) => { const v = k(at); $(q).style.opacity = clamp(v); $(q).style.transform = `translateY(${(1 - clamp(v)) * U * 2}px) scale(${q === "#ctabtn" ? 0.9 + 0.1 * v + (s > 1.6 ? 0.02 * Math.sin((s - 1.6) * 5) : 0) : 1})`; });
+  if (b.id === "cta") {
+    const el = $("#cta"); sceneBox(el); place(el, [PAD, portrait ? H * 0.28 : H * 0.17, W - 2 * PAD]); el.style.opacity = ease(s / 0.25);
+    const k = soft(s / 0.5); $("#ctile").style.transform = `scale(${k})`;
+    [["#ct1", 0.3], ["#ct2", 0.75]].forEach(([q, at]) => { const v = ease((s - at) / 0.4); $(q).style.opacity = v; $(q).style.transform = `translateY(${(1 - v) * 2.5 * U}px)`; });
   }
 }
 
-// sound cues, from the same timing the pictures use
 function cues() {
-  const b = B, sfx = [];
-  sfx.push({ t: 0.05, kind: "pop", gain: 0.6 });
-  sfx.push({ t: b.q2.start, kind: "whoosh", gain: 0.8 });
-  chips.forEach((c, i) => sfx.push({ t: b.q2.start + 0.05 + i * (b.q2.voice * 0.75 / chips.length), kind: "pop", gain: 0.35 }));
-  sfx.push({ t: b.reveal.start - 0.45, kind: "whoosh", gain: 1 });
-  for (const id of ["find", "essay", "form", "waiver", "inbox"]) sfx.push({ t: b[id].start, kind: "whoosh", gain: 0.7 });
-  [0, 1, 2, 3].forEach((i) => sfx.push({ t: b.find.start + 0.35 + i * 0.32, kind: "tick", gain: 0.8 }));
-  sfx.push({ t: b.essay.start + 0.25, kind: "type", gain: 0.9 });
-  sfx.push({ t: b.essay.start + 2.05, kind: "success", gain: 0.9 });
-  sfx.push({ t: b.form.start + 0.3, kind: "type", gain: 0.8 });
-  sfx.push({ t: b.form.start + 2.0, kind: "success", gain: 0.9 });
-  sfx.push({ t: b.waiver.start + 0.25, kind: "type", gain: 0.6 });
-  sfx.push({ t: b.waiver.start + 1.6, kind: "tick", gain: 1 });
-  sfx.push({ t: b.waiver.start + 1.75, kind: "whoosh", gain: 0.6 });
-  [0, 1, 2].forEach((i) => sfx.push({ t: b.inbox.start + 0.3 + i * 0.35, kind: "ping", gain: i === 1 ? 0.9 : 0.5 }));
-  const at = [0.1, b.sign.voice * 0.33, b.sign.voice * 0.6];
-  at.forEach((x) => sfx.push({ t: b.sign.start + x, kind: "tick", gain: 0.9 }));
-  sfx.push({ t: b.sign.start + b.sign.voice * 0.85, kind: "success", gain: 1 });
-  return { sfx, music: { style: "cinematic", drop: b.reveal.start, hit: b.cta.start } };
+  const sfx = [];
+  sfx.push({ t: B.q2.start + 0.1, kind: "whoosh", gain: 0.5 });
+  chips.forEach((c, i) => sfx.push({ t: B.q2.start + 0.5 + i * (B.q2.voice * 0.6 / chips.length), kind: "tick", gain: 0.5 }));
+  sfx.push({ t: B.reveal.start, kind: "rise", gain: 0.8 });
+  for (const id of FEATS) sfx.push({ t: B[id].start + 0.05, kind: "whoosh", gain: 0.45 });
+  [0, 1, 2, 3].forEach((i) => sfx.push({ t: B.find.start + 0.45 + i * 0.35, kind: "tick", gain: 0.5 }));
+  sfx.push({ t: B.essay.start + 2.0, kind: "chime", gain: 0.8 });
+  sfx.push({ t: B.form.start + 1.9, kind: "chime", gain: 0.8 });
+  sfx.push({ t: B.waiver.start + 1.7, kind: "chime", gain: 0.8 });
+  sfx.push({ t: B.inbox.start + 0.75, kind: "ping", gain: 0.7 });
+  [0, 1, 2].forEach((i) => sfx.push({ t: B.sign.start + B.sign.voice * 0.82 + i * 0.18, kind: "tick", gain: 0.6 }));
+  return { sfx, music: { bpm: 92, key: "D", drumsFrom: B.reveal.start, endCard: B.cta.start } };
 }
 window.renderAt = renderAt; window.cues = cues;
 </script>
