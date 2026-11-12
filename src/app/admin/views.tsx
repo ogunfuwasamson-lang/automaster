@@ -13,6 +13,7 @@ import { MILESTONES, duration, summarize } from "@/lib/first-submission";
 import { STAGES, SUBMITTED, every, loadAdmin, scope, type AdminApp, type AdminUser, type Payment } from "./data";
 import { TeamToggle } from "./team-toggle";
 import { AccountActions } from "./account-actions";
+import { MessageUser } from "./message-user";
 import { DOC_KINDS } from "@/lib/doc-kinds";
 import { href, inRange, type Range } from "./range";
 import { CreditEditor } from "./credit-editor";
@@ -376,6 +377,7 @@ const EVENT: Record<string, string> = {
   "job.failed": "A background job failed",
   "references.requested": "Asked referees for letters",
   "account.deactivated": "Staff deactivated the account",
+  "staff.messaged": "Staff sent a message",
   "account.reactivated": "Staff reactivated the account",
 };
 // machine chatter: left out of activity feeds
@@ -749,6 +751,9 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
           <Activity rows={(events ?? []) as Ev[]} apps={appMap} users={new Map([[u.id, u]])} r={r} everyone={everyone} showUser={false} />
         </Panel>
         <div className="grid content-start gap-4">
+          <Panel title="Send a message" note="Lands in their Ivyward notifications, marked important, and by email if ticked. Sent messages show in History.">
+            <MessageUser userId={u.id} firstName={(u.name ?? "").split(/\s+/)[0] || null} />
+          </Panel>
           <Suspense fallback={<Panel title="Payment attempts" note="Asking Bachs…"><p className="px-4 py-3 text-[13px] text-muted">Loading…</p></Panel>}>
             <PaymentAttempts userId={u.id} />
           </Suspense>
