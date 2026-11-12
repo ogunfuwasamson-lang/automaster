@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { CostsView, GrowthView, LearningView, OverviewView, PortalsView, SubmissionsView, SystemView, UserView, UsersView } from "./views";
+import { CostsView, CreditView, GrowthView, LearningView, OverviewView, PortalsView, SubmissionsView, SystemView, UserView, UsersView } from "./views";
 import { href, parseRange } from "./range";
 import { RangeBar } from "./range-bar";
 
@@ -15,6 +15,7 @@ const VIEWS = [
   ["submissions", "Submissions"],
   ["portals", "Portals"],
   ["costs", "AI costs"],
+  ["credit", "Credit"],
   ["growth", "Growth"],
   ["learning", "Learning"],
   ["system", "System"],
@@ -78,6 +79,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         {view === "users" && <UsersView range={range} everyone={everyone} q={sp.q ?? ""} />}
         {view === "submissions" && <SubmissionsView range={range} everyone={everyone} />}
         {view === "portals" && <PortalsView range={range} everyone={everyone} />}
+        {view === "credit" && <CreditView range={range} everyone={everyone} />}
         {view === "user" && <UserView id={sp.id!} range={range} everyone={everyone} />}
         {view === "costs" && <CostsView range={range} everyone={everyone} />}
         {view === "growth" && <GrowthView range={range} everyone={everyone} />}

@@ -59,6 +59,23 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         .eq("id", job.id);
       return { id: job.id, ok: false, error: msg };
     }
+    // held by the credit rules (a busy day, an applicant who's away): not the job's fault. wait without spending an
+    // attempt; the hold says until when
+    if (msg.startsWith("hold:")) {
+      const until = (e as { until?: string })?.until;
+      await db
+        .from("jobs")
+        .update({
+          status: "queued",
+          attempts: Math.max(0, job.attempts - 1),
+          last_error: msg,
+          run_at: until && Date.parse(until) > Date.now() ? until : new Date(Date.now() + 6 * 3600_000).toISOString(),
+          locked_at: null,
+          locked_by: null,
+        })
+        .eq("id", job.id);
+      return { id: job.id, ok: false, error: msg };
+    }
     // out of api credit: not the job's fault. park it for 30 minutes without spending an attempt.
     if (isBillingError(msg)) {
       await db

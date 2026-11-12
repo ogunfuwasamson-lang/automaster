@@ -1,4 +1,6 @@
 import "server-only";
+import { creditPolicy } from "@/lib/credit";
+import { DEFAULT_POLICY } from "@/lib/credit-policy";
 import { admin } from "@/lib/supabase/admin";
 import { MILESTONES, MILESTONE_ACTIONS, journeys, type MilestoneKey, type UserJourney } from "@/lib/first-submission";
 import { teamIds } from "@/lib/team";
@@ -140,6 +142,7 @@ export async function loadAdmin() {
     every<{ user_id: string; kind: string; amount: number | null; currency: string | null; created_at: string }>((a, b) => db.from("billing_events").select("user_id, kind, amount, currency, created_at").order("created_at", { ascending: false }).range(a, b)),
   ]);
 
+  const policy = await creditPolicy().catch(() => DEFAULT_POLICY);
   const logins = signin.out;
   const last = new Map<string, string>();
   for (const e of activity) if (!last.has(e.user_id)) last.set(e.user_id, e.created_at);
@@ -212,6 +215,7 @@ export async function loadAdmin() {
         { plan: p.plan, plan_until: p.plan_until, monthly_budget_usd: p.monthly_budget_usd, is_admin: p.is_admin },
         thisMonth.filter((x) => x.kind === "submission").length,
         thisMonth.filter((x) => x.kind === "pack").length,
+        policy.staffMonthlyUsd,
       ),
       payments: paid,
     };

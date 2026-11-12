@@ -6,6 +6,7 @@ import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue, drain } from "@/lib/jobs";
+import { releaseHeld } from "@/lib/credit";
 import { logEvent } from "@/lib/events";
 import { checkLimit } from "@/lib/limits";
 import { MAX_DOC_BYTES } from "@/agents/intake";
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
 
   await logEvent({ userId: uid, actor: "user", action: "document.uploaded", context: { documentId: b.id, kind: b.kind, filename: b.filename } });
   await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
+  await releaseHeld(uid).catch(() => {}); // a serious account now: work held for starters goes
   // a new document can be exactly what a stopped submission was waiting for
   await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);
   await resolve(uid, `setup:${b.kind}`).catch(() => {});

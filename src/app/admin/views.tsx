@@ -14,6 +14,10 @@ import { TeamToggle } from "./team-toggle";
 import { AccountActions } from "./account-actions";
 import { DOC_KINDS } from "@/lib/doc-kinds";
 import { href, inRange, type Range } from "./range";
+import { CreditEditor } from "./credit-editor";
+import { creditPolicy } from "@/lib/credit";
+import { DEFAULT_POLICY } from "@/lib/credit-policy";
+import { dayStartUTC, tierOf, type Tier } from "@/lib/credit-rules";
 
 // the operator console's views. each loads its own data, so switching views stays quick. every number follows the
 // period in the range bar (and says so), and leaves out team and test accounts unless the operator asks for everyone.
@@ -1403,4 +1407,111 @@ async function lessonData() {
     retired: withUses(global.filter((l) => l.status === "retired").slice(0, 10)),
     personal: { users: new Set(personal.map((l) => l.user_id)).size, lessons: personal.length },
   };
+}
+
+// ---- credit: who gets AI first, and the asks to pay ----
+
+const TIER_LABEL: Record<Tier, string> = { paid: "Paying", staff: "Staff and team", engaged: "Engaged (docs, Gmail or signed)", starter: "Starters" };
+
+function tierOfUser(u: AdminUser): Tier {
+  const signed = Object.entries(u.apps).some(([s, n]) => n > 0 && (s === "packet_approved" || SUBMITTED.has(s)));
+  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", documents: u.docs, gmail: !!u.gmail, signed });
+}
+
+export async function CreditView({ range: r, everyone }: { range: Range; everyone: boolean }) {
+  const db = admin();
+  const [d, policy, today, spendIn, waiting, nudgeEvents] = await Promise.all([
+    loadAdmin(),
+    creditPolicy(true),
+    runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", dayStartUTC()),
+    runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r),
+    every<{ user_id: string; last_error: string | null }>((a, b) => db.from("jobs").select("user_id, last_error").eq("status", "queued").or("last_error.like.budget: starter%,last_error.like.hold:%").range(a, b)),
+    every<{ user_id: string; action: string; context: { angle?: string } | null; created_at: string }>((a, b) =>
+      db.from("events").select("user_id, action, context, created_at").in("action", ["nudge.clicked", "nudge.emailed"]).gte("created_at", r.from).lte("created_at", r.to).range(a, b),
+    ),
+  ]);
+  const { users } = scope(d, true);
+  const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u)]));
+  const spentToday = today.reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
+  const limit = policy.dailyLimitUsd;
+  const state = !limit ? "No daily limit" : spentToday >= limit * policy.runawayMultiple ? "Only paying and staff run" : spentToday >= limit ? "Limit reached" : spentToday >= limit * policy.starterShareOfDay ? "Starters waiting" : "Everyone runs";
+  const tone: Tone = !limit ? undefined : spentToday >= limit ? "stop" : spentToday >= limit * policy.starterShareOfDay ? "signal" : "go";
+
+  const shown = (id: string) => everyone || !d.team.has(id);
+  const tiers: Tier[] = ["paid", "engaged", "starter", "staff"];
+  const rows = tiers.map((t) => {
+    const ids = users.filter((u) => tierBy.get(u.id) === t && shown(u.id)).map((u) => u.id);
+    const set = new Set(ids);
+    const sum = (xs: { user_id: string; cost_usd: number | null }[]) => xs.filter((x) => set.has(x.user_id)).reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
+    return { t, n: ids.length, range: sum(spendIn), today: sum(today) };
+  });
+  const totalRange = rows.reduce((a, x) => a + x.range, 0);
+
+  const starterWait = waiting.filter((j) => j.last_error?.startsWith("budget: starter")).length;
+  const busy = waiting.filter((j) => j.last_error?.startsWith("hold: busy")).length;
+  const away = waiting.filter((j) => j.last_error?.startsWith("hold: paused")).length;
+  const engagedUnpaid = rows.find((x) => x.t === "engaged")?.n ?? 0;
+
+  const byAngle = new Map<string, { emailed: number; clicked: number }>();
+  for (const e of nudgeEvents) {
+    if (!shown(e.user_id)) continue;
+    const a = e.context?.angle ?? "?";
+    const v = byAngle.get(a) ?? { emailed: 0, clicked: 0 };
+    if (e.action === "nudge.emailed") v.emailed++;
+    else v.clicked++;
+    byAngle.set(a, v);
+  }
+  const clickers = new Set(nudgeEvents.filter((e) => e.action === "nudge.clicked").map((e) => e.user_id));
+  const paidAfter = users.filter((u) => clickers.has(u.id) && u.payments.some((p) => inRange(p.at, r))).length;
+
+  return (
+    <div className="space-y-4">
+      <Kpis>
+        <Stat label="AI spend today (UTC)" value={$(spentToday)} sub={limit ? `of ${$(limit)} · ${state}` : state} tone={tone} />
+        <Stat label="Starter work waiting" value={String(starterWait)} sub="until they upload or connect Gmail" />
+        <Stat label="Held until tomorrow" value={String(busy)} sub="busy day" />
+        <Stat label="Paused, applicant away" value={String(away)} sub={policy.inactiveDays ? `no visit in ${policy.inactiveDays} days` : "switched off"} />
+        <Stat label="Engaged, not paying" value={String(engagedUnpaid)} sub="who the asks to pay go to" />
+        <Stat label="Paid after an ask" value={String(paidAfter)} sub={`tapped one, then paid · ${r.label}`} tone={paidAfter ? "go" : undefined} />
+      </Kpis>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Accounts and AI spend by tier" note={`${r.label}; today is UTC. ${everyone ? "Every account." : "Team accounts left out except under Staff."}`}>
+          <Table head={["Tier", "Accounts", "Spend in period", "Share", "Today"]} min="30rem">
+            {rows.map((x) => (
+              <tr key={x.t}>
+                <td className="px-4 py-3">{TIER_LABEL[x.t]}</td>
+                <td className={td}>{x.n}</td>
+                <td className={td}>{$(x.range)}</td>
+                <td className={td}>
+                  {pct(x.range, totalRange)}
+                  <Bar share={totalRange ? x.range / totalRange : 0} />
+                </td>
+                <td className={td}>{$(x.today)}</td>
+              </tr>
+            ))}
+          </Table>
+        </Panel>
+        <Panel title="Asks to pay" note={`Emails sent and taps on the dashboard card, by angle · ${r.label}`}>
+          <Table head={["Angle", "Emails", "Taps"]} min="20rem">
+            {byAngle.size ? (
+              [...byAngle.entries()]
+                .sort((a, b) => b[1].clicked - a[1].clicked || b[1].emailed - a[1].emailed)
+                .map(([a, v]) => (
+                  <tr key={a}>
+                    <td className="px-4 py-3">{a}</td>
+                    <td className={td}>{v.emailed}</td>
+                    <td className={td}>{v.clicked}</td>
+                  </tr>
+                ))
+            ) : (
+              <Empty cols={3}>No asks sent or tapped in this period yet.</Empty>
+            )}
+          </Table>
+        </Panel>
+      </div>
+
+      <CreditEditor initial={policy} defaults={DEFAULT_POLICY} />
+    </div>
+  );
 }

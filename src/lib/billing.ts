@@ -235,6 +235,10 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   const { error: dup } = await db.from("billing_events").insert({ reference, user_id: userId, kind: meta.kind, application_id: meta.application_id ?? null, ...(meta.message_id ? { message_id: meta.message_id } : {}), amount: amt || null, currency: c.currency ?? null, raw: c as unknown as object });
   if (dup) return { applied: false, kind: meta.kind };
   const customer = typeof c.customer === "string" ? c.customer : (c.customer?.id ?? c.customer?.customer_id ?? null);
+  // a paying account: anything held for credit goes now, and the reminders to pay stop
+  const { releaseHeld } = await import("@/lib/credit");
+  await releaseHeld(userId).catch(() => {});
+  await resolve(userId, /^paynudge:/).catch(() => {});
 
   if (meta.kind === "pack") {
     const { data: bal } = await db.rpc("grant_credits", { uid: userId, n: PACK_SIZE, ref: reference });
@@ -281,7 +285,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   // everything that was waiting on payment can go
   const { data: waiting } = await db.from("applications").select("id").eq("user_id", userId).eq("runner_status", "needs_you").ilike("runner_note", "%subscribe%");
   for (const a of waiting ?? []) await resumeAfterPayment(userId, a.id);
-  await db.from("jobs").update({ run_at: new Date().toISOString() }).eq("user_id", userId).eq("status", "queued").like("last_error", "budget:%");
+  await db.from("jobs").update({ run_at: new Date().toISOString() }).eq("user_id", userId).eq("status", "queued").or("last_error.like.budget:%,last_error.like.hold:%");
   return { applied: true, kind: "pro" };
 }
 

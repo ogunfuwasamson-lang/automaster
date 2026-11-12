@@ -40,6 +40,9 @@ import { toAsk } from "@/lib/ask";
 import { LocalTime } from "@/components/ui/local-time";
 import { ReportButton, WeeklyReportDialog, type WeeklyReport } from "@/components/home/weekly-report";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { dashboardNudge } from "@/lib/nudge";
+import { NudgeCard } from "@/components/billing/nudge-card";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -110,7 +113,7 @@ export default async function Dashboard() {
     { count: draftMails },
     { data: events },
     { data: cords },
-    { count: parked },
+    { data: waitingJobs },
     { data: billing },
     { count: working },
   ] = await Promise.all([
@@ -127,7 +130,7 @@ export default async function Dashboard() {
     sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "out").in("status", ["draft", "pending_approval", "failed"]),
     sb.from("events").select("id, actor, action, created_at, context").not("action", "like", "guard.%").order("created_at", { ascending: false }).limit(8),
     sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
-    sb.from("jobs").select("id", { count: "exact", head: true }).eq("status", "queued").ilike("last_error", "budget:%"),
+    sb.from("jobs").select("last_error").eq("status", "queued").or("last_error.ilike.budget:%,last_error.ilike.hold:%").limit(500),
     sb.from("jobs").select("id").eq("status", "queued").ilike("last_error", "%credit balance%").limit(1),
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
@@ -148,6 +151,11 @@ export default async function Dashboard() {
   // the name they asked to be called on forms wins; otherwise the first word of their name
   const first = ((prof?.portal_details as { preferred_name?: string } | null)?.preferred_name || p.identity.full_name?.split(" ")[0] || "").trim();
   const paused = !!cords?.length;
+  // work waiting on credit: the month's budget, the starter allowance (until a document or gmail), or a hold
+  const waitingErr = (waitingJobs ?? []).map((j) => String(j.last_error ?? ""));
+  const starterWait = waitingErr.filter((e) => e.startsWith("budget: starter")).length;
+  const parked = waitingErr.filter((e) => e.startsWith("budget:") && !e.startsWith("budget: starter")).length;
+  const heldToday = waitingErr.filter((e) => e.startsWith("hold: busy")).length;
   const list = apps ?? [];
   const stuck = list.filter((a) => a.status === "packet_approved" && (a.runner_status === "needs_you" || a.runner_status === "failed"));
   const pending = (approvals ?? []) as Decision[];
@@ -186,6 +194,8 @@ export default async function Dashboard() {
   ];
 
   const asks = (await openQuestions(auth.user.id).catch(() => [])).map(toAsk);
+  const snooze = Number((await cookies()).get("iw_nudge_snooze")?.value) || null;
+  const payNudge = await dashboardNudge(user.id, snooze).catch(() => null);
 
   return (
     <Stagger className="relative space-y-6">
@@ -234,6 +244,12 @@ export default async function Dashboard() {
         </Rise>
       )}
 
+      {payNudge && (
+        <Rise>
+          <NudgeCard angle={payNudge.angle} headline={payNudge.headline} body={payNudge.body} cta={payNudge.cta} kind={payNudge.kind} />
+        </Rise>
+      )}
+
       {shortlistRun && (
         <Rise>
           <ShortlistProgress run={shortlistRun.planning ? { ...shortlistRun, regions: p.preferences.regions?.length || 1 } : shortlistRun} />
@@ -263,7 +279,7 @@ export default async function Dashboard() {
         </Rise>
       )}
 
-      {(paused || !!parked || !!billing?.length) && (
+      {(paused || !!parked || !!starterWait || !!heldToday || !!billing?.length) && (
         <Rise className="space-y-2">
           {paused && <Notice tone="stop">Agents are paused. Nothing runs, sends or submits until you resume. Emails you approved yourself still go out.</Notice>}
           {parked ? (
@@ -280,6 +296,20 @@ export default async function Dashboard() {
               ) : null}
             </Notice>
           ) : null}
+          {starterWait ? (
+            <Notice>
+              Your agents have researched your first programmes. To research the other {starterWait} and start writing, give them something to work from:{" "}
+              <Link href="/documents" className="font-semibold underline underline-offset-4">
+                upload your CV or transcript
+              </Link>{" "}
+              or{" "}
+              <a href="/api/mail/connect" className="font-semibold underline underline-offset-4">
+                connect Gmail
+              </a>
+              . They pick up straight away.
+            </Notice>
+          ) : null}
+          {heldToday ? <Notice tone="plain">The agents are busy today. {heldToday} task{heldToday > 1 ? "s" : ""} pick up again tomorrow; nothing is lost.</Notice> : null}
           {billing?.length ? <Notice tone="plain">Agents are briefly paused on our side. Your queued work is saved and resumes on its own.</Notice> : null}
         </Rise>
       )}

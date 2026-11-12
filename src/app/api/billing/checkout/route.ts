@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/gmail";
 import { bachsReady } from "@/lib/bachs";
 import { checkout, paymentNeeded, requestPaymentNeeded } from "@/lib/billing";
+import { logEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 
-const Body = z.object({ kind: z.enum(["pack", "submission", "pro", "request"]), applicationId: z.uuid().optional(), messageId: z.uuid().optional(), back: z.string().max(20).optional() });
+const Body = z.object({ kind: z.enum(["pack", "submission", "pro", "request"]), applicationId: z.uuid().optional(), messageId: z.uuid().optional(), back: z.string().max(20).optional(), from: z.string().max(40).optional() });
 
 // start a Bachs checkout: one submission, or the monthly plan. returns the page to send the applicant to.
 export async function POST(req: NextRequest) {
@@ -29,6 +30,8 @@ export async function POST(req: NextRequest) {
     if (!need) return NextResponse.json({ error: "nothing to pay for this one" }, { status: 400 });
     if (need.kind !== "submission" && need.kind !== "pack") return NextResponse.json({ error: need.kind === "pro" ? "this one needs the monthly plan" : "this one goes in on the 1st" }, { status: 400 });
   }
+  // which ask they tapped (the dashboard card's angle), so the operator console can see what works
+  if (parsed.data.from) await logEvent({ userId: auth.user.id, actor: "user", action: "nudge.clicked", context: { angle: parsed.data.from, kind } }).catch(() => {});
   const Back = z.enum(["onboarding", "settings"]).optional().safeParse(parsed.data.back).data;
   const back = messageId ? `${appUrl()}/messages?m=${messageId}` : applicationId ? `${appUrl()}/applications/${applicationId}` : Back === "onboarding" ? `${appUrl()}/onboarding?step=6` : `${appUrl()}/settings#plan`;
   try {
