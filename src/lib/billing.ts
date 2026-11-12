@@ -285,7 +285,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   // everything that was waiting on payment can go
   const { data: waiting } = await db.from("applications").select("id").eq("user_id", userId).eq("runner_status", "needs_you").ilike("runner_note", "%subscribe%");
   for (const a of waiting ?? []) await resumeAfterPayment(userId, a.id);
-  await db.from("jobs").update({ run_at: new Date().toISOString() }).eq("user_id", userId).eq("status", "queued").or("last_error.like.budget:%,last_error.like.hold:%");
+  await db.from("jobs").update({ run_at: new Date().toISOString() }).eq("user_id", userId).eq("status", "queued").or('last_error.like."budget:%",last_error.like."hold:%"');
   return { applied: true, kind: "pro" };
 }
 

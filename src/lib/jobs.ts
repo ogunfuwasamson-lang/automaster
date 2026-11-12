@@ -5,6 +5,7 @@ import { HANDLERS } from "@/agents";
 import { nextMonthStartUTC } from "@/lib/pricing";
 import { shortlistFinished } from "@/lib/kickoff";
 import { alert } from "@/lib/alerts";
+import { inBackground, starterHeld } from "@/lib/credit";
 
 export { enqueue } from "@/lib/queue";
 export type { Job } from "@/lib/queue";
@@ -35,7 +36,8 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         return { id: job.id, ok: false, error: "paused" };
       }
     }
-    const result = await handler(job);
+    // background work: the credit rules may hold it for a busy day or an absent applicant (lib/credit)
+    const result = await inBackground(() => handler(job));
     await db
       .from("jobs")
       .update({ status: "done", result: result ?? null, finished_at: new Date().toISOString(), last_error: null })
@@ -46,6 +48,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
     const msg = e instanceof Error ? e.message : String(e);
     // the user's monthly ai budget is used up: park until the month resets (or their plan changes)
     if (msg.startsWith("budget:")) {
+      if (msg.startsWith("budget: starter")) await starterHeld(job.user_id).catch(() => {});
       await db
         .from("jobs")
         .update({

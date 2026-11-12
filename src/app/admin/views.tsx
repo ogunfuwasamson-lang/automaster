@@ -1425,7 +1425,7 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
     creditPolicy(true),
     runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", dayStartUTC()),
     runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r),
-    every<{ user_id: string; last_error: string | null }>((a, b) => db.from("jobs").select("user_id, last_error").eq("status", "queued").or("last_error.like.budget: starter%,last_error.like.hold:%").range(a, b)),
+    every<{ user_id: string; last_error: string | null }>((a, b) => db.from("jobs").select("user_id, last_error").eq("status", "queued").or('last_error.like."budget: starter%",last_error.like."hold:%"').range(a, b)),
     every<{ user_id: string; action: string; context: { angle?: string } | null; created_at: string }>((a, b) =>
       db.from("events").select("user_id, action, context, created_at").in("action", ["nudge.clicked", "nudge.emailed"]).gte("created_at", r.from).lte("created_at", r.to).range(a, b),
     ),

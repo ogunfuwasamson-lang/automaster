@@ -49,7 +49,8 @@ export const DEFAULT_POLICY: CreditPolicy = {
 };
 
 const num = (v: unknown, d: number, min: number, max: number) => {
-  const n = typeof v === "string" && v.trim() === "" ? NaN : Number(v);
+  // only a real number counts: null (an emptied box), "" and junk keep the default instead of becoming 0
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d;
 };
 const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);

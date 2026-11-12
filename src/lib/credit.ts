@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { admin } from "@/lib/supabase/admin";
 import { planOf } from "@/lib/plans";
 import { runsSince } from "@/lib/runs";
@@ -88,6 +89,11 @@ export class CreditHeld extends Error {
   }
 }
 
+// holds for a busy day or an absence are for background work (queued jobs). something the applicant clicked and is
+// waiting for (a tailored CV, an email draft) only answers to their budget and the starter allowance
+const background = new AsyncLocalStorage<true>();
+export const inBackground = <T>(fn: () => Promise<T>): Promise<T> => background.run(true, fn);
+
 // the check before every model call (lib/budget calls it after the monthly budget). returns the gate's verdict:
 // a starter over their allowance is a budget stop (parked until they engage or the month turns); a busy day or a
 // long absence is a hold.
@@ -96,6 +102,7 @@ export async function creditGate(userId: string, category: Category, spend: Spen
   const [{ tier, lastActive }, policy, today] = await Promise.all([tierFor(userId), creditPolicy(), todaySpendUsd()]);
   const g = gate({ tier, category, spend, todayUsd: today, lastActiveMs: lastActive, now: Date.now(), policy });
   if (today >= policy.dailyLimitUsd && policy.dailyLimitUsd > 0) await alertDailyLimit(today, policy.dailyLimitUsd).catch(() => {});
+  if (!g.ok && g.kind !== "starter" && !background.getStore()) return { ok: true };
   return g;
 }
 
@@ -106,9 +113,12 @@ export function holdUntil(): string {
 }
 
 // the operator hears once a UTC day that the limit was reached, and what's still running
+let alertedDay = "";
 async function alertDailyLimit(today: number, limit: number) {
-  const db = admin();
   const day = dayStartUTC().slice(0, 10);
+  if (alertedDay === day) return; // this process already checked today: no query on every call past the limit
+  alertedDay = day;
+  const db = admin();
   const { data } = await db.from("billing_settings").select("value").eq("key", ALERTED).maybeSingle();
   if (data?.value === day) return;
   await db.from("billing_settings").upsert({ key: ALERTED, value: day });
@@ -125,8 +135,28 @@ async function alertDailyLimit(today: number, limit: number) {
 // the starter allowance or the day's limit goes now
 export async function releaseHeld(userId: string) {
   tierCache.delete(userId);
+  const { resolve } = await import("@/lib/notify");
+  await resolve(userId, STARTER_NOTICE).catch(() => {});
   const db = admin();
   const now = new Date().toISOString();
   await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", "budget: starter%");
   await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", "hold:%");
+}
+
+// a starter's research stopped at the allowance: their shortlist never "finishes", so tell them once what they have
+// and what lets the agents carry on (an email too, once)
+const STARTER_NOTICE = "setup:starter-allowance";
+export async function starterHeld(userId: string) {
+  const { notify } = await import("@/lib/notify");
+  await notify({
+    userId,
+    key: STARTER_NOTICE,
+    kind: "setup",
+    title: "Your first programmes are ready",
+    body: "Your agents researched your first programmes. Upload your CV or transcript, or connect Gmail, and they'll research the rest and start on your applications.",
+    href: "/documents",
+    actionLabel: "Upload a document",
+    urgent: true,
+    email: true,
+  });
 }

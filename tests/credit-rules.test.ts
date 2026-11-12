@@ -80,6 +80,14 @@ describe("policy", () => {
     expect(p.nudges.angles.ready).toEqual({ on: false, headline: "Hi {school}", body: "", cta: "" });
     expect(p.nudges.angles.value.on).toBe(true);
   });
+  it("an emptied box (null) keeps the default instead of becoming 0", () => {
+    const p = parsePolicy({ dailyLimitUsd: null, starterShareOfDay: null, starterUsd: "", inactiveDays: undefined });
+    expect(p.dailyLimitUsd).toBe(DEFAULT_POLICY.dailyLimitUsd);
+    expect(p.starterShareOfDay).toBe(DEFAULT_POLICY.starterShareOfDay);
+    expect(p.starterUsd).toBe(DEFAULT_POLICY.starterUsd);
+    expect(parsePolicy(JSON.parse(JSON.stringify({ dailyLimitUsd: NaN }))).dailyLimitUsd).toBe(DEFAULT_POLICY.dailyLimitUsd);
+    expect(parsePolicy({ dailyLimitUsd: 0 }).dailyLimitUsd).toBe(0); // a real 0 still switches it off
+  });
   it("fills placeholders and leaves unknown ones", () => {
     expect(fill("{school} closes in {days} days {nope}", { school: "UCL", days: 9 })).toBe("UCL closes in 9 days {nope}");
   });

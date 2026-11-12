@@ -24,7 +24,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const r = await makeTailoredCv(o.auth.user.id, id);
     return NextResponse.json({ ok: true, left_out: r.dropped.length });
   } catch (e) {
-    return NextResponse.json({ error: /budget|limit/i.test(String(e)) ? "The agents' monthly allowance is used up." : "The CV couldn't be made just now. Try again in a minute." }, { status: 500 });
+    const m = String(e);
+    return NextResponse.json({ error: /starter allowance/i.test(m) ? "Upload your CV or connect Gmail and the agents can do this." : /budget|limit/i.test(m) ? "The agents' monthly allowance is used up." : "The CV couldn't be made just now. Try again in a minute." }, { status: 500 });
   }
 }
 

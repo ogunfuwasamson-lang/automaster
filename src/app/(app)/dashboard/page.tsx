@@ -130,7 +130,7 @@ export default async function Dashboard() {
     sb.from("messages").select("id", { count: "exact", head: true }).eq("direction", "out").in("status", ["draft", "pending_approval", "failed"]),
     sb.from("events").select("id, actor, action, created_at, context").not("action", "like", "guard.%").order("created_at", { ascending: false }).limit(8),
     sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
-    sb.from("jobs").select("last_error").eq("status", "queued").or("last_error.ilike.budget:%,last_error.ilike.hold:%").limit(500),
+    sb.from("jobs").select("last_error").eq("status", "queued").or('last_error.ilike."budget:%",last_error.ilike."hold:%"').limit(500),
     sb.from("jobs").select("id").eq("status", "queued").ilike("last_error", "%credit balance%").limit(1),
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
