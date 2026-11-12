@@ -27,6 +27,8 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string | null;
+  location: string | null; // where they live ("Lagos, Nigeria"), else the country they signed up from
+  citizenship: string | null;
   joined: string;
   plan: string;
   admin: boolean;
@@ -103,26 +105,30 @@ export async function every<T>(page: (from: number, to: number) => Page<T>, cap 
 
 // when each account last signed in (auth keeps it; profiles don't)
 // last sign-in per account, and which accounts are deactivated (banned in auth)
-async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string> }> {
+async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string>; names: Map<string, string> }> {
   const out = new Map<string, string>();
   const banned = new Set<string>();
+  const names = new Map<string, string>(); // the name google gave at sign-in, when there is one
   const auth = admin().auth.admin;
   for (let page = 1; page < 200; page++) {
     const { data, error } = await auth.listUsers({ page, perPage: 1000 });
     if (error || !data?.users?.length) break;
     for (const u of data.users) {
       if (u.last_sign_in_at) out.set(u.id, u.last_sign_in_at);
+      const meta = (u.user_metadata ?? {}) as { full_name?: string; name?: string };
+      const nm = (meta.full_name || meta.name || "").trim();
+      if (nm) names.set(u.id, nm);
       const until = (u as { banned_until?: string | null }).banned_until;
       if (until && Date.parse(until) > Date.now()) banned.add(u.id);
     }
     if (data.users.length < 1000) break;
   }
-  return { out, banned };
+  return { out, banned, names };
 }
 
 const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
 
-type ProfileRow = { id: string; email: string; full_name: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null };
+type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null };
 type AppRow = { id: string; user_id: string; status: string; runner_status: string | null; runner_note: string | null; runner_state: unknown; runner_updated_at: string | null; portal_url: string | null; submitted_at: string | null; programs: unknown };
 
 export async function loadAdmin() {
@@ -131,12 +137,12 @@ export async function loadAdmin() {
   const month = monthStartUTC();
   const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
     teamIds(),
-    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by").order("created_at").range(a, b)),
+    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
     every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
     // what the user did: their own actions, plus each message they sent the interviewer
     every<{ user_id: string; created_at: string }>((a, b) => db.from("events").select("user_id, created_at").or("actor.eq.user,action.eq.interview.turn").gte("created_at", monthAgo).order("created_at", { ascending: false }).range(a, b)),
-    signIns().catch(() => ({ out: new Map<string, string>(), banned: new Set<string>() })),
+    signIns().catch(() => ({ out: new Map<string, string>(), banned: new Set<string>(), names: new Map<string, string>() })),
     every<{ user_id: string; email: string; status: string }>((a, b) => db.from("mail_accounts").select("user_id, email, status").range(a, b)),
     every<{ user_id: string; kind: string }>((a, b) => db.from("documents").select("user_id, kind").range(a, b)),
     every<{ user_id: string; kind: string; amount: number | null; currency: string | null; created_at: string }>((a, b) => db.from("billing_events").select("user_id, kind, amount, currency, created_at").order("created_at", { ascending: false }).range(a, b)),
@@ -192,7 +198,9 @@ export async function loadAdmin() {
     return {
       id: p.id,
       email: p.email,
-      name: p.full_name,
+      // the name from wherever they gave it: the profile, the interview, the form details, then google
+      name: p.full_name?.trim() || idOf(p).full_name?.trim() || [p.first, p.last].map((x) => x?.trim()).filter(Boolean).join(" ") || p.preferred?.trim() || signin.names.get(p.id) || null,
+      ...placeOf(p),
       joined: p.created_at,
       plan: p.plan ?? "free",
       admin: !!p.is_admin,
@@ -231,4 +239,36 @@ export function scope(d: AdminData, everyone: boolean) {
   const users = everyone ? d.users : d.users.filter((u) => !u.team);
   const ids = new Set(users.map((u) => u.id));
   return { users, ids, apps: d.apps.filter((a) => ids.has(a.userId)), payments: d.payments.filter((p) => ids.has(p.userId)), hidden: d.users.length - users.length };
+}
+
+// a two-letter code as a country name ("NG" -> "Nigeria"); anything else as written
+const regions = (() => {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+export function countryName(c: string | null | undefined): string | null {
+  const v = (c ?? "").trim();
+  if (!v) return null;
+  if (/^[A-Za-z]{2}$/.test(v)) {
+    try {
+      return regions?.of(v.toUpperCase()) ?? v.toUpperCase();
+    } catch {
+      return v.toUpperCase();
+    }
+  }
+  return v;
+}
+
+// where someone is: the city and country they told the interviewer, else the country their payments are priced in
+type Identity = { full_name?: string | null; city?: string | null; country_of_residence?: string | null; citizenship?: string | null };
+const idOf = (p: Pick<ProfileRow, "identity">): Identity => (p.identity && typeof p.identity === "object" ? (p.identity as Identity) : {});
+function placeOf(p: Pick<ProfileRow, "billing_country" | "identity">): { location: string | null; citizenship: string | null } {
+  const i = idOf(p);
+  const city = typeof i.city === "string" ? i.city.trim() : "";
+  const country = countryName(i.country_of_residence) ?? countryName(p.billing_country);
+  const location = [city, country].filter(Boolean).join(", ") || null;
+  return { location, citizenship: countryName(i.citizenship) };
 }

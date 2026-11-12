@@ -208,13 +208,22 @@ function DocKinds({ kinds }: { kinds: Record<string, number> }) {
   );
 }
 
-function UserLink({ u, r, everyone }: { u: { id: string; email: string }; r: Range; everyone?: boolean }) {
+type Who = { id: string; email: string; name?: string | null; location?: string | null };
+
+// a person, everywhere in the console: their name (or email when there's none yet) and where they are
+function UserLink({ u, r, everyone }: { u: Who; r: Range; everyone?: boolean }) {
   return (
-    <Link href={href("user", r, !!everyone, { id: u.id })} className="decoration-current/30 underline-offset-4 hover:underline">
-      {u.email}
-    </Link>
+    <span className="min-w-0" title={u.email}>
+      <Link href={href("user", r, !!everyone, { id: u.id })} className="decoration-current/30 underline-offset-4 hover:underline">
+        {u.name || u.email}
+      </Link>
+      <span className="text-muted">, {u.location ?? "location unknown"}</span>
+    </span>
   );
 }
+
+// the same, as plain text (alert titles)
+const whoText = (u: Who) => `${u.name || u.email} (${u.location ?? "location unknown"})`;
 
 
 // ---- shared data ----
@@ -496,10 +505,10 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
     att.push({ tone: "signal", title: `${stopped.length} application${stopped.length === 1 ? "" : "s"} stopped, across ${who} user${who === 1 ? "" : "s"}`, detail: [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([x, n]) => `${reasonLabel(x)} ${n}`).join(", "), href: href("portals", r, everyone) });
   }
   for (const u of users.filter((x) => within(x.joined, 2 * DAY)))
-    att.push({ tone: undefined, title: `New sign-up: ${u.email}`, detail: `Joined ${ago(u.joined)} from ${u.source}. Furthest step: ${stageLabel(u.stage).toLowerCase()}.`, href: href("user", r, everyone, { id: u.id }) });
+    att.push({ tone: undefined, title: `New sign-up: ${whoText(u)}`, detail: `Joined ${ago(u.joined)} from ${u.source}. Furthest step: ${stageLabel(u.stage).toLowerCase()}.`, href: href("user", r, everyone, { id: u.id }) });
   const stalled = users.filter((u) => !u.submitted && !within(u.lastActive, 3 * DAY) && !within(u.joined, 2 * DAY)).sort((a, b) => (b.lastActive ?? b.joined).localeCompare(a.lastActive ?? a.joined));
   for (const u of stalled.slice(0, 5))
-    att.push({ tone: "signal", title: `${u.email} has gone quiet`, detail: `Last active ${ago(u.lastActive ?? u.joined)}, stopped at "${stageLabel(u.stage).toLowerCase()}"${u.waiting ? `, ${u.waiting} application${u.waiting === 1 ? "" : "s"} waiting on them` : ""}.`, href: href("user", r, everyone, { id: u.id }) });
+    att.push({ tone: "signal", title: `${whoText(u)} has gone quiet`, detail: `Last active ${ago(u.lastActive ?? u.joined)}, stopped at "${stageLabel(u.stage).toLowerCase()}"${u.waiting ? `, ${u.waiting} application${u.waiting === 1 ? "" : "s"} waiting on them` : ""}.`, href: href("user", r, everyone, { id: u.id }) });
   if (stalled.length > 5) att.push({ tone: "signal", title: `${stalled.length - 5} more users have gone quiet`, href: href("users", r, everyone) });
 
   return (
@@ -580,7 +589,7 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
   // in the period: joined or did something in it (all time: everyone)
   const shown = users
     .filter((u) => r.allTime || inRange(u.joined, r) || inRange(u.lastActive, r))
-    .filter((u) => !needle || u.email.toLowerCase().includes(needle) || (u.name ?? "").toLowerCase().includes(needle))
+    .filter((u) => !needle || [u.email, u.name, u.location, u.citizenship].some((x) => (x ?? "").toLowerCase().includes(needle)))
     .sort((a, b) => b.joined.localeCompare(a.joined));
   const stageLabel = (key: string) => STAGES.find((s) => s.key === key)?.label ?? key;
   const dash = <span className="text-muted">·</span>;
@@ -601,7 +610,7 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
           <label htmlFor="user-q" className="sr-only">
             Find a user
           </label>
-          <input id="user-q" name="q" defaultValue={q} placeholder="Find by email or name" className="w-64 max-w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13.5px]" />
+          <input id="user-q" name="q" defaultValue={q} placeholder="Find by name, email or country" className="w-64 max-w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13.5px]" />
           <button className="tap rounded-lg border border-line px-3 py-1.5 text-[13px] hover:border-foreground/40">Find</button>
           {q && (
             <Link href={href("users", r, everyone)} className={`text-[13px] text-muted ${linkCls}`}>
@@ -621,10 +630,10 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
             shown.map((u) => (
               <tr key={u.id}>
                 <td className="max-w-[16rem] px-4 py-2.5">
-                  <span className="block truncate">
+                  <span className="block">
                     <UserLink u={u} r={r} everyone={everyone} />
                   </span>
-                  <span className="block truncate text-[12px] text-muted">{[u.name, u.plan !== "free" ? u.plan : null].filter(Boolean).join(", ") || "no name yet"}</span>
+                  <span className="block truncate text-[12px] text-muted">{[u.name ? u.email : "no name yet", u.plan !== "free" ? u.plan : null].filter(Boolean).join(", ")}</span>
                   {u.deactivated && <Pill tone="stop">Deactivated</Pill>}
                 </td>
                 <td className="px-4 py-2.5">
@@ -689,7 +698,9 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
           {u.deactivated && <Pill tone="stop">Deactivated: can&apos;t sign in, agents stopped</Pill>}
         </div>
         <p className="text-[13px] text-muted">
-          {u.name ? `${u.email}. ` : ""}Joined {stamp(u.joined)} from {u.source}
+          {u.name ? `${u.email}. ` : ""}
+          {u.location ?? "Location unknown"}
+          {u.citizenship && u.citizenship !== u.location?.split(", ").pop() ? ` (${u.citizenship} citizen)` : ""}. Joined {stamp(u.joined)} from {u.source}
           {u.invited ? " (invited)" : ""}. Plan: {u.plan}. Last signed in {ago(u.lastSignIn)}, last active {ago(u.lastActive)}.
         </p>
         {!u.admin && <AccountActions userId={u.id} email={u.email} deactivated={u.deactivated} usersHref={href("users", r, everyone)} />}
@@ -863,7 +874,7 @@ export async function SubmissionsView({ range: r, everyone }: { range: Range; ev
             cohort.map((j) => (
               <tr key={j.userId}>
                 <td className="max-w-[14rem] truncate px-4 py-2.5">
-                  <UserLink u={{ id: j.userId, email: j.email }} r={r} everyone={everyone} />
+                  <UserLink u={userMap.get(j.userId) ?? { id: j.userId, email: j.email }} r={r} everyone={everyone} />
                 </td>
                 <td className={td}>{date(j.signedUp)}</td>
                 {MILESTONES.map((m) => (
@@ -909,7 +920,7 @@ export async function PortalsView({ range: r, everyone }: { range: Range; everyo
   const { data } = ids.length
     ? await admin().from("applications").select("id, user_id, runner_status, runner_note, portal_url, runner_state, runner_updated_at, programs(schools(name))").in("id", ids).order("runner_updated_at", { ascending: false })
     : { data: [] };
-  const email = new Map(d.users.map((u) => [u.id, u.email]));
+  const email = new Map(d.users.map((u) => [u.id, u as Who]));
   return (
     <div className="space-y-4">
       <ScopeNote hidden={hidden} everyone={everyone} r={r} view="portals" />
@@ -1262,7 +1273,7 @@ export async function SystemView({ range: r }: { range: Range }) {
 }
 
 
-function RunList({ rows, email, r, everyone }: { rows: Record<string, unknown>[]; email: Map<string, string>; r: Range; everyone: boolean }) {
+function RunList({ rows, email, r, everyone }: { rows: Record<string, unknown>[]; email: Map<string, Who>; r: Range; everyone: boolean }) {
   return (
     <div className="space-y-2">
       {rows.length === 0 && <p className="px-1 text-[13px] text-muted">No runs in this period.</p>}
@@ -1285,7 +1296,7 @@ function RunList({ rows, email, r, everyone }: { rows: Record<string, unknown>[]
             <summary className="grid cursor-pointer list-none gap-x-4 gap-y-1 px-4 py-3 marker:hidden sm:grid-cols-[minmax(0,14rem)_9rem_minmax(0,1fr)_6rem] sm:items-center">
               <span className="min-w-0">
                 <span className="block truncate text-[14.5px] font-medium">{p?.schools?.name ?? "Unknown school"}</span>
-                <span className="block truncate text-[12px] text-muted">{email.get(uid) ?? "deleted account"}</span>
+                <span className="block truncate text-[12px] text-muted">{email.get(uid) ? whoText(email.get(uid)!) : "deleted account"}</span>
               </span>
               <span>
                 <Pill tone={runnerTone(status)}>{RUNNER_LABEL[status] ?? status}</Pill>
@@ -1311,7 +1322,7 @@ function RunList({ rows, email, r, everyone }: { rows: Record<string, unknown>[]
                 </div>
                 <div>
                   <dt className="inline text-muted">Applicant: </dt>
-                  <dd className="inline">{email.get(uid) ? <UserLink u={{ id: uid, email: email.get(uid)! }} r={r} everyone={everyone} /> : "deleted account"}</dd>
+                  <dd className="inline">{email.get(uid) ? <UserLink u={email.get(uid)!} r={r} everyone={everyone} /> : "deleted account"}</dd>
                 </div>
                 {dbg?.title && (
                   <div className="truncate">
