@@ -752,7 +752,7 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
         </Panel>
         <div className="grid content-start gap-4">
           <Panel title="Send a message" note="Lands in their Ivyward notifications, marked important, and by email if ticked. Sent messages show in History.">
-            <MessageUser userId={u.id} firstName={(u.name ?? "").split(/\s+/)[0] || null} />
+            <MessageUser userId={u.id} firstName={(u.name ?? "").split(/\s+/)[0] || null} apps={mine.slice(0, 60).map((a) => ({ id: a.id, label: `${a.school}${a.program ? `: ${a.program}` : ""}` }))} />
           </Panel>
           <Suspense fallback={<Panel title="Payment attempts" note="Asking Bachs…"><p className="px-4 py-3 text-[13px] text-muted">Loading…</p></Panel>}>
             <PaymentAttempts userId={u.id} />

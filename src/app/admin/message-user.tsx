@@ -3,8 +3,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// every page a message's button can open: the signed-in app's pages, then this applicant's own applications
+const PAGES: [string, string][] = [
+  ["/dashboard", "Dashboard"],
+  ["/settings#plan", "Plan and payment"],
+  ["/documents", "Documents (upload)"],
+  ["/shortlist", "Shortlist"],
+  ["/applications", "Applications"],
+  ["/messages", "Messages"],
+  ["/interview", "Interview"],
+  ["/profile", "Profile"],
+  ["/reports", "Reports"],
+  ["/logins", "School logins"],
+  ["/connect-chrome", "Connect Chrome"],
+  ["/settings", "Settings"],
+  ["/settings#invite", "Invite friends"],
+  ["/onboarding", "Onboarding"],
+];
+
 // staff: write to one applicant. it lands in their Ivyward bell, marked important, and by email if ticked.
-export function MessageUser({ userId, firstName }: { userId: string; firstName: string | null }) {
+export function MessageUser({ userId, firstName, apps = [] }: { userId: string; firstName: string | null; apps?: { id: string; label: string }[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(firstName ? `Hi ${firstName},\n\n` : "");
@@ -42,7 +60,20 @@ export function MessageUser({ userId, firstName }: { userId: string; firstName: 
       <div className="grid gap-2.5 sm:grid-cols-2">
         <div>
           <label htmlFor="msg-href" className="block text-[12.5px] text-muted">Button opens</label>
-          <input id="msg-href" value={href} onChange={(e) => setHref(e.target.value)} className={field} placeholder="/dashboard" />
+          <select id="msg-href" value={href} onChange={(e) => setHref(e.target.value)} className={field}>
+            <optgroup label="Pages">
+              {PAGES.map(([v, l]) => (
+                <option key={v} value={v}>{l} ({v})</option>
+              ))}
+            </optgroup>
+            {apps.length > 0 && (
+              <optgroup label="Their applications">
+                {apps.map((x) => (
+                  <option key={x.id} value={`/applications/${x.id}`}>{x.label}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </div>
         <div>
           <label htmlFor="msg-label" className="block text-[12.5px] text-muted">Button says</label>
