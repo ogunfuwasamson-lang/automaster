@@ -1,0 +1,65 @@
+{
+  "page": "ad1.html",
+  "voice": "am_michael",
+  "speed": 1.13,
+  "lead": 0.12,
+  "musicVolume": 0.34,
+  "tail": 0.6,
+  "beats": [
+    {
+      "id": "q1",
+      "say": "Looking for a fully funded master's programme abroad?",
+      "pad": 0.3
+    },
+    {
+      "id": "q2",
+      "say": "Or planning your master's abroad, but don't know where to start?",
+      "pad": 0.3
+    },
+    {
+      "id": "reveal",
+      "say": "Let Ivyward A.I. handle your university applications for you.",
+      "pad": 0.3
+    },
+    {
+      "id": "find",
+      "say": "Ivyward A.I. finds programmes and scholarships that match your profile.",
+      "pad": 0.3
+    },
+    {
+      "id": "essay",
+      "say": "Writes and checks every essay.",
+      "min": 2.4,
+      "pad": 0.3
+    },
+    {
+      "id": "form",
+      "say": "Fills every application form.",
+      "min": 2.4,
+      "pad": 0.3
+    },
+    {
+      "id": "waiver",
+      "say": "Asks schools for fee waivers.",
+      "min": 2.4,
+      "pad": 0.3
+    },
+    {
+      "id": "inbox",
+      "say": "And watches your inbox for replies.",
+      "min": 2.4,
+      "pad": 0.3
+    },
+    {
+      "id": "sign",
+      "say": "You review. You sign. Ivyward A.I. submits.",
+      "pad": 0.3
+    },
+    {
+      "id": "cta",
+      "say": "Ivyward. Start for free at tryivyward.com.",
+      "min": 3.6,
+      "pad": 0.8
+    }
+  ]
+}

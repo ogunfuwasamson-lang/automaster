@@ -1,0 +1,17 @@
+{
+  "page": "ad2.html",
+  "voice": "af_bella",
+  "speed": 1.12,
+  "lead": 0.12,
+  "musicVolume": 0.36,
+  "tail": 0.5,
+  "beats": [
+    { "id": "ask", "say": "Planning your master's abroad, but don't know where to start?", "pad": 0.3 },
+    { "id": "alone", "say": "Here's how it usually goes.", "min": 2.4, "pad": 0.25 },
+    { "id": "with", "say": "And here's how it goes with Ivyward A.I.", "min": 2.4, "pad": 0.3 },
+    { "id": "find", "say": "Ivyward A.I. finds funded programmes and scholarships that match your profile,", "pad": 0.2 },
+    { "id": "essay", "say": "writes your essays,", "min": 1.8, "pad": 0.15 },
+    { "id": "form", "say": "and fills every application for you.", "min": 2.4, "pad": 0.3 },
+    { "id": "cta", "say": "Start for free at tryivyward.com.", "min": 3.6, "pad": 0.9 }
+  ]
+}
