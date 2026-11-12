@@ -358,3 +358,33 @@ export async function askToPay(userId: string, applicationId: string, need: NonN
     email: true,
   });
 }
+
+// staff: what Bachs says about an account's checkouts that never completed (opened, abandoned, declined and why).
+// the pending:<ref> rows are kept until a checkout completes, so they are exactly the attempts worth looking at.
+export async function paymentAttempts(userId: string): Promise<{ mode: "live" | "sandbox" | "off"; attempts: { ref: string; kind: string; at: string | null; status: string; payment: string; amount: string; detail: string[] }[] }> {
+  const key = process.env.BACHS_SECRET_KEY ?? "";
+  const mode = !key ? "off" : key.startsWith("sk_live_") ? "live" : "sandbox";
+  if (mode === "off") return { mode, attempts: [] };
+  const { data } = await admin().from("billing_settings").select("key, value").like("key", "pending:ivw_%").limit(500);
+  // the ref ends in base-36 milliseconds: newest first, at most 12 lookups
+  const rows = (data ?? []).map((r) => ({ ref: r.key.slice(8), id: r.value as string, ms: parseInt(r.key.split("_").pop() ?? "0", 36) })).sort((a, b) => b.ms - a.ms).slice(0, 60);
+  const out: { ref: string; kind: string; at: string | null; status: string; payment: string; amount: string; detail: string[] }[] = [];
+  for (const r of rows) {
+    if (out.length >= 12) break;
+    const s = await bachs<Record<string, unknown>>(`/v1/checkout-sessions/${encodeURIComponent(r.id)}`).catch((e: Error) => ({ status: "lookup failed", error: e.message }) as Record<string, unknown>);
+    const meta = (s.metadata ?? {}) as Record<string, string>;
+    if (meta.user_id && meta.user_id !== userId) continue;
+    if (!meta.user_id && !r.ref.includes(userId.slice(0, 8))) continue;
+    // anything in the session that explains a failure, one level deep
+    const detail: string[] = [];
+    const look = (o: Record<string, unknown>, path: string) => {
+      for (const [k, v] of Object.entries(o)) {
+        if (v && typeof v === "object" && !Array.isArray(v) && path === "") look(v as Record<string, unknown>, k + ".");
+        else if (/fail|error|declin|reason|message|method|channel|card_country|issuer|brand/i.test(k) && v != null && typeof v !== "object") detail.push(`${path}${k}: ${String(v).slice(0, 160)}`);
+      }
+    };
+    look(s, "");
+    out.push({ ref: r.ref, kind: r.ref.split("_")[1], at: r.ms ? new Date(r.ms).toISOString() : null, status: String(s.status ?? "?"), payment: String(s.payment_status ?? "?"), amount: `${s.amount ?? ""} ${s.currency ?? ""}`.trim(), detail });
+  }
+  return { mode, attempts: out };
+}

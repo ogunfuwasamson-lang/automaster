@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { ReactNode } from "react";
 import { admin } from "@/lib/supabase/admin";
 import { runsSince } from "@/lib/runs";
@@ -16,6 +17,7 @@ import { DOC_KINDS } from "@/lib/doc-kinds";
 import { href, inRange, type Range } from "./range";
 import { CreditEditor } from "./credit-editor";
 import { creditPolicy } from "@/lib/credit";
+import { paymentAttempts } from "@/lib/billing";
 import { DEFAULT_POLICY } from "@/lib/credit-policy";
 import { dayStartUTC, tierOf, type Tier } from "@/lib/credit-rules";
 
@@ -747,6 +749,9 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
           <Activity rows={(events ?? []) as Ev[]} apps={appMap} users={new Map([[u.id, u]])} r={r} everyone={everyone} showUser={false} />
         </Panel>
         <div className="grid content-start gap-4">
+          <Suspense fallback={<Panel title="Payment attempts" note="Asking Bachs…"><p className="px-4 py-3 text-[13px] text-muted">Loading…</p></Panel>}>
+            <PaymentAttempts userId={u.id} />
+          </Suspense>
           <Panel title={`Documents (${(docs ?? []).length})`} note="What they uploaded, newest first, and whether the agents have read it." scroll="sm">
             <Table head={["Type", "File", "Read", "Uploaded"]} min="30rem">
               {(docs ?? []).length ? (
@@ -1524,5 +1529,30 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
 
       <CreditEditor initial={policy} defaults={DEFAULT_POLICY} />
     </div>
+  );
+}
+
+// checkouts that never completed, as Bachs sees them: opened and left, declined (and why), or still open
+async function PaymentAttempts({ userId }: { userId: string }) {
+  const { mode, attempts } = await paymentAttempts(userId).catch((e: Error) => ({ mode: "off" as const, attempts: [], error: e.message }));
+  return (
+    <Panel title={`Payment attempts (${attempts.length})`} note={mode === "off" ? "Payments aren't switched on." : `Checkouts that didn't complete, from Bachs (${mode === "live" ? "live" : "SANDBOX: test payments only, real cards can't pay"}).`} scroll="sm">
+      <Table head={["Started", "What", "Bachs status", "Payment", "Amount", "Why"]} min="40rem">
+        {attempts.length ? (
+          attempts.map((a) => (
+            <tr key={a.ref}>
+              <td className="px-4 py-3 text-muted">{a.at ? stamp(a.at) : "?"}</td>
+              <td className={td}>{a.kind}</td>
+              <td className={td}>{a.status}</td>
+              <td className={td}>{a.payment}</td>
+              <td className={td}>{a.amount}</td>
+              <td className="px-4 py-3 text-[12.5px] text-muted">{a.detail.join(" · ") || "no reason given"}</td>
+            </tr>
+          ))
+        ) : (
+          <Empty cols={6}>No unfinished checkouts.</Empty>
+        )}
+      </Table>
+    </Panel>
   );
 }
