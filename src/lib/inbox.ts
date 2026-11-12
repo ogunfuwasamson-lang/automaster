@@ -222,12 +222,17 @@ export async function recordMoney(userId: string, applicationId: string, c: { ki
 
 // called by the worker a few times an hour
 export async function scheduleInbox(now = new Date()) {
-  const { data } = await admin().from("mail_accounts").select("user_id, scopes").eq("status", "active");
-  // one check per user per 5-minute slot
+  const db = admin();
+  const { data } = await db.from("mail_accounts").select("user_id, scopes").eq("status", "active");
+  // one check per user per 5-minute slot, and never a new one while the last is still waiting or running: when the
+  // queue stalls (no AI credit), a check every 5 minutes piled up 1,000+ duplicates ahead of real work
   const slot = `${now.toISOString().slice(0, 13)}:${Math.floor(now.getUTCMinutes() / 5)}`;
+  const { data: open } = await db.from("jobs").select("user_id").eq("agent", "system").eq("task", "inbox").in("status", ["queued", "running"]).limit(5000);
+  const waiting = new Set((open ?? []).map((j) => j.user_id as string));
   let n = 0;
   for (const a of data ?? []) {
     if (!(a.scopes ?? "").includes("gmail.readonly")) continue;
+    if (waiting.has(a.user_id)) continue;
     await enqueue({ userId: a.user_id, agent: "system", task: "inbox", idempotencyKey: `inbox:${a.user_id}:${slot}` });
     n++;
   }

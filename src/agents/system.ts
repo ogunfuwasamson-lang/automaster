@@ -5,6 +5,7 @@ import { runStructured } from "@/lib/llm";
 import { logEvent } from "@/lib/events";
 import { runDigest } from "@/lib/digest";
 import { checkInbox } from "@/lib/inbox";
+import { admin } from "@/lib/supabase/admin";
 import { remind, say } from "@/lib/followups";
 import { notify } from "@/lib/notify";
 import { runWeekly } from "@/lib/weekly";
@@ -30,7 +31,12 @@ export const system: Record<string, Handler> = {
   // the morning digest: deterministic, no model call
   "system.digest": async (job) => runDigest(job.user_id),
   // school emails: read, classify, queue what needs the applicant
-  "system.inbox": async (job) => checkInbox(job.user_id, job.id),
+  // a check that waited behind others is redundant once a newer one has run: skip it (no mail read, no AI)
+  "system.inbox": async (job) => {
+    const { count } = !job.created_at ? { count: 0 } : await admin().from("jobs").select("id", { count: "exact", head: true }).eq("user_id", job.user_id).eq("agent", "system").eq("task", "inbox").eq("status", "done").gt("finished_at", job.created_at!);
+    if (count) return { skipped: "a newer inbox check already ran" };
+    return checkInbox(job.user_id, job.id);
+  },
   // the monday report from Ivyward AI
   "system.weekly": async (job) => runWeekly(job.user_id),
   // a reminder Ivyward AI set (an event tomorrow, in an hour, a deadline in two days)

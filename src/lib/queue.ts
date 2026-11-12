@@ -11,6 +11,7 @@ export interface Job {
   payload: Record<string, unknown>;
   attempts: number;
   max_attempts: number;
+  created_at?: string; // claimed jobs carry the whole row
 }
 
 export async function enqueue(j: {
