@@ -254,7 +254,7 @@ export function monthRows(month: string, all: PublicProgramme[]): { p: PublicPro
     .sort((a, b) => a.date.localeCompare(b.date) || a.p.school.localeCompare(b.p.school));
 }
 
-export function monthsAhead(all: PublicProgramme[], today: string, max = 10): { month: string; count: number }[] {
+export function monthsAhead(all: PublicProgramme[], today: string, max = 12): { month: string; count: number }[] {
   const out: { month: string; count: number }[] = [];
   const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
   for (let i = 0; i < max; i++) {

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default async function Deadlines() {
   const today = todayISO();
-  const months = monthsAhead(await publicProgrammes(), today, 12);
+  const months = monthsAhead(await publicProgrammes(), today);
   return (
     <LibraryShell crumbs={[["Deadlines", "/deadlines"]]}>
       <div className="mx-auto max-w-4xl px-5 pb-20 pt-10 sm:pt-14">
