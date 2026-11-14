@@ -39,6 +39,8 @@ const PUBLIC = [
   "/ar",
   "/glossary",
   "/tools",
+  "/programmes", // programme lists built from the checked library, and the deadline calendar
+  "/deadlines",
   "/match", // the public programme matcher, and its library lookup (no account, nothing stored)
   "/api/public/",
   "/md/",

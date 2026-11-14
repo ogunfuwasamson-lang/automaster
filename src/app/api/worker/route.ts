@@ -6,7 +6,7 @@ import { scheduleDigests } from "@/lib/digest";
 import { scheduleInbox } from "@/lib/inbox";
 import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
-import { publicUrls, schoolUrls, submitIndexNow } from "@/lib/indexnow";
+import { programmeUrls, publicUrls, schoolUrls, submitIndexNow } from "@/lib/indexnow";
 import { sendMonthlyAlerts } from "@/lib/deadline-alerts";
 import { sweepOrphans, sweepResumable } from "@/lib/requeue";
 import { admin } from "@/lib/supabase/admin";
@@ -63,6 +63,7 @@ async function handle(req: NextRequest) {
     const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     await submitIndexNow(publicUrls(since)).catch(() => null);
     await submitIndexNow(await schoolUrls(since).catch(() => [])).catch(() => null);
+    await submitIndexNow(await programmeUrls().catch(() => [])).catch(() => null);
   }
   // scholarship deadline alerts: the 1st of each month from 08:00 UTC, in batches until everyone has theirs
   if (tick && new Date().getUTCDate() === 1 && new Date().getUTCHours() >= 8) await sendMonthlyAlerts(60).catch(() => null);

@@ -14,6 +14,7 @@ export type Origin = {
   portuguese?: boolean;
   local?: string[]; // well-known home-country awards for study abroad
   guide?: string; // a dedicated guide on /guides
+  highIncome?: boolean; // World Bank high-income: not eligible for EPOS or JJ/WBGSP
 };
 
 export const COMMONWEALTH_ELIGIBLE = new Set([
@@ -24,6 +25,7 @@ export const US_FULL = new Set(["Afghanistan", "Burkina Faso", "Myanmar", "Chad"
 export const US_PARTIAL = new Set(["Angola", "Antigua and Barbuda", "Benin", "Burundi", "Côte d'Ivoire", "Cuba", "Dominica", "Gabon", "The Gambia", "Malawi", "Mauritania", "Nigeria", "Senegal", "Tanzania", "Togo", "Tonga", "Venezuela", "Zambia", "Zimbabwe"]);
 
 const WAEC = "a credit in English in WAEC/WASSCE";
+const CSEC = "English in CSEC";
 
 export const ORIGINS: Origin[] = [
   // Africa
@@ -72,13 +74,107 @@ export const ORIGINS: Origin[] = [
   { slug: "peru", name: "Peru", demonym: "Peruvian", region: "Latin America", iso: "PE", spanish: true, local: ["PRONABEC scholarships"] },
   { slug: "chile", name: "Chile", demonym: "Chilean", region: "Latin America", iso: "CL", spanish: true, local: ["ANID Becas Chile"] },
   { slug: "jamaica", name: "Jamaica", demonym: "Jamaican", region: "Caribbean", iso: "JM", exam: "English in CSEC" },
+  // more of Africa
+  { slug: "angola", name: "Angola", demonym: "Angolan", region: "Africa", iso: "AO", portuguese: true },
+  { slug: "dr-congo", name: "Democratic Republic of the Congo", demonym: "Congolese", region: "Africa", iso: "CD", french: true },
+  { slug: "republic-of-the-congo", name: "Republic of the Congo", demonym: "Congolese", region: "Africa", iso: "CG", french: true },
+  { slug: "burkina-faso", name: "Burkina Faso", demonym: "Burkinabè", region: "Africa", iso: "BF", french: true },
+  { slug: "mali", name: "Mali", demonym: "Malian", region: "Africa", iso: "ML", french: true },
+  { slug: "niger", name: "Niger", demonym: "Nigerien", region: "Africa", iso: "NE", french: true },
+  { slug: "chad", name: "Chad", demonym: "Chadian", region: "Africa", iso: "TD", french: true },
+  { slug: "guinea", name: "Guinea", demonym: "Guinean", region: "Africa", iso: "GN", french: true },
+  { slug: "liberia", name: "Liberia", demonym: "Liberian", region: "Africa", iso: "LR", exam: WAEC },
+  { slug: "madagascar", name: "Madagascar", demonym: "Malagasy", region: "Africa", iso: "MG", french: true },
+  { slug: "burundi", name: "Burundi", demonym: "Burundian", region: "Africa", iso: "BI", french: true },
+  { slug: "somalia", name: "Somalia", demonym: "Somali", region: "Africa", iso: "SO" },
+  { slug: "south-sudan", name: "South Sudan", demonym: "South Sudanese", region: "Africa", iso: "SS" },
+  { slug: "sudan", name: "Sudan", demonym: "Sudanese", region: "Africa", iso: "SD" },
+  { slug: "eritrea", name: "Eritrea", demonym: "Eritrean", region: "Africa", iso: "ER" },
+  { slug: "lesotho", name: "Lesotho", demonym: "Mosotho", region: "Africa", iso: "LS" },
+  { slug: "eswatini", name: "Eswatini", demonym: "Swazi", region: "Africa", iso: "SZ" },
+  { slug: "mauritius", name: "Mauritius", demonym: "Mauritian", region: "Africa", iso: "MU" },
+  { slug: "gabon", name: "Gabon", demonym: "Gabonese", region: "Africa", iso: "GA", french: true },
+  { slug: "mauritania", name: "Mauritania", demonym: "Mauritanian", region: "Africa", iso: "MR", french: true },
+  { slug: "algeria", name: "Algeria", demonym: "Algerian", region: "Africa", iso: "DZ", french: true },
+  { slug: "libya", name: "Libya", demonym: "Libyan", region: "Africa", iso: "LY" },
+  { slug: "cabo-verde", name: "Cabo Verde", demonym: "Cabo Verdean", region: "Africa", iso: "CV", portuguese: true },
+  // more of Asia
+  { slug: "china", name: "China", demonym: "Chinese", region: "Asia", iso: "CN", local: ["China Scholarship Council (CSC) state-sponsored study abroad programmes"] },
+  { slug: "south-korea", name: "South Korea", demonym: "South Korean", region: "Asia", iso: "KR", highIncome: true },
+  { slug: "taiwan", name: "Taiwan", demonym: "Taiwanese", region: "Asia", iso: "TW", highIncome: true },
+  { slug: "thailand", name: "Thailand", demonym: "Thai", region: "Asia", iso: "TH" },
+  { slug: "myanmar", name: "Myanmar", demonym: "Burmese", region: "Asia", iso: "MM" },
+  { slug: "cambodia", name: "Cambodia", demonym: "Cambodian", region: "Asia", iso: "KH" },
+  { slug: "laos", name: "Laos", demonym: "Lao", region: "Asia", iso: "LA" },
+  { slug: "mongolia", name: "Mongolia", demonym: "Mongolian", region: "Asia", iso: "MN" },
+  { slug: "afghanistan", name: "Afghanistan", demonym: "Afghan", region: "Asia", iso: "AF" },
+  { slug: "bhutan", name: "Bhutan", demonym: "Bhutanese", region: "Asia", iso: "BT" },
+  { slug: "maldives", name: "Maldives", demonym: "Maldivian", region: "Asia", iso: "MV" },
+  { slug: "singapore", name: "Singapore", demonym: "Singaporean", region: "Asia", iso: "SG", highIncome: true },
+  { slug: "fiji", name: "Fiji", demonym: "Fijian", region: "Asia", iso: "FJ" },
+  { slug: "papua-new-guinea", name: "Papua New Guinea", demonym: "Papua New Guinean", region: "Asia", iso: "PG" },
+  // more of the Middle East
+  { slug: "saudi-arabia", name: "Saudi Arabia", demonym: "Saudi", region: "Middle East", iso: "SA", highIncome: true },
+  { slug: "united-arab-emirates", name: "United Arab Emirates", demonym: "Emirati", region: "Middle East", iso: "AE", highIncome: true },
+  { slug: "qatar", name: "Qatar", demonym: "Qatari", region: "Middle East", iso: "QA", highIncome: true },
+  { slug: "kuwait", name: "Kuwait", demonym: "Kuwaiti", region: "Middle East", iso: "KW", highIncome: true },
+  { slug: "oman", name: "Oman", demonym: "Omani", region: "Middle East", iso: "OM", highIncome: true },
+  { slug: "bahrain", name: "Bahrain", demonym: "Bahraini", region: "Middle East", iso: "BH", highIncome: true },
+  { slug: "iran", name: "Iran", demonym: "Iranian", region: "Middle East", iso: "IR" },
+  { slug: "iraq", name: "Iraq", demonym: "Iraqi", region: "Middle East", iso: "IQ" },
+  { slug: "lebanon", name: "Lebanon", demonym: "Lebanese", region: "Middle East", iso: "LB", french: true },
+  { slug: "syria", name: "Syria", demonym: "Syrian", region: "Middle East", iso: "SY" },
+  { slug: "yemen", name: "Yemen", demonym: "Yemeni", region: "Middle East", iso: "YE" },
+  { slug: "palestine", name: "Palestine", demonym: "Palestinian", region: "Middle East", iso: "PS" },
+  // more of Europe and Central Asia
+  { slug: "uzbekistan", name: "Uzbekistan", demonym: "Uzbek", region: "Europe and Central Asia", iso: "UZ", local: ["El-Yurt Umidi Foundation scholarships for study abroad"] },
+  { slug: "kyrgyzstan", name: "Kyrgyzstan", demonym: "Kyrgyz", region: "Europe and Central Asia", iso: "KG" },
+  { slug: "tajikistan", name: "Tajikistan", demonym: "Tajik", region: "Europe and Central Asia", iso: "TJ" },
+  { slug: "turkmenistan", name: "Turkmenistan", demonym: "Turkmen", region: "Europe and Central Asia", iso: "TM" },
+  { slug: "ukraine", name: "Ukraine", demonym: "Ukrainian", region: "Europe and Central Asia", iso: "UA" },
+  { slug: "georgia", name: "Georgia", demonym: "Georgian", region: "Europe and Central Asia", iso: "GE" },
+  { slug: "armenia", name: "Armenia", demonym: "Armenian", region: "Europe and Central Asia", iso: "AM" },
+  { slug: "azerbaijan", name: "Azerbaijan", demonym: "Azerbaijani", region: "Europe and Central Asia", iso: "AZ" },
+  { slug: "moldova", name: "Moldova", demonym: "Moldovan", region: "Europe and Central Asia", iso: "MD" },
+  { slug: "serbia", name: "Serbia", demonym: "Serbian", region: "Europe and Central Asia", iso: "RS" },
+  { slug: "albania", name: "Albania", demonym: "Albanian", region: "Europe and Central Asia", iso: "AL" },
+  { slug: "bosnia-and-herzegovina", name: "Bosnia and Herzegovina", demonym: "Bosnian", region: "Europe and Central Asia", iso: "BA" },
+  { slug: "north-macedonia", name: "North Macedonia", demonym: "North Macedonian", region: "Europe and Central Asia", iso: "MK" },
+  { slug: "kosovo", name: "Kosovo", demonym: "Kosovar", region: "Europe and Central Asia", iso: "XK" },
+  // more of Latin America and the Caribbean
+  { slug: "argentina", name: "Argentina", demonym: "Argentine", region: "Latin America", iso: "AR", spanish: true },
+  { slug: "ecuador", name: "Ecuador", demonym: "Ecuadorian", region: "Latin America", iso: "EC", spanish: true },
+  { slug: "bolivia", name: "Bolivia", demonym: "Bolivian", region: "Latin America", iso: "BO", spanish: true },
+  { slug: "venezuela", name: "Venezuela", demonym: "Venezuelan", region: "Latin America", iso: "VE", spanish: true },
+  { slug: "paraguay", name: "Paraguay", demonym: "Paraguayan", region: "Latin America", iso: "PY", spanish: true },
+  { slug: "uruguay", name: "Uruguay", demonym: "Uruguayan", region: "Latin America", iso: "UY", spanish: true, highIncome: true },
+  { slug: "guatemala", name: "Guatemala", demonym: "Guatemalan", region: "Latin America", iso: "GT", spanish: true },
+  { slug: "honduras", name: "Honduras", demonym: "Honduran", region: "Latin America", iso: "HN", spanish: true },
+  { slug: "el-salvador", name: "El Salvador", demonym: "Salvadoran", region: "Latin America", iso: "SV", spanish: true },
+  { slug: "nicaragua", name: "Nicaragua", demonym: "Nicaraguan", region: "Latin America", iso: "NI", spanish: true },
+  { slug: "costa-rica", name: "Costa Rica", demonym: "Costa Rican", region: "Latin America", iso: "CR", spanish: true },
+  { slug: "panama", name: "Panama", demonym: "Panamanian", region: "Latin America", iso: "PA", spanish: true, highIncome: true },
+  { slug: "dominican-republic", name: "Dominican Republic", demonym: "Dominican", region: "Caribbean", iso: "DO", spanish: true },
+  { slug: "cuba", name: "Cuba", demonym: "Cuban", region: "Caribbean", iso: "CU", spanish: true },
+  { slug: "haiti", name: "Haiti", demonym: "Haitian", region: "Caribbean", iso: "HT", french: true },
+  { slug: "trinidad-and-tobago", name: "Trinidad and Tobago", demonym: "Trinidadian and Tobagonian", region: "Caribbean", iso: "TT", exam: CSEC, highIncome: true },
+  { slug: "guyana", name: "Guyana", demonym: "Guyanese", region: "Caribbean", iso: "GY", exam: CSEC },
+  { slug: "barbados", name: "Barbados", demonym: "Barbadian", region: "Caribbean", iso: "BB", exam: CSEC, highIncome: true },
+  { slug: "saint-lucia", name: "Saint Lucia", demonym: "Saint Lucian", region: "Caribbean", iso: "LC", exam: CSEC },
+  { slug: "grenada", name: "Grenada", demonym: "Grenadian", region: "Caribbean", iso: "GD", exam: CSEC },
+  { slug: "belize", name: "Belize", demonym: "Belizean", region: "Caribbean", iso: "BZ", exam: CSEC },
+  { slug: "dominica", name: "Dominica", demonym: "Dominican (Dominica)", region: "Caribbean", iso: "DM", exam: CSEC },
 ];
+
+// when the country pages were last checked (and the 85 added for every region of the world)
+export const ORIGINS_UPDATED = "2026-11-14";
 
 export const origin = (slug: string) => ORIGINS.find((o) => o.slug === slug);
 
 export type Fit = { name: string; href: string; status: "open" | "check" | "no"; note: string };
 
-const DEVELOPING = (o: Origin) => !["Chile"].includes(o.name); // every listed country except high-income Chile counts for EPOS and JJ/WBGSP
+// EPOS and JJ/WBGSP are for developing countries: every listed country except the high-income ones
+const DEVELOPING = (o: Origin) => !o.highIncome && o.name !== "Chile";
 
 // which major scholarships a citizen can go for, with the reason
 export function fitsFor(o: Origin): Fit[] {
@@ -99,9 +195,9 @@ export function fitsFor(o: Origin): Fit[] {
     { name: "Knight-Hennessy (Stanford)", href: "/scholarships/knight-hennessy", status: us ? "check" : "open", note: us ? "Open to all, but new US student visas are restricted for your nationality" : "Open to all nationalities" },
     { name: "Fulbright (USA)", href: "/scholarships/fulbright-foreign-student", status: us ? "check" : "check", note: us ? "Its J-1 visa falls under the 2026 US restrictions for your nationality" : "Run by your country's Fulbright office or US embassy; check this year's call" },
     { name: "MEXT (Japan)", href: "/scholarships/mext", status: "open", note: "Through the Japanese embassy in your country" },
-    { name: "GKS (South Korea)", href: "/scholarships/global-korea-scholarship", status: "open", note: "Embassy or university track" },
+    { name: "GKS (South Korea)", href: "/scholarships/global-korea-scholarship", status: o.name === "South Korea" ? "no" : "open", note: o.name === "South Korea" ? "Not for South Korean citizens" : "Embassy or university track" },
     { name: "Türkiye Bursları", href: "/scholarships/turkiye-burslari", status: o.name === "Türkiye" ? "no" : "open", note: o.name === "Türkiye" ? "Not for Turkish citizens" : "All nationalities, within age limits" },
-    { name: "Chinese Government Scholarship", href: "/scholarships/chinese-government-scholarship", status: "open", note: "Through the Chinese embassy or a university" },
+    { name: "Chinese Government Scholarship", href: "/scholarships/chinese-government-scholarship", status: o.name === "China" ? "no" : o.name === "Taiwan" ? "check" : "open", note: o.name === "China" ? "Not for Chinese citizens" : o.name === "Taiwan" ? "Check the current rules for applicants from Taiwan" : "Through the Chinese embassy or a university" },
     { name: "Stipendium Hungaricum (Hungary)", href: "/scholarships/stipendium-hungaricum", status: "check", note: "Check that your country is a partner this year" },
     { name: "JJ/WBGSP (development master's)", href: "/scholarships/joint-japan-world-bank", status: DEVELOPING(o) ? "open" : "no", note: DEVELOPING(o) ? "Needs three years of development work" : "For developing World Bank member countries" },
   ];

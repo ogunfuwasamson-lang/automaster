@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GUIDES, guide, relatedCards } from "@/content";
+import { DESTINATIONS } from "@/lib/programme-pages";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
 import { translationsOfGuide } from "@/content/i18n";
@@ -78,6 +79,8 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             <Related
               items={[
                 ...relatedCards(g.related, g.slug),
+                // a country guide points at that country's checked programme list
+                ...DESTINATIONS.filter((d) => d.guide === g.slug).map((d) => ({ href: `/programmes/${d.slug}`, title: `Master's programmes in ${d.name}, with deadlines and fees`, kind: "Programmes" })),
                 ...ORIGINS.filter((o) => o.guide === g.slug).map((o) => ({ href: `/study-abroad/${o.slug}`, title: `Every scholarship open to ${o.demonym} citizens`, kind: "By home country" })),
                 ...UNIVERSITIES.filter((u) => u.country === COUNTRY_OF[g.slug]).map((u) => ({ href: `/universities/${u.slug}`, title: `How to apply to ${u.short}`, kind: u.country })),
               ]}

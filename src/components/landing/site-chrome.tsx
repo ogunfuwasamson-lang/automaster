@@ -110,6 +110,12 @@ export function SiteFooter() {
           <Link href="/match" className="block text-muted hover:text-foreground">
             Programme matcher
           </Link>
+          <Link href="/programmes" className="block text-muted hover:text-foreground">
+            Programmes by country
+          </Link>
+          <Link href="/deadlines" className="block text-muted hover:text-foreground">
+            Deadlines by month
+          </Link>
           <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
             Scholarship finder
           </Link>

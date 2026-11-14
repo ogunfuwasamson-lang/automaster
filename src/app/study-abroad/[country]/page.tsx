@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ORIGINS, fitsFor, origin, usLine, COMMONWEALTH_ELIGIBLE } from "@/content/countries";
+import { ORIGINS, ORIGINS_UPDATED, fitsFor, origin, usLine, COMMONWEALTH_ELIGIBLE } from "@/content/countries";
 import { guide } from "@/content";
 import { translationsOfCountry } from "@/content/i18n";
 import { TranslationLinks } from "@/components/library/translation-links";
@@ -15,7 +15,7 @@ export function generateStaticParams() {
   return ORIGINS.map((o) => ({ country: o.slug }));
 }
 
-const UPDATED = "2026-11-01";
+const UPDATED = ORIGINS_UPDATED;
 const title = (o: { name: string }) => `Study abroad from ${o.name}: scholarships, admissions and visas for 2027`;
 
 export async function generateMetadata({ params }: { params: Promise<{ country: string }> }): Promise<Metadata> {

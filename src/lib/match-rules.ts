@@ -161,7 +161,7 @@ export function nextDeadline(deadlines: LibraryProgram["deadlines"], today: stri
 
 // the library's names carry research notes in brackets ("ECT+ (Erasmus Mundus Master of Science, coordinated by...")
 export function cleanName(name: string): string {
-  let n = name.replace(/\s*\([^)]*\)/g, " ").replace(/\s*\([^)]*$/, " ").split(";")[0].replace(/\s+/g, " ").trim();
+  let n = name.replace(/\s*\([^)]*\)/g, " ").replace(/\s*\([^)]*$/, " ").split(";")[0].replace(/\s+/g, " ").replace(/\s+,/g, ",").replace(/,\s*$/, "").trim();
   if (n.length < 10) n = name.replace(/\s*\(([^,;)]*)[^)]*\)?/, " ($1)").replace(/\s+/g, " ").trim();
   return n.length > 80 ? `${n.slice(0, 78).trimEnd()}…` : n;
 }
