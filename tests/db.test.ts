@@ -171,6 +171,8 @@ d("database invariants", () => {
     const school = (await db.query(`select id from schools limit 1`)).rows[0].id;
     const progs = (await db.query(`insert into programs(school_id, name, degree) values ($1, 'P1', 'MS'), ($1, 'P2', 'MS'), ($1, 'P3', 'MS'), ($1, 'P4', 'MS') returning id`, [school])).rows.map((r) => r.id);
     const apps = (await db.query(`insert into applications(user_id, program_id) select $1, unnest($2::uuid[]) returning id`, [ALICE, progs])).rows.map((r) => r.id);
+    // every account starts with one free submission (0032); this test is about paid credits, so set it aside first
+    await db.query(`update profiles set bonus_submissions = 0 where id = $1`, [ALICE]);
     expect((await db.query(`select grant_credits($1, 5, 'chk_1') as b`, [ALICE])).rows[0].b).toBe(5);
     expect((await db.query(`select grant_credits($1, 5, 'chk_1') as b`, [ALICE])).rows[0].b).toBe(-1); // the webhook and the return page both apply it
     expect((await db.query(`select reserve_submission($1, $2) as r`, [ALICE, apps[0]])).rows[0].r).toBe("credit");
