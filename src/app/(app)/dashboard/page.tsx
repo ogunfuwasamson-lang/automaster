@@ -43,6 +43,8 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { dashboardNudge } from "@/lib/nudge";
 import { NudgeCard } from "@/components/billing/nudge-card";
+import { UpgradeLink } from "@/components/billing/pay";
+import { billingState } from "@/lib/billing";
 import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
 import { TodayCard } from "@/components/home/today-card";
 import { loadToday } from "@/lib/today-data";
@@ -218,6 +220,8 @@ export default async function Dashboard() {
   const asks = (await openQuestions(auth.user.id).catch(() => [])).map(toAsk);
   const snooze = Number((await cookies()).get("iw_nudge_snooze")?.value) || null;
   const payNudge = await dashboardNudge(user.id, snooze).catch(() => null);
+  // "Upgrade" on the limit notice opens the payment page itself: a pack where packs are sold, Pro elsewhere
+  const payKind: "pack" | "pro" = parked && plan.id === "free" ? ((await billingState(user.id).catch(() => null))?.pricing.model === "pack" ? "pack" : "pro") : "pro";
 
   return (
     <Stagger className="relative space-y-6">
@@ -322,9 +326,7 @@ export default async function Dashboard() {
               {plan.id === "free" ? (
                 <>
                   {" "}
-                  <Link href="/pricing" className="font-semibold underline underline-offset-4">
-                    Upgrade
-                  </Link>{" "}
+                  <UpgradeLink kind={payKind} />{" "}
                   to continue now.
                 </>
               ) : null}

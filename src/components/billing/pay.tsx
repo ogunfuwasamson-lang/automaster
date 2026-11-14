@@ -161,3 +161,28 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; eac
     </div>
   );
 }
+
+// an inline "Upgrade" that goes straight to the payment page (a pack where packs are sold, Pro elsewhere), not
+// to the pricing page: one click from "you've hit the limit" to paying
+export function UpgradeLink({ kind, children = "Upgrade" }: { kind: "pack" | "pro"; children?: React.ReactNode }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      className="inline-flex items-center gap-1 font-semibold underline underline-offset-4 disabled:opacity-60"
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await go({ kind, back: "settings", from: "limit" });
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
+          setBusy(false);
+        }
+      }}
+    >
+      {busy && <LoaderCircle className="size-3.5 animate-spin" aria-hidden />}
+      {children}
+    </button>
+  );
+}
