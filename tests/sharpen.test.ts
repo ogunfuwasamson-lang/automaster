@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { emptyProfile } from "@/lib/profile";
+import { emptyProfile, type Profile } from "@/lib/profile";
 import { applySharpen, matchCriteria, sharpenQuestions, sharpenState } from "@/lib/sharpen";
 import { prefScore, rankMatches, type LibraryProgram } from "@/lib/match-rules";
 import { openScholarships } from "@/lib/open-scholarships";
 import { todaysTask } from "@/lib/today";
 
-const masters = () => {
+const masters = (): Profile => {
   const p = emptyProfile();
   return { ...p, goals: { ...p.goals, study_level: "masters" as const } };
 };
