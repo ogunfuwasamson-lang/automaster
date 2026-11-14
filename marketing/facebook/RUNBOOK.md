@@ -64,13 +64,19 @@ Never work around a block, CAPTCHA or checkpoint.
 
 - **Chrome (the Claude in Chrome extension)** is signed in to Facebook as the Ivyward Page and is the browser for posting.
   Load the `chrome-browser` skill first. Open your own tab; close it at the end.
-- **Attaching videos (known problem, 12 Nov):** Chrome's `file_upload` only accepts files shared with that session
-  (attachments, the session's outputs folder). It refuses the connected `ivyward video` folder, even when connected, and
-  scheduled runs often start with no folder at all. So: try `file_upload` once per run, from the connected folder if
-  `get_device_info` lists it. If it's refused or there's no folder, do NOT mark video posts `failed` and do not try other
-  routes: leave them `approved`, set `result.note: "Waiting: video can't be attached yet"`, post everything else (replies,
-  comments), and say once in the run log how many video posts are waiting. A fix is being set up; when it lands this
-  section will say how to post videos.
+- **Videos never go through the browser's file picker** (Chrome can't attach local files in scheduled runs). Instead:
+  1. *Morning run:* commit each day's mp4s to `marketing/facebook/videos/` in the repo (`YYYY-MM-DD-<slug>.mp4`, under
+     10 MB each) and push to main; put that file name in the item's `video.file`.
+  2. *Posting run, first use of a video that day:* start the GitHub workflow "Post video to Facebook Page"
+     (`facebook-video.yml`, on main) with `file` = the file name, `text` = the approved text of the first approved item
+     that uses the video (a Page post if there is one), `title` = the video's title. Wait for it to finish and read
+     `video_id` and `url` from its summary. Save them on every item that uses that video (`video.fbUrl`). That item is
+     now `posted` with that URL.
+  3. *Each group post using that video:* in Chrome as the Ivyward Page, open `video.fbUrl` → Share → "Share to a
+     group" → pick the group → paste the item's own approved text → Post. Record the group post's link.
+  4. If the workflow fails with "FB_PAGE_TOKEN secret is not set" or "Facebook refused the token", the Page token is
+     missing or expired: leave video posts `approved` with `result.note: "Waiting: Facebook token"`, post the replies,
+     and tell the user once. Never try another route.
 - The built-in browser pane is also signed in to Facebook; use it for reading, searching and joining if Chrome isn't connected.
 - Check who you are acting as before the first action (top-right avatar should be the Ivyward mark). If it's Samson's
   profile, switch to Ivyward (avatar menu → Ivyward) before doing anything.

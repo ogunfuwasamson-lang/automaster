@@ -1,0 +1,66 @@
+name: Post video to Facebook Page
+
+# Publishes one mp4 from marketing/facebook/videos to the Ivyward Page through Facebook's Graph API, because the
+# browser can't attach local files in scheduled runs. Group posts then share this Page video (Share → Group) with their
+# own text. Only ever started by hand or by a posting run, for an item Samson approved on the review page.
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "File name in marketing/facebook/videos (e.g. 2026-11-14-chevening.mp4)"
+        required: true
+      text:
+        description: "The post's text (the approved text, exactly)"
+        required: true
+      title:
+        description: "Short video title"
+        required: false
+        default: "Ivyward"
+      check_only:
+        description: "true = only check the token and the Page, post nothing"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facebook-video
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check token and Page
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: |
+          test -n "$FB_PAGE_TOKEN" || { echo "::error::FB_PAGE_TOKEN secret is not set"; exit 1; }
+          me=$(curl -sS "https://graph.facebook.com/v21.0/me?fields=id,name" -H "Authorization: Bearer $FB_PAGE_TOKEN")
+          echo "$me" | jq -e '.id' >/dev/null || { echo "::error::Facebook refused the token: $(echo "$me" | jq -c '.error | {message, code, error_subcode}')"; exit 1; }
+          echo "Posting as: $(echo "$me" | jq -r '.name') ($(echo "$me" | jq -r '.id'))" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload video
+        if: ${{ inputs.check_only != 'true' }}
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FILE: ${{ inputs.file }}
+          TEXT: ${{ inputs.text }}
+          TITLE: ${{ inputs.title }}
+        run: |
+          case "$FILE" in */*|*..*) echo "::error::file must be a plain file name"; exit 1;; esac
+          path="marketing/facebook/videos/$FILE"
+          test -f "$path" || { echo "::error::$path is not in the repo"; exit 1; }
+          res=$(curl -sS -X POST "https://graph-video.facebook.com/v21.0/me/videos" \
+            -H "Authorization: Bearer $FB_PAGE_TOKEN" \
+            -F "source=@$path" -F "description=$TEXT" -F "title=$TITLE")
+          id=$(echo "$res" | jq -r '.id // empty')
+          test -n "$id" || { echo "::error::Upload failed: $(echo "$res" | jq -c '.error | {message, code, error_subcode}')"; exit 1; }
+          # the permalink appears once Facebook has taken the video in
+          for i in 1 2 3 4 5 6; do
+            link=$(curl -sS "https://graph.facebook.com/v21.0/$id?fields=permalink_url" -H "Authorization: Bearer $FB_PAGE_TOKEN" | jq -r '.permalink_url // empty')
+            test -n "$link" && break; sleep 10
+          done
+          { echo "video_id=$id"; echo "url=https://www.facebook.com${link}"; } | tee -a "$GITHUB_STEP_SUMMARY"
