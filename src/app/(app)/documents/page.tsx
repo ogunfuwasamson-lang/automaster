@@ -6,6 +6,9 @@ import { DOC_KINDS } from "@/lib/doc-kinds";
 import { RetryButton } from "./retry-button";
 import { DeleteDoc } from "./delete-button";
 import { AutoRefresh } from "../shortlist/controls";
+import Link from "next/link";
+import { appNeeds, heldDocs } from "@/lib/doc-data";
+import { docChecklist, docCount, inSentence } from "@/lib/doc-checklist";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Documents" };
@@ -24,6 +27,14 @@ export default async function Documents() {
   const { data: docs } = await auth.sb.from("documents").select("id, kind, filename, status, extracted, created_at").order("created_at", { ascending: false });
   const list = docs ?? [];
   const reading = list.some((d) => d.status === "uploaded" || d.status === "extracting");
+  // applications being written: how many of each one's documents are in (lib/doc-checklist)
+  const { data: working } = await auth.sb.from("applications").select("id, target_deadline, programs(name, degree, schools(name))").in("status", ["preparing", "ready_for_review", "packet_approved"]).order("target_deadline", { ascending: true, nullsFirst: false }).limit(8);
+  const workingList = (working ?? []) as unknown as { id: string; target_deadline: string | null; programs: { name: string; degree: string | null; schools: { name: string } } | null }[];
+  const perApp = workingList.length
+    ? await Promise.all([heldDocs(auth.user.id), appNeeds(auth.user.id, workingList.map((a) => a.id))])
+        .then(([held, needs]) => workingList.map((a) => ({ a, c: needs.get(a.id) ? docCount(docChecklist(needs.get(a.id)!, held)) : null })))
+        .catch(() => [])
+    : [];
   const has = (k: string) => list.some((d) => (d.kind === k || (k === "degree_certificate" && d.kind === "degree_cert")) && d.status !== "failed");
 
   return (
@@ -87,6 +98,28 @@ export default async function Documents() {
         </div>
 
         <aside className="space-y-3">
+          {perApp.some((x) => x.c) && (
+            <>
+              <h2 className="text-sm font-semibold">For your applications</h2>
+              <ul className="space-y-2.5 rounded-3xl border border-line bg-surface p-4 text-sm shadow-card">
+                {perApp.map(({ a, c }) =>
+                  c ? (
+                    <li key={a.id}>
+                      <Link href={`/applications/${a.id}#documents`} className="block hover:text-brand">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate font-medium">{a.programs?.degree === "Scholarship" ? a.programs.name : a.programs?.schools.name}</span>
+                          <span className={`shrink-0 text-xs ${c.missing.length ? "text-muted" : "text-go"}`}>
+                            {c.done} of {c.total}
+                          </span>
+                        </span>
+                        {c.missing.length ? <span className="block truncate text-xs text-muted">Needs: {c.missing.map((m) => inSentence(m.label)).join(", ")}</span> : null}
+                      </Link>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
+            </>
+          )}
           <h2 className="text-sm font-semibold">What portals ask for</h2>
           <ul className="space-y-3 rounded-3xl border border-line bg-surface shadow-card p-4 text-sm">
             {NEEDED.map(([k, label, hint]) => (

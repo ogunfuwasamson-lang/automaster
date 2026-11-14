@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { chipClass, Tag } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
+import { guessKind } from "@/lib/doc-kinds";
 import { SharpenCard } from "@/components/profile/sharpen-card";
 
 const LEVELS: [string, string, string][] = [
@@ -56,19 +57,6 @@ const browserZone = () => {
 };
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-function guessKind(name: string, already: number): string {
-  if (/\b(cv|resume|résumé)\b/i.test(name)) return "cv";
-  if (/transcript|record|marksheet|result/i.test(name)) return "transcript";
-  if (/ielts|toefl|gre|gmat|sat|duolingo|pte|score/i.test(name)) return "test_score";
-  if (/passport|national.?id|\bid\b/i.test(name)) return "passport";
-  if (/reference|recommendation|lor\b/i.test(name)) return "reference_letter";
-  if (/degree|diploma|certificate|cert/i.test(name)) return /award|prize|winner/i.test(name) ? "award" : "degree_certificate";
-  if (/award|prize|honou?r|scholarship/i.test(name)) return "award";
-  if (/bank|sponsor|affidavit|proof.?of.?fund/i.test(name)) return "financial";
-  if (/sop|statement|essay|personal/i.test(name)) return "old_essay";
-  if (/portfolio|sample|publication|paper/i.test(name)) return "portfolio";
-  return already ? "other" : "cv";
-}
 
 export function Onboarding(props: {
   userId: string;

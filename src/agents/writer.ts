@@ -12,6 +12,7 @@ import { sortWork, levelOf, LEVEL_LABEL, type Profile } from "@/lib/profile";
 import { levelGuide, defaultEssay } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
+import { askForMissingDocs } from "@/lib/doc-data";
 import { markReadyForReview } from "@/lib/review-ready";
 import { withinLimit, nextStep, clichesIn, CLICHES, MAX_ROUNDS, disputedFigures, maskDisputed, placeholdersIn } from "@/lib/writing";
 
@@ -296,8 +297,11 @@ find the application's written requirements (official prompts and limits), then 
       schoolId: school.id,
       agentRunId: runId,
       reasoning: plan.brief.narrative,
-      context: { essays: plan.essays.length, drafting: queued, prompts: plan.prompts_are_current },
+      // the documents page and the per-application checklist (lib/doc-data) read these
+      context: { essays: plan.essays.length, drafting: queued, prompts: plan.prompts_are_current, references: refs, requirements: plan.other_requirements.slice(0, 12) },
     });
+    // the documents this school needs that aren't on file yet: asked for by name, school and deadline
+    await askForMissingDocs(job.user_id, applicationId).catch(() => {});
     return { essays: plan.essays.length, drafting: queued };
   },
 

@@ -5,6 +5,8 @@ import { PORTAL_DETAIL_FIELDS, type PortalDetails } from "@/lib/portal-fields";
 import { chapterStates, type Level } from "@/lib/profile-chapters";
 import { journey, todaysTask, type Journey, type Task, type TodayInput } from "@/lib/today";
 import { sharpenState } from "@/lib/sharpen";
+import { appNeeds, heldDocs } from "@/lib/doc-data";
+import { docChecklist, docCount } from "@/lib/doc-checklist";
 
 // everything today's task looks at, for one applicant (the dashboard and the morning email)
 export async function loadToday(userId: string): Promise<{ task: Task | null; journey: Journey }> {
@@ -22,6 +24,24 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
   const kinds = new Set((docs ?? []).map((d) => d.kind as string));
   const quick = states.find((s) => s.chapter.style === "quick" && s.chapter.id !== "background" && s.chapter.id !== "fineprint" && s.next.length);
   const story = states.find((s) => s.chapter.id === "story");
+  // applications being written: the nearest deadline still missing a document
+  const working = ((apps ?? []) as unknown as { id: string; status: string; target_deadline: string | null; programs: { degree: string | null; name?: string; schools: { name: string } } | null }[])
+    .filter((a) => a.programs && ["preparing", "ready_for_review", "packet_approved"].includes(a.status))
+    .sort((a, b) => (a.target_deadline ?? "9999").localeCompare(b.target_deadline ?? "9999"))
+    .slice(0, 5);
+  let appDoc: TodayInput["appDoc"] = null;
+  if (working.length) {
+    const [held, needs] = await Promise.all([heldDocs(userId, profile), appNeeds(userId, working.map((a) => a.id), profile)]);
+    for (const a of working) {
+      const n = needs.get(a.id);
+      if (!n) continue;
+      const { missing } = docCount(docChecklist(n, held));
+      if (missing.length) {
+        appDoc = { appId: a.id, school: a.programs!.schools.name, deadline: a.target_deadline, label: missing[0].label, missing: missing.length };
+        break;
+      }
+    }
+  }
   const input: TodayInput = {
     apps: ((apps ?? []) as unknown as { id: string; status: string; target_deadline: string | null; programs: { degree: string | null; schools: { name: string } } | null }[])
       .filter((a) => a.programs)
@@ -32,6 +52,7 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
     gmail: mail?.status === "active",
     story: story ? { open: story.next.length } : null,
     nextChapter: quick ? { id: quick.chapter.id, title: quick.chapter.title, open: quick.next.length } : null,
+    appDoc,
     sharpenOpen: sharpenState(profile, (details as Record<string, string | undefined>).passport_country ?? null).open.length,
   };
   return { task: todaysTask(input), journey: journey(input) };

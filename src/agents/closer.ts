@@ -13,6 +13,7 @@ import { schedule } from "@/lib/outbox";
 import { schoolBrief } from "@/lib/school-memory";
 import { officialEmail } from "@/lib/writing";
 import { notify, resolve } from "@/lib/notify";
+import { refreshDocAsks } from "@/lib/doc-data";
 
 // the closer: money. fee waivers before applying; aid after admission.
 // it drafts, then hands each email to the outbox: with gmail connected and the dial on "auto with undo"
@@ -225,6 +226,7 @@ fact sheet: ${JSON.stringify(await safeFactSheet(job.user_id, profile)).slice(0,
       await logEvent({ userId: job.user_id, actor: "agent:closer", action: "references.requested", applicationId, agentRunId: runId, context: { referee: r.name } });
       saved++;
     }
+    if (saved) await refreshDocAsks(job.user_id).catch(() => {});
     return { drafted: saved };
   },
 

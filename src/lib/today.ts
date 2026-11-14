@@ -1,3 +1,5 @@
+import { inSentence } from "@/lib/doc-checklist";
+
 // "today's task": the one small thing that moves an applicant closest to their first submission, and the path
 // there as steps. the dashboard leads with it and the morning email names it. pure, so both agree.
 
@@ -10,6 +12,8 @@ export interface TodayInput {
   story: { open: number } | null; // the "Your story" chapter: questions left
   nextChapter: { id: string; title: string; open: number } | null; // the next quick chapter with questions left
   sharpenOpen?: number; // "sharpen your matches" questions left (lib/sharpen)
+  // the application being prepared with the nearest deadline that's still missing documents (lib/doc-checklist)
+  appDoc?: { appId: string; school: string; deadline: string | null; label: string; missing: number } | null;
 }
 
 export interface Task {
@@ -60,6 +64,12 @@ export function todaysTask(i: TodayInput): Task | null {
   // the facts that decide which programmes and scholarships fit, before anything for the forms
   if (i.sharpenOpen && i.sharpenOpen > 0)
     return { id: "sharpen", title: i.sharpenOpen > 1 ? `Answer ${i.sharpenOpen} quick questions that sharpen your matches` : "One quick question that sharpens your matches", why: "Funding, budget, English and tests decide which programmes and scholarships really fit. Each answer re-ranks your list.", minutes: 1, href: "/dashboard#sharpen", cta: "Answer" };
+  // a document a school needs before the agents can submit: named, with the school
+  if (i.appDoc) {
+    const d = i.appDoc;
+    const what = inSentence(d.label);
+    return { id: `doc:${d.appId}`, title: `Add your ${what} for ${short(d.school)}`, why: `Your agents can't submit without it${d.missing > 1 ? `, and ${d.missing - 1} more after it` : ""}. A photo from your phone works.`, minutes: 2, href: `/applications/${d.appId}#documents`, cta: "Add it" };
+  }
   if (i.basicsMissing > 0)
     return { id: "basics", title: "Add the basics every form asks for", why: "Your phone and date of birth come first on every application form. Saved once, the agents never stop to ask.", minutes: 1, href: "/profile/chapters/basics", cta: "Add them" };
   if (!i.hasTranscript)

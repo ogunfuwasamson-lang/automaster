@@ -1,5 +1,6 @@
 import "server-only";
 import { DOC_KIND_IDS } from "@/lib/doc-kinds";
+import { refreshDocAsks } from "@/lib/doc-data";
 import * as z from "zod/v4";
 import mammoth from "mammoth";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
@@ -102,6 +103,9 @@ extract the facts from the document.`,
         .update({
           status: "extracted",
           extracted: { kind: output.detected_kind, summary: output.summary, issues: output.issues },
+          // uploaded without saying what it is ("let the agents work it out"), or an english letter filed under
+          // test scores: file it under what the agent found
+          ...((doc.kind === "other" && output.detected_kind !== "other") || (doc.kind === "test_score" && output.detected_kind === "english_letter") ? { kind: output.detected_kind } : {}),
         })
         .eq("id", doc.id);
       await logEvent({
@@ -112,6 +116,8 @@ extract the facts from the document.`,
         context: { documentId: doc.id, kind: output.detected_kind, issues: output.issues },
       });
       await scheduleConsolidate(job.user_id);
+      // it may complete an application's documents: refresh (or close) those asks
+      await refreshDocAsks(job.user_id).catch(() => {});
       // a document is read: with a level and regions on file, that's enough to start the shortlist
       await startShortlist(job.user_id, "document").catch(() => false);
       return { kind: output.detected_kind, issues: output.issues.length };

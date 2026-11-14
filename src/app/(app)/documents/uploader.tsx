@@ -1,20 +1,23 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud } from "lucide-react";
+import { Camera, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { uploadDocument } from "@/lib/upload-client";
 import { Select } from "@/components/ui/field";
-import { DOC_KINDS } from "@/lib/doc-kinds";
+import { DOC_KINDS, guessKind } from "@/lib/doc-kinds";
+import { DocTrust } from "@/components/docs/upload-button";
 import { DriveImport } from "./drive-import";
 
 const KINDS = DOC_KINDS;
 
 export function Uploader({ userId, pickerKey = "" }: { userId: string; pickerKey?: string }) {
-  const [kind, setKind] = useState<string>("cv");
+  // "auto": several files at once, each filed by its name and checked by the agent that reads it
+  const [kind, setKind] = useState<string>("auto");
   const [busy, setBusy] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const cam = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   async function upload(files: FileList | File[] | null) {
@@ -23,12 +26,13 @@ export function Uploader({ userId, pickerKey = "" }: { userId: string; pickerKey
     let ok = 0;
     for (const file of list) {
       setBusy(file.name);
-      const err = await uploadDocument(userId, file, kind);
+      const err = await uploadDocument(userId, file, kind === "auto" ? guessKind(file.name, 1) : kind);
       if (err) toast.error(err);
       else ok++;
     }
     setBusy(null);
     if (input.current) input.current.value = "";
+    if (cam.current) cam.current.value = "";
     if (ok) toast.success(ok === 1 ? "Uploaded. Reading it now." : `${ok} files uploaded. Reading them now.`);
     router.refresh();
   }
@@ -53,10 +57,11 @@ export function Uploader({ userId, pickerKey = "" }: { userId: string; pickerKey
         </span>
         <div>
           <p className="font-bold">{busy ? `Uploading ${busy}…` : "Drop files here"}</p>
-          <p className="mt-0.5 text-sm text-muted">PDF, Word, images or text, up to 10 MB each</p>
+          <p className="mt-0.5 text-sm text-muted">PDF, Word, photos or text, up to 10 MB each. Several at once is fine: your agents work out which is which.</p>
         </div>
         <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row">
           <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="What kind of document">
+            <option value="auto">Not sure: let your agents work it out</option>
             {KINDS.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -71,8 +76,19 @@ export function Uploader({ userId, pickerKey = "" }: { userId: string; pickerKey
           >
             Choose files
           </button>
-          <DriveImport userId={userId} kind={kind} onDone={() => router.refresh()} pickerKey={pickerKey} />
+          <button
+            type="button"
+            onClick={() => cam.current?.click()}
+            disabled={!!busy}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-sm font-semibold sm:hidden"
+          >
+            <Camera className="size-4" aria-hidden />
+            Take a photo
+          </button>
+          <DriveImport userId={userId} kind={kind === "auto" ? "other" : kind} onDone={() => router.refresh()} pickerKey={pickerKey} />
         </div>
+        <input ref={cam} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => upload(e.target.files)} />
+        <DocTrust className="max-w-md" />
         <input ref={input} type="file" multiple accept=".pdf,.docx,.txt,.md,image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => upload(e.target.files)} />
       </div>
     </div>

@@ -1,6 +1,10 @@
 import { planFor } from "@/lib/app-plan";
 import { CvButton } from "./cv-button";
 import { WhatsLeft } from "./whats-left";
+import { DocChecklist } from "./doc-checklist";
+import { checklistFor } from "@/lib/doc-data";
+import { englishLetterEmail } from "@/lib/doc-checklist";
+import { getProfile } from "@/lib/profile-store";
 import { instructions } from "@/lib/instructions";
 import { previewMode } from "@/lib/supabase/preview";
 import { canReadMail } from "@/lib/gmail";
@@ -122,6 +126,16 @@ export default async function ApplicationPage({
       .order("created_at"),
   ]);
   if (!app) notFound();
+  // the documents this school needs, and the english-letter email from their own degree details
+  const [docs, me] = await Promise.all([checklistFor(auth.user.id, id).catch(() => null), getProfile(auth.user.id).catch(() => null)]);
+  const lastDegree = [...(me?.education ?? [])].sort((a, b) => (b.end ?? "9999").localeCompare(a.end ?? "9999"))[0] ?? null;
+  const letter = englishLetterEmail({
+    name: me?.identity.full_name ?? null,
+    degree: lastDegree?.degree ?? null,
+    field: lastDegree?.field ?? null,
+    institution: lastDegree?.institution ?? null,
+    year: lastDegree?.end?.slice(0, 4) ?? null,
+  });
   // only the applicant's own application reaches here (checked above), so their instructions are read with the service key
   const told = previewMode() ? [] : await instructions(id).catch(() => []);
   const hasCv = previewMode() ? false : !!(await admin().storage.from("documents").list(`${auth.user.id}/generated`, { search: `${id}-cv.json` }).then((r) => r.data?.length).catch(() => 0));
@@ -449,6 +463,18 @@ export default async function ApplicationPage({
           deadline: app.target_deadline,
         })}
       />
+
+      {docs && (
+        <DocChecklist
+          userId={auth.user.id}
+          school={p.degree === "Scholarship" ? p.name : p.schools.name}
+          deadline={app.target_deadline}
+          rows={docs.rows}
+          done={docs.done}
+          total={docs.total}
+          letter={letter}
+        />
+      )}
 
       <Milestones
         id={id}
