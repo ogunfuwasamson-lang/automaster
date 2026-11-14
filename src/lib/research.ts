@@ -8,6 +8,8 @@ import { assertAiAvailable, tripAi } from "@/lib/ai-health";
 import { costOf, type Usage } from "@/lib/pricing";
 
 // web research with claude's server-side search + fetch tools.
+// cost (nov 2026): each search is a cent on top of the tokens it brings back, and was a third of all api spend;
+// reading a page costs only its tokens. so callers keep searches few and start from a known url when there is one.
 // returns free-text findings plus every url seen; a second structured call turns that into data.
 // kept separate from runStructured so a research failure never corrupts structured output.
 
@@ -70,8 +72,8 @@ export async function research(args: {
         system: cachedSystem(args.system),
         messages,
         tools: [
-          { type: "web_search_20250305", name: "web_search", max_uses: args.maxSearches ?? 8 },
-          { type: "web_fetch_20250910", name: "web_fetch", max_uses: args.maxFetches ?? 6, max_content_tokens: 5000 },
+          { type: "web_search_20250305", name: "web_search", max_uses: args.maxSearches ?? 4 },
+          { type: "web_fetch_20250910", name: "web_fetch", max_uses: args.maxFetches ?? 6, max_content_tokens: 4000 },
         ],
       });
       inTok += msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);

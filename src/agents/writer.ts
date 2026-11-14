@@ -203,8 +203,8 @@ ${JSON.stringify(await safeFactSheet(job.user_id, profile))}
 
 ${knownP.length ? `\nprompts earlier applicants to this program found this cycle (confirm they're still the official ones, and look for any that are missing):\n${knownP.map((k) => `- ${k.title}${k.word_limit ? ` (${k.word_limit} words)` : ""}: ${k.prompt}`).join("\n")}\n` : ""}
 find the application's written requirements (official prompts and limits), then research the program closely enough to position this applicant specifically.`,
-      maxSearches: 6,
-      maxFetches: 5,
+      maxSearches: 3,
+      maxFetches: 4,
     });
 
     const { output: plan, runId } = await runStructured({

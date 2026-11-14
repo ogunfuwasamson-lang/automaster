@@ -19,6 +19,7 @@ export interface CreditPolicy {
   starterShareOfDay: number; // starters' research and writing wait once the day passes this share of the limit
   runawayMultiple: number; // past this multiple of the limit, only paid and staff work runs
   inactiveDays: number; // no research for unpaid accounts away this long (0 = off)
+  freeProgramsPerRun: number; // programmes researched in one shortlist run for an account that hasn't paid (paid: the plan's 20)
   nudges: {
     inApp: boolean; // the card on the dashboard
     email: boolean; // the email sequence
@@ -38,6 +39,7 @@ export const DEFAULT_POLICY: CreditPolicy = {
   starterShareOfDay: 0.6,
   runawayMultiple: 2,
   inactiveDays: 14,
+  freeProgramsPerRun: 12,
   nudges: {
     inApp: true,
     email: true,
@@ -73,6 +75,7 @@ export function parsePolicy(raw: unknown): CreditPolicy {
     starterShareOfDay: num(o.starterShareOfDay, d.starterShareOfDay, 0, 1),
     runawayMultiple: num(o.runawayMultiple, d.runawayMultiple, 1, 100),
     inactiveDays: Math.round(num(o.inactiveDays, d.inactiveDays, 0, 365)),
+    freeProgramsPerRun: Math.round(num(o.freeProgramsPerRun, d.freeProgramsPerRun, 3, 20)),
     nudges: {
       inApp: bool(n.inApp, d.nudges.inApp),
       email: bool(n.email, d.nudges.email),

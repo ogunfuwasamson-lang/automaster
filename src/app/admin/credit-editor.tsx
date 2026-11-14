@@ -104,6 +104,7 @@ export function CreditEditor({ initial, defaults }: { initial: CreditPolicy; def
           <Num name="Starters wait from" value={Math.round(p.starterShareOfDay * 100)} step="5" max={100} onChange={(n) => set("starterShareOfDay", n / 100)} suffix={`% of the limit ($${(limit * p.starterShareOfDay).toFixed(2)})`} hint="So engaged and paying accounts go first on a busy day." />
           <Num name="Everyone unpaid waits from" value={p.runawayMultiple} step="0.5" min={1} onChange={(n) => set("runawayMultiple", n)} suffix={`× the limit ($${(limit * p.runawayMultiple).toFixed(2)})`} hint="A runaway day. Past it only paying and staff accounts run." />
           <Num name="Pause research after" value={p.inactiveDays} step="1" onChange={(n) => set("inactiveDays", n)} suffix="days away" hint="Unpaid accounts nobody has used in this long get no new research until they're back. 0 switches it off." />
+          <Num name="Shortlist size before paying" value={p.freeProgramsPerRun} step="1" min={3} max={20} onChange={(n) => set("freeProgramsPerRun", n)} suffix="programmes a run" hint="How many programmes one shortlist run researches for an account that hasn't paid. Paying accounts get 20. Each programme costs about 3 to 4 cents to research." />
         </div>
       </section>
 

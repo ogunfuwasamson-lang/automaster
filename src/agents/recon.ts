@@ -12,6 +12,7 @@ import { levelGuide, programChecklist, levelName } from "@/lib/levels";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
+import { creditPolicy, tierFor } from "@/lib/credit";
 import { screen, targetDeadline } from "@/lib/fit";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 import { findInstitution, isDefunct, linkSchool, registryBrief } from "@/lib/institutions";
@@ -254,15 +255,29 @@ async function placeApplication(userId: string, programId: string, f: ProgramFac
   return existing.id as string;
 }
 
+// which regions one run covers, and how many programmes each: at least 3 a region so every search earns its keep,
+// and runs take turns through the applicant's regions, so a small run still reaches all of them over time. pure.
+export function regionPlan(wanted: string[], total: number, runsSoFar: number): { regions: string[]; perRegion: number } {
+  if (!wanted.length || total <= 0) return { regions: [], perRegion: 0 };
+  const n = Math.max(1, Math.min(wanted.length, Math.floor(total / 3)));
+  const start = (runsSoFar * n) % wanted.length;
+  const regions = Array.from({ length: n }, (_, i) => wanted[(start + i) % wanted.length]);
+  return { regions, perRegion: Math.max(1, Math.floor(total / n)) };
+}
+
 export const recon: Record<string, Handler> = {
   // planner: one discovery job per selected region, plus the scholarship hunt
   "recon.discover": async (job) => {
     const profile = await getProfile(job.user_id);
     const only = (job.payload as { regions?: string[] }).regions;
     const { plan } = await userPlan(job.user_id);
-    const regions = (only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions)).slice(0, plan.maxRegions);
-    const total = Math.min(MAX_PROGRAMS, plan.programsPerRun);
-    const perRegion = Math.max(Math.min(5, total), Math.ceil(total / regions.length));
+    const wanted = (only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions)).slice(0, plan.maxRegions);
+    // how much one run researches: the plan's size for paying and staff accounts, the operator's smaller number
+    // (Credit tab) for everyone else. the total is a real ceiling: nine regions used to mean 45 programmes a run
+    const [{ tier }, policy] = await Promise.all([tierFor(job.user_id), creditPolicy()]);
+    const total = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
+    const { count: runs } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("user_id", job.user_id).eq("agent", "recon").eq("task", "discover").eq("status", "done");
+    const { regions, perRegion } = regionPlan(wanted, total, runs ?? 0);
     // a first shortlist (nothing found for this applicant yet) stays at the front of the queue all the way down
     const { count: known } = await admin().from("applications").select("id", { count: "exact", head: true }).eq("user_id", job.user_id);
     const first = !known;
@@ -317,7 +332,7 @@ ${already.length ? `already on their list (don't repeat):\n${already.join("\n")}
 find ${count} ${levelName(levelOf(profile))} programs in ${REGIONS[region]} that match their fields and degree types and respect their ADMISSION constraints (admissions tests, english route, deadlines). report funding signals, but don't filter on them.
 work top-down: roughly half from the region's top-ranked universities, then strong, then accessible. give each its ranking context and official url.
 finish with honest strategy notes for this region: which of their constraints cost them the most admits here, what would open more, and where post-admission funding pushes tend to work (e.g. schools known to reconsider merit aid or post assistantships after admission).`,
-      maxSearches: 6,
+      maxSearches: 4,
       maxFetches: 2,
     });
 
@@ -404,9 +419,10 @@ ${profileBrief(profile, row?.target_term)}
 
 ${levelGuide(levelOf(profile))}
 
-find and report: degree type and length; ${programChecklist(levelOf(profile))}; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.`,
-      maxSearches: 3,
-      maxFetches: 3,
+find and report: degree type and length; ${programChecklist(levelOf(profile))}; admissions tests (GRE/GMAT/other) required, optional or waivable, and waiver rules; english requirements and whether a medium-of-instruction letter from ${undergrad} is accepted; application fee and fee waiver options; tuition; post-study work rights for internationals in that country; every application round with its date and whether it's the priority/scholarship round; every scholarship, assistantship or fellowship open to international students (and to ${profile.identity.citizenship ?? "their"} citizens specifically) in this program, with amounts; how to apply (portal). then judge this applicant's fit.\n${p.url ? "read the starting url first, then the fees, funding and how-to-apply pages it links to. search only for what those pages don't answer." : ""}`,
+      // the programme's own page is already known: read it (and the pages it links) and search once for what's missing
+      maxSearches: p.url ? 1 : 2,
+      maxFetches: 4,
     });
 
     const { output: facts, runId } = await runStructured({
@@ -525,9 +541,9 @@ study level: ${levelName(levelOf(profile))}
 regions they're targeting: ${regionList(profile.preferences.regions).map((r) => REGIONS[r]).join(", ")}
 citizenship: ${profile.identity.citizenship ?? "unknown"}
 today is ${today()}. intake: ${term}.
-first list every eligibility hook you see in this profile. then search for scholarships and fellowships hook by hook. aim for 15-25 real options, strongest matches first.`,
-    maxSearches: 12,
-    maxFetches: 5,
+first list every eligibility hook you see in this profile. then search for scholarships and fellowships, one search covering several related hooks at a time. aim for 15-25 real options, strongest matches first.`,
+    maxSearches: 7,
+    maxFetches: 4,
   });
 
   const { output, runId } = await runStructured({
