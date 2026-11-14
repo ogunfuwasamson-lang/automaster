@@ -62,8 +62,8 @@ export default async function Home() {
               <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-lg">
                 Tell Ivyward about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every portal, and chase fee waivers and funding. You review and sign.
               </p>
-              <form action="/login" className="mx-auto mt-10 max-w-2xl text-left">
-                <input type="hidden" name="mode" value="signup" />
+              {/* the matcher (/match) reads these words and shows programmes before any sign-up */}
+              <form action="/match" className="mx-auto mt-10 max-w-2xl text-left">
                 <label htmlFor="goal" className="mb-2 block text-sm font-medium">
                   What do you want to study?
                 </label>
@@ -75,7 +75,7 @@ export default async function Home() {
                     className="h-12 w-full rounded-xl border border-line bg-surface px-4 text-[15px] shadow-[0_1px_2px_rgb(9_9_11/0.04)] outline-none placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-4 focus:ring-neutral-900/5"
                   />
                   <button className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-ink px-7 text-[15px] font-medium text-on-ink transition-opacity hover:opacity-90">
-                    Start free <ArrowRight className="size-4" aria-hidden />
+                    See my matches <ArrowRight className="size-4" aria-hidden />
                   </button>
                 </div>
                 <p className="mt-2.5 text-[13px] text-muted">

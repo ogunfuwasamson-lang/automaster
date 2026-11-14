@@ -2,32 +2,42 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile-store";
 import { enqueue } from "@/lib/queue";
-import { rankMatches, type LibraryProgram, type Match } from "@/lib/match-rules";
+import { rankMatches, type LibraryProgram, type Match, type StudyLevel } from "@/lib/match-rules";
 
 export type InstantMatch = Match & { awards: number };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 
-// the library, for the applicant's regions: a few hundred rows, matched in memory (lib/match-rules)
-export async function instantMatches(userId: string, limit = 6): Promise<InstantMatch[]> {
-  const profile = await getProfile(userId);
-  const regions = profile.preferences.regions ?? [];
-  if (!regions.length) return [];
-  const db = admin();
-  const { data } = await db
+// the checked library, cached for ten minutes per server: the public matcher reads it on every visit
+let cache: { at: number; rows: LibraryProgram[] } | null = null;
+async function library(): Promise<LibraryProgram[]> {
+  if (cache && Date.now() - cache.at < 10 * 60_000) return cache.rows;
+  const { data } = await admin()
     .from("programs")
     .select("id, name, degree, url, kind, deadlines, funding_signals, schools!inner(name, country, region, ranking_note)")
-    .in("schools.region", regions)
-    .limit(3000);
-  const library = (data ?? []).map((r) => ({ ...r, school: r.schools as unknown as LibraryProgram["school"] })) as unknown as LibraryProgram[];
-  const picked = rankMatches(library, { level: profile.goals.study_level, fields: profile.goals.fields, regions }, today(), limit);
+    .not("schools.region", "is", null)
+    .limit(5000);
+  const rows = (data ?? []).map((r) => ({ ...r, school: r.schools as unknown as LibraryProgram["school"] })) as unknown as LibraryProgram[];
+  cache = { at: Date.now(), rows };
+  return rows;
+}
+
+// matches for what someone told us (level, fields, regions), with the scholarships on file for each (open to
+// international applicants, or not known either way). no model call.
+export async function matchesFor(a: { level: StudyLevel | null; fields: string[] | null; regions: string[] }, limit = 6): Promise<InstantMatch[]> {
+  if (!a.regions.length) return [];
+  const picked = rankMatches(await library(), a, today(), limit);
   if (!picked.length) return [];
-  // scholarships on file for each (open to international applicants, or not known either way)
-  const { data: awards } = await db.from("funding_opportunities").select("program_id, intl_eligible").in("program_id", picked.map((m) => m.programId));
+  const { data: awards } = await admin().from("funding_opportunities").select("program_id, intl_eligible").in("program_id", picked.map((m) => m.programId));
   const count = new Map<string, number>();
-  for (const a of awards ?? []) if (a.intl_eligible !== false) count.set(a.program_id as string, (count.get(a.program_id as string) ?? 0) + 1);
+  for (const x of awards ?? []) if (x.intl_eligible !== false) count.set(x.program_id as string, (count.get(x.program_id as string) ?? 0) + 1);
   return picked.map((m) => ({ ...m, awards: count.get(m.programId) ?? 0 }));
+}
+
+export async function instantMatches(userId: string, limit = 6): Promise<InstantMatch[]> {
+  const profile = await getProfile(userId);
+  return matchesFor({ level: profile.goals.study_level, fields: profile.goals.fields, regions: profile.preferences.regions ?? [] }, limit);
 }
 
 // the instant matches go on the applicant's shortlist for real: the agents judge fit for this applicant from the

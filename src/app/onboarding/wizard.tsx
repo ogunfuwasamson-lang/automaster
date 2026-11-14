@@ -105,6 +105,8 @@ export function Onboarding(props: {
     if (step !== LAST) return;
     let live = true;
     setMatches(null);
+    // someone who came from the public matcher skipped the first screen: their time zone is saved here instead
+    void fetch("/api/profile/timezone", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ timezone: browserZone() }) }).catch(() => null);
     fetch("/api/onboarding/matches")
       .then((r) => (r.ok ? r.json() : { matches: [] }))
       .then((j: { matches?: Match[] }) => live && setMatches(j.matches ?? []))

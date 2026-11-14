@@ -189,9 +189,10 @@ export function buildDigest(d: DigestInput): Digest {
   return { headline, fresh, needs_you, done, coming_up, empty: !fresh.length && !needs_you.length && !done.length && !coming_up.length };
 }
 
-export function digestText(g: Digest, appUrl: string, name: string | null): string {
+export function digestText(g: Digest, appUrl: string, name: string | null, task?: { title: string; minutes: number; href: string } | null): string {
   const sec = (h: string, xs: string[]) => (xs.length ? `${h}\n${xs.map((x) => `- ${x}`).join("\n")}\n\n` : "");
-  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("new for you", g.fresh ?? [])}${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off in settings: ${appUrl}/settings`;
+  const today = task ? `today's task (about ${task.minutes} min)\n- ${task.title}: ${appUrl}${task.href}\n\n` : "";
+  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("new for you", g.fresh ?? [])}${today}${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off in settings: ${appUrl}/settings`;
 }
 
 // is it digest time (7am) for this timezone?

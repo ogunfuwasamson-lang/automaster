@@ -39,6 +39,8 @@ const PUBLIC = [
   "/ar",
   "/glossary",
   "/tools",
+  "/match", // the public programme matcher, and its library lookup (no account, nothing stored)
+  "/api/public/",
   "/md/",
   "/alerts",
   "/api/alerts",

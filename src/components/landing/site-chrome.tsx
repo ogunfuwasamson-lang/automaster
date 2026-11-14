@@ -107,6 +107,9 @@ export function SiteFooter() {
           <Link href="/study-abroad" className="block text-muted hover:text-foreground">
             By home country
           </Link>
+          <Link href="/match" className="block text-muted hover:text-foreground">
+            Programme matcher
+          </Link>
           <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
             Scholarship finder
           </Link>

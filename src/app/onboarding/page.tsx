@@ -5,11 +5,14 @@ import { loadProfile, REGIONS } from "@/lib/profile";
 import { userPlan } from "@/lib/budget";
 import { Onboarding } from "./wizard";
 import { confirmReturn } from "@/lib/billing";
+import { updateProfile } from "@/lib/profile-store";
+import { logEvent } from "@/lib/events";
+import { startShortlist } from "@/lib/kickoff";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Get started", robots: { index: false, follow: false } };
 
-export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string; paid?: string }> }) {
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string; paid?: string; level?: string; fields?: string; regions?: string }> }) {
   const auth = await requireUser();
   if (!auth) redirect("/login?mode=signup");
   const uid = auth.user.id;
@@ -26,11 +29,23 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     db.from("documents").select("kind").eq("user_id", uid),
     userPlan(uid),
   ]);
-  const p = loadProfile(prof?.profile);
+  let p = loadProfile(prof?.profile);
+  // arriving from the public matcher (/match) with choices made before sign-up: keep them (only into an empty
+  // profile) and open on the matches screen
+  let step = sp.step ? Number(sp.step) || 1 : 1;
+  const level = ["undergraduate", "masters", "phd"].includes(sp.level ?? "") ? (sp.level as "undergraduate" | "masters" | "phd") : null;
+  const regions = (sp.regions ?? "").split(",").filter((r) => REGIONS[r]).slice(0, plan.maxRegions);
+  const fields = (sp.fields ?? "").split("|").map((f) => f.trim().slice(0, 60)).filter(Boolean).slice(0, 8);
+  if (level && regions.length && !p.goals.study_level && !(p.preferences.regions ?? []).length) {
+    p = await updateProfile(uid, (x) => ({ ...x, preferences: { ...x.preferences, regions }, goals: { ...x.goals, study_level: level, ...(fields.length ? { fields } : {}) } }));
+    await logEvent({ userId: uid, actor: "user", action: "preferences.updated", context: { regions, study_level: level, source: "matcher" } }).catch(() => {});
+    await startShortlist(uid, "matcher").catch(() => false);
+    step = 3;
+  }
   return (
     <Onboarding
       userId={uid}
-      initialStep={sp.step ? Number(sp.step) || 1 : 1}
+      initialStep={step}
       level={p.goals.study_level}
       fields={p.goals.fields ?? []}
       term={p.goals.target_term ?? prof?.target_term ?? null}

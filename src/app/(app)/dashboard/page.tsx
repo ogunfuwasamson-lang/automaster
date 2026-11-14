@@ -44,6 +44,8 @@ import { cookies } from "next/headers";
 import { dashboardNudge } from "@/lib/nudge";
 import { NudgeCard } from "@/components/billing/nudge-card";
 import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
+import { TodayCard } from "@/components/home/today-card";
+import { loadToday } from "@/lib/today-data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -155,7 +157,7 @@ export default async function Dashboard() {
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
 
-  const [shortlistRun, fresh] = await Promise.all([loadShortlistRun(sb), loadFresh(sb).catch(() => ({ programs: [], awards: [], upcoming: 0 }))]);
+  const [shortlistRun, fresh, today] = await Promise.all([loadShortlistRun(sb), loadFresh(sb).catch(() => ({ programs: [], awards: [], upcoming: 0 })), loadToday(user.id).catch(() => null)]);
   const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
   const setupTodo = setupQ.error ? [] : (setupQ.data ?? []);
   // follow-ups from school emails: events coming up, and forms the agents are doing or need help with
@@ -257,6 +259,12 @@ export default async function Dashboard() {
           </div>
         </header>
       </Rise>
+
+      {today && (
+        <Rise>
+          <TodayCard task={today.task} journey={today.journey} />
+        </Rise>
+      )}
 
       {asks.length > 0 && (
         <Rise>

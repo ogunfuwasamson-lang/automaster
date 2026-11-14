@@ -5,14 +5,18 @@ import { buildDigest, digestText, localHour, type Digest } from "@/lib/activity"
 import { appUrl, mailAccount, sendAs } from "@/lib/gmail";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
 import { emailHtml, type Block } from "@/lib/email-layout";
+import { loadToday } from "@/lib/today-data";
 
 // the daily note in Ivyward's email layout: a headline, then short sections, one button
-function digestHtml(g: Digest, name: string | null): string {
+function digestHtml(g: Digest, name: string | null, task: { title: string; minutes: number; href: string } | null): string {
   const sec = (title: string, xs: string[]): Block[] => (xs.length ? [{ t: "p", text: `**${title}**` }, ...xs.slice(0, 6).map((x) => ({ t: "p" as const, text: x.charAt(0).toUpperCase() + x.slice(1) }))] : []);
   return emailHtml({
     kicker: "Today",
     headline: `${name ? `${name.split(" ")[0]}, ` : ""}${g.headline}.`,
-    blocks: [...sec("New for you", g.fresh ?? []), ...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: "Open Ivyward", href: `${appUrl()}/dashboard` }],
+    blocks: [
+      ...sec("New for you", g.fresh ?? []),
+      ...(task ? ([{ t: "p", text: `**Today's task, about ${task.minutes} minute${task.minutes > 1 ? "s" : ""}**` }, { t: "p", text: task.title }] as Block[]) : []),
+      ...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: task ? "Do it now" : "Open Ivyward", href: task ? `${appUrl()}${task.href}` : `${appUrl()}/dashboard` }],
     manageUrl: `${appUrl()}/settings`,
   });
 }
@@ -78,17 +82,19 @@ export async function runDigest(userId: string) {
   const db = admin();
   const now = new Date();
   const { digest, since, name } = await makeDigest(userId, now);
+  // the one small thing for today (lib/today), the same as the dashboard's card
+  const task = (await loadToday(userId).catch(() => null))?.task ?? null;
   let via: string | null = null;
   if (!digest.empty) {
     const subject = `Ivyward: ${digest.headline}`;
-    const body = digestText(digest, appUrl(), name);
+    const body = digestText(digest, appUrl(), name, task);
     // Ivyward's own email first (it can carry the designed layout); the applicant's Gmail as a note to self if not
     if (systemMailReady()) {
       const { data } = await db.auth.admin.getUserById(userId);
       const to = data.user?.email;
       if (to) {
         try {
-          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
+          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name, task), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
           via = "resend";
         } catch {
           via = null;
