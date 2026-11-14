@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error("interview turn failed", e);
     const msg = String(e);
-    const billing = /credit balance is too low/i.test(msg);
+    // the AI account out of credit or paused: the applicant sees a calm "briefly unavailable", never the reason
+    const billing = /credit balance is too low|AI is paused until|AiUnavailable|insufficient.?credit/i.test(msg);
     const budget = msg.includes("budget:");
     return NextResponse.json(
       {

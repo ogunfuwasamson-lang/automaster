@@ -63,18 +63,17 @@ export async function tripAi(e: unknown) {
   if (before > Date.now() - PAUSE_MS) return; // already paused recently: don't notify again
   // how much the last top-up lasted, for the "running low" warning next time
   await import("@/lib/credit").then((m) => m.recordCreditCycle()).catch(() => {});
-  const { data: ops } = await db.from("profiles").select("id").eq("is_admin", true).limit(3);
-  const { notify } = await import("@/lib/notify");
-  for (const o of ops ?? [])
-    await notify({
-      userId: o.id,
-      key: `ai-paused:${new Date().toISOString().slice(0, 13)}`,
-      kind: "setup",
-      title: "AI calls are paused: the AI provider account needs attention",
-      body: `The provider refused a call (${String((e as { message?: string })?.message ?? e).slice(0, 160)}). All agent work is paused and queued jobs are waiting. Top up the credit or fix the key; work resumes automatically within 15 minutes.`,
-      urgent: true,
-      email: true,
-    }).catch(() => {});
+  // the operator only: an email and the admin console's health card. never a card in anyone's app (the admin
+  // account is also an applicant's account, and it showed there, once an hour, with the provider's raw error)
+  const raw = String((e as { message?: string })?.message ?? e);
+  const credit = /credit balance is too low|insufficient.?credit|billing/i.test(raw);
+  const { alert } = await import("@/lib/alerts");
+  await alert("ai-paused", credit ? "AI credit has run out: every agent is paused" : "AI calls are paused: the provider account needs attention", {
+    what_happened: credit ? "The Anthropic API refused a call because the credit balance is too low." : `The Anthropic API refused a call: ${raw.replace(/\s+/g, " ").slice(0, 200)}`,
+    what_users_see: "Nothing alarming: queued work waits, and the app says agents are briefly paused on our side.",
+    fix: credit ? "Top up in the Anthropic Console (Plans & Billing), or turn on auto-reload so it never reaches zero." : "Check the API key in the hosting settings.",
+    resumes: "Automatically within 15 minutes of the fix.",
+  }).catch(() => {});
 }
 
 // after an account error, the pause running out doesn't mean the credit came back. before any work starts (and
