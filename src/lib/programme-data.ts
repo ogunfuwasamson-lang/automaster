@@ -1,6 +1,6 @@
 import "server-only";
 import { admin } from "@/lib/supabase/admin";
-import { cleanName, levelOfDegree } from "@/lib/match-rules";
+import { cleanName, cleanSchool, levelOfDegree } from "@/lib/match-rules";
 import { publishable, type PublicProgramme } from "@/lib/programme-pages";
 
 // the library, public-safe: only structured fields (no research notes, which can mention an applicant).
@@ -36,7 +36,7 @@ export async function publicProgrammes(): Promise<PublicProgramme[]> {
     rows.push({
       id: r.id,
       name: cleanName(r.name),
-      school: r.schools.name.replace(/\s*\([^)]*\)\s*/g, " ").trim(),
+      school: cleanSchool(r.schools.name),
       country: r.schools.country,
       region: r.schools.region,
       level: levelOfDegree(r.degree, r.name),

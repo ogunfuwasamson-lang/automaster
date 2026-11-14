@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { matchesFor } from "@/lib/matches";
 import { REGIONS } from "@/lib/profile";
-import type { StudyLevel } from "@/lib/match-rules";
+import { cleanSchool, type StudyLevel } from "@/lib/match-rules";
 import { BUDGET } from "@/lib/sharpen";
 
 export const runtime = "nodejs";
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const prefs = { need, budget, avoidTests: q.get("tests") === "avoid", waiver: q.get("english") === "waiver" };
   const matches = (await matchesFor({ level, fields, regions, ...prefs }).catch(() => [])).map((m) => ({
     programId: m.programId,
-    school: m.school,
+    school: cleanSchool(m.school),
     program: m.program,
     country: m.country,
     deadline: m.deadline,

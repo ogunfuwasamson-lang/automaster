@@ -166,6 +166,32 @@ export function cleanName(name: string): string {
   return n.length > 80 ? `${n.slice(0, 78).trimEnd()}…` : n;
 }
 
+// the university, not the faculty: the agents sometimes file a whole university's programmes under the business
+// school they first met (a computer science MSE under "Johns Hopkins University Carey Business School"). for
+// display only; standalone schools ("London Business School", "MIT Sloan School of Management") stay as they are.
+const UNI = /\b(?:University|College|Universidade|Universidad|Université|Universität|Universiteit|Università|Institute of Technology)\b/;
+const FACULTY = /\b(?:Business School|School of|Graduate School|College of|Faculty of|Institute of Education|Escola|Faculdade|Programa)\b/;
+const trimFaculty = (s: string): string => {
+  const m = FACULTY.exec(s);
+  if (!m || m.index === 0) return s;
+  const before = s.slice(0, m.index).trim().replace(/,$/, "");
+  const all = [...before.matchAll(new RegExp(UNI.source, "g"))];
+  if (!all.length) return s;
+  const last = all[all.length - 1];
+  const end = (last.index ?? 0) + last[0].length;
+  const rest = before.slice(end);
+  return rest === "" || /^\s+(?:of|at|de|do|da|del)\s/.test(rest) ? before : before.slice(0, end);
+};
+export function cleanSchool(raw: string): string {
+  const s = raw.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").replace(/\s+,/g, ",").trim();
+  const parts = s.split(/\s*,\s*|\s+[–-]\s+/).filter(Boolean);
+  if (parts.length > 1 && parts.some((x) => FACULTY.test(x))) {
+    const uni = parts.find((x) => UNI.test(x) && !FACULTY.test(x));
+    if (uni) return uni;
+  }
+  return trimFaculty(s);
+}
+
 const passed = (deadlines: LibraryProgram["deadlines"], today: string) => {
   const dated = (deadlines ?? []).filter((d) => typeof d?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date!));
   return dated.length > 0 && dated.every((d) => d.date! < today);
