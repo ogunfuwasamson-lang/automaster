@@ -6,7 +6,8 @@ import { ItemListJsonLd } from "@/components/seo/json-ld";
 import { publicProgrammes, todayISO } from "@/lib/programme-data";
 import { DESTINATIONS, FIELD_PAGES, allPages, monthName, monthsAhead, pathOf } from "@/lib/programme-pages";
 
-export const revalidate = 21600;
+// read from the database on request (it isn't reachable while the site is built); the library itself is cached for an hour
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Programmes by country and field, with deadlines and fees",

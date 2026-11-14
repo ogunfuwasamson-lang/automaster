@@ -4,7 +4,8 @@ import { PageLinks } from "@/components/library/programme-page";
 import { publicProgrammes, todayISO } from "@/lib/programme-data";
 import { monthName, monthsAhead } from "@/lib/programme-pages";
 
-export const revalidate = 21600;
+// read from the database on request (it isn't reachable while the site is built); the library itself is cached for an hour
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "University application deadlines by month",
   description: "Master's, PhD and bachelor's application deadlines for international students, month by month, checked on official pages.",
