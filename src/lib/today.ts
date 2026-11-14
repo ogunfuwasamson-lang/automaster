@@ -9,6 +9,7 @@ export interface TodayInput {
   gmail: boolean;
   story: { open: number } | null; // the "Your story" chapter: questions left
   nextChapter: { id: string; title: string; open: number } | null; // the next quick chapter with questions left
+  sharpenOpen?: number; // "sharpen your matches" questions left (lib/sharpen)
 }
 
 export interface Task {
@@ -56,6 +57,9 @@ export function todaysTask(i: TodayInput): Task | null {
   if (!i.hasCv)
     return { id: "cv", title: "Upload your CV", why: "Your agents score your fit on every programme from it, find scholarships you qualify for, and fill most of your forms.", minutes: 1, href: "/documents", cta: "Upload CV" };
   const preparing = i.apps.some((a) => PREPARING.includes(a.status));
+  // the facts that decide which programmes and scholarships fit, before anything for the forms
+  if (i.sharpenOpen && i.sharpenOpen > 0)
+    return { id: "sharpen", title: i.sharpenOpen > 1 ? `Answer ${i.sharpenOpen} quick questions that sharpen your matches` : "One quick question that sharpens your matches", why: "Funding, budget, English and tests decide which programmes and scholarships really fit. Each answer re-ranks your list.", minutes: 1, href: "/dashboard#sharpen", cta: "Answer" };
   if (i.basicsMissing > 0)
     return { id: "basics", title: "Add the basics every form asks for", why: "Your phone and date of birth come first on every application form. Saved once, the agents never stop to ask.", minutes: 1, href: "/profile/chapters/basics", cta: "Add them" };
   if (!i.hasTranscript)

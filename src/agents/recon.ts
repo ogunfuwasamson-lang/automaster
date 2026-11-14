@@ -276,7 +276,9 @@ export const recon: Record<string, Handler> = {
     // how much one run researches: the plan's size for paying and staff accounts, the operator's smaller number
     // (Credit tab) for everyone else. the total is a real ceiling: nine regions used to mean 45 programmes a run
     const [{ tier }, policy] = await Promise.all([tierFor(job.user_id), creditPolicy()]);
-    const total = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
+    // and half that for someone who said they're just exploring
+    const sized = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
+    const total = profile.goals.applying === "exploring" && tier !== "paid" && tier !== "staff" ? Math.max(3, Math.ceil(sized / 2)) : sized;
     const { count: runs } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("user_id", job.user_id).eq("agent", "recon").eq("task", "discover").eq("status", "done");
     const { regions, perRegion } = regionPlan(wanted, total, runs ?? 0);
     // a first shortlist (nothing found for this applicant yet) stays at the front of the queue all the way down

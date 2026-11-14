@@ -2,7 +2,8 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile-store";
 import { enqueue } from "@/lib/queue";
-import { rankMatches, type LibraryProgram, type Match, type StudyLevel } from "@/lib/match-rules";
+import { rankMatches, type LibraryProgram, type Match, type MatchPrefs, type StudyLevel } from "@/lib/match-rules";
+import { matchCriteria } from "@/lib/sharpen";
 
 export type InstantMatch = Match & { awards: number };
 
@@ -15,7 +16,7 @@ async function library(): Promise<LibraryProgram[]> {
   if (cache && Date.now() - cache.at < 10 * 60_000) return cache.rows;
   const { data } = await admin()
     .from("programs")
-    .select("id, name, degree, url, kind, deadlines, funding_signals, schools!inner(name, country, region, ranking_note)")
+    .select("id, name, degree, url, kind, deadlines, funding_signals, test_policy, tuition_usd, schools!inner(name, country, region, ranking_note)")
     .not("schools.region", "is", null)
     .limit(5000);
   const rows = (data ?? []).map((r) => ({ ...r, school: r.schools as unknown as LibraryProgram["school"] })) as unknown as LibraryProgram[];
@@ -25,7 +26,7 @@ async function library(): Promise<LibraryProgram[]> {
 
 // matches for what someone told us (level, fields, regions), with the scholarships on file for each (open to
 // international applicants, or not known either way). no model call.
-export async function matchesFor(a: { level: StudyLevel | null; fields: string[] | null; regions: string[] }, limit = 6): Promise<InstantMatch[]> {
+export async function matchesFor(a: { level: StudyLevel | null; fields: string[] | null; regions: string[] } & MatchPrefs, limit = 6): Promise<InstantMatch[]> {
   if (!a.regions.length) return [];
   const picked = rankMatches(await library(), a, today(), limit);
   if (!picked.length) return [];
@@ -37,7 +38,7 @@ export async function matchesFor(a: { level: StudyLevel | null; fields: string[]
 
 export async function instantMatches(userId: string, limit = 6): Promise<InstantMatch[]> {
   const profile = await getProfile(userId);
-  return matchesFor({ level: profile.goals.study_level, fields: profile.goals.fields, regions: profile.preferences.regions ?? [] }, limit);
+  return matchesFor({ level: profile.goals.study_level, fields: profile.goals.fields, regions: profile.preferences.regions ?? [], ...matchCriteria(profile) }, limit);
 }
 
 // the instant matches go on the applicant's shortlist for real: the agents judge fit for this applicant from the

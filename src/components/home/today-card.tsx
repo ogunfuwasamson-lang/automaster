@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Check, Clock } from "lucide-react";
 import type { Journey, Task } from "@/lib/today";
+import { SharpenCard } from "@/components/profile/sharpen-card";
 
 // home page, first thing under the greeting: the one task for today (lib/today) and the path to a first
 // submission, so every visit has an obvious next move and a visible amount of progress
@@ -17,7 +18,16 @@ export function TodayCard({
       className="rounded-2xl border border-brand/25 bg-surface p-5 shadow-card sm:p-6"
       aria-labelledby="today-task"
     >
-      {task ? (
+      {task?.id === "sharpen" ? (
+        // answered right here, one tap at a time
+        <div id="sharpen">
+          <p className="mb-3 flex items-center gap-1.5 text-[13px] font-medium text-brand">
+            <Clock className="size-3.5" aria-hidden />
+            Today&apos;s task, about a minute
+          </p>
+          <SharpenCard framed={false} />
+        </div>
+      ) : task ? (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
           <div className="min-w-0 flex-1 basis-80">
             <p className="flex items-center gap-1.5 text-[13px] font-medium text-brand">

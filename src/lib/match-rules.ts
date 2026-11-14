@@ -11,8 +11,18 @@ export interface LibraryProgram {
   url: string | null;
   kind: string | null;
   deadlines: { date?: string | null; round?: string | null }[] | null;
-  funding_signals: { full_funding_realistic?: string | null } | null;
+  funding_signals: { full_funding_realistic?: string | null; english_moi_waiver?: string | null } | null;
+  test_policy?: string | null; // required | not_required | optional | waivable | unknown
+  tuition_usd?: number | null;
   school: { name: string; country: string | null; region: string | null; ranking_note: string | null };
+}
+
+// what the applicant told us that changes the ranking (lib/sharpen)
+export interface MatchPrefs {
+  need?: "full" | "partial" | "self" | null;
+  budget?: number | null; // per year, tuition and living
+  avoidTests?: boolean; // no GRE/GMAT: programmes that require one are left out
+  waiver?: boolean; // proving english with a medium-of-instruction letter
 }
 
 export interface Match {
@@ -27,6 +37,8 @@ export interface Match {
   deadline: { date: string; round: string } | null;
   funding: "fully funded option" | "funding possible" | null;
   fieldMatch: boolean;
+  tuition: number | null;
+  englishWaiver: boolean; // accepts a medium-of-instruction letter (shown when that's their route)
 }
 
 // what level a programme is, from its degree text (the library's degree field is free text: "MSc", "Master of
@@ -159,11 +171,23 @@ const passed = (deadlines: LibraryProgram["deadlines"], today: string) => {
   return dated.length > 0 && dated.every((d) => d.date! < today);
 };
 
+// how much the applicant's answers move a programme: funding realism for those who need it, tuition against
+// what they can cover, and whether their way of proving english is accepted
+export function prefScore(a: MatchPrefs, ff: string | null, tuition: number | null, moi: string | null): number {
+  let s = 0;
+  if (a.need === "full") s += ff === "likely" ? 35 : ff === "possible" ? 15 : ff === "rare" ? -60 : 0;
+  else if (a.need === "partial") s += ff === "likely" ? 15 : ff === "possible" ? 10 : 0;
+  else s += ff === "likely" ? 15 : ff === "possible" ? 8 : 0;
+  if (a.need !== "full" && a.budget && tuition) s += tuition > a.budget * 1.5 ? -50 : tuition > a.budget ? -25 : 10;
+  if (a.waiver) s += moi === "accepted" ? 10 : moi === "case_by_case" ? 5 : moi === "not_accepted" ? -20 : 0;
+  return s;
+}
+
 // rank the library for one applicant: same level and region always; their field first; then open deadlines,
 // funding and ranking. at most two per school so the list isn't one university.
 export function rankMatches(
   library: LibraryProgram[],
-  a: { level: StudyLevel | null; fields: string[] | null; regions: string[] },
+  a: { level: StudyLevel | null; fields: string[] | null; regions: string[] } & MatchPrefs,
   today: string,
   limit = 8,
 ): Match[] {
@@ -176,12 +200,15 @@ export function rankMatches(
     const lvl = levelOfDegree(p.degree, p.name);
     if (a.level && lvl !== a.level) continue;
     if (passed(p.deadlines, today)) continue;
+    if (a.avoidTests && p.test_policy === "required") continue;
     const fs = terms.length ? fieldScore(p.name, a.fields) : 0;
     const fieldMatch = fs >= 40;
     const deadline = nextDeadline(p.deadlines, today);
     const ff = p.funding_signals?.full_funding_realistic ?? null;
     const funding = ff === "likely" ? "fully funded option" : ff === "possible" ? "funding possible" : null;
-    const score = fs + (deadline ? 20 : 0) + (ff === "likely" ? 15 : ff === "possible" ? 8 : 0) + (p.school.ranking_note ? 3 : 0);
+    const moi = p.funding_signals?.english_moi_waiver ?? null;
+    const tuition = typeof p.tuition_usd === "number" && p.tuition_usd > 0 ? p.tuition_usd : null;
+    const score = fs + (deadline ? 20 : 0) + (p.school.ranking_note ? 3 : 0) + prefScore(a, ff, tuition, moi);
     scored.push({
       programId: p.id,
       school: p.school.name.replace(/\s*\([^)]*\)\s*/g, " ").trim(),
@@ -194,6 +221,8 @@ export function rankMatches(
       deadline,
       funding,
       fieldMatch,
+      tuition,
+      englishWaiver: !!a.waiver && (moi === "accepted" || moi === "case_by_case"),
       score,
     });
   }

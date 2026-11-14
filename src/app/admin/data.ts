@@ -29,6 +29,10 @@ export interface AdminUser {
   name: string | null;
   location: string | null; // where they live ("Lagos, Nigeria"), else the country they signed up from
   citizenship: string | null;
+  // from "sharpen your matches" (lib/sharpen): who to spend on and how to talk to them
+  applying: string | null; // this_cycle | next_year | exploring
+  fundingNeed: string | null; // full | partial | self
+  budgetUsd: number | null;
   joined: string;
   plan: string;
   admin: boolean;
@@ -128,7 +132,7 @@ async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string
 
 const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
 
-type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null };
+type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null; applying: string | null; need: string | null; budget: string | null };
 type AppRow = { id: string; user_id: string; status: string; runner_status: string | null; runner_note: string | null; runner_state: unknown; runner_updated_at: string | null; portal_url: string | null; submitted_at: string | null; programs: unknown };
 
 export async function loadAdmin() {
@@ -137,7 +141,7 @@ export async function loadAdmin() {
   const month = monthStartUTC();
   const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
     teamIds(),
-    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by").order("created_at").range(a, b)),
+    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
     every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
     // what the user did: their own actions, plus each message they sent the interviewer
@@ -201,6 +205,9 @@ export async function loadAdmin() {
       // the name from wherever they gave it: the profile, the interview, the form details, then google
       name: p.full_name?.trim() || idOf(p).full_name?.trim() || [p.first, p.last].map((x) => x?.trim()).filter(Boolean).join(" ") || p.preferred?.trim() || signin.names.get(p.id) || null,
       ...placeOf(p),
+      applying: p.applying ?? null,
+      fundingNeed: p.need ?? null,
+      budgetUsd: p.budget ? Number(p.budget) || null : null,
       joined: p.created_at,
       plan: p.plan ?? "free",
       admin: !!p.is_admin,

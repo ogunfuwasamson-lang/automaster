@@ -593,7 +593,7 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
   // in the period: joined or did something in it (all time: everyone)
   const shown = users
     .filter((u) => r.allTime || inRange(u.joined, r) || inRange(u.lastActive, r))
-    .filter((u) => !needle || [u.email, u.name, u.location, u.citizenship].some((x) => (x ?? "").toLowerCase().includes(needle)))
+    .filter((u) => !needle || [u.email, u.name, u.location, u.citizenship, u.applying?.replace("_", " "), u.fundingNeed && `${u.fundingNeed} funding`].some((x) => (x ?? "").toLowerCase().includes(needle)))
     .sort((a, b) => b.joined.localeCompare(a.joined));
   const stageLabel = (key: string) => STAGES.find((s) => s.key === key)?.label ?? key;
   const dash = <span className="text-muted">·</span>;
@@ -706,6 +706,11 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
           {u.location ?? "Location unknown"}
           {u.citizenship && u.citizenship !== u.location?.split(", ").pop() ? ` (${u.citizenship} citizen)` : ""}. Joined {stamp(u.joined)} from {u.source}
           {u.invited ? " (invited)" : ""}. Plan: {u.plan}. Last signed in {ago(u.lastSignIn)}, last active {ago(u.lastActive)}.
+        </p>
+        <p className="text-[13px] text-muted">
+          Applying: {u.applying === "this_cycle" ? "this cycle" : u.applying === "next_year" ? "next year" : u.applying === "exploring" ? "just exploring" : "not asked yet"}. Funding:{" "}
+          {u.fundingNeed === "full" ? "needs full funding" : u.fundingNeed === "partial" ? "partial is fine" : u.fundingNeed === "self" ? "can pay" : "not asked yet"}
+          {u.budgetUsd ? `, can cover about $${u.budgetUsd.toLocaleString()} a year` : ""}.
         </p>
         {!u.admin && <AccountActions userId={u.id} email={u.email} deactivated={u.deactivated} usersHref={href("users", r, everyone)} />}
       </div>

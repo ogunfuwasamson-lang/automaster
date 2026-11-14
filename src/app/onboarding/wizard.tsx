@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { chipClass, Tag } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
+import { SharpenCard } from "@/components/profile/sharpen-card";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -36,6 +37,8 @@ type Match = {
   deadline: { date: string; round: string } | null;
   funding: "fully funded option" | "funding possible" | null;
   awards: number;
+  tuition?: number | null;
+  englishWaiver?: boolean;
 };
 
 async function save(body: Record<string, unknown>) {
@@ -99,6 +102,13 @@ export function Onboarding(props: {
     file.current?.click();
   };
   const hasCv = props.hasCv || uploaded.some((u) => u.kind === "cv");
+
+  // re-asked after each "sharpen" answer, which re-ranks them
+  const refresh = () =>
+    fetch("/api/onboarding/matches")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { matches?: Match[] } | null) => j && setMatches(j.matches ?? []))
+      .catch(() => {});
 
   // the matches screen asks the library as soon as it opens (the regions were saved on the way in)
   useEffect(() => {
@@ -351,11 +361,15 @@ export function Onboarding(props: {
                           <Tag>{m.deadline ? `Closes ${day(m.deadline.date)}` : "Deadline being checked"}</Tag>
                           {m.funding && <Tag tone="go">{m.funding === "fully funded option" ? "Fully funded option" : "Funding possible"}</Tag>}
                           {m.awards ? <Tag tone="accent">{m.awards} scholarship{m.awards > 1 ? "s" : ""} on file</Tag> : null}
+                          {m.tuition ? <Tag>Tuition about ${Math.round(m.tuition / 1000)}k a year</Tag> : null}
+                          {m.englishWaiver ? <Tag tone="go">Accepts an English-medium letter</Tag> : null}
                         </div>
                       </li>
                     ))}
                   </ul>
                 ) : null}
+
+                <SharpenCard onAnswered={refresh} />
 
                 <section className="rounded-2xl border border-accent/30 bg-accent/[0.04] p-5" aria-label="Your CV">
                   <p className="text-[17px] font-bold tracking-[-0.02em]">{hasCv ? "Your CV is in" : "Add your CV to get your fit score on each one"}</p>

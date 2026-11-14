@@ -4,6 +4,9 @@ import { BookOpen, FlaskConical, GraduationCap, LoaderCircle, X } from "lucide-r
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { chipClass, Tag } from "@/components/ui/chip";
+import { OpenScholarships, SharpenQuestionView } from "@/components/profile/sharpen-card";
+import { sharpenQuestions } from "@/lib/sharpen";
+import { openScholarships } from "@/lib/open-scholarships";
 
 type Match = {
   programId: string;
@@ -13,6 +16,8 @@ type Match = {
   deadline: { date: string; round: string } | null;
   funding: "fully funded option" | "funding possible" | null;
   awards: number;
+  tuition?: number | null;
+  englishWaiver?: boolean;
 };
 
 const LEVELS: [string, string, typeof BookOpen][] = [
@@ -31,30 +36,46 @@ export function Matcher({ regions: allRegions, initial }: { regions: Record<stri
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [busy, setBusy] = useState(false);
   const results = useRef<HTMLDivElement>(null);
+  // "sharpen your matches", kept in the page until sign-up carries it into the account (onboarding saves it)
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const asked = sharpenQuestions((level || null) as "undergraduate" | "masters" | "phd" | null).filter(
+    (q) => ["citizenship", "funding", "budget", "english", "tests"].includes(q.key) && !(q.key === "budget" && answers.funding === "full"),
+  );
+  const nextQ = asked.find((q) => !(q.key in answers));
+  const prefs = Object.fromEntries(Object.entries(answers).filter(([k, v]) => v !== "skip" && k !== "citizenship" && k !== "grades"));
+  const citizenship = answers.citizenship && answers.citizenship !== "skip" ? answers.citizenship : null;
+  const open = openScholarships(citizenship, regions);
   const ready = !!level && (fields.length > 0 || !!draft.trim()) && regions.length > 0;
 
-  async function find() {
+  async function find(extra: Record<string, string> = prefs, scroll = true) {
     const all = draft.trim() && !fields.includes(draft.trim()) ? [...fields, draft.trim()] : fields;
     if (draft.trim()) {
       setFields(all.slice(0, 4));
       setDraft("");
     }
     setBusy(true);
-    const q = new URLSearchParams({ level, fields: all.join("|"), regions: regions.join(",") });
+    const q = new URLSearchParams({ level, fields: all.join("|"), regions: regions.join(","), ...extra });
     const j = await fetch(`/api/public/matches?${q}`).then((r) => (r.ok ? r.json() : { matches: [] })).catch(() => ({ matches: [] }));
     setMatches(j.matches ?? []);
     setBusy(false);
-    requestAnimationFrame(() => results.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    if (scroll) requestAnimationFrame(() => results.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function answer(key: string, value: string) {
+    const next = { ...answers, [key]: value };
+    setAnswers(next);
+    if (key !== "citizenship") void find(Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== "skip" && k !== "citizenship")), false);
   }
 
   // arriving from the home page with everything understood: show the matches straight away
   useEffect(() => {
-    if (initial.level && initial.fields.length && initial.regions.length) void find();
+    if (initial.level && initial.fields.length && initial.regions.length) void find({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // sign-up carries the choices into setup, which saves them and opens on the matches screen
-  const signup = `/login?mode=signup&next=${encodeURIComponent(`/onboarding?${new URLSearchParams({ level, fields: fields.join("|"), regions: regions.join(",") })}`)}`;
+  const carry = new URLSearchParams({ level, fields: fields.join("|"), regions: regions.join(","), ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== "skip")) });
+  const signup = `/login?mode=signup&next=${encodeURIComponent(`/onboarding?${carry}`)}`;
 
   return (
     <div className="space-y-10">
@@ -119,7 +140,7 @@ export function Matcher({ regions: allRegions, initial }: { regions: Record<stri
             })}
           </div>
         </div>
-        <Button size="lg" disabled={!ready || busy} onClick={find}>
+        <Button size="lg" disabled={!ready || busy} onClick={() => find()}>
           {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
           {busy ? "Finding matches…" : "Show my matches"}
         </Button>
@@ -140,6 +161,8 @@ export function Matcher({ regions: allRegions, initial }: { regions: Record<stri
                         <Tag>{m.deadline ? `Closes ${day(m.deadline.date)}` : "Deadline being checked"}</Tag>
                         {m.funding && <Tag tone="go">{m.funding === "fully funded option" ? "Fully funded option" : "Funding possible"}</Tag>}
                         {m.awards ? <Tag tone="accent">{m.awards} scholarship{m.awards > 1 ? "s" : ""} on file</Tag> : null}
+                          {m.tuition ? <Tag>Tuition about ${Math.round(m.tuition / 1000)}k a year</Tag> : null}
+                          {m.englishWaiver ? <Tag tone="go">Accepts an English-medium letter</Tag> : null}
                       </div>
                     </li>
                   ))}
@@ -149,6 +172,17 @@ export function Matcher({ regions: allRegions, initial }: { regions: Record<stri
               <p className="max-w-2xl text-[16px] leading-relaxed text-muted">
                 We haven&apos;t checked programmes in that field and region yet. Make a free account and your agents search for you, with new matches every morning.
               </p>
+            )}
+            {(nextQ || open.length > 0) && (
+              <section className="space-y-4 rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6" aria-label="Sharpen your matches">
+                {nextQ ? (
+                  <>
+                    <p className="text-[13px] font-medium text-brand">Sharpen your matches: {asked.length - asked.filter((q) => !(q.key in answers)).length} of {asked.length}</p>
+                    <SharpenQuestionView key={nextQ.key} q={nextQ} busy={busy} onAnswer={(v) => answer(nextQ.key, v)} />
+                  </>
+                ) : null}
+                <OpenScholarships items={open} citizenship={citizenship} />
+              </section>
             )}
             <section className="rounded-2xl border border-accent/30 bg-accent/[0.04] p-5 sm:p-6">
               <p className="text-[19px] font-bold tracking-[-0.02em]">{matches.length ? "Save these, and get your fit score on each" : "Let your agents search for you"}</p>

@@ -85,6 +85,8 @@ export const Profile = z.object({
     long_term_goal: s(),
     why_masters: s(), // "why this degree, why now" at any level (key kept for stored data)
     gmat_gre_plan: z.enum(["will_take", "avoid", "undecided"]).nullable(),
+    // when they mean to apply: decides how much the agents do before they're back (exploring = a lighter touch)
+    applying: z.enum(["this_cycle", "next_year", "exploring"]).nullable().optional(),
   }),
   funding: z.object({
     need: z.enum(["full", "partial", "self"]).nullable(),
@@ -140,7 +142,7 @@ export function emptyProfile(): Profile {
     english: { route: null, notes: null },
     goals: {
       study_level: null, fields: null, research_interests: null, degree_types: null, target_term: null, short_term_goal: null,
-      long_term_goal: null, why_masters: null, gmat_gre_plan: null,
+      long_term_goal: null, why_masters: null, gmat_gre_plan: null, applying: null,
     },
     funding: { need: null, annual_budget_usd: null, application_fee_budget_usd: null, notes: null },
     preferences: { regions: null, locations: null, avoid: null, stem_preferred: null, max_applications: null },
@@ -434,6 +436,7 @@ export function profileBrief(p: Profile, targetTermFallback?: string | null): st
   L.push(`name: ${v(p.identity.full_name)} | citizenship: ${v(p.identity.citizenship)} | lives: ${v(p.identity.city)}, ${v(p.identity.country_of_residence)}`);
   L.push(`applying for: ${LEVEL_LABEL[levelOf(p)]} | term: ${v(p.goals.target_term ?? targetTermFallback)} | fields: ${v(p.goals.fields)} | degree types: ${v(p.goals.degree_types)} | admissions tests (${TESTS_FOR[levelOf(p)]}): ${v(p.goals.gmat_gre_plan)}`);
   if (p.goals.research_interests?.length) L.push(`research interests: ${p.goals.research_interests.join("; ")}`);
+  if (p.goals.applying) L.push(`applying: ${p.goals.applying === "this_cycle" ? "this cycle" : p.goals.applying === "next_year" ? "next year" : "just exploring for now"}`);
   L.push(`after the degree: ${v(p.goals.short_term_goal)}`);
   L.push(`long term: ${v(p.goals.long_term_goal)}`);
   L.push(`why this degree: ${v(p.goals.why_masters)}`);

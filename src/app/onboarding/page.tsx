@@ -1,18 +1,19 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { loadProfile, REGIONS } from "@/lib/profile";
+import { loadProfile, REGIONS, type Profile } from "@/lib/profile";
 import { userPlan } from "@/lib/budget";
 import { Onboarding } from "./wizard";
 import { confirmReturn } from "@/lib/billing";
 import { updateProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
 import { startShortlist } from "@/lib/kickoff";
+import { applySharpen } from "@/lib/sharpen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Get started", robots: { index: false, follow: false } };
 
-export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string; paid?: string; level?: string; fields?: string; regions?: string }> }) {
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ step?: string; mail?: string; paid?: string; level?: string; fields?: string; regions?: string; citizenship?: string; funding?: string; budget?: string; english?: string; tests?: string }> }) {
   const auth = await requireUser();
   if (!auth) redirect("/login?mode=signup");
   const uid = auth.user.id;
@@ -37,7 +38,13 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const regions = (sp.regions ?? "").split(",").filter((r) => REGIONS[r]).slice(0, plan.maxRegions);
   const fields = (sp.fields ?? "").split("|").map((f) => f.trim().slice(0, 60)).filter(Boolean).slice(0, 8);
   if (level && regions.length && !p.goals.study_level && !(p.preferences.regions ?? []).length) {
-    p = await updateProfile(uid, (x) => ({ ...x, preferences: { ...x.preferences, regions }, goals: { ...x.goals, study_level: level, ...(fields.length ? { fields } : {}) } }));
+    // and any "sharpen your matches" answers given on the matcher
+    const carried = (["citizenship", "funding", "budget", "english", "tests"] as const).filter((k) => sp[k]).map((k) => [k, String(sp[k]).slice(0, 60)] as const);
+    p = await updateProfile(uid, (x) => {
+      let out: Profile = { ...x, preferences: { ...x.preferences, regions }, goals: { ...x.goals, study_level: level, ...(fields.length ? { fields } : {}) } };
+      for (const [k, v] of carried) out = applySharpen(out, k, v);
+      return out;
+    });
     await logEvent({ userId: uid, actor: "user", action: "preferences.updated", context: { regions, study_level: level, source: "matcher" } }).catch(() => {});
     await startShortlist(uid, "matcher").catch(() => false);
     step = 3;

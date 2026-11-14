@@ -104,6 +104,8 @@ export async function shortlistFinished(userId: string): Promise<void> {
 // progress at once (preparing or approved), and never past the plan's application limit
 export async function autoPrepare(userId: string): Promise<number> {
   const db = admin();
+  // someone just exploring gets a shortlist, not essays: drafting starts when they pick a programme themselves
+  if ((await getProfile(userId)).goals.applying === "exploring") return 0;
   const { count: active } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]);
   const room = 3 - (active ?? 0);
   if (room <= 0) return 0;

@@ -4,6 +4,7 @@ import { loadProfile } from "@/lib/profile";
 import { PORTAL_DETAIL_FIELDS, type PortalDetails } from "@/lib/portal-fields";
 import { chapterStates, type Level } from "@/lib/profile-chapters";
 import { journey, todaysTask, type Journey, type Task, type TodayInput } from "@/lib/today";
+import { sharpenState } from "@/lib/sharpen";
 
 // everything today's task looks at, for one applicant (the dashboard and the morning email)
 export async function loadToday(userId: string): Promise<{ task: Task | null; journey: Journey }> {
@@ -15,7 +16,8 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
     db.from("mail_accounts").select("status").eq("user_id", userId).maybeSingle(),
   ]);
   const details = (prof?.portal_details ?? {}) as PortalDetails;
-  const level = (loadProfile(prof?.profile).goals.study_level ?? null) as Level | null;
+  const profile = loadProfile(prof?.profile);
+  const level = (profile.goals.study_level ?? null) as Level | null;
   const states = chapterStates(details, level);
   const kinds = new Set((docs ?? []).map((d) => d.kind as string));
   const quick = states.find((s) => s.chapter.style === "quick" && s.chapter.id !== "background" && s.chapter.id !== "fineprint" && s.next.length);
@@ -30,6 +32,7 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
     gmail: mail?.status === "active",
     story: story ? { open: story.next.length } : null,
     nextChapter: quick ? { id: quick.chapter.id, title: quick.chapter.title, open: quick.next.length } : null,
+    sharpenOpen: sharpenState(profile, (details as Record<string, string | undefined>).passport_country ?? null).open.length,
   };
   return { task: todaysTask(input), journey: journey(input) };
 }
