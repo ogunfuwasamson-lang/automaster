@@ -263,14 +263,18 @@ export const recon: Record<string, Handler> = {
     const regions = (only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions)).slice(0, plan.maxRegions);
     const total = Math.min(MAX_PROGRAMS, plan.programsPerRun);
     const perRegion = Math.max(Math.min(5, total), Math.ceil(total / regions.length));
+    // a first shortlist (nothing found for this applicant yet) stays at the front of the queue all the way down
+    const { count: known } = await admin().from("applications").select("id", { count: "exact", head: true }).eq("user_id", job.user_id);
+    const first = !known;
     for (const region of regions) {
       await enqueue({
         userId: job.user_id,
         agent: "recon",
         task: "discover_region",
-        payload: { region, count: perRegion },
+        payload: { region, count: perRegion, first },
         idempotencyKey: `discover:${job.user_id}:${region}:${job.id}`,
         parentJobId: job.id,
+        ...(first ? { runAt: new Date("2000-01-01T00:00:10Z") } : {}),
       });
     }
     await enqueue({
@@ -331,7 +335,9 @@ finish with honest strategy notes for this region: which of their constraints co
 
     const order = { top: 0, strong: 1, accessible: 2 } as const;
     const picks = [...output.candidates].sort((a, b) => order[a.band] - order[b.band]).slice(0, count);
-    for (const c of picks) {
+    // on a first shortlist the best three of each region go first, so there's something to look at within minutes
+    const firstRun = !!(job.payload as { first?: boolean }).first;
+    for (const [i, c] of picks.entries()) {
       await enqueue({
         userId: job.user_id,
         agent: "recon",
@@ -339,6 +345,7 @@ finish with honest strategy notes for this region: which of their constraints co
         payload: { ...c, region },
         idempotencyKey: `research:${job.user_id}:${slugify(c.school)}:${slugify(c.program)}:${today()}`,
         parentJobId: job.id,
+        ...(firstRun && i < 3 ? { runAt: new Date("2000-01-01T00:00:20Z") } : {}),
       });
     }
 

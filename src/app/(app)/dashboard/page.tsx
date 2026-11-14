@@ -246,7 +246,7 @@ export default async function Dashboard() {
 
       {payNudge && (
         <Rise>
-          <NudgeCard angle={payNudge.angle} headline={payNudge.headline} body={payNudge.body} cta={payNudge.cta} kind={payNudge.kind} />
+          <NudgeCard angle={payNudge.angle} headline={payNudge.headline} body={payNudge.body} cta={payNudge.cta} kind={payNudge.kind} href={payNudge.href} />
         </Rise>
       )}
 

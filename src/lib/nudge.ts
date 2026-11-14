@@ -40,13 +40,21 @@ export async function nudgeContext(userId: string): Promise<NudgeCtx> {
 }
 
 // the card on the dashboard, or null (not engaged, already paying, switched off, or snoozed)
-export async function dashboardNudge(userId: string, snoozedAt: number | null): Promise<(Nudge & { kind: "pack" | "pro" }) | null> {
+export async function dashboardNudge(userId: string, snoozedAt: number | null): Promise<(Nudge & { kind: "pack" | "pro"; href?: string }) | null> {
   const policy = await creditPolicy();
   if (!policy.nudges.inApp) return null;
   if (snoozedAt && Date.now() - snoozedAt < policy.nudges.snoozeDays * DAY) return null;
   const { tier } = await tierFor(userId);
   if (tier !== "engaged") return null;
   const c = await nudgeContext(userId);
+  // a free submission in hand (everyone's first, or one from an invite): don't ask for money, point at the signature
+  const bill = await billingState(userId);
+  if (bill.bonus > 0 && bill.credits === 0 && !bill.pro) {
+    const { data: ready } = await admin().from("applications").select("id, programs(schools(name))").eq("user_id", userId).eq("status", "ready_for_review").order("target_deadline", { ascending: true, nullsFirst: false }).limit(1).maybeSingle();
+    if (!ready) return null;
+    const school = (ready as unknown as { programs: { schools: { name: string } } | null }).programs?.schools?.name ?? "Your application";
+    return { angle: "ready", kind: c.model === "pack" ? "pack" : "pro", href: `/applications/${ready.id}`, headline: "Your first submission is free", body: `${school} is written and checked. Read it, sign, and the agents fill in the form and submit it. Nothing to pay for this one.`, cta: "Review and sign" };
+  }
   const n = pickNudge(c, seedOf(userId), Math.floor(Date.now() / DAY), policy.nudges.angles);
   return n ? { ...n, kind: c.model === "pack" ? "pack" : "pro" } : null;
 }
@@ -77,6 +85,7 @@ export async function sendPayNudges(limit = 200): Promise<number> {
       if (sent >= limit) break;
       if (p.digest_enabled === false || localHour(p.timezone || "Africa/Lagos") !== 10) continue;
       if ((await tierFor(p.id, true)).tier !== "engaged") continue;
+      if ((await billingState(p.id)).bonus > 0) continue; // their next submission is free: nothing to sell yet
       const since = await engagedAt(p.id);
       if (!since) continue;
       const { data: past } = await db.from("notifications").select("dedupe_key, created_at").eq("user_id", p.id).like("dedupe_key", "paynudge:email:%");

@@ -61,6 +61,8 @@ export async function tripAi(e: unknown) {
     { key: TRIPPED, value: new Date().toISOString() },
   ]);
   if (before > Date.now() - PAUSE_MS) return; // already paused recently: don't notify again
+  // how much the last top-up lasted, for the "running low" warning next time
+  await import("@/lib/credit").then((m) => m.recordCreditCycle()).catch(() => {});
   const { data: ops } = await db.from("profiles").select("id").eq("is_admin", true).limit(3);
   const { notify } = await import("@/lib/notify");
   for (const o of ops ?? [])

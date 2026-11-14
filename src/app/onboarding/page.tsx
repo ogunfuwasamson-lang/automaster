@@ -27,7 +27,9 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   // back from paying for a pack: confirm it now rather than waiting for the webhook
   const paid = sp.paid ? await confirmReturn(uid, sp.paid).catch(() => null) : null;
   const bill = await billingState(uid);
-  const pack = bill.pricing.model === "pack" && !bill.exempt ? { label: bill.pricing.label, each: bill.pricing.each, size: bill.pricing.size, credits: bill.credits, bonus: bill.bonus, justPaid: !!paid?.applied || (!!sp.paid && bill.credits > 0), ready: bachsReady() } : null;
+  // the first submission is free, so setup doesn't ask for money: the pack is offered when that one is used
+  const freeFirst = bill.bonus > 0 && bill.credits === 0 && !sp.paid;
+  const pack = bill.pricing.model === "pack" && !bill.exempt && !freeFirst ? { label: bill.pricing.label, each: bill.pricing.each, size: bill.pricing.size, credits: bill.credits, bonus: bill.bonus, justPaid: !!paid?.applied || (!!sp.paid && bill.credits > 0), ready: bachsReady() } : null;
   return (
     <Onboarding
       userId={uid}

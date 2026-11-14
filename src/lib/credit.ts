@@ -160,3 +160,45 @@ export async function starterHeld(userId: string) {
     email: true,
   });
 }
+
+// ---- running low: a warning before the provider credit hits zero ----
+// the provider has no balance to read, so this estimates from history: how much was spent between the last time the
+// credit came back and the time it ran out is the size of that top-up; when spend since the newest top-up passes 80%
+// of that, the operator is told once. an estimate (a bigger or smaller top-up moves it), and it says so.
+const CYCLE = "ai_cycle_usd";
+const LOW_ALERTED = "ai_low_alerted";
+
+async function spendSince(iso: string): Promise<number> {
+  const rows = await runsSince<{ cost_usd: number | null }>("cost_usd", iso);
+  return rows.reduce((a, r) => a + (Number(r.cost_usd) || 0), 0);
+}
+
+// called when the credit runs out: remember how much the last top-up lasted
+export async function recordCreditCycle(): Promise<void> {
+  const db = admin();
+  const { data } = await db.from("billing_settings").select("value").eq("key", "ai_probe_ok_at").maybeSingle();
+  if (!data?.value) return;
+  const spent = await spendSince(data.value);
+  if (spent >= 1) await db.from("billing_settings").upsert({ key: CYCLE, value: spent.toFixed(2) });
+}
+
+export async function warnIfCreditLow(): Promise<boolean> {
+  const db = admin();
+  const { data } = await db.from("billing_settings").select("key, value").in("key", [CYCLE, LOW_ALERTED, "ai_probe_ok_at", "ai_paused_until"]);
+  const get = (k: string) => data?.find((r) => r.key === k)?.value ?? "";
+  const since = get("ai_probe_ok_at");
+  const cycle = Number(get(CYCLE));
+  if (!since || !(cycle >= 1) || get(LOW_ALERTED) === since) return false;
+  if ((Date.parse(get("ai_paused_until")) || 0) > Date.now()) return false; // already out: that alert has gone
+  const spent = await spendSince(since);
+  if (spent < cycle * 0.8) return false;
+  await db.from("billing_settings").upsert({ key: LOW_ALERTED, value: since });
+  const { alert } = await import("@/lib/alerts");
+  await alert(`ai-credit-low:${since}`, "Ivyward's AI credit is running low", {
+    spent_since_last_top_up_usd: Math.round(spent * 100) / 100,
+    last_top_up_lasted_usd: cycle,
+    estimate: `About $${Math.max(0, cycle - spent).toFixed(2)} left if this top-up was the same size as the last. When it runs out, every agent stops.`,
+    fix: "Top up in the Anthropic Console, or turn on auto-reload there so it never reaches zero.",
+  });
+  return true;
+}

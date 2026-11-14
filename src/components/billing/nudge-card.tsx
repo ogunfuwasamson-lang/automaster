@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 // the dashboard's ask to pay: one angle a day (lib/nudge-rules). "Not now" hides it for a few days (a cookie the
 // server reads, so it stays hidden on every device the cookie is on, with nothing stored about it).
-export function NudgeCard({ angle, headline, body, cta, kind }: { angle: string; headline: string; body: string; cta: string; kind: "pack" | "pro" }) {
+export function NudgeCard({ angle, headline, body, cta, kind, href }: { angle: string; headline: string; body: string; cta: string; kind: "pack" | "pro"; href?: string }) {
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
@@ -18,24 +18,30 @@ export function NudgeCard({ angle, headline, body, cta, kind }: { angle: string;
         <p className="mt-1 text-[14px] text-muted">{body}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const r = await fetch("/api/billing/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, back: "settings", from: angle }) });
-              const j = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
-              if (!r.ok || !j.url) throw new Error(j.error ?? "Couldn't open the payment page");
-              window.location.assign(j.url);
-            } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
-              setBusy(false);
-            }
-          }}
-        >
-          {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
-          {cta}
-        </Button>
+        {href ? (
+          <Link href={href} className="inline-flex h-10 items-center rounded-lg bg-foreground px-4 text-[14px] font-medium text-background">
+            {cta}
+          </Link>
+        ) : (
+          <Button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await fetch("/api/billing/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, back: "settings", from: angle }) });
+                const j = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
+                if (!r.ok || !j.url) throw new Error(j.error ?? "Couldn't open the payment page");
+                window.location.assign(j.url);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
+                setBusy(false);
+              }
+            }}
+          >
+            {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+            {cta}
+          </Button>
+        )}
         <Link href="/settings#plan" className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">
           What&apos;s included
         </Link>
