@@ -1,21 +1,16 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, Mail, Mic, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Ticket, IdCard, Rows3, Rocket } from "lucide-react";
+import { Check, FileUp, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Sparkles } from "lucide-react";
 import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
-import { chipClass } from "@/components/ui/chip";
+import { chipClass, Tag } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
-import { DOC_KINDS, DOC_KIND_WHY } from "@/lib/doc-kinds";
-import { BuyPack } from "@/components/billing/pay";
-import { QuestionDeck } from "@/components/profile/question-deck";
-import { CHAPTERS, chapterStates, type Level } from "@/lib/profile-chapters";
-import type { PortalDetails } from "@/lib/portal-fields";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -24,11 +19,24 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-const BASE_STEPS = ["What you're applying for", "Where to study", "The basics", "Your documents", "Your email"];
-const BASE_ICON = [GraduationCap, Globe2, IdCard, FileUp, Mail];
-const BASE_HINT = ["Level, fields and start date", "Regions the agents search", "Your name as schools need it", "CV, transcripts and anything else", "Lets agents send and read for you"];
+// three screens, then the agents start: what, where, and the first matches (with the CV ask, now that there's a
+// reason to give it). the rest (passport name, gmail, the profile chapters) is asked for when a form needs it
+// (lib/kickoff): six screens of asks before anything to look at lost most people (nov 2026)
+const STEPS = ["What you're applying for", "Where to study", "Your first matches"];
+const STEP_ICON = [GraduationCap, Globe2, Sparkles];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your CV"];
+const LAST = STEPS.length;
 
-export type PackOffer = { label: string; each: string; size: number; credits: number; bonus: number; justPaid: boolean; ready: boolean };
+type Match = {
+  programId: string;
+  school: string;
+  program: string;
+  degree: string;
+  country: string | null;
+  deadline: { date: string; round: string } | null;
+  funding: "fully funded option" | "funding possible" | null;
+  awards: number;
+};
 
 async function save(body: Record<string, unknown>) {
   const res = await fetch("/api/profile/preferences", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -36,6 +44,14 @@ async function save(body: Record<string, unknown>) {
 }
 
 const chip = (on: boolean) => chipClass(on, "md");
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+};
+const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 function guessKind(name: string, already: number): string {
   if (/\b(cv|resume|résumé)\b/i.test(name)) return "cv";
@@ -61,31 +77,11 @@ export function Onboarding(props: {
   allRegions: Record<string, string>;
   maxRegions: number;
   docCount: number;
-  mailEmail: string | null;
-  mailAvailable: boolean;
-  mailVia?: "composio" | "google";
-  mailNotice: string | null;
-  pack: PackOffer | null;
-  details: PortalDetails;
+  hasCv: boolean;
 }) {
-  // goals, where, the basics (who you are: a minute of taps, and nothing to go and find), then documents and
-  // email (the two that need a file or another screen), then (in pack countries) the submission pack, and last
-  // the application profile: the rest of what forms ask, by cards or conversation, now or later
-  const BASICS = 3;
-  const DOCS = 4;
-  const MAIL = 5;
-  const PACK = props.pack ? 6 : -1;
-  const STEPS = [...BASE_STEPS, ...(props.pack ? ["Your submissions"] : []), "Your application profile"];
-  const STEP_ICON = [...BASE_ICON, ...(props.pack ? [Ticket] : []), Rows3];
-  const STEP_HINT = [...BASE_HINT, ...(props.pack ? ["Pay now or when you're ready"] : []), "Quick cards or Ivyward AI"];
-  const LAST = STEPS.length;
-  // the first chapter with something left in it (not always the second: someone coming back may have done it)
-  const firstOpen = (chapterStates(props.details, (props.level || null) as Level | null).find((c) => c.chapter.id !== "basics" && c.next.length) ?? { chapter: CHAPTERS[1] }).chapter;
   const router = useRouter();
   const reduce = useReducedMotion();
-  // whichever way they choose to finish the profile, the agents start now (the request outlives the page change)
-  const startAgents = () => void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
-  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), props.pack ? 7 : 6));
+  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), LAST));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
   const [fields, setFields] = useState<string[]>(props.fields);
@@ -95,12 +91,28 @@ export function Onboarding(props: {
   const [regions, setRegions] = useState<string[]>(props.regions);
   const [uploaded, setUploaded] = useState<{ name: string; kind: string }[]>([]);
   const [uploading, setUploading] = useState<{ name: string; kind: string | null } | null>(null);
+  const [matches, setMatches] = useState<Match[] | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const kindFor = useRef<string | null>(null);
-  const pick = (k: string) => {
-    kindFor.current = k === "other" ? null : k;
+  const pick = (k: string | null) => {
+    kindFor.current = k;
     file.current?.click();
   };
+  const hasCv = props.hasCv || uploaded.some((u) => u.kind === "cv");
+
+  // the matches screen asks the library as soon as it opens (the regions were saved on the way in)
+  useEffect(() => {
+    if (step !== LAST) return;
+    let live = true;
+    setMatches(null);
+    fetch("/api/onboarding/matches")
+      .then((r) => (r.ok ? r.json() : { matches: [] }))
+      .then((j: { matches?: Match[] }) => live && setMatches(j.matches ?? []))
+      .catch(() => live && setMatches([]));
+    return () => {
+      live = false;
+    };
+  }, [step]);
 
   async function next(body?: Record<string, unknown>) {
     if (body) {
@@ -115,6 +127,13 @@ export function Onboarding(props: {
       setBusy(false);
     }
     setStep((s) => Math.min(s + 1, LAST));
+  }
+
+  // setup's done: the agents start (the request outlives the page change) and the dashboard takes over
+  async function start() {
+    setBusy(true);
+    await fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
+    router.push("/dashboard?welcome=1");
   }
 
   // kind: what the applicant said the file is; null means work it out from the name (the intake agent checks it)
@@ -162,7 +181,7 @@ export function Onboarding(props: {
         <aside className="hidden lg:block">
           <div className="glass sticky top-6 rounded-2xl border border-white/80 p-5 shadow-card dark:border-white/[0.07]">
             <p className="text-[15px] font-bold tracking-[-0.02em]">Set up your season</p>
-            <p className="mt-0.5 text-xs text-muted">About four minutes. You can change all of it later.</p>
+            <p className="mt-0.5 text-xs text-muted">About two minutes. You can change all of it later.</p>
             <ol className="relative mt-5 space-y-1">
               {STEPS.map((s, i) => {
                 const n = i + 1;
@@ -269,7 +288,7 @@ export function Onboarding(props: {
                 <Button
                   size="lg"
                   disabled={!level || busy}
-                  onClick={() => next({ study_level: level, target_term: term.toLowerCase().replace(" ", "-"), ...(fields.length ? { fields } : {}) })}
+                  onClick={() => next({ study_level: level, target_term: term.toLowerCase().replace(" ", "-"), timezone: browserZone(), ...(fields.length ? { fields } : {}) })}
                 >
                   {busy ? "Saving…" : "Continue"}
                 </Button>
@@ -307,202 +326,75 @@ export function Onboarding(props: {
               </div>
             )}
 
-            {step === DOCS && (
+            {step === LAST && (
               <div className="space-y-7">
                 <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Add your documents</h1>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">{matches && !matches.length ? "Your agents are ready to search" : "Your first matches"}</h1>
                   <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Start with your CV. Add anything else you have: agents read every file to fill your profile and your forms, and upload them to portals. PDF, Word or photos, up to 10 MB each. Only you and your agents can see them.
+                    {matches && !matches.length
+                      ? "Nothing we've checked so far fits your field exactly, so your agents search your regions from scratch. The first programmes arrive within the hour, and new matches every morning."
+                      : "Programmes our agents have already checked that fit your level, field and regions. Your agents are searching for more now, and new matches arrive every morning."}
                   </p>
                 </div>
-                <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-                  {DOC_KINDS.filter(([k]) => k !== "other").map(([k, label]) => {
-                    const mine = uploaded.filter((u) => u.kind === k);
-                    const busyHere = uploading?.kind === k;
-                    return (
-                      <li key={k} className="flex items-center gap-3 px-4 py-3">
-                        <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${mine.length || (k === "cv" && props.docCount) ? "bg-go/10 text-go" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>
-                          {mine.length ? <Check className="size-4" aria-hidden /> : <FileUp className="size-4" aria-hidden />}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[14px] font-medium">
-                            {label}
-                            {k === "cv" && <span className="ml-2 whitespace-nowrap rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">Start here</span>}
-                          </span>
-                          <span className="block truncate text-[12.5px] text-muted">{mine.length ? mine.map((m) => m.name).join(", ") : DOC_KIND_WHY[k]}</span>
-                        </span>
-                        <Button size="sm" variant={mine.length ? "ghost" : "secondary"} disabled={!!uploading} onClick={() => pick(k)}>
-                          {busyHere ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : null}
-                          {mine.length ? "Add another" : "Add"}
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <button
-                  onClick={() => pick("other")}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    onFiles(e.dataTransfer.files, null);
-                  }}
-                  className="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line px-6 py-7 text-center transition-colors hover:border-neutral-400"
-                >
-                  {uploading && !uploading.kind ? <LoaderCircle className="size-6 animate-spin text-muted" aria-hidden /> : <FileUp className="size-6 text-muted" aria-hidden />}
-                  <span className="font-medium">{uploading ? `Uploading ${uploading.name}…` : "Drop several files here"}</span>
-                  <span className="text-[13px] text-muted">Agents work out what each one is</span>
-                </button>
-                <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files, kindFor.current)} />
-                {props.docCount ? <p className="flex items-center gap-2 text-sm text-muted"><Check className="size-4 text-go" aria-hidden />{props.docCount} document{props.docCount > 1 ? "s" : ""} added earlier</p> : null}
-                <div className="flex gap-3">
-                  <Button size="lg" onClick={() => next()} disabled={!!uploading}>{uploaded.length || props.docCount ? "Continue" : "Skip for now"}</Button>
-                  <Button size="lg" variant="ghost" onClick={() => setStep(BASICS)}>Back</Button>
-                </div>
-              </div>
-            )}
 
-            {step === MAIL && (
-              <div className="space-y-8">
-                <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Connect your Gmail</h1>
-                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Agents use it to send fee-waiver and funding emails from your address, read the codes portals send when they create your
-                    accounts, and tell you when a school replies. They never delete or change anything in your inbox.
-                  </p>
-                </div>
-                {props.mailEmail ? (
-                  <p className="flex items-center gap-2 text-[15px]"><Check className="size-5 text-go" aria-hidden />Connected as <span className="font-medium">{props.mailEmail}</span></p>
-                ) : props.mailAvailable ? (
-                  <div className="space-y-3">
-                    {props.mailVia === "composio" && (
-                      <p className="max-w-xl text-sm leading-relaxed text-muted">
-                        Google will ask you to allow <span className="font-medium text-foreground">Composio</span>, the service Ivyward uses to connect to Gmail securely, so Google shows its name instead of ours. You can disconnect it in Settings at any time.
-                      </p>
-                    )}
-                    <ButtonLink href="/api/mail/connect?next=/onboarding" size="lg" variant="accent"><Mail className="size-4" aria-hidden />Connect Gmail</ButtonLink>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted">Email connection isn&apos;t available yet. You can add it later in settings.</p>
-                )}
-                {props.mailNotice && props.mailNotice !== "connected" ? <p className="text-sm text-stop">Gmail wasn&apos;t connected. Try again, and allow each permission on Google&apos;s screen.</p> : null}
-                <div className="flex gap-3">
-                  <Button size="lg" variant={props.mailEmail ? "primary" : "secondary"} onClick={() => next()}>{props.mailEmail ? "Continue" : "Do this later"}</Button>
-                  <Button size="lg" variant="ghost" onClick={() => setStep(DOCS)}>Back</Button>
-                </div>
-              </div>
-            )}
-
-            {step === BASICS && (
-              <div className="space-y-6">
-                <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">The basics, the way schools need them</h1>
-                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">Your name exactly as on your passport, your birthday and a phone number. Ten taps or so; skip anything you&apos;d rather add later.</p>
-                </div>
-                <QuestionDeck initial={props.details} level={(level || null) as Level | null} chapterId="basics" only chatHref={false} onFinished={() => setStep((s) => s + 1)} />
-                <div className="flex gap-3">
-                  <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
-                  <Button size="lg" variant="ghost" onClick={() => setStep((s) => s + 1)}>Do this later</Button>
-                </div>
-              </div>
-            )}
-
-            {props.pack && step === PACK && (
-              <div className="space-y-8">
-                {props.pack.justPaid || props.pack.credits > 0 ? (
-                  <div>
-                    <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">You have {props.pack.credits + props.pack.bonus} submissions ready</h1>
-                    <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">Each one is used only when an application, scholarship form or funding request actually goes in, after you&apos;ve signed it. They don&apos;t expire.</p>
-                  </div>
-                ) : (
-                  <div>
-                    <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">{props.pack.size} submissions for {props.pack.label.replace(/ for \d+ submissions$/, "")}</h1>
-                    <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                      Preparing is free: your shortlist, essays and every page of each portal. A pack covers your next {props.pack.size} submissions ({props.pack.each} each). No subscription, nothing renews. Pay now so your first application goes in the moment it&apos;s ready, or skip and pay then.
-                    </p>
-                  </div>
-                )}
-                <ul className="grid gap-2 text-[14.5px] sm:grid-cols-2">
-                  {[`A submission is used only when something goes in`, "Applications, scholarship forms and funding requests", "Credits don't expire", "Card, bank transfer or mobile money"].map((t) => (
-                    <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />{t}</li>
-                  ))}
-                </ul>
-                <div className="flex flex-wrap gap-3">
-                  {props.pack.justPaid || props.pack.credits > 0 ? (
-                    <Button size="lg" onClick={() => next()}>Continue</Button>
-                  ) : (
-                    <>
-                      {props.pack.ready && <BuyPack label={props.pack.label} back="onboarding" size="lg">Pay {props.pack.label.replace(/ for \d+ submissions$/, "")}</BuyPack>}
-                      <Button
-                        size="lg"
-                        variant="secondary"
-                        onClick={() => {
-                          // a reminder they can come back to; the pay card also appears on any application that's ready
-                          void fetch("/api/billing/later", { method: "POST" }).catch(() => null);
-                          next();
-                        }}
-                      >
-                        Skip for now
-                      </Button>
-                    </>
-                  )}
-                  <Button size="lg" variant="ghost" onClick={() => setStep(MAIL)}>Back</Button>
-                </div>
-                {!props.pack.justPaid && props.pack.credits === 0 && <p className="text-[13px] text-muted">You can buy a pack any time from Settings, or from an application when it&apos;s ready to submit.</p>}
-              </div>
-            )}
-
-            {step === LAST && (
-              <div className="space-y-8">
-                <div>
-                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Last step: your application profile</h1>
-                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-                    Every application form asks the same things: your family, your school record, visas, funding, your story. Answer them once, in short chapters, and the agents fill every form without stopping to ask. Do it now or any time from your profile.
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <a href={`/profile/chapters/${firstOpen.id}`} onClick={startAgents} className="group rounded-2xl border border-accent/40 bg-accent/5 p-4 transition-colors hover:bg-accent/10">
-                    <Rows3 className="size-5 text-accent" aria-hidden />
-                    <p className="mt-2 font-bold">Quick cards</p>
-                    <p className="mt-0.5 text-[13px] text-muted">One question at a time. Tap, next. The quickest way.</p>
-                  </a>
-                  <a href={`/dashboard?chat=open&setup=1&say=${encodeURIComponent(`Let's do my profile chapter: ${firstOpen.title}`)}`} onClick={startAgents} className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-accent/40">
-                    <Mic className="size-5 text-accent" aria-hidden />
-                    <p className="mt-2 font-bold">Talk it through</p>
-                    <p className="mt-0.5 text-[13px] text-muted">Ivyward AI asks, by voice or text. Best for your story.</p>
-                  </a>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={async () => {
-                      // skipping still starts the agents; what's missing turns into notifications
-                      setBusy(true);
-                      await fetch("/api/onboarding/kickoff", { method: "POST" }).catch(() => null);
-                      router.push("/dashboard");
-                    }}
-                    className="rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent/40"
-                  >
-                    {busy ? <LoaderCircle className="size-5 animate-spin text-accent" aria-hidden /> : <Rocket className="size-5 text-accent" aria-hidden />}
-                    <p className="mt-2 font-bold">{busy ? "Starting your agents…" : "Later: start my agents"}</p>
-                    <p className="mt-0.5 text-[13px] text-muted">They ask for anything they need as they go.</p>
-                  </button>
-                </div>
-                <div>
-                  <p className="mb-2 text-[13px] font-medium text-muted">The chapters</p>
-                <ol className="grid grid-cols-2 gap-2">
-                  {chapterStates(props.details, (level || null) as Level | null)
-                    .filter((c) => c.chapter.id !== "basics")
-                    .map((c, i) => (
-                      <li key={c.chapter.id} className="flex items-start gap-2.5 rounded-2xl border border-line bg-surface px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-                        <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-accent/10 text-[12px] font-bold text-accent tabular">{i + 1}</span>
-                        <span>
-                          <span className="block text-[13.5px] font-semibold leading-snug sm:text-[14.5px]">{c.chapter.title}</span>
-                          <span className="block text-[12.5px] text-muted">{c.chapter.style === "story" ? "A conversation" : `${c.total} quick questions`}</span>
-                        </span>
+                {matches === null ? (
+                  <p className="flex items-center gap-2 text-[14.5px] text-muted"><LoaderCircle className="size-4 animate-spin" aria-hidden />Finding programmes that fit…</p>
+                ) : matches.length ? (
+                  <ul className="grid gap-2.5 sm:grid-cols-2">
+                    {matches.map((m) => (
+                      <li key={m.programId} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                        <p className="text-[12.5px] text-muted">{m.school}{m.country ? `, ${m.country}` : ""}</p>
+                        <p className="mt-0.5 text-[15px] font-bold leading-snug tracking-[-0.01em]">{m.program}</p>
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <Tag>{m.deadline ? `Closes ${day(m.deadline.date)}` : "Deadline being checked"}</Tag>
+                          {m.funding && <Tag tone="go">{m.funding === "fully funded option" ? "Fully funded option" : "Funding possible"}</Tag>}
+                          {m.awards ? <Tag tone="accent">{m.awards} scholarship{m.awards > 1 ? "s" : ""} on file</Tag> : null}
+                        </div>
                       </li>
                     ))}
-                </ol>
+                  </ul>
+                ) : null}
+
+                <section className="rounded-2xl border border-accent/30 bg-accent/[0.04] p-5" aria-label="Your CV">
+                  <p className="text-[17px] font-bold tracking-[-0.02em]">{hasCv ? "Your CV is in" : "Add your CV to get your fit score on each one"}</p>
+                  <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
+                    {hasCv
+                      ? "Your agents read it now, score how well you fit each programme, and look for scholarships you qualify for."
+                      : "Your agents read it, score how well you fit each programme, and look for scholarships you qualify for. PDF, Word or a photo. Only you and your agents can see it."}
+                  </p>
+                  {uploaded.length ? (
+                    <ul className="mt-3 space-y-1">
+                      {uploaded.map((u) => (
+                        <li key={u.name} className="flex items-center gap-2 text-[14px]"><Check className="size-4 text-go" aria-hidden /><span className="truncate">{u.name}</span></li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button
+                      variant={hasCv ? "secondary" : "primary"}
+                      disabled={!!uploading}
+                      onClick={() => pick(hasCv ? null : "cv")}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        onFiles(e.dataTransfer.files, hasCv ? null : "cv");
+                      }}
+                    >
+                      {uploading ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileUp className="size-4" aria-hidden />}
+                      {uploading ? `Uploading ${uploading.name}…` : hasCv ? "Add another document" : "Upload your CV"}
+                    </Button>
+                    {!hasCv && <span className="text-[13px] text-muted">Transcripts and the rest can come later.</span>}
+                  </div>
+                  <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files, kindFor.current)} />
+                </section>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button size="lg" disabled={busy || !!uploading} onClick={start}>
+                    {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
+                    {busy ? "Starting your agents…" : hasCv ? "Start my agents" : "Continue without a CV"}
+                  </Button>
+                  <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
                 </div>
-                <Button size="lg" variant="ghost" onClick={() => setStep((s) => s - 1)}>Back</Button>
               </div>
             )}
           </motion.section>

@@ -12,7 +12,7 @@ function digestHtml(g: Digest, name: string | null): string {
   return emailHtml({
     kicker: "Today",
     headline: `${name ? `${name.split(" ")[0]}, ` : ""}${g.headline}.`,
-    blocks: [...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: "Open Ivyward", href: `${appUrl()}/dashboard` }],
+    blocks: [...sec("New for you", g.fresh ?? []), ...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: "Open Ivyward", href: `${appUrl()}/dashboard` }],
     manageUrl: `${appUrl()}/settings`,
   });
 }
@@ -46,6 +46,11 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
     db.from("messages").select("subject, to_email, send_after").eq("user_id", userId).eq("status", "scheduled").limit(10),
     db.from("applications").select("runner_note, programs(schools(name))").eq("user_id", userId).eq("runner_status", "needs_you").limit(10),
   ]);
+  // the morning drop: what the agents found since the last note
+  const [freshApps, freshFunding] = await Promise.all([
+    db.from("applications").select("target_deadline, programs(name, degree, schools(name))").eq("user_id", userId).gte("created_at", since).in("status", ["shortlisted", "researching", "preparing"]).order("fit_score", { ascending: false, nullsFirst: false }).limit(12),
+    db.from("user_funding").select("funding_opportunities(name)").eq("user_id", userId).gte("created_at", since).limit(40),
+  ]);
   const digest = buildDigest({
     name,
     since,
@@ -59,6 +64,10 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
     }),
     scheduledEmails: (mail.data ?? []).map((m) => ({ subject: m.subject ?? "", to: m.to_email, send_after: m.send_after })),
     runnerNeedsYou: (runner.data ?? []).map((r) => ({ school: (r.programs as unknown as { schools: { name: string } }).schools.name, note: r.runner_note })),
+    freshPrograms: ((freshApps.data ?? []) as unknown as { target_deadline: string | null; programs: { name: string; degree: string | null; schools: { name: string } } | null }[])
+      .filter((a) => a.programs && a.programs.degree !== "Scholarship")
+      .map((a) => ({ school: a.programs!.schools.name, program: a.programs!.name.split(" (")[0], deadline: a.target_deadline })),
+    freshAwards: ((freshFunding.data ?? []) as unknown as { funding_opportunities: { name: string } | null }[]).filter((f) => f.funding_opportunities).map((f) => ({ name: f.funding_opportunities!.name })),
   });
   return { digest, since, name };
 }

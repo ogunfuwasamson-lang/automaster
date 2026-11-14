@@ -43,6 +43,7 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { dashboardNudge } from "@/lib/nudge";
 import { NudgeCard } from "@/components/billing/nudge-card";
+import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -71,6 +72,23 @@ function when(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// what the agents found in the last day, and how much is still to come on later mornings (lib/drop)
+async function loadFresh(sb: NonNullable<Awaited<ReturnType<typeof requireUser>>>["sb"]): Promise<{ programs: FreshProgram[]; awards: FreshAward[]; upcoming: number }> {
+  const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const [{ data: apps }, awardsQ, { count: upcoming }] = await Promise.all([
+    sb.from("applications").select("id, fit_score, target_deadline, created_at, programs(name, degree, schools(name, country))").gte("created_at", since).in("status", ["shortlisted", "researching", "preparing"]).order("fit_score", { ascending: false, nullsFirst: false }).limit(12),
+    sb.from("user_funding").select("id, created_at, funding_opportunities(name, amount_note, deadline)").gte("created_at", since).limit(40),
+    sb.from("jobs").select("id", { count: "exact", head: true }).eq("agent", "recon").eq("task", "research_program").eq("status", "queued").gt("run_at", new Date(Date.now() + 15 * 60_000).toISOString()),
+  ]);
+  const programs = ((apps ?? []) as unknown as { id: string; fit_score: number | null; target_deadline: string | null; programs: { name: string; degree: string | null; schools: { name: string; country: string | null } } | null }[])
+    .filter((a) => a.programs && a.programs.degree !== "Scholarship")
+    .map((a) => ({ id: a.id, school: a.programs!.schools.name, program: a.programs!.name.split(" (")[0], country: a.programs!.schools.country, deadline: a.target_deadline, fit: a.fit_score == null ? null : Number(a.fit_score) }));
+  const awards = ((awardsQ.error ? [] : awardsQ.data ?? []) as unknown as { id: string; funding_opportunities: { name: string; amount_note: string | null; deadline: string | null } | null }[])
+    .filter((a) => a.funding_opportunities)
+    .map((a) => ({ id: a.id, name: a.funding_opportunities!.name, amount: a.funding_opportunities!.amount_note, deadline: a.funding_opportunities!.deadline }));
+  return { programs, awards, upcoming: upcoming ?? 0 };
+}
+
 function greeting() {
   // the server runs in UTC; most applicants are a few hours either side, so keep it broad
   const h = new Date().getUTCHours() + 1;
@@ -79,8 +97,10 @@ function greeting() {
 
 // the shortlist run in progress, if any: the latest planner job and the recon jobs queued since
 async function loadShortlistRun(sb: NonNullable<Awaited<ReturnType<typeof requireUser>>>["sb"]): Promise<ShortlistRun | null> {
-  const { data: jobs } = await sb.from("jobs").select("task, status, created_at, result").eq("agent", "recon").neq("task", "scholarships").order("created_at", { ascending: false }).limit(80);
-  const list = (jobs ?? []) as { task: string; status: string; created_at: string; result: { regions?: string[] } | null }[];
+  const { data: jobs } = await sb.from("jobs").select("task, status, created_at, run_at, result").eq("agent", "recon").neq("task", "scholarships").order("created_at", { ascending: false }).limit(80);
+  const soon = new Date(Date.now() + 15 * 60_000).toISOString();
+  // research waiting for a later morning (lib/drop) isn't part of today's run
+  const list = ((jobs ?? []) as { task: string; status: string; created_at: string; run_at: string; result: { regions?: string[] } | null }[]).filter((j) => j.status !== "queued" || j.run_at <= soon);
   const plan = list.find((j) => j.task === "discover");
   if (!plan) return null;
   const run = list.filter((j) => j.created_at >= plan.created_at);
@@ -135,7 +155,7 @@ export default async function Dashboard() {
     sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
   ]);
 
-  const shortlistRun = await loadShortlistRun(sb);
+  const [shortlistRun, fresh] = await Promise.all([loadShortlistRun(sb), loadFresh(sb).catch(() => ({ programs: [], awards: [], upcoming: 0 }))]);
   const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
   const setupTodo = setupQ.error ? [] : (setupQ.data ?? []);
   // follow-ups from school emails: events coming up, and forms the agents are doing or need help with
@@ -253,6 +273,12 @@ export default async function Dashboard() {
       {shortlistRun && (
         <Rise>
           <ShortlistProgress run={shortlistRun.planning ? { ...shortlistRun, regions: p.preferences.regions?.length || 1 } : shortlistRun} />
+        </Rise>
+      )}
+
+      {(fresh.programs.length > 0 || fresh.awards.length > 0 || (fresh.upcoming > 0 && !shortlistRun)) && (
+        <Rise>
+          <NewForYou programs={fresh.programs} awards={fresh.awards} upcoming={fresh.upcoming} />
         </Rise>
       )}
 

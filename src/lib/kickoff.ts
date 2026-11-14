@@ -8,6 +8,7 @@ import { PORTAL_DETAIL_FIELDS, type PortalDetails } from "@/lib/portal-fields";
 import { notify, resolve } from "@/lib/notify";
 import { checkLimit } from "@/lib/limits";
 import { canReadMail } from "@/lib/gmail";
+import { queueInstantMatches } from "@/lib/matches";
 
 // a new applicant's first shortlist goes to the front of the queue (jobs run oldest first), so they see programmes
 // in their first session instead of waiting behind everyone's background work
@@ -62,7 +63,8 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
   let shortlist = false;
   if (profile.goals.study_level && regions.length && !apps && !runs) {
     await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
-    await logEvent({ userId, actor: "system", action: "recon.requested", context: { source } });
+    const instant = await queueInstantMatches(userId).catch(() => 0);
+    await logEvent({ userId, actor: "system", action: "recon.requested", context: { source, instant } });
     shortlist = true;
   }
   await logEvent({ userId, actor: "system", action: "setup.kickoff", context: { source, missing, shortlist } });
@@ -72,11 +74,15 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
 // called after each recon job: when the last one finishes, the shortlist is ready
 export async function shortlistFinished(userId: string): Promise<void> {
   const db = admin();
-  const { count: left } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").neq("task", "scholarships").in("status", ["queued", "running"]);
+  // today's batch: research spread over the coming mornings (lib/drop) doesn't hold up the shortlist
+  const soon = new Date(Date.now() + 15 * 60_000).toISOString();
+  const { count: left } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").neq("task", "scholarships").in("status", ["queued", "running"]).lte("run_at", soon);
   if (left) return;
   const { data: run } = await db.from("jobs").select("id").eq("user_id", userId).eq("agent", "recon").eq("task", "discover").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!run) return;
   const { count } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "shortlisted");
+  const { count: later } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "research_program").eq("status", "queued").gt("run_at", soon);
+  const more = later ? ` ${later} more arrive over the next few mornings.` : "";
   // don't wait for the applicant to pick: start preparing the nearest deadlines (up to 3 in progress at once, within
   // their plan). they can drop any of them; the rest stay on the shortlist
   const started = await autoPrepare(userId).catch(() => 0);
@@ -86,7 +92,7 @@ export async function shortlistFinished(userId: string): Promise<void> {
     kind: "shortlist",
     title: count ? `Your shortlist is ready: ${count} program${count === 1 ? "" : "s"}` : "Your shortlist run finished",
     body: count
-      ? `Agents checked each program's official pages against your profile.${started ? ` They've started preparing the ${started} with the nearest deadlines; drop any you don't want.` : " Pick the ones you want and the agents start preparing them."}`
+      ? `Agents checked each program's official pages against your profile.${started ? ` They've started preparing the ${started} with the nearest deadlines; drop any you don't want.` : " Pick the ones you want and the agents start preparing them."}${more}`
       : "No programs passed the checks this time. Open the shortlist to see why and widen your search.",
     href: "/shortlist",
     actionLabel: "Open shortlist",
@@ -142,6 +148,8 @@ export async function startShortlist(userId: string, source: string): Promise<bo
   ]);
   if (apps || runs) return false;
   await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
-  await logEvent({ userId, actor: "system", action: "recon.requested", context: { source, early: true } });
+  // programmes already on file that fit, checked against this applicant in minutes (lib/matches)
+  const instant = await queueInstantMatches(userId).catch(() => 0);
+  await logEvent({ userId, actor: "system", action: "recon.requested", context: { source, early: true, instant } });
   return true;
 }

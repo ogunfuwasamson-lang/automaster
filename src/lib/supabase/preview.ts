@@ -275,6 +275,12 @@ class Query implements PromiseLike<{ data: unknown; count: number | null; error:
   gte() {
     return this;
   }
+  gt() {
+    return this;
+  }
+  lt() {
+    return this;
+  }
   lte() {
     return this;
   }

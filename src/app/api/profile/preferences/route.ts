@@ -7,6 +7,7 @@ import { logEvent } from "@/lib/events";
 import { userPlan } from "@/lib/budget";
 import { startShortlist } from "@/lib/kickoff";
 import { drain } from "@/lib/jobs";
+import { admin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,14 +19,26 @@ const Body = z.object({
   degree_types: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
   fields: z.array(z.string().trim().min(1).max(60)).max(8).optional(),
   target_term: z.string().trim().max(40).optional(),
+  // the browser's own time zone, so the morning email and the morning's new matches arrive in their morning
+  timezone: z.string().trim().max(64).optional(),
 });
+
+const validZone = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+    return /^[A-Za-z_]+\/[A-Za-z_\-/]+$/.test(tz);
+  } catch {
+    return false;
+  }
+};
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
-  const { regions, degree_types, study_level, fields, target_term } = parsed.data;
+  const { regions, degree_types, study_level, fields, target_term, timezone } = parsed.data;
+  if (timezone && validZone(timezone)) await admin().from("profiles").update({ timezone }).eq("id", auth.user.id);
   const cleanRegions = regions?.filter((r) => REGIONS[r]);
   const { plan } = await userPlan(auth.user.id);
   if (cleanRegions && cleanRegions.length > plan.maxRegions) {

@@ -13,6 +13,7 @@ import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
 import { creditPolicy, tierFor } from "@/lib/credit";
+import { daySlot, researchAt } from "@/lib/drop";
 import { screen, targetDeadline } from "@/lib/fit";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 import { findInstitution, isDefunct, linkSchool, registryBrief } from "@/lib/institutions";
@@ -281,25 +282,31 @@ export const recon: Record<string, Handler> = {
     // a first shortlist (nothing found for this applicant yet) stays at the front of the queue all the way down
     const { count: known } = await admin().from("applications").select("id", { count: "exact", head: true }).eq("user_id", job.user_id);
     const first = !known;
-    for (const region of regions) {
+    // unpaid accounts get their research a few programmes a morning (lib/drop); paying ones get it all now
+    const spread = tier !== "paid" && tier !== "staff";
+    for (const [slot, region] of regions.entries()) {
       await enqueue({
         userId: job.user_id,
         agent: "recon",
         task: "discover_region",
-        payload: { region, count: perRegion, first },
+        payload: { region, count: perRegion, first, spread, slot, regions: regions.length },
         idempotencyKey: `discover:${job.user_id}:${region}:${job.id}`,
         parentJobId: job.id,
         ...(first ? { runAt: new Date("2000-01-01T00:00:10Z") } : {}),
       });
     }
+    // the scholarship hunt: on a spread run it's the next morning's news (and has the CV to work from by then)
+    const { data: tzRow } = spread ? await admin().from("profiles").select("timezone").eq("id", job.user_id).maybeSingle() : { data: null };
+    const hunt = spread ? researchAt(1, tzRow?.timezone, 0) : null;
     await enqueue({
       userId: job.user_id,
       agent: "recon",
       task: "scholarships",
       idempotencyKey: `scholarships:${job.user_id}:${today()}`,
       parentJobId: job.id,
+      ...(hunt ? { runAt: hunt } : {}),
     });
-    await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.planned", context: { regions, perRegion } });
+    await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.planned", context: { regions, perRegion, spread } });
     return { regions };
   },
 
@@ -350,9 +357,16 @@ finish with honest strategy notes for this region: which of their constraints co
 
     const order = { top: 0, strong: 1, accessible: 2 } as const;
     const picks = [...output.candidates].sort((a, b) => order[a.band] - order[b.band]).slice(0, count);
-    // on a first shortlist the best three of each region go first, so there's something to look at within minutes
-    const firstRun = !!(job.payload as { first?: boolean }).first;
+    const pl = job.payload as { first?: boolean; spread?: boolean; slot?: number; regions?: number };
+    const firstRun = !!pl.first;
+    const { data: tzRow } = pl.spread ? await db.from("profiles").select("timezone").eq("id", job.user_id).maybeSingle() : { data: null };
+    let later = 0;
     for (const [i, c] of picks.entries()) {
+      // spread runs: three programmes a morning, regions mixed (lib/drop). otherwise all now, and on a first
+      // shortlist the best three of each region go first, so there's something to look at within minutes
+      const morning = pl.spread ? daySlot(i, pl.slot ?? 0, pl.regions ?? 1) : 0;
+      const at = morning > 0 ? researchAt(morning, tzRow?.timezone, i) : null;
+      if (at) later++;
       await enqueue({
         userId: job.user_id,
         agent: "recon",
@@ -360,7 +374,7 @@ finish with honest strategy notes for this region: which of their constraints co
         payload: { ...c, region },
         idempotencyKey: `research:${job.user_id}:${slugify(c.school)}:${slugify(c.program)}:${today()}`,
         parentJobId: job.id,
-        ...(firstRun && i < 3 ? { runAt: new Date("2000-01-01T00:00:20Z") } : {}),
+        ...(at ? { runAt: at } : firstRun && (pl.spread || i < 3) ? { runAt: new Date("2000-01-01T00:00:20Z") } : {}),
       });
     }
 
@@ -370,7 +384,7 @@ finish with honest strategy notes for this region: which of their constraints co
       action: "recon.discovered",
       agentRunId: runId,
       reasoning: output.strategy_notes.join("\n"),
-      context: { region, candidates: picks.length, strategy_notes: output.strategy_notes, searches: found.searches },
+      context: { region, candidates: picks.length, later, strategy_notes: output.strategy_notes, searches: found.searches },
     });
     return { region, candidates: picks.length };
   },
@@ -378,7 +392,7 @@ finish with honest strategy notes for this region: which of their constraints co
   "recon.research_program": async (job) => {
     const p = job.payload as {
       school: string; program: string; degree: string; url: string; why: string; funding_angle: string;
-      country?: string; region?: string; ranking_note?: string;
+      country?: string; region?: string; ranking_note?: string; library_id?: string;
     };
     const profile = await getProfile(job.user_id);
     const db = admin();
@@ -401,7 +415,7 @@ finish with honest strategy notes for this region: which of their constraints co
 
     // the world model is shared: if this program was researched recently (by any run, any user),
     // reuse the facts and only judge fit for this applicant. no web calls.
-    const cached = await cachedProgramNotes(p.school, p.program);
+    const cached = await cachedProgramNotes(p.school, p.program, p.library_id);
     const found = cached ?? await research({
       userId: job.user_id,
       agent: "recon",
@@ -600,19 +614,30 @@ first list every eligibility hook you see in this profile. then search for schol
   return { found: saved, started };
 };
 
-async function cachedProgramNotes(school: string, program: string): Promise<{ text: string; sources: string[]; schoolId: string; programId: string } | null> {
+const PROGRAM_FACTS = "id, school_id, name, degree, url, stem_designated, test_policy, toefl_min, ielts_min, tuition_usd, duration_months, app_fee_usd, fee_waiver, deadlines, funding_signals, source_urls, verified_at";
+
+async function cachedProgramNotes(school: string, program: string, libraryId?: string): Promise<{ text: string; sources: string[]; schoolId: string; programId: string } | null> {
   const db = admin();
   const since = new Date(Date.now() - CACHE_DAYS * 86_400_000).toISOString();
-  const { data: sch } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", (await mergedInto(slugify(school)).catch(() => null))?.slug ?? slugify(school)).maybeSingle();
-  if (!sch) return null;
-  const { data: progs } = await db
-    .from("programs")
-    .select("id, name, degree, url, stem_designated, test_policy, toefl_min, ielts_min, tuition_usd, duration_months, app_fee_usd, fee_waiver, deadlines, funding_signals, source_urls, verified_at")
-    .eq("school_id", sch.id)
-    .gte("verified_at", since);
-  const want = slugify(program);
-  const prog = (progs ?? []).find((x) => slugify(x.name) === want || slugify(x.name).includes(want) || want.includes(slugify(x.name)));
-  if (!prog) return null;
+  let sch: { id: string } & Record<string, unknown> | null = null;
+  let prog: ({ id: string; source_urls: string[] | null } & Record<string, unknown>) | null = null;
+  // an instant match names the library row it came from
+  if (libraryId) {
+    const { data: p } = await db.from("programs").select(PROGRAM_FACTS).eq("id", libraryId).gte("verified_at", since).maybeSingle();
+    if (p) {
+      const { data: s } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("id", p.school_id).maybeSingle();
+      if (s) [sch, prog] = [s, p];
+    }
+  }
+  if (!sch || !prog) {
+    const { data: s } = await db.from("schools").select("id, name, city, state, country, region, ranking_note").eq("slug", (await mergedInto(slugify(school)).catch(() => null))?.slug ?? slugify(school)).maybeSingle();
+    if (!s) return null;
+    const { data: progs } = await db.from("programs").select(PROGRAM_FACTS).eq("school_id", s.id).gte("verified_at", since);
+    const want = slugify(program);
+    const p = (progs ?? []).find((x) => slugify(x.name) === want || slugify(x.name).includes(want) || want.includes(slugify(x.name)));
+    if (!p) return null;
+    [sch, prog] = [s, p];
+  }
   const { data: funding } = await db.from("funding_opportunities").select("name, kind, amount_note, intl_eligible, deadline, url, eligibility").eq("program_id", prog.id);
   const text = JSON.stringify({ school: sch, program: prog, funding: funding ?? [] });
   return { text, sources: (prog.source_urls as string[]) ?? [], schoolId: sch.id as string, programId: prog.id as string };

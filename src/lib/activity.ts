@@ -123,11 +123,15 @@ export interface DigestInput {
   deadlines: { school: string; program: string; date: string; status: string }[];
   scheduledEmails: { subject: string; to: string | null; send_after: string | null }[];
   runnerNeedsYou: { school: string; note: string | null }[];
+  // found since the last digest: the morning drop (lib/drop)
+  freshPrograms?: { school: string; program: string; deadline: string | null }[];
+  freshAwards?: { name: string }[];
   today: string; // YYYY-MM-DD
 }
 
 export interface Digest {
   headline: string;
+  fresh?: string[]; // new for you: programmes and scholarships found since yesterday
   needs_you: string[];
   done: string[];
   coming_up: string[];
@@ -138,7 +142,13 @@ function daysBetween(a: string, b: string) {
   return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
 }
 
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
 export function buildDigest(d: DigestInput): Digest {
+  const fp = d.freshPrograms ?? [];
+  const fa = d.freshAwards ?? [];
+  const fresh: string[] = fp.slice(0, 6).map((x) => `${x.school}: ${x.program}${x.deadline ? ` (closes ${x.deadline})` : ""}`);
+  if (fa.length) fresh.push(`${plural(fa.length, "scholarship")} matched to you: ${fa.slice(0, 3).map((a) => a.name).join(", ")}${fa.length > 3 ? ` and ${fa.length - 3} more` : ""}`);
   const needs_you: string[] = [];
   if (d.pendingApprovals.length) needs_you.push(`${d.pendingApprovals.length} decision${d.pendingApprovals.length > 1 ? "s" : ""} in your queue: ${d.pendingApprovals.slice(0, 3).map((a) => a.title).join("; ")}`);
   for (const r of d.draftsReady.slice(0, 5)) needs_you.push(`review: ${r.title}`);
@@ -166,19 +176,22 @@ export function buildDigest(d: DigestInput): Digest {
     const n = daysBetween(d.today, x.date);
     return n >= 0 && n <= 7 && !["submitted", "packet_approved"].includes(x.status);
   }).length;
+  const found = fp.length && fa.length ? `${plural(fp.length, "new programme")} and ${plural(fa.length, "scholarship")} for you` : fp.length ? `${plural(fp.length, "new programme")} matched to you` : fa.length ? `${plural(fa.length, "scholarship")} matched to you` : "";
   const headline = urgent
     ? `${urgent} deadline${urgent > 1 ? "s" : ""} within a week`
-    : needs_you.length
+    : found
+      ? found
+      : needs_you.length
       ? `${needs_you.length} thing${needs_you.length > 1 ? "s" : ""} need${needs_you.length > 1 ? "" : "s"} you`
       : done.length
         ? "agents kept working; nothing needs you"
         : "quiet day";
-  return { headline, needs_you, done, coming_up, empty: !needs_you.length && !done.length && !coming_up.length };
+  return { headline, fresh, needs_you, done, coming_up, empty: !fresh.length && !needs_you.length && !done.length && !coming_up.length };
 }
 
 export function digestText(g: Digest, appUrl: string, name: string | null): string {
   const sec = (h: string, xs: string[]) => (xs.length ? `${h}\n${xs.map((x) => `- ${x}`).join("\n")}\n\n` : "");
-  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off in settings: ${appUrl}/settings`;
+  return `${name ? `hi ${name.split(" ")[0]},\n\n` : ""}${g.headline}.\n\n${sec("new for you", g.fresh ?? [])}${sec("needs you", g.needs_you)}${sec("done since yesterday", g.done)}${sec("coming up", g.coming_up)}open your dashboard: ${appUrl}/dashboard\n\nturn this email off in settings: ${appUrl}/settings`;
 }
 
 // is it digest time (7am) for this timezone?

@@ -1,0 +1,216 @@
+// instant matches: programmes our agents have already checked (the shared library), matched to what a new applicant
+// told us in the first minute (level, fields, regions). no model call, so it's free and shows on the next screen.
+// pure, so tests and the server agree.
+
+export type StudyLevel = "undergraduate" | "masters" | "phd";
+
+export interface LibraryProgram {
+  id: string;
+  name: string;
+  degree: string | null;
+  url: string | null;
+  kind: string | null;
+  deadlines: { date?: string | null; round?: string | null }[] | null;
+  funding_signals: { full_funding_realistic?: string | null } | null;
+  school: { name: string; country: string | null; region: string | null; ranking_note: string | null };
+}
+
+export interface Match {
+  programId: string;
+  school: string;
+  program: string;
+  degree: string;
+  country: string | null;
+  region: string | null;
+  url: string | null;
+  rankingNote: string | null;
+  deadline: { date: string; round: string } | null;
+  funding: "fully funded option" | "funding possible" | null;
+  fieldMatch: boolean;
+}
+
+// what level a programme is, from its degree text (the library's degree field is free text: "MSc", "Master of
+// Science", "Bachelor of Engineering (Honours)", "Thesis master's (research-based)")
+export function levelOfDegree(degree: string | null, name = ""): StudyLevel | null {
+  const t = `${degree ?? ""} ${name}`.toLowerCase();
+  if (/\bph\.?\s?d\b|doctor|dphil|doctoral/.test(t)) return "phd";
+  if (/master|\bm\.?\s?(sc|s|a|eng|res|phil|ba|pa|pp|ph|sw|sn|asc|fa|ed|arch|plan|im|st|com|bus)\b|\bmba\b|\bllm\b|\bmim\b|\bmasc\b|erasmus mundus/.test(t)) return "masters";
+  if (/bachelor|\bb\.?\s?(sc|a|eng|ba|com|ed|arch|tech|s)\b|undergrad|\bhons\b|honours/.test(t)) return "undergraduate";
+  return null;
+}
+
+// a field the applicant typed, as words a programme name would contain. a few common fields have other names.
+const SYNONYMS: Record<string, string[]> = {
+  computer: ["computing", "computer", "software", "informatics"],
+  computing: ["computing", "computer", "software", "informatics"],
+  software: ["software", "computing", "computer"],
+  data: ["data", "analytics", "statistics", "machine learning", "artificial intelligence"],
+  analytics: ["analytics", "data"],
+  ai: ["artificial intelligence", "machine learning", "data"],
+  artificial: ["artificial intelligence", "machine learning"],
+  business: ["business", "management", "mba", "administration", "commerce"],
+  management: ["management", "business", "mba", "administration"],
+  mba: ["mba", "business administration", "management"],
+  finance: ["finance", "financial", "accounting", "economics"],
+  accounting: ["accounting", "finance"],
+  economics: ["economics", "economic", "finance"],
+  health: ["health", "medical", "medicine", "nursing", "epidemiology"],
+  medicine: ["medicine", "medical", "health", "clinical"],
+  nursing: ["nursing", "health"],
+  law: ["law", "legal", "llm"],
+  engineering: ["engineering"],
+  policy: ["policy", "public administration", "governance"],
+  public: ["public", "policy"],
+  social: ["social"],
+  education: ["education", "teaching", "pedagogy"],
+  environment: ["environment", "environmental", "sustainability", "climate"],
+  environmental: ["environmental", "environment", "sustainability", "climate"],
+  energy: ["energy", "renewable", "petroleum"],
+  agriculture: ["agriculture", "agricultural", "agri", "food"],
+  architecture: ["architecture", "urban"],
+  design: ["design"],
+  marketing: ["marketing", "business"],
+  psychology: ["psychology"],
+  biology: ["biology", "biological", "biosciences", "biotechnology", "life sciences"],
+  chemistry: ["chemistry", "chemical"],
+  physics: ["physics"],
+  mathematics: ["mathematics", "mathematical", "statistics"],
+  statistics: ["statistics", "data"],
+  communication: ["communication", "media", "journalism"],
+  media: ["media", "communication", "journalism"],
+  international: ["international", "development", "global"],
+  development: ["development", "international"],
+};
+const STOP = new Set(["and", "the", "for", "with", "studies", "science", "sciences", "of", "in", "msc", "masters", "master", "degree", "program", "programme", "phd", "bsc"]);
+
+export function fieldTerms(fields: string[] | null | undefined): string[] {
+  const out = new Set<string>();
+  for (const f of fields ?? []) {
+    const words = f.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length >= 2 && !STOP.has(w));
+    for (const w of words) {
+      if (w.length >= 4 || SYNONYMS[w]) out.add(w);
+      for (const s of SYNONYMS[w] ?? []) out.add(s);
+    }
+  }
+  return [...out];
+}
+
+const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+const OWN_STOP = new Set(["and", "the", "for", "with", "of", "in", "msc", "ms", "ma", "masters", "master", "degree", "program", "programme", "phd", "bsc", "ba"]);
+// words that say little on their own: "science" alone shouldn't match "Data Science" to "Marine Science"
+const GENERIC = new Set(["science", "sciences", "studies", "technology", "management", "engineering", "arts", "art", "applied", "advanced", "general", "international"]);
+
+// the same subject under another name: these count as the word itself
+const SAME: Record<string, string[]> = {
+  business: ["mba"],
+  administration: ["mba"],
+  mba: ["business administration"],
+  ai: ["artificial intelligence"],
+  artificial: ["ai"],
+  computer: ["computing"],
+  computing: ["computer"],
+  law: ["llm", "laws"],
+  economics: ["economic"],
+};
+const has = (text: string, term: string) => {
+  const t = ` ${words(text).join(" ")} `;
+  return [term, ...(SAME[term] ?? [])].some((w) => t.includes(` ${w}`));
+};
+
+// how well a programme's name fits the fields the applicant named (the best of their fields):
+//   all of a field's words in the name ("Public Health" in "MSc Public Health"): 100+
+//   one of its specific words ("Health Policy" for "Public Health"): 40-60
+//   only a related word ("Nursing" for "Health"): 25, not enough to show (a wrong match costs more trust than none)
+export function fieldScore(name: string, fields: string[] | null | undefined): number {
+  let best = 0;
+  for (const f of fields ?? []) {
+    const own = words(f).filter((w) => w.length >= 2 && !OWN_STOP.has(w));
+    if (!own.length) continue;
+    const specific = own.filter((w) => !GENERIC.has(w));
+    const hits = own.filter((w) => has(name, w));
+    const specificHits = specific.filter((w) => has(name, w));
+    let sc = 0;
+    if (hits.length === own.length) sc = 100 + own.length;
+    else if (specificHits.length) sc = 40 + Math.round((20 * specificHits.length) / specific.length);
+    else if (own.some((w) => (SYNONYMS[w] ?? []).some((t) => has(name, t)))) sc = 25;
+    best = Math.max(best, sc);
+  }
+  return best;
+}
+
+// the next application round that's still open, at least a few days out
+export function nextDeadline(deadlines: LibraryProgram["deadlines"], today: string): { date: string; round: string } | null {
+  const min = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
+  const open = (deadlines ?? [])
+    .filter((d): d is { date: string; round?: string | null } => typeof d?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date >= min)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  return open ? { date: open.date, round: (open.round ?? "").slice(0, 80) } : null;
+}
+
+// the library's names carry research notes in brackets ("ECT+ (Erasmus Mundus Master of Science, coordinated by...")
+export function cleanName(name: string): string {
+  let n = name.replace(/\s*\([^)]*\)/g, " ").replace(/\s*\([^)]*$/, " ").split(";")[0].replace(/\s+/g, " ").trim();
+  if (n.length < 10) n = name.replace(/\s*\(([^,;)]*)[^)]*\)?/, " ($1)").replace(/\s+/g, " ").trim();
+  return n.length > 80 ? `${n.slice(0, 78).trimEnd()}…` : n;
+}
+
+const passed = (deadlines: LibraryProgram["deadlines"], today: string) => {
+  const dated = (deadlines ?? []).filter((d) => typeof d?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date!));
+  return dated.length > 0 && dated.every((d) => d.date! < today);
+};
+
+// rank the library for one applicant: same level and region always; their field first; then open deadlines,
+// funding and ranking. at most two per school so the list isn't one university.
+export function rankMatches(
+  library: LibraryProgram[],
+  a: { level: StudyLevel | null; fields: string[] | null; regions: string[] },
+  today: string,
+  limit = 8,
+): Match[] {
+  const terms = fieldTerms(a.fields);
+  const scored: (Match & { score: number })[] = [];
+  for (const p of library) {
+    if (p.kind === "scholarship") continue;
+    if (!p.school.region || !a.regions.includes(p.school.region)) continue;
+    if (/\bonline\b|distance learning/i.test(p.name)) continue; // studying abroad means being there
+    const lvl = levelOfDegree(p.degree, p.name);
+    if (a.level && lvl !== a.level) continue;
+    if (passed(p.deadlines, today)) continue;
+    const fs = terms.length ? fieldScore(p.name, a.fields) : 0;
+    const fieldMatch = fs >= 40;
+    const deadline = nextDeadline(p.deadlines, today);
+    const ff = p.funding_signals?.full_funding_realistic ?? null;
+    const funding = ff === "likely" ? "fully funded option" : ff === "possible" ? "funding possible" : null;
+    const score = fs + (deadline ? 20 : 0) + (ff === "likely" ? 15 : ff === "possible" ? 8 : 0) + (p.school.ranking_note ? 3 : 0);
+    scored.push({
+      programId: p.id,
+      school: p.school.name.replace(/\s*\([^)]*\)\s*/g, " ").trim(),
+      program: cleanName(p.name),
+      degree: (p.degree ?? "").split(/[(;,]/)[0].trim().slice(0, 40),
+      country: p.school.country,
+      region: p.school.region,
+      url: p.url,
+      rankingNote: p.school.ranking_note,
+      deadline,
+      funding,
+      fieldMatch,
+      score,
+    });
+  }
+  // when they named fields, only programmes in those fields count; nothing at all is better than a list of
+  // unrelated programmes (the agents' own search starts on the same screen)
+  const pool = terms.length ? scored.filter((m) => m.fieldMatch) : scored;
+  pool.sort((x, y) => y.score - x.score || (x.deadline?.date ?? "9999").localeCompare(y.deadline?.date ?? "9999") || x.school.localeCompare(y.school));
+  const perSchool = new Map<string, number>();
+  const out: Match[] = [];
+  for (const m of pool) {
+    const n = perSchool.get(m.school) ?? 0;
+    if (n >= 2) continue;
+    perSchool.set(m.school, n + 1);
+    const { score: _s, ...rest } = m;
+    void _s;
+    out.push(rest);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
