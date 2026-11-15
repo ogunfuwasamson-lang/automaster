@@ -401,7 +401,8 @@ export default async function Dashboard() {
                 <ul className="divide-y divide-dashed divide-line rounded-2xl border border-line">
                   {waiting.map((w) => (
                     <li key={w.key} className="flex items-center gap-3 p-3.5">
-                      {w.school ? <SchoolTile name={w.school} size="sm" /> : <span className={`ml-1 size-2 shrink-0 rounded-full ${w.urgent ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />}
+                      {/* the school's tile only where there's room for it */}
+                      <span className="hidden shrink-0 sm:block">{w.school ? <SchoolTile name={w.school} size="sm" /> : <span className={`ml-1 block size-2 rounded-full ${w.urgent ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-bold leading-snug">{w.title}</span>
                         {w.body && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted">{w.body}</span>}

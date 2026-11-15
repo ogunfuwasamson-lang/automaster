@@ -96,12 +96,18 @@ const app = (id: string, s: { name: string; country: string }, prog: string, sta
   artifacts: [art("strategy", "Positioning", false, 1), ...arts],
 });
 
+// the fake client doesn't read json paths: `reason` mirrors runner_state.reason, as `reason:runner_state->>reason` would
+const withState = <T extends object>(a: T, st: Record<string, unknown>) => ({ ...a, runner_state: st, reason: (st.reason as string | undefined) ?? null, resting: (st.resting as string | undefined) ?? null });
 const APPS = [
-  app("a1", { name: "University of Edinburgh", country: "United Kingdom" }, "MSc Finance and Technology", "packet_approved", 7, "needs_you", "add your country of birth in Profile, under Details for application forms, then choose Try again"),
+  withState(app("a1", { name: "University of Edinburgh", country: "United Kingdom" }, "MSc Finance and Technology", "packet_approved", 7, "needs_you", "add your country of birth in Profile, under Details for application forms, then choose Try again"), { reason: "missing", portal: { ok: true }, signedIn: true, formPages: ["a"] }),
   app("a2", { name: "Rice University, Jones School", country: "United States" }, "MBA, Full-time", "ready_for_review", 9),
-  { ...app("a3", { name: "University of Toronto, Rotman", country: "Canada" }, "Master of Financial Risk Management", "packet_approved", 12, "needs_you", "this portal blocks cloud browsers. Open the live browser to get past the check yourself, or let it run in your Chrome"), runner_state: { reason: "blocked" } },
+  withState(app("a3", { name: "University of Toronto, Rotman", country: "Canada" }, "Master of Financial Risk Management", "packet_approved", 12, "needs_you", "this portal blocks cloud browsers. Open the live browser to get past the check yourself, or let it run in your Chrome"), { reason: "blocked", portal: { ok: true } }),
   app("a4", { name: "Boston University Questrom", country: "United States" }, "Full-time MBA", "preparing", 20, "idle", null, [art("essay", "Why Questrom", false), art("short_answer", "Leadership", true)]),
-  app("a5", { name: "Imperial College Business School", country: "United Kingdom" }, "MSc Innovation, Entrepreneurship and Management", "packet_approved", 31, "running"),
+  withState(app("a5", { name: "Imperial College Business School", country: "United Kingdom" }, "MSc Innovation, Entrepreneurship and Management", "packet_approved", 31, "running"), { portal: { ok: true }, signedIn: true, formPages: ["a", "b", "c"], stepOf: { at: 4, of: 7 }, uploads: ["cv"] }),
+  // stopped on our side: the applicant sees "Ivyward is working on…", the operator gets the note
+  withState(app("a9", { name: "HEC Montréal", country: "Canada" }, "MSc Global Supply Chain Management", "packet_approved", 25, "needs_you", "can't find the next step on this page; open the portal and move to the next section"), { reason: "stuck", portal: { ok: true }, signedIn: true, formPages: ["a", "b"] }),
+  // the applicant creates the account: the card with the link, email and password
+  withState(app("a10", { name: "Missouri State University", country: "United States" }, "MBA, STEM track", "packet_approved", 160, "needs_you", "this portal only lets a person create the account. Create it with the email and password shown, then the agents carry on"), { reason: "account", portal: { ok: true, url: "https://gradcas2027.cas.myliaison.com/" } }),
   app("a6", { name: "Georgetown McDonough", country: "United States" }, "MS Business Analytics", "submitted", 40, "submitted", "portal showed a confirmation"),
   app("a7", { name: "McGill Desautels", country: "Canada" }, "Master of Management in Analytics", "shortlisted", 55),
   app("a8", { name: "Duke Fuqua", country: "United States" }, "MMS: Foundations of Business", "researching", 70),
@@ -182,6 +188,7 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
   mail_accounts: [{ email: "ada@example.com", status: "active", last_error: null }],
   runner_tokens: [],
   portal_accounts: [
+    { id: "pa3", user_id: "u1", application_id: "a10", portal_host: "gradcas2027.cas.myliaison.com", login_email: "ada@example.com", status: "created", created_at: ago(20), applications: { id: "a10", portal_url: "https://gradcas2027.cas.myliaison.com/", programs: { name: "MBA", schools: { name: "Missouri State University" } } } },
     { id: "pa1", user_id: "u1", application_id: "a3", portal_host: "apply.rotman.utoronto.ca", login_email: "ada@example.com", status: "created", created_at: ago(400), applications: { id: "a3", portal_url: "https://apply.rotman.utoronto.ca", programs: { name: "MFRM", schools: { name: "University of Toronto, Rotman" } } } },
     { id: "pa2", user_id: "u1", application_id: "a6", portal_host: "gradapply.georgetown.edu", login_email: "ada.okafor", status: "verified", created_at: ago(3000), applications: { id: "a6", portal_url: null, programs: { name: "MSBA", schools: { name: "Georgetown McDonough" } } } },
   ],

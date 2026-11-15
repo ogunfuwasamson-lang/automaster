@@ -20,13 +20,10 @@ export function PortalProgress({ stages, compact = false }: { stages: Stage[]; c
           </li>
         ))}
       </ol>
+      {/* on a phone the labels don't fit: name the step happening now (the sentence above carries the detail) */}
       {!compact && now ? (
-        <p className="mt-1.5 text-[12px] text-muted">
-          <span className="sm:hidden">
-            Step {stages.indexOf(now) + 1} of {stages.length}: <span className="font-medium text-foreground">{now.label}</span>
-            {now.detail ? `, ${now.detail}` : ""}
-          </span>
-          {now.detail ? <span className="hidden sm:inline">{now.label}: {now.detail}</span> : null}
+        <p className="mt-1.5 text-[12px] text-muted sm:hidden">
+          Step {stages.indexOf(now) + 1} of {stages.length}: <span className="font-medium text-foreground">{now.label}</span>
         </p>
       ) : null}
     </div>

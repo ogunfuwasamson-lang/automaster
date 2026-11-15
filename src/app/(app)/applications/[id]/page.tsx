@@ -92,7 +92,7 @@ export default async function ApplicationPage({
     { data: app },
     { data: jobs },
     { data: threads },
-    { count: logins },
+    { count: logins, data: loginRows },
     { data: asked },
     { data: cords },
     { data: me0 },
@@ -118,9 +118,10 @@ export default async function ApplicationPage({
       .order("created_at"),
     admin()
       .from("portal_accounts")
-      .select("id", { count: "exact", head: true })
+      .select("login_email", { count: "exact" })
       .eq("user_id", auth.user.id)
-      .eq("application_id", id),
+      .eq("application_id", id)
+      .limit(1),
     // portal questions this application is waiting on (missing table before its migration: none)
     admin()
       .from("portal_questions")
@@ -534,6 +535,7 @@ export default async function ApplicationPage({
             attested={!!app.attested_at}
             liveUrl={app.runner_live_url}
             hasLogin={!!logins}
+            loginEmail={((loginRows ?? [])[0] as { login_email?: string } | undefined)?.login_email ?? null}
             missing={sheet?.missing ?? []}
             reason={
               (

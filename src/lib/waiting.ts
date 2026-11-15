@@ -50,7 +50,7 @@ export function appWaiting(a: WaitApp): WaitItem | null {
     case "question":
       return { ...base, title: `Answer a question from ${a.school}'s form`, href: `${at}#questions`, action: "Answer" };
     case "missing":
-      return { ...base, title: `Add details ${a.school}'s form asks for`, href: "/profile?tab=details", action: "Add" };
+      return { ...base, title: `Add the details ${a.school}'s form asks for`, href: "/profile?tab=details", action: "Add" };
     case "documents":
       return { ...base, title: `Add a document ${a.school} needs`, href: "/documents", action: "Add" };
     case "closed":

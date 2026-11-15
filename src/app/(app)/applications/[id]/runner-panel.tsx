@@ -29,6 +29,7 @@ export function RunnerPanel(props: {
   fee: number | null;
   attested: boolean;
   hasLogin: boolean;
+  loginEmail?: string | null;
   missing: string[];
   reason?: string | null;
   mode?: string | null;
@@ -126,7 +127,7 @@ export function RunnerPanel(props: {
     : resting
       ? "Resting until tomorrow"
       : ours
-        ? `Ivyward is working on ${school}'s portal`
+        ? "Ivyward is on it"
         : yours
           ? "One step needs you"
           : working
@@ -224,7 +225,7 @@ export function RunnerPanel(props: {
 
       {/* the one thing that is the applicant's to do, when there is one */}
       {yours && reason === "account" && (
-        <AccountCard school={school} signupUrl={props.signupUrl ?? portalUrl} login={login} reveal={reveal} copy={copy} hasLogin={hasLogin} />
+        <AccountCard school={school} signupUrl={props.signupUrl ?? portalUrl} email={props.loginEmail ?? null} login={login} reveal={reveal} copy={copy} hasLogin={hasLogin} />
       )}
       {yours && (reason === "captcha" || reason === "blocked") && attested && browserButtons}
       {yours && liveUrl && reason !== "account" && (
@@ -336,7 +337,7 @@ export function RunnerPanel(props: {
 
       <TellAgents id={id} initial={props.told ?? []} />
 
-      {!mailFirst && gmailCard}
+      {!mailFirst && !ours && gmailCard}
 
       {isAdmin && (
         <details className="rounded-2xl border border-dashed border-line p-4 text-sm">
@@ -382,7 +383,7 @@ export function RunnerPanel(props: {
 }
 
 // the portal account the applicant creates themselves: where, and exactly which email and password, with copy buttons
-function AccountCard({ school, signupUrl, login, reveal, copy, hasLogin }: { school: string; signupUrl: string | null; login: Login | null; reveal: () => Promise<Login | null>; copy: (t: string, what: string) => void; hasLogin: boolean }) {
+function AccountCard({ school, signupUrl, email, login, reveal, copy, hasLogin }: { school: string; signupUrl: string | null; email: string | null; login: Login | null; reveal: () => Promise<Login | null>; copy: (t: string, what: string) => void; hasLogin: boolean }) {
   return (
     <div className="rounded-2xl border border-line bg-surface p-4 text-sm">
       <p className="flex items-center gap-2 font-semibold">
@@ -400,7 +401,8 @@ function AccountCard({ school, signupUrl, login, reveal, copy, hasLogin }: { sch
         </li>
         <li>
           <span className="block">2. Use this email</span>
-          <CopyRow value={login?.email ?? null} hidden={!login} onShow={reveal} onCopy={(v) => copy(v, "Email")} label="email" disabled={!hasLogin} />
+          {/* the email isn't a secret: shown as it is */}
+          <CopyRow value={login?.email ?? email} hidden={!login && !email} onShow={reveal} onCopy={(v) => copy(v, "Email")} label="email" disabled={!hasLogin} />
         </li>
         <li>
           <span className="block">3. And this password</span>
