@@ -124,6 +124,8 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     { id: "ap2", kind: "fact_confirm", title: "Which graduation year is right?", summary: "Your CV says 2016 and your transcript says 2017.", payload: { options: ["2016", "2017"] }, status: "pending", urgency: 1 },
   ],
   applications: APPS,
+  // the shared programme library, as the share page reads it (the programme inside each application)
+  programs: APPS.map((a) => ({ ...(a as { programs: Record<string, unknown> }).programs, duration_months: 12, ielts_min: "7.0", toefl_min: 100, verified_at: ago(3000) })),
   events: [
     { id: "e0", actor: "agent:writer", action: "artifact.ready_for_user", application_id: "a2", context: { title: "Why Rice" }, created_at: ago(22) },
     { id: "e1", actor: "agent:inbox", action: "inbox.classified", context: {}, created_at: ago(4) },

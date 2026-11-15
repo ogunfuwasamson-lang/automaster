@@ -45,6 +45,7 @@ const LABELS: Record<string, string> = {
   "calendar.connected": "connected Google Calendar",
   "calendar.disconnected": "disconnected Google Calendar",
   "calendar.lost": "Google Calendar needs reconnecting",
+  "share.sent": "you shared a programme with a friend",
   "runner.started": "runner started filling a portal",
   "runner.needs_you": "runner needs you on a portal",
   "runner.submitted": "runner submitted an application",

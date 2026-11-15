@@ -11,6 +11,9 @@ import { StrategyNotes } from "./notes";
 import { ButtonLink } from "@/components/ui/button";
 import { Tag, chipClass } from "@/components/ui/chip";
 import { PrepareButton } from "../applications/[id]/prepare-button";
+import { ShareAsk, ShareButton } from "@/components/growth/share-school";
+import { inviteCode, shareProps } from "@/lib/share-data";
+import type { ShareProps } from "@/lib/share-school";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Shortlist" };
@@ -41,6 +44,10 @@ interface Row {
     app_fee_usd: number | null;
     fee_waiver: string | null;
     tuition_usd: number | null;
+    duration_months: number | null;
+    ielts_min: number | string | null;
+    toefl_min: number | null;
+    verified_at: string | null;
     deadlines: DeadlineRow[];
     funding_signals: { full_funding_realistic?: string; summary?: string; english_moi_waiver?: string; test_notes?: string; english_notes?: string; post_study_work?: string };
     source_urls: string[];
@@ -105,7 +112,7 @@ function Prose({ label, children }: { label: string; children: React.ReactNode }
 
 const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_4.5rem_10rem_6rem_1rem]";
 
-function ProgramRow({ r, today }: { r: Row; today: string }) {
+function ProgramRow({ r, today, share }: { r: Row; today: string; share: ShareProps | null }) {
   const p = r.programs;
   const fs = p.funding_signals ?? {};
   const flags = (r.fit_reasoning ?? "").split("\n").filter((l) => l.startsWith("⚑")).map((l) => l.slice(2));
@@ -243,6 +250,7 @@ function ProgramRow({ r, today }: { r: Row; today: string }) {
               Program page <ExternalLink className="size-3.5" aria-hidden />
             </ButtonLink>
           )}
+          {share && r.status !== "dropped" && <ShareButton s={share} />}
           {(r.status === "researching" || r.status === "shortlisted") && <MoveButton id={r.id} to="dropped" label="Drop" />}
           {p.source_urls?.length > 0 && <span className="label-mono ml-auto !text-[10px]">Checked against {p.source_urls.length} official pages</span>}
         </div>
@@ -251,7 +259,7 @@ function ProgramRow({ r, today }: { r: Row; today: string }) {
   );
 }
 
-function ProgramList({ rows, today }: { rows: Row[]; today: string }) {
+function ProgramList({ rows, today, invite }: { rows: Row[]; today: string; invite: string | null }) {
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
       <div className={`${ROW} hidden border-b border-line px-5 py-2.5 sm:grid`}>
@@ -263,12 +271,15 @@ function ProgramList({ rows, today }: { rows: Row[]; today: string }) {
       </div>
       <div className="divide-y divide-line">
         {rows.map((r) => (
-          <ProgramRow key={r.id} r={r} today={today} />
+          <ProgramRow key={r.id} r={r} today={today} share={shareOf(r, invite, today)} />
         ))}
       </div>
     </div>
   );
 }
+
+// a programme's share message, with this applicant's invite code in the link
+const shareOf = (r: Row, ref: string | null, today: string): ShareProps => shareProps({ ...r.programs, school: r.programs.schools }, ref, today);
 
 type View = "shortlisted" | "checking" | "progress" | "scholarships" | "dropped";
 
@@ -280,7 +291,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
   const [{ data: apps }, { data: jobs }, { data: strat }, { data: external }, { data: profRow }] = await Promise.all([
     auth.sb
       .from("applications")
-      .select("id, status, tier, fit_score, fit_reasoning, angle, target_deadline, portal_url, programs(id, name, degree, url, stem_designated, test_policy, app_fee_usd, fee_waiver, tuition_usd, deadlines, funding_signals, source_urls, schools(name, city, state, country, region, ranking_note), funding_opportunities(name, kind, amount_note, intl_eligible, url))")
+      .select("id, status, tier, fit_score, fit_reasoning, angle, target_deadline, portal_url, programs(id, name, degree, url, stem_designated, test_policy, app_fee_usd, fee_waiver, tuition_usd, duration_months, ielts_min, toefl_min, verified_at, deadlines, funding_signals, source_urls, schools(name, city, state, country, region, ranking_note), funding_opportunities(name, kind, amount_note, intl_eligible, url))")
       .order("target_deadline", { ascending: true, nullsFirst: false }),
     auth.sb.from("jobs").select("task, status, last_error").eq("agent", "recon").order("created_at", { ascending: false }).limit(60),
     auth.sb.from("events").select("context, created_at").eq("action", "recon.discovered").order("created_at", { ascending: false }).limit(6),
@@ -311,6 +322,9 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
   const later = rows.filter((r) => !["shortlisted", "researching", "dropped"].includes(r.status));
 
   const active = (jobs ?? []).filter((j) => j.status === "queued" || j.status === "running");
+  // sharing: the applicant's invite code goes in every link; the best fit is the one the one-time ask offers
+  const invite = await inviteCode(auth.user.id);
+  const best = [...shortlisted].sort((a, b) => (b.fit_score ?? 0) - (a.fit_score ?? 0))[0] ?? null;
   const failed = (jobs ?? []).filter((j) => j.status === "failed");
   // latest strategy notes per region
   const seenRegion = new Set<string>();
@@ -372,6 +386,17 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
           <Notice tone="stop">
             {failed.length} search{failed.length === 1 ? "" : "es"} didn&apos;t finish. Choose Find more programs to run it again.
           </Notice>
+        </div>
+      )}
+
+      {best && view === "shortlisted" && (
+        <div className="mb-6">
+          <ShareAsk
+            s={shareOf(best, invite, today)}
+            storageKey="iv_share_ask_shortlist"
+            title={`Know someone who'd want to study at ${best.programs.schools.name}?`}
+            body={`Send them the deadline, fees and requirements for ${best.programs.name}, with a link to apply. If they join through it, their first submission is free, and you get one when they submit.`}
+          />
         </div>
       )}
 
@@ -479,7 +504,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
                 <Empty icon={<Award className="size-5" />} title="No scholarships matched yet" body="Choose Find scholarships and the agents look for funding that fits your profile." action={<ScholarshipButton running={false} />} />
               )
             ) : list.length ? (
-              <ProgramList rows={list} today={today} />
+              <ProgramList rows={list} today={today} invite={invite} />
             ) : (
               <Empty
                 title={view === "shortlisted" ? "Nothing shortlisted yet" : "Nothing here"}

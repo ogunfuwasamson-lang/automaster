@@ -11,6 +11,9 @@ import { instructions } from "@/lib/instructions";
 import { previewMode } from "@/lib/supabase/preview";
 import { canReadMail } from "@/lib/gmail";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
+import { ShareAsk, ShareButton } from "@/components/growth/share-school";
+import { inviteCode, shareProps } from "@/lib/share-data";
+import type { ShareProgram } from "@/lib/share-school";
 import { QuestionsCard } from "@/components/questions/questions-card";
 import { toAsk } from "@/lib/ask";
 import Link from "next/link";
@@ -103,7 +106,7 @@ export default async function ApplicationPage({
     auth.sb
       .from("applications")
       .select(
-        "id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, fee_waiver_status, programs(name, degree, url, app_fee_usd, schools(name, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))",
+        "id, status, target_deadline, angle, portal_url, attested_at, runner_status, runner_note, runner_updated_at, runner_live_url, runner_state, runner_mode, fee_waiver_status, programs(id, name, degree, url, app_fee_usd, duration_months, tuition_usd, test_policy, ielts_min, toefl_min, fee_waiver, deadlines, verified_at, schools(name, city, state, country)), artifacts(id, kind, title, prompt, word_limit, current_version, artifact_versions(id, version, content, author, critique, user_approved_at, created_at))",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -167,12 +170,16 @@ export default async function ApplicationPage({
       ? await canReadMail(auth.user.id).catch(() => true)
       : true;
   const p = app.programs as unknown as {
+    id: string;
     name: string;
     degree: string;
     url: string | null;
     app_fee_usd: number | null;
-    schools: { name: string; country: string | null };
-  };
+    schools: { name: string; city: string | null; state: string | null; country: string | null };
+  } & Omit<ShareProgram, "school">;
+  // sharing this programme with a friend (never the applicant's own details), with their invite code in the link
+  const share = !["researching", "dropped", "withdrawn"].includes(app.status) ? shareProps({ ...p, school: p.schools }, await inviteCode(auth.user.id)) : null;
+  const sent = ["submitted", "under_review", "interview", "admitted", "waitlisted", "accepted"].includes(app.status);
   const arts = (app.artifacts ?? []) as unknown as Art[];
   const brief = arts.find((a) => a.kind === "strategy");
   const briefText = brief?.artifact_versions.find(
@@ -347,6 +354,7 @@ export default async function ApplicationPage({
               />
             )}
             {p.degree !== "Scholarship" && !["researching", "withdrawn", "rejected"].includes(app.status) && <CvButton id={id} has={hasCv} />}
+            {share && <ShareButton s={share} pill />}
             {app.attested_at && (
               <a
                 href={`/api/applications/${id}/record`}
@@ -453,6 +461,15 @@ export default async function ApplicationPage({
           ))}
         </ol>
       </header>
+
+      {share && (app.attested_at || sent) && (
+        <ShareAsk
+          s={share}
+          storageKey={`iv_share_ask_app_${id}`}
+          title={sent ? `Your ${share.school} application is in. Know someone who'd want to apply too?` : `You've signed ${share.school}'s application. Know someone who'd want to study there too?`}
+          body="Send them the deadline, fees and requirements, with a link to apply. If they join through it, their first submission is free, and you get one when they submit."
+        />
+      )}
 
       {busy.length > 0 && (
         <Notice tone="plain">
