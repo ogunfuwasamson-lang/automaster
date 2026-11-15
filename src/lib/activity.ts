@@ -42,6 +42,9 @@ const LABELS: Record<string, string> = {
   "email.outcome": "you logged an email reply",
   "mail.connected": "connected your Gmail",
   "mail.disconnected": "disconnected your Gmail",
+  "calendar.connected": "connected Google Calendar",
+  "calendar.disconnected": "disconnected Google Calendar",
+  "calendar.lost": "Google Calendar needs reconnecting",
   "runner.started": "runner started filling a portal",
   "runner.needs_you": "runner needs you on a portal",
   "runner.submitted": "runner submitted an application",
@@ -114,6 +117,11 @@ export function describe(e: EventRow): string | null {
   if (e.action === "runner.needs_you" && !APPLICANT_STOPS.has(String(e.context?.reason ?? ""))) return null;
   if (e.action.startsWith("decision.")) return `you recorded a decision: ${e.action.slice(9)}`;
   if (e.action.startsWith("application.") && !LABELS[e.action]) return STAGE[e.action.slice(12)] ?? `application moved to ${e.action.slice(12).replace(/_/g, " ")}`;
+  if (e.action === "calendar.synced") {
+    const n = (k: string) => Number(e.context?.[k] ?? 0);
+    const parts = [n("added") && `added ${n("added")}`, n("updated") && `updated ${n("updated")}`, n("removed") && `removed ${n("removed")}`].filter(Boolean);
+    return parts.length ? `${parts.join(", ")} date${n("added") + n("updated") + n("removed") === 1 ? "" : "s"} on your Google Calendar` : null;
+  }
   const title = typeof e.context?.title === "string" ? ` (${e.context.title})` : "";
   return (LABELS[e.action] ?? e.action.replace(/[._]/g, " ")) + title;
 }

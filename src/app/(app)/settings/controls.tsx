@@ -326,7 +326,7 @@ export function CalendarCard({ available, connected, notice }: { available: bool
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const NOTICE: Record<string, [string, "go" | "stop"]> = {
-    connected: ["Google Calendar connected. Webinars, deadlines and interviews now go straight onto it.", "go"],
+    connected: ["Google Calendar connected. Ivyward is adding your deadlines and school events now.", "go"],
     declined: ["You cancelled on Google's screen, so nothing was connected.", "stop"],
     expired: ["That link expired. Try again.", "stop"],
     error: ["Couldn't connect Google Calendar. Try again.", "stop"],
@@ -344,7 +344,7 @@ export function CalendarCard({ available, connected, notice }: { available: bool
             </span>
             <span className="text-sm font-medium">Google Calendar connected</span>
           </div>
-          <p className="text-sm text-muted">Events the agents set up are added to your main calendar, with a reminder the day before and an hour before. They never change or remove your own events.</p>
+          <p className="text-sm text-muted">Your application deadlines, and the webinars, open days and interviews your schools email you about, are on your main calendar with reminders. Each one opens the application in Ivyward. Ivyward only changes events it added, never your own, and what it added stays if you disconnect.</p>
           <Button
             variant="ghost"
             disabled={busy}
@@ -361,7 +361,7 @@ export function CalendarCard({ available, connected, notice }: { available: bool
         </>
       ) : (
         <>
-          <p className="text-sm">Webinars the agents register you for, deadlines and interviews go on your calendar. Without a connection they arrive as email invites you accept; connect Google Calendar and they appear on it directly.</p>
+          <p className="text-sm">Connect Google Calendar and Ivyward adds every application deadline on your list, plus the webinars, open days and interviews your schools email you about, with reminders a week, two days and a day before. Each one opens the application in Ivyward. Without it, school events arrive as email invites and deadlines stay in Ivyward.</p>
           {available ? (
             <ButtonLink href="/api/calendar/connect" variant="secondary">
               <CalendarDays className="size-4" aria-hidden /> Connect Google Calendar

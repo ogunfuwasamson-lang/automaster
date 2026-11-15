@@ -10,10 +10,13 @@ import { getProfile } from "@/lib/profile-store";
 import { instructions } from "@/lib/instructions";
 import { previewMode } from "@/lib/supabase/preview";
 import { canReadMail } from "@/lib/gmail";
+import { calendarAccount, gcalReady } from "@/lib/gcal";
 import { QuestionsCard } from "@/components/questions/questions-card";
 import { toAsk } from "@/lib/ask";
 import Link from "next/link";
 import {
+  CalendarCheck,
+  CalendarPlus,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -80,7 +83,7 @@ export default async function ApplicationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pay?: string; paid?: string }>;
+  searchParams: Promise<{ pay?: string; paid?: string; calendar?: string }>;
 }) {
   const auth = await requireUser();
   if (!auth) return null;
@@ -291,6 +294,8 @@ export default async function ApplicationPage({
     return (from && accountUrls(from)?.create) || app.portal_url || from || null;
   })();
   const days = daysUntil(app.target_deadline);
+  // the deadline on google calendar: shown while the date is still to come and the application is on the list
+  const calendarOn = gcalReady() && days !== null && days >= 0 && ["shortlisted", "preparing", "ready_for_review", "packet_approved"].includes(app.status) ? !!(await calendarAccount(auth.user.id).catch(() => null)) : null;
   const strategizing = busy.some((j) => j.agent === "strategist");
 
   return (
@@ -383,6 +388,15 @@ export default async function ApplicationPage({
                     : `${days} day${days === 1 ? "" : "s"} left`}
                   )
                 </span>
+              ) : null}
+              {calendarOn === true || sp.calendar === "connected" ? (
+                <span className="ml-2 inline-flex items-center gap-1 text-[13px] font-normal text-muted">
+                  <CalendarCheck className="size-3.5 text-go" aria-hidden /> on your calendar
+                </span>
+              ) : calendarOn === false ? (
+                <a href={`/api/calendar/connect?then=${encodeURIComponent(`/applications/${id}`)}`} className="ml-2 inline-flex items-center gap-1 text-[13px] font-medium text-brand underline-offset-4 hover:underline">
+                  <CalendarPlus className="size-3.5" aria-hidden /> Remind me
+                </a>
               ) : null}
             </dd>
           </div>

@@ -18,6 +18,7 @@ import { autoPrepare, startShortlist } from "@/lib/kickoff";
 import { markReadyForReview, nudgeReviews, nudgeWaiting } from "@/lib/review-ready";
 import { sendPayNudges } from "@/lib/nudge";
 import { warnIfCreditLow } from "@/lib/credit";
+import { askToConnect, syncDueCalendars } from "@/lib/calendar-sync";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -69,6 +70,11 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCDate() === 1 && new Date().getUTCHours() >= 8) await sendMonthlyAlerts(60).catch(() => null);
   // the nightly learning pass (02:00 UTC), run under a staff account
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
+  // google calendars: each connected applicant's deadlines and school events, once an hour (a twelfth each tick).
+  // no AI involved, so this keeps going while agent work is paused. runs after the response.
+  if (tick) after(() => syncDueCalendars().then(() => undefined, (e) => console.error("calendar sync pass failed", e)));
+  // once an hour: applicants with deadlines and no calendar get the one-time ask, at 9am their time
+  if (tick && new Date().getUTCMinutes() === 20) await askToConnect().catch(() => 0);
   // the AI provider refused calls for an account reason (credit, key): hold the queue instead of failing it
   // (a pause that ran out is checked with one small call before any job starts)
   await ensureAiWorks().catch(() => null);

@@ -48,6 +48,7 @@ import { billingState } from "@/lib/billing";
 import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
 import { TodayCard } from "@/components/home/today-card";
 import { loadToday } from "@/lib/today-data";
+import { calendarAccount, gcalReady } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -121,7 +122,8 @@ async function loadShortlistRun(sb: NonNullable<Awaited<ReturnType<typeof requir
   };
 }
 
-export default async function Dashboard() {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ calendar?: string; dates?: string }> }) {
+  const sp = await searchParams;
   const auth = await requireUser();
   if (!auth) return null;
   const { sb, user } = auth;
@@ -161,8 +163,9 @@ export default async function Dashboard() {
   ]);
 
   const [shortlistRun, fresh, today] = await Promise.all([loadShortlistRun(sb), loadFresh(sb).catch(() => ({ programs: [], awards: [], upcoming: 0 })), loadToday(user.id).catch(() => null)]);
-  const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
-  const setupTodo = setupQ.error ? [] : (setupQ.data ?? []);
+  const setupQ = await sb.from("notifications").select("id, title, body, href, action_label, urgent, dedupe_key").eq("kind", "setup").is("resolved_at", null).order("urgent", { ascending: false }).limit(6);
+  // the calendar ask isn't something waiting on them: the deadline card offers it, the bell and one email carry it
+  const setupTodo = setupQ.error ? [] : (setupQ.data ?? []).filter((n) => n.dedupe_key !== "calendar:connect");
   // follow-ups from school emails: events coming up, and forms the agents are doing or need help with
   const upQ = await sb.from("followups").select("id, title, school, kind, status, event_start, deadline, url, why, result_note, application_id").or(`event_start.gte.${new Date().toISOString()},status.in.(queued,working,needs_you)`).order("event_start", { ascending: true, nullsFirst: false }).limit(6);
   const upcoming = upQ.error ? [] : (upQ.data ?? []);
@@ -235,6 +238,10 @@ export default async function Dashboard() {
 
   const next = list.find((a) => (daysUntil(a.target_deadline) ?? -1) >= 0 && ["shortlisted", "preparing", "ready_for_review", "packet_approved"].includes(a.status));
   const nextDays = next ? daysUntil(next.target_deadline) : null;
+  // deadlines still to come on the list, and whether they're on google calendar (null: calendar isn't set up here)
+  const dated = list.filter((a) => (daysUntil(a.target_deadline) ?? -1) >= 0 && ["shortlisted", "preparing", "ready_for_review", "packet_approved"].includes(a.status)).length;
+  const calendar = gcalReady() && dated ? { on: !!(await calendarAccount(user.id).catch(() => null)), dates: dated } : null;
+  const calNotice = sp.calendar === "connected" ? `Google Calendar connected. Ivyward is adding your ${Number(sp.dates) > 0 ? `${Number(sp.dates)} ` : ""}dates now, each with reminders a week, two days and a day before.` : sp.calendar === "declined" ? "You cancelled on Google's screen, so nothing was connected." : sp.calendar === "error" || sp.calendar === "expired" ? "Couldn't connect Google Calendar. Try again." : null;
   const count = (sts: string[]) => list.filter((a) => sts.includes(a.status)).length;
   // label, and a one-word form for a phone, where the four sit on one row so "Needs you" stays near the top
   const stats: [typeof Layers, string, string, number, string][] = [
@@ -289,6 +296,12 @@ export default async function Dashboard() {
           </div>
         </header>
       </Rise>
+
+      {calNotice && (
+        <Rise>
+          <Notice tone={sp.calendar === "connected" ? "go" : "stop"}>{calNotice}</Notice>
+        </Rise>
+      )}
 
       {today && (
         <Rise>
@@ -358,6 +371,7 @@ export default async function Dashboard() {
                 program={(next.programs as unknown as Prog).name}
                 deadline={next.target_deadline}
                 blocker={waiting.find((w) => w.key.endsWith(`:${next.id}`))?.title ?? null}
+                calendar={calendar}
               />
             ) : (
               <div className="flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-6 shadow-card">

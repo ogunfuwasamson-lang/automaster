@@ -1,10 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CalendarCheck, CalendarPlus } from "lucide-react";
+
+// whether the applicant's dates are on google calendar: on, or off with a way to connect. null hides it (not set up).
+export type CalendarState = { on: boolean; dates: number } | null;
 
 // the next deadline, counting down live, and what (if anything) is holding it up
-export function DeadlineCard({ id, school, program, deadline, blocker }: { id: string; school: string; program: string; deadline: string; blocker: string | null }) {
+export function DeadlineCard({ id, school, program, deadline, blocker, calendar = null }: { id: string; school: string; program: string; deadline: string; blocker: string | null; calendar?: CalendarState }) {
   const end = Date.parse(deadline + "T23:59:00Z");
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -47,6 +50,7 @@ export function DeadlineCard({ id, school, program, deadline, blocker }: { id: s
           </div>
         ) : null}
         <div className="mt-auto pt-6">
+          {calendar ? <CalendarLine c={calendar} /> : null}
           <Link
             href={`/applications/${id}`}
             className="flex h-11 items-center justify-center gap-2 rounded-lg border border-brand/30 bg-[color-mix(in_oklab,var(--brand)_5%,var(--surface))] text-sm font-medium text-brand transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_10%,var(--surface))]"
@@ -56,5 +60,30 @@ export function DeadlineCard({ id, school, program, deadline, blocker }: { id: s
         </div>
       </div>
     </div>
+  );
+}
+
+// one line under the countdown: the reminder offer, or the quiet confirmation that it's done
+function CalendarLine({ c }: { c: NonNullable<CalendarState> }) {
+  const all = c.dates === 1 ? "your deadline" : `all ${c.dates} deadlines`;
+  if (c.on)
+    return (
+      <p className="mb-3 flex items-center gap-2 text-[13px] text-muted">
+        <CalendarCheck className="size-4 shrink-0 text-go" aria-hidden />
+        {c.dates === 1 ? "It's" : `All ${c.dates} are`} on your Google Calendar, with reminders.
+      </p>
+    );
+  return (
+    <a
+      href="/api/calendar/connect?then=/dashboard"
+      className="group mb-3 flex items-center gap-3 rounded-lg border border-line px-3.5 py-3 text-[13px] leading-snug transition-colors hover:border-brand/40"
+    >
+      <CalendarPlus className="size-4 shrink-0 text-brand" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">Remind me before {all}</span>
+        <span className="block text-muted">Adds them to Google Calendar, with webinars and open days from your schools.</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
+    </a>
   );
 }

@@ -80,7 +80,7 @@ export async function connectComposio(userId: string, accountId: string) {
 }
 
 // user_id is required alongside the connection: composio checks the connection belongs to that user
-export async function proxy(userId: string, accountId: string, url: string, method: "GET" | "POST", body?: unknown): Promise<{ status: number; data: unknown }> {
+export async function proxy(userId: string, accountId: string, url: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<{ status: number; data: unknown }> {
   const r = await cx<{ status: number; data?: unknown }>("/tools/execute/proxy", { method: "POST", body: { connected_account_id: accountId, user_id: userId, endpoint: url, method, ...(body === undefined ? {} : { body }) } });
   return { status: r.status, data: r.data };
 }

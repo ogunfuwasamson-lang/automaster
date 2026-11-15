@@ -80,9 +80,16 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
                         <div className="mt-2 flex items-center gap-3 text-[12px]">
                           {n.href && (
                             <Popover.Close asChild>
-                              <Link href={n.href} className="font-medium text-brand hover:underline">
-                                {n.action_label ?? "Open"}
-                              </Link>
+                              {/* an api route starts something (a google connection): a plain link, never prefetched */}
+                              {n.href.startsWith("/api/") ? (
+                                <a href={n.href} className="font-medium text-brand hover:underline">
+                                  {n.action_label ?? "Open"}
+                                </a>
+                              ) : (
+                                <Link href={n.href} className="font-medium text-brand hover:underline">
+                                  {n.action_label ?? "Open"}
+                                </Link>
+                              )}
                             </Popover.Close>
                           )}
                           <span className="text-muted">{ago(n.created_at)}</span>

@@ -2,6 +2,7 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { cx, proxy, type CxAccount } from "@/lib/gmail";
 import type { CalEvent } from "@/lib/calendar";
+import { eventId } from "@/lib/calendar-plan";
 
 // a direct google calendar connection, through composio like gmail. when it's there, events go straight onto the
 // applicant's calendar; otherwise calendar.ts emails an .ics invite instead.
@@ -41,8 +42,8 @@ export async function disconnectCalendar(userId: string) {
   await admin().from("profiles").update({ calendar_account: null }).eq("id", userId);
 }
 
-// google event ids: lowercase base32hex (a-v, 0-9), 5-1024 chars. derived from our uid so a second add updates nothing twice
-export const eventId = (uid: string) => ("iv" + Buffer.from(uid).toString("hex")).slice(0, 1000);
+// google event ids come from our uid (calendar-plan), so a second add of the same thing changes nothing
+export { eventId };
 
 export function eventBody(e: CalEvent) {
   return {
@@ -54,6 +55,7 @@ export function eventBody(e: CalEvent) {
     end: { dateTime: e.end.toISOString() },
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 60 }, { method: "email", minutes: 1440 }] },
     source: e.url ? { title: "Ivyward", url: e.url } : undefined,
+    extendedProperties: { private: { ivyward: "1", ivk: "added" } },
   };
 }
 
