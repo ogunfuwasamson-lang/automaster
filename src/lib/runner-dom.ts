@@ -229,8 +229,22 @@ export const DOM_HELPER = String.raw`
     const real = [...all(CLICKABLE)];
     const generic = [...all('[onclick], [tabindex="0"]')].filter((e) => !e.matches(CLICKABLE) && !e.querySelector(CLICKABLE) && textOf(e).length <= 60 && !e.closest(CLICKABLE));
     return [...real, ...generic].filter(visible)
-      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || unnamed(b)).trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined }))
+      .map((b) => ({ id: idOf(b), label: ((b.tagName === "INPUT" ? b.value : textOf(b)) || b.getAttribute("aria-label") || b.getAttribute("title") || unnamed(b)).trim().slice(0, 80), link: b.tagName === "A", href: b.tagName === "A" ? b.href : undefined, row: rowOf(b) }))
       .filter((b) => b.label);
+  }
+  // the short line a button sits on in a checklist ("Personal details   Incomplete   Edit"): how the portal marks
+  // each section, which a section's button rarely says itself. only short rows; a whole page is no row
+  function rowOf(b) {
+    const r = b.closest('tr, li, [role="row"], [role="listitem"], .card, .panel, .list-group-item, .section-item, .checklist-item');
+    if (!r) return undefined;
+    const t = textOf(r).replace(/\s+/g, " ").trim();
+    const marks = [...r.querySelectorAll('[class*="complete" i], [class*="status" i], [class*="check" i], [aria-label], img[alt], [title]')]
+      .map((e) => ((typeof e.className === "string" ? e.className : "") + " " + (e.getAttribute("aria-label") || "") + " " + (e.getAttribute("alt") || "") + " " + (e.getAttribute("title") || "")).replace(/\s+/g, " ").trim())
+      .filter((x) => /complete|incomplete|progress|started|done|required|check/i.test(x))
+      .slice(0, 3)
+      .join(" ");
+    const out = (t + (marks ? " [" + marks + "]" : "")).slice(0, 220);
+    return t.length <= 160 ? out : undefined;
   }
   // after typing into a search-as-you-type box, the list of matches: click the one that fits the value
   function pickOption(value) {

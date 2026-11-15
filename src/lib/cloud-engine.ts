@@ -1,5 +1,5 @@
 // the cloud runner's brain: looks at a portal page and decides the next move, then does it.
-import { pageKey } from "@/lib/portal-platforms";
+import { accountUrls, pageKey } from "@/lib/portal-platforms";
 // no db and no network of its own: everything outside the page comes in through deps, so the same
 // engine runs on vercel against browserbase and in tests against a local chromium.
 import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib/engine-page";
@@ -19,7 +19,7 @@ export interface Snapshot {
   fingerprint: string;
   fields: (PageField & { autocomplete?: string })[];
   allFields: { id: string; label: string; type: string; name?: string; autocomplete?: string; required?: boolean }[];
-  buttons: { id: string; label: string; link: boolean; href?: string }[];
+  buttons: { id: string; label: string; link: boolean; href?: string; row?: string }[];
   errors?: string[];
 }
 
@@ -95,6 +95,77 @@ export interface EngineState {
   ring?: string[];
   ringFields?: Record<string, { label: string; type: string; options?: string[]; required?: boolean }[]>;
   roundsAsked?: string[];
+  // milestones the applicant sees (lib/portal-progress): the portal reached, the application's own pages filled,
+  // "step 3 of 7" when the portal says it, what was uploaded, the payment page reached
+  portal?: { url?: string; ok?: boolean; at?: number; verdict?: string; platform?: string | null; how?: string };
+  formPages?: string[];
+  stepOf?: { at: number; of: number };
+  uploads?: string[];
+  paymentAt?: number;
+  sectionsOpened?: string[]; // checklist sections opened this run, by label (each at most twice)
+  offSite?: number; // times this run was taken off the portal to an unrelated site (student finance, visas) and went back
+}
+
+// "Step 3 of 7", "Page 2 / 5", "Section 4 of 9": where the portal says the applicant is in the form
+const STEP_OF = /\b(?:step|page|section|part|stage|étape)\s+(\d{1,2})\s*(?:of|\/|sur|de)\s*(\d{1,2})\b/i;
+export function stepOf(body: string): { at: number; of: number } | null {
+  const m = body.slice(0, 4000).match(STEP_OF);
+  if (!m) return null;
+  const at = Number(m[1]);
+  const of = Number(m[2]);
+  return of >= 2 && of <= 40 && at >= 1 && at <= of ? { at, of } : null;
+}
+
+// the milestones on each page arrived at. pure, so it's tested
+export function noteProgress(state: EngineState, s: Pick<Snapshot, "url" | "title" | "body" | "allFields">, kind: string) {
+  const now = Date.now();
+  if ((kind === "login" || kind === "signup") && !state.portal?.ok) state.portal = { ...(state.portal ?? {}), url: s.url, ok: true, at: now };
+  if (kind === "payment" && !state.paymentAt) state.paymentAt = now;
+  const real = s.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && f.type !== "password" && !/\bsearch\b/i.test(f.label)).length;
+  // a page of the application itself: several real boxes, and not the sign-up page before the account exists
+  if (kind === "form" && real >= 3 && (state.signedIn || state.accountAt || !REGISTER_PAGE.test(`${s.url} ${s.title}`))) {
+    const k = pageKey(s.url, s.title);
+    if (k && !(state.formPages ?? []).includes(k)) state.formPages = [...(state.formPages ?? []), k].slice(-60);
+    if (!state.portal?.ok) state.portal = { ...(state.portal ?? {}), url: s.url, ok: true, at: now };
+  }
+  const step = stepOf(s.body);
+  if (step) state.stepOf = step;
+}
+const uploaded = (state: EngineState | undefined, key: string) => {
+  if (state && key && !(state.uploads ?? []).includes(key)) state.uploads = [...(state.uploads ?? []), key].slice(-30);
+};
+
+// sites a portal links to that are never the application (student finance, visa and immigration offices): tu delft's
+// run followed studielink to the dutch student-finance office and stopped there
+const OFF_SITE = /(^|\.)(duo\.nl|gov\.uk|canada\.ca|studentaid\.gov|fafsa\.gov|travel\.state\.gov|uscis\.gov|homeaffairs\.gov\.au|immigration\.govt\.nz|vfsglobal\.com|ind\.nl|nuffic\.nl|studyinholland\.nl|campusfrance\.org|daad\.de|ielts\.org|ets\.org|mba\.com|toefl\.org)$/i;
+export const offSite = (url: string, portalUrl?: string | null) => {
+  try {
+    const h = new URL(url).hostname;
+    const p = portalUrl ? new URL(portalUrl).hostname : "";
+    return OFF_SITE.test(h) && h !== p;
+  } catch {
+    return false;
+  }
+};
+
+// the application's checklist of sections (slate, liaison's quadrants, ellucian, dreamapply, the uk portals): the
+// first one the page still marks as not done. a section once opened twice on a run isn't opened again
+const NOT_DONE = /\b(in ?complete|not (yet )?(started|complete[d]?|submitted)|in progress|to do|required|missing|outstanding|0 ?%|action needed|non complété|à compléter)\b/i;
+const DONE_MARK = /(^|\s)(complete[d]?|done|finished|submitted|✓|✔)(\s|$)/i;
+const SECTION_SKIP = /\b(pay|payment|submit|sign ?out|log ?out|delete|withdraw|help|faq|contact|recommend(er|ation)s?|referees?|print|download|preview)\b/i;
+export function nextSection(s: Pick<Snapshot, "buttons">, opened: string[] = []): { id: string; label: string } | null {
+  for (const b of s.buttons) {
+    const label = clean(b.label);
+    const row = (b.row ?? "").replace(/\s+/g, " ").trim();
+    if (!label || label.length > 70 || SECTION_SKIP.test(label) || FINAL.test(label)) continue;
+    const ctx = row && row.length <= 160 ? row : label;
+    if (!NOT_DONE.test(ctx)) continue;
+    // "Incomplete" contains "complete": a row that also says done is a finished one only when it doesn't say incomplete
+    if (DONE_MARK.test(ctx.replace(NOT_DONE, " "))) continue;
+    if (opened.filter((x) => x === label).length >= 2) continue;
+    return { id: b.id, label };
+  }
+  return null;
 }
 
 // two to four pages, each back three times in the last twelve arrivals with the same boxes still empty: the agents
@@ -127,7 +198,12 @@ function ask(state: EngineState, f: PageField, key?: string) {
 }
 
 // an upload box (a document to add) or an essay too long for its box: never a question the applicant can type into
+// a portal account's security question or answer box ("Question 3" / "Answer 3", calgary's "Your answer: enter your
+// answer to question 3"): the login's made-up answers go there, never a question for the applicant
+export const SECURITY_QA = /^\W*(security\s+)?(question|answer)\s*#?\d\W*$|\byour answer\b.{0,40}\bquestion\s*#?\d|\bsecurity (question|answer)|\b(secret|challenge|recovery) (question|answer)/i;
+
 function notAQuestion(state: EngineState, f: PageField): boolean {
+  if (SECURITY_QA.test(f.label)) return true;
   if (f.type === "file") {
     state.missingDocs = [...new Set([...(state.missingDocs ?? []), cleanLabel(f.label, f.options).slice(0, 80) || "a required document"])];
     return true;
@@ -731,6 +807,7 @@ export async function uploadByType(page: Page, deps: EngineDeps, s: Snapshot, st
     const option = (list.options ?? []).find((o) => re.test(o));
     if (!key || !option) continue;
     state.typedUploads = [...done, `${host}|${key}`].slice(-40);
+    uploaded(state, key);
     await deps.progress(`uploading your ${option.toLowerCase()}`);
     await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), { id: list.id, action: "choose", option, source: key }).catch(() => false);
     await sleep(800);
@@ -1045,6 +1122,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     await sleep(800);
     let s = await snap(page);
     arrived(state, s);
+    noteProgress(state, s, classify(s));
     if (isBlockPage(s)) {
       // give an interstitial a moment to clear on its own
       await sleep(8000);
@@ -1273,6 +1351,14 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       continue;
     }
 
+    // a student-finance, visa or test-score site the portal linked to: never part of the application. go back
+    if (!deps.goal && deps.portalUrl && offSite(s.url, deps.portalUrl) && (state.offSite ?? 0) < 3) {
+      state.offSite = (state.offSite ?? 0) + 1;
+      state.navHistory = [...(state.navHistory ?? []), `left ${new URL(s.url).hostname} (not part of the application) for the portal`].slice(-20);
+      await page.goto(state.portal?.ok && state.portal.url ? state.portal.url : deps.portalUrl, { timeout: 45_000 }).catch(() => null);
+      state.samePageCount = 0;
+      continue;
+    }
     // an enquiry, brochure or newsletter form collects leads, it isn't the application: go back to the portal
     if (!deps.goal && deps.portalUrl && LEAD_PAGE.test(`${s.url} ${s.title}`) && !LEAD_PAGE.test(deps.portalUrl) && (state.leadBacks ?? 0) < 3) {
       state.leadBacks = (state.leadBacks ?? 0) + 1;
@@ -1654,6 +1740,15 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       await click(page, next.id);
       continue;
     }
+    // the application's checklist page: open the first section still marked as not done
+    const section = !s.fields.length ? nextSection(now, state.sectionsOpened) : null;
+    if (section) {
+      state.sectionsOpened = [...(state.sectionsOpened ?? []), section.label].slice(-40);
+      state.navHistory = [...(state.navHistory ?? []), `opened "${section.label}", a section the portal shows as not done`].slice(-12);
+      clicked(state, now, section.label);
+      await click(page, section.id);
+      continue;
+    }
     // the way other applicants got off this page: the button they pressed, if it's here, once per page per run
     const known = deps.knownStep?.(pageKey(now.url, now.title));
     const knownBtn = known ? now.buttons.find((b) => clean(b.label).toLowerCase() === known.toLowerCase() && !DANGEROUS.test(b.label) && !FINAL.test(clean(b.label))) : undefined;
@@ -1666,6 +1761,21 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       continue;
     }
     if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
+    // not signed in, and none of the usual buttons here: on a system whose sign-in and create-account pages sit at a
+    // fixed address (slate, salesforce sites), go straight there, once each per run
+    if (!state.signedIn && !state.formPages?.length && !insideForm(now) && now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden").length < 3) {
+      const ways = accountUrls(now.url, now.body);
+      const login = !!(await deps.existingLogin());
+      const to = login || state.accountExists ? ways?.signIn : ways?.create;
+      const mark = `acct|${to ?? ""}`;
+      if (to && to !== now.url && !(state.pressedAsked ?? []).includes(mark)) {
+        state.pressedAsked = [...(state.pressedAsked ?? []), mark].slice(-30);
+        state.navHistory = [...(state.navHistory ?? []), login ? "went to the portal's sign-in page" : "went to the portal's create-account page"].slice(-12);
+        await page.goto(to, { timeout: 45_000 }).catch(() => null);
+        state.samePageCount = 0;
+        continue;
+      }
+    }
     const o = await stuckStep(page, deps, now, state, "none of the usual buttons (next, continue, apply, start, sign in, create account) are on this page. if this is a school or program page, find the link that leads to the online application (it may be called apply online, how to apply, start application, or sit in a menu)", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
     if (o) return { outcome: o, state, filled };
   }
@@ -1752,6 +1862,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     if (fill.action === "upload") {
       const file = await deps.file(fill.file);
       await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
+      uploaded(state, fill.file);
     } else await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), fill);
     return null;
   }
@@ -1985,6 +2096,7 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
         const pdf = !!state?.pdfOnly || (/pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept));
         const file = await deps.file(f.file, { pdf });
         await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
+        uploaded(state, f.file);
         n++;
         // uploads often finish in the background (a progress bar): let it end before the next step
         await sleep(1500);

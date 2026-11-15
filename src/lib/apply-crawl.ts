@@ -3,6 +3,7 @@
 // browser and no model, so it's cheap enough to try before (and after) a web search.
 import { looksLikePortal, normalizeUrl } from "@/lib/portal-url";
 import { safeFetch } from "@/lib/net-guard";
+import { ACCEPT, portalVerdict, wrongAudience, type Level, type Verdict } from "@/lib/portal-check";
 
 const STRONG = /\b(apply (now|online|here|today|directly)|start (your |an |my |a new )?application|begin (your |an )?application|online application|application (portal|form|system)|apply (via|through|using)|submit (an |your )?application|create (an )?account|apply for (this|the) (course|program(me)?))\b/i;
 const MEDIUM = /\b(how to apply|apply|applying|application process|admissions?|entry requirements)\b/i;
@@ -54,7 +55,7 @@ export function scoreLinks(html: string, base: string): ApplyLink[] {
   return out.sort((a, b) => b.score - a.score);
 }
 
-async function fetchPage(url: string): Promise<string | null> {
+export async function fetchPage(url: string): Promise<string | null> {
   try {
     // links come from school websites: never let one point the server at its own network
     const res = await safeFetch(url, {
@@ -68,13 +69,24 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
+// is this the start of an application? the page itself is read (lib/portal-check); a page that can't be fetched
+// counts only on an application system's own address
+export async function checkPortal(url: string): Promise<{ ok: boolean; verdict: Verdict; platform: string | null }> {
+  const html = await fetchPage(url);
+  const v = portalVerdict(url, html);
+  return { ok: ACCEPT.has(v.verdict) || (v.verdict === "unknown" && looksLikePortal(url) && !/^www\./i.test(new URL(url).hostname)), verdict: v.verdict, platform: v.platform };
+}
+
 // breadth-first from the start pages, at most `budget` fetches. returns the application site if one turned up, else
 // the most promising "how to apply" page (still a better place for the browser to start than the brochure page).
-export async function crawlForApply(starts: string[], budget = 10): Promise<{ portal: string | null; best: ApplyLink | null; visited: number }> {
+// with a level, links meant for another kind of applicant (another degree, exchange students, a home diploma) are
+// passed over; a link that looks like a portal is opened and read before it's believed
+export async function crawlForApply(starts: string[], budget = 10, level?: Level): Promise<{ portal: string | null; best: ApplyLink | null; visited: number; verdict?: Verdict; platform?: string | null }> {
   const queue = starts.map((u) => normalizeUrl(u)).filter((u): u is string => !!u).map((url) => ({ url, depth: 0 }));
   const seen = new Set<string>();
   let best: ApplyLink | null = null;
   let fetched = 0;
+  const forSomeoneElse = (l: ApplyLink) => !!level && wrongAudience(`${l.text} ${new URL(l.url).pathname}`, level);
   while (queue.length && fetched < budget) {
     const { url, depth } = queue.shift()!;
     if (seen.has(url)) continue;
@@ -82,9 +94,22 @@ export async function crawlForApply(starts: string[], budget = 10): Promise<{ po
     const html = await fetchPage(url);
     fetched++;
     if (!html) continue;
-    const links = scoreLinks(html, url);
-    const portal = links.find((l) => l.portal && l.score >= 10);
-    if (portal) return { portal: portal.url, best: portal, visited: fetched };
+    // the page itself may be the portal (a start link that was one already)
+    if (level && depth === 0 && looksLikePortal(url)) {
+      const v = portalVerdict(url, html);
+      if (ACCEPT.has(v.verdict)) return { portal: url, best: null, visited: fetched, verdict: v.verdict, platform: v.platform };
+    }
+    const links = scoreLinks(html, url).filter((l) => !forSomeoneElse(l));
+    for (const portal of links.filter((l) => l.portal && l.score >= 10).slice(0, 3)) {
+      if (!level) return { portal: portal.url, best: portal, visited: fetched };
+      if (seen.has(portal.url)) continue;
+      seen.add(portal.url);
+      fetched++;
+      const c = await checkPortal(portal.url);
+      if (c.ok) return { portal: portal.url, best: portal, visited: fetched, verdict: c.verdict, platform: c.platform };
+      // a "portal" that is really another information page: read on from it
+      if (c.verdict === "info" && depth < 2) queue.push({ url: portal.url, depth: depth + 1 });
+    }
     for (const l of links.slice(0, 6)) {
       if (!best || l.score > best.score) best = l;
       if (depth < 2 && l.score >= 4 && !seen.has(l.url)) queue.push({ url: l.url, depth: depth + 1 });

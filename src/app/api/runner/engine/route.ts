@@ -7,7 +7,9 @@ import { canReadMail } from "@/lib/gmail";
 import { getLogin, markLogin } from "@/lib/vault";
 import { logEvent } from "@/lib/events";
 import { normalizeUrl } from "@/lib/portal-url";
-import { markSubmitted, serverDeps, setRunner, type RunnerState } from "@/agents/runner";
+import { effortToday, markSubmitted, RUNS_PER_DAY, serverDeps, setRunner, stallAlert, type RunnerState } from "@/agents/runner";
+import { alert } from "@/lib/alerts";
+import { ourSide } from "@/lib/portal-progress";
 import { REPEAT_NOTE, stuckBudget, stuckMark } from "@/lib/runner-guard";
 import { recordQuestions } from "@/lib/portal-questions";
 import { askToPay, paymentNeeded } from "@/lib/billing";
@@ -109,6 +111,15 @@ export async function POST(req: NextRequest) {
     }
     const portal = normalizeUrl(app.portal_url) ?? normalizeUrl((app.programs as unknown as { url: string | null }).url);
     if (!portal && !st.last_url) return NextResponse.json({ stop: "no portal link yet: add it on the application page" });
+    // the same day's effort cap as the cloud runner: past it, the extension stops until tomorrow
+    const effort = effortToday(st);
+    if (effort.over) {
+      await db.from("applications").update({ runner_status: "ready", runner_note: `resting: carries on tomorrow at ${effort.resumeAt.toISOString().slice(11, 16)} UTC`, runner_state: { ...st, resting: effort.resumeAt.toISOString(), resume_at: effort.resumeAt.getTime() }, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
+      await alert(`runner-effort:${b.application}:${effort.day}`, `${sheet.school}: ${RUNS_PER_DAY} Chrome runs today without finishing`, { application: b.application, school: sheet.school, last_url: st.last_url ?? portal ?? "" }).catch(() => false);
+      return NextResponse.json({ stop: "resting until tomorrow" });
+    }
+    await db.from("applications").update({ runner_state: { ...st, effort: { day: effort.day, runs: effort.runs + 1 }, resting: null } }).eq("id", b.application);
+    st.effort = { day: effort.day, runs: effort.runs + 1 };
     await db
       .from("applications")
       .update({ runner_mode: "extension", runner_status: "running", runner_note: "working in your Chrome", runner_live_url: null, runner_session_id: null, runner_updated_at: new Date().toISOString() })
@@ -192,8 +203,10 @@ export async function POST(req: NextRequest) {
     if (o.reason === "question") await recordQuestions(uid, b.application, state.questions).catch(() => 0);
     await db.from("applications").update({ runner_state: { ...state, ...stuckMark(prev, state, o.reason), reason: o.reason ?? null }, runner_status: "needs_you", runner_note: note, runner_updated_at: new Date().toISOString() }).eq("id", b.application);
     if (row?.runner_status !== "needs_you") await logEvent({ userId: uid, actor: "agent:runner", action: "runner.needs_you", applicationId: b.application, channel: "portal", context: { reason: o.reason ?? null, note, via: "chrome" } });
+    if (ourSide({ status: app.status, runnerStatus: "needs_you", reason: o.reason ?? null, note })) await stallAlert(b.application, sheet.school, o.reason, note, b.url ?? null);
     return NextResponse.json({ ok: true, note });
   }
   await db.from("applications").update({ runner_state: state, runner_status: "failed", runner_note: o.note.slice(0, 300), runner_updated_at: new Date().toISOString() }).eq("id", b.application);
+  await stallAlert(b.application, sheet.school, "failed", o.note, b.url ?? null);
   return NextResponse.json({ ok: true });
 }

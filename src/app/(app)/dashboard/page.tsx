@@ -34,9 +34,9 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { AppList, SchoolTile, type AppRow } from "@/components/home/app-list";
 import { StopButton, RetryRunner } from "./controls";
 import { ShortlistProgress, type ShortlistRun } from "@/components/home/shortlist-progress";
-import { QuestionsCard } from "@/components/questions/questions-card";
 import { openQuestions } from "@/lib/portal-questions";
-import { toAsk } from "@/lib/ask";
+import { waitingList, type WaitItem } from "@/lib/waiting";
+import { ourSide } from "@/lib/portal-progress";
 import { LocalTime } from "@/components/ui/local-time";
 import { ReportButton, WeeklyReportDialog, type WeeklyReport } from "@/components/home/weekly-report";
 import { Suspense } from "react";
@@ -141,12 +141,12 @@ export default async function Dashboard() {
     { data: billing },
     { count: working },
   ] = await Promise.all([
-    sb.from("profiles").select("profile, portal_details").single(),
+    sb.from("profiles").select("profile, portal_details, is_admin").single(),
     sb.from("documents").select("id", { count: "exact", head: true }),
     sb.from("approvals").select("id, title, kind, summary, payload").eq("status", "pending").order("urgency", { ascending: false }).limit(12),
     sb
       .from("applications")
-      .select("id, status, target_deadline, runner_status, runner_note, programs(name, schools(name, country)), artifacts(kind, current_version, artifact_versions(version, user_approved_at))")
+      .select("id, status, target_deadline, attested_at, runner_status, runner_note, reason:runner_state->>reason, resting:runner_state->>resting, programs(name, app_fee_usd, schools(name, country)), artifacts(kind, current_version, artifact_versions(version, user_approved_at))")
       .not("status", "in", "(researching,dropped,withdrawn)")
       .order("target_deadline", { ascending: true, nullsFirst: false }),
     sb.from("events").select("id, application_id, context, created_at").eq("action", "artifact.ready_for_user").order("created_at", { ascending: false }).limit(4),
@@ -156,7 +156,8 @@ export default async function Dashboard() {
     sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
     sb.from("jobs").select("last_error").eq("status", "queued").or('last_error.ilike."budget:%",last_error.ilike."hold:%"').limit(500),
     sb.from("jobs").select("id").eq("status", "queued").ilike("last_error", "%credit balance%").limit(1),
-    sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
+    // what the agents are doing now: running, or due now (not work parked for a later day)
+    sb.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]).lte("run_at", new Date().toISOString()),
   ]);
 
   const [shortlistRun, fresh, today] = await Promise.all([loadShortlistRun(sb), loadFresh(sb).catch(() => ({ programs: [], awards: [], upcoming: 0 })), loadToday(user.id).catch(() => null)]);
@@ -181,9 +182,35 @@ export default async function Dashboard() {
   const parked = waitingErr.filter((e) => e.startsWith("budget:") && !e.startsWith("budget: starter")).length;
   const heldToday = waitingErr.filter((e) => e.startsWith("hold: busy")).length;
   const list = apps ?? [];
-  const stuck = list.filter((a) => a.status === "packet_approved" && (a.runner_status === "needs_you" || a.runner_status === "failed"));
+  const isAdmin = !!(prof as { is_admin?: boolean } | null)?.is_admin;
   const pending = (approvals ?? []) as Decision[];
-  const needsCount = pending.length + stuck.length + (drafts?.length ?? 0);
+  const schoolOf = (a: (typeof list)[number]) => (a.programs as unknown as Prog).schools.name;
+  const essaysOf = (a: (typeof list)[number]) => {
+    const essays = ((a.artifacts ?? []) as unknown as Art[]).filter((x) => !NOT_ESSAYS.includes(x.kind));
+    return { total: essays.length, done: essays.filter((x) => x.artifact_versions.find((v) => v.version === x.current_version)?.user_approved_at).length };
+  };
+  // stops on our side: the operator has them; the applicant sees "Ivyward on it", not a task
+  const view = (a: (typeof list)[number]) => ({ status: a.status, runnerStatus: a.runner_status, reason: (a as { reason?: string | null }).reason ?? null, note: a.runner_note });
+  const oursIds = new Set(list.filter((a) => ourSide(view(a))).map((a) => a.id));
+  const asks = await openQuestions(auth.user.id).catch(() => []);
+  const asked = new Map<string, number>();
+  for (const q of asks) if (q.application_id) asked.set(q.application_id, (asked.get(q.application_id) ?? 0) + 1);
+  // the one list of what's waiting on the applicant, each with one button
+  const waiting: WaitItem[] = waitingList(
+    list.map((a) => {
+      const e = essaysOf(a);
+      return { id: a.id, school: schoolOf(a), status: a.status, runnerStatus: a.runner_status, reason: (a as { reason?: string | null }).reason ?? null, note: a.runner_note, essaysTotal: e.total, essaysApproved: e.done, attested: !!(a as { attested_at?: string | null }).attested_at, fee: (a.programs as unknown as { app_fee_usd?: number | null }).app_fee_usd ?? null, questions: asked.get(a.id) ?? 0 };
+    }),
+    setupTodo,
+  );
+  // new drafts on applications that aren't already on the list
+  for (const d of drafts ?? []) {
+    const a = list.find((x) => x.id === d.application_id);
+    if (!a || waiting.some((w) => w.key.endsWith(`:${a.id}`))) continue;
+    waiting.push({ key: `draft:${a.id}`, school: schoolOf(a), title: `Read a new draft for ${schoolOf(a)}: ${(d.context as { title?: string })?.title ?? "essay"}`, body: `Ready ${when(d.created_at)}`, href: `/applications/${a.id}#essays`, action: "Read" });
+  }
+  const waitingIds = new Set(waiting.map((w) => w.key.split(":")[1]));
+  const needsCount = pending.length + waiting.length;
 
   const rows: AppRow[] = list
     .filter((a) => a.status !== "rejected")
@@ -191,13 +218,13 @@ export default async function Dashboard() {
       const pr = a.programs as unknown as Prog;
       const essays = ((a.artifacts ?? []) as unknown as Art[]).filter((x) => !NOT_ESSAYS.includes(x.kind));
       const done = essays.filter((x) => x.artifact_versions.find((v) => v.version === x.current_version)?.user_approved_at).length;
-      const isStuck = stuck.some((s) => s.id === a.id);
+      const isStuck = waitingIds.has(a.id) && a.status === "packet_approved";
       return {
         id: a.id,
         school: pr.schools.name,
         program: pr.name,
         status: a.status,
-        runner: a.runner_status,
+        runner: oursIds.has(a.id) ? "ours" : (a as { resting?: string | null }).resting && a.runner_status === "ready" ? "resting" : a.runner_status,
         deadline: a.target_deadline,
         days: daysUntil(a.target_deadline),
         done,
@@ -217,7 +244,6 @@ export default async function Dashboard() {
     [Send, "Submitted", "Sent", count(["submitted", "under_review", "interview", "waitlisted", "admitted"]), "text-neutral-700 bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300"],
   ];
 
-  const asks = (await openQuestions(auth.user.id).catch(() => [])).map(toAsk);
   const snooze = Number((await cookies()).get("iw_nudge_snooze")?.value) || null;
   const payNudge = await dashboardNudge(user.id, snooze).catch(() => null);
   // "Upgrade" on the limit notice opens the payment page itself: a pack where packs are sold, Pro elsewhere
@@ -270,11 +296,6 @@ export default async function Dashboard() {
         </Rise>
       )}
 
-      {asks.length > 0 && (
-        <Rise>
-          <QuestionsCard questions={asks} />
-        </Rise>
-      )}
 
       {payNudge && (
         <Rise>
@@ -291,29 +312,6 @@ export default async function Dashboard() {
       {(fresh.programs.length > 0 || fresh.awards.length > 0 || (fresh.upcoming > 0 && !shortlistRun)) && (
         <Rise>
           <NewForYou programs={fresh.programs} awards={fresh.awards} upcoming={fresh.upcoming} />
-        </Rise>
-      )}
-
-      {setupTodo.length > 0 && (
-        <Rise>
-          <Card className="p-5 sm:p-6">
-            <h2 className="text-lg font-bold tracking-[-0.02em]">What your agents still need</h2>
-            <p className="mt-0.5 text-[13.5px] text-muted">They&apos;re working with what they have. Each of these lets them do more without stopping to ask.</p>
-            <ul className="mt-4 grid gap-2 md:grid-cols-2">
-              {setupTodo.map((n) => (
-                <li key={n.id}>
-                  <Link href={n.href ?? "/dashboard"} className="group flex h-full items-start gap-3 rounded-2xl border border-line p-3.5 transition-colors hover:border-signal/40 hover:bg-signal/[0.04]">
-                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.urgent ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold">{n.title}</span>
-                      {n.body && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted">{n.body}</span>}
-                    </span>
-                    <span className="mt-0.5 shrink-0 text-[12.5px] font-medium text-brand">{n.action_label ?? "Open"}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
         </Rise>
       )}
 
@@ -359,7 +357,7 @@ export default async function Dashboard() {
                 school={(next.programs as unknown as Prog).schools.name}
                 program={(next.programs as unknown as Prog).name}
                 deadline={next.target_deadline}
-                blocker={stuck.find((s) => s.id === next.id)?.runner_note ? sentence(stuck.find((s) => s.id === next.id)!.runner_note).split(". ")[0] : null}
+                blocker={waiting.find((w) => w.key.endsWith(`:${next.id}`))?.title ?? null}
               />
             ) : (
               <div className="flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-6 shadow-card">
@@ -393,55 +391,33 @@ export default async function Dashboard() {
           <Card className="scroll-mt-24 p-5 sm:p-6" id="needs-you">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2.5 text-lg font-bold tracking-[-0.02em]">
-                Needs you
+                Waiting for you
                 <span className="grid h-6 min-w-6 place-items-center rounded-full bg-signal/12 px-2 text-xs font-bold text-signal tabular">{needsCount}</span>
               </h2>
-              <RetryRunner count={stuck.length} />
+              {isAdmin && <RetryRunner count={oursIds.size} />}
             </div>
             <div className="space-y-3">
-              {stuck.length ? (
-                <ul className="grid gap-2 md:grid-cols-2">
-                  {stuck.map((a) => {
-                    const pr = a.programs as unknown as Prog;
-                    return (
-                      <li key={a.id}>
-                        <Link href={`/applications/${a.id}`} className="group flex h-full items-start gap-3 rounded-2xl border border-line p-3.5 transition-colors hover:border-signal/40 hover:bg-signal/[0.04]">
-                          <SchoolTile name={pr.schools.name} size="sm" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-bold">{pr.schools.name}</span>
-                            <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted">{sentence(a.runner_note)}</span>
-                          </span>
-                          <ArrowRight className="mt-1 size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-              <Decisions items={pending} />
-              {drafts?.length ? (
-                <ul className="grid gap-2 md:grid-cols-2">
-                  {drafts.map((d) => (
-                    <li key={d.id}>
-                      <Link href={`/applications/${d.application_id}`} className="group flex items-center gap-3 rounded-2xl border border-line p-3.5 transition-colors hover:border-accent/40 hover:bg-accent/[0.04]">
-                        <span className="grid size-9 place-items-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                          <PenLine className="size-4" aria-hidden />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-bold">Review a draft: {(d.context as { title?: string })?.title ?? "essay"}</span>
-                          <span className="text-[12.5px] text-muted">Ready {when(d.created_at)}</span>
-                        </span>
-                        <ArrowRight className="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
-                      </Link>
+              {waiting.length ? (
+                <ul className="divide-y divide-dashed divide-line rounded-2xl border border-line">
+                  {waiting.map((w) => (
+                    <li key={w.key} className="flex items-center gap-3 p-3.5">
+                      {w.school ? <SchoolTile name={w.school} size="sm" /> : <span className={`ml-1 size-2 shrink-0 rounded-full ${w.urgent ? "bg-signal" : "bg-neutral-300 dark:bg-neutral-600"}`} aria-hidden />}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold leading-snug">{w.title}</span>
+                        {w.body && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted">{w.body}</span>}
+                      </span>
+                      <ButtonLink href={w.href} size="sm" variant={w.urgent ? "primary" : "secondary"} className="shrink-0">
+                        {w.action}
+                      </ButtonLink>
                     </li>
                   ))}
                 </ul>
               ) : null}
+              <Decisions items={pending} />
             </div>
           </Card>
         </Rise>
       )}
-
 
       <Rise>
         <div className="grid gap-4 lg:grid-cols-12">

@@ -22,6 +22,9 @@ export const RUNNER_STATUS: Record<string, { label: string; tone: "quiet" | "pla
   failed: { label: "Problem", tone: "stop" },
   paused: { label: "Paused", tone: "quiet" },
   submitted: { label: "Submitted", tone: "go" },
+  // stopped on our side: the operator has it, the applicant has nothing to do
+  ours: { label: "Ivyward on it", tone: "plain" },
+  resting: { label: "Resting today", tone: "quiet" },
 };
 
 const TONE = {

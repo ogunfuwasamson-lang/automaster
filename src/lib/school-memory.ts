@@ -99,6 +99,14 @@ export async function knownApplyUrl(schoolId: string | null | undefined, program
   return (mine?.value.url as string) ?? null;
 }
 
+// every known way into this program's application, best first: the program's own link, then the system the school
+// runs for this level (school:master), then an older school-wide one
+export async function knownApplyUrls(schoolId: string | null | undefined, programId: string, level: string): Promise<string[]> {
+  const facts = (await recall(schoolId, ["apply_url"])).filter((f) => trusted(f) && typeof f.value.url === "string");
+  const order = [programId, `school:${level}`, "school"];
+  return [...new Set(order.flatMap((k) => facts.filter((f) => f.key === k).map((f) => f.value.url as string)))];
+}
+
 // the portal won't let automated sign-ups (or cloud browsers) through, by several applicants' experience
 export async function portalNeedsChrome(schoolId: string | null | undefined, portalHost: string): Promise<string | null> {
   if (!portalHost) return null;

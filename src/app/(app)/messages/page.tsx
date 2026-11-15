@@ -1,4 +1,5 @@
 import { confirmReturn } from "@/lib/billing";
+import { yourTurn } from "@/lib/portal-progress";
 import { Mail } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
@@ -103,7 +104,7 @@ export default async function Messages({ searchParams }: { searchParams: Promise
   if (appIds.length) {
     const db = admin();
     const [{ data: apps }, { data: logins }, ups, { data: evs }] = await Promise.all([
-      auth.sb.from("applications").select("id, status, target_deadline, portal_url, runner_status, runner_note, programs(name, degree, app_fee_usd, fee_waiver)").in("id", appIds),
+      auth.sb.from("applications").select("id, status, target_deadline, portal_url, runner_status, runner_note, reason:runner_state->>reason, programs(name, degree, app_fee_usd, fee_waiver)").in("id", appIds),
       db.from("portal_accounts").select("application_id").eq("user_id", auth.user.id).in("application_id", appIds),
       auth.sb.from("followups").select("application_id, title, kind, status, event_start").in("application_id", appIds).order("created_at", { ascending: false }).limit(60),
       auth.sb.from("events").select("application_id, actor, action, created_at, context").in("application_id", appIds).not("action", "like", "guard.%").order("created_at", { ascending: false }).limit(300),
@@ -114,7 +115,8 @@ export default async function Messages({ searchParams }: { searchParams: Promise
         program: p.name,
         status: a.status,
         runner: a.runner_status,
-        runnerNote: a.runner_note,
+        // the agents' own note only when the next step is the applicant's; our side's stops are the operator's
+        runnerNote: yourTurn({ status: a.status, runnerStatus: a.runner_status, reason: (a as { reason?: string | null }).reason ?? null, note: a.runner_note }) ? a.runner_note : null,
         deadline: a.target_deadline,
         fee: p.app_fee_usd,
         waiver: p.fee_waiver,

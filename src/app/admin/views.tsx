@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ourSide } from "@/lib/portal-progress";
 import { Suspense } from "react";
 import type { ReactNode } from "react";
 import { admin } from "@/lib/supabase/admin";
@@ -508,6 +509,11 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
     const who = new Set(stopped.map((a) => a.userId)).size;
     att.push({ tone: "signal", title: `${stopped.length} application${stopped.length === 1 ? "" : "s"} stopped, across ${who} user${who === 1 ? "" : "s"}`, detail: [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([x, n]) => `${reasonLabel(x)} ${n}`).join(", "), href: href("portals", r, everyone) });
   }
+  // stops on our side: the applicant only sees "Ivyward is working on this school's portal", so each is ours to fix
+  const ours = stopped.filter((a) => ourSide({ status: a.status, runnerStatus: a.runner, reason: a.reason === "failed" ? null : a.reason, note: a.note }));
+  for (const a of ours.slice(0, 8))
+    att.push({ tone: "stop", title: `${a.school}: stopped on our side${a.reason ? ` (${reasonLabel(a.reason)})` : ""}`, detail: `${a.email}${a.host ? `, ${a.host}` : ""}. ${a.note.slice(0, 220)}`, href: href("user", r, everyone, { id: a.userId }) });
+  if (ours.length > 8) att.push({ tone: "stop", title: `${ours.length - 8} more stopped on our side`, href: href("portals", r, everyone) });
   for (const u of users.filter((x) => within(x.joined, 2 * DAY)))
     att.push({ tone: undefined, title: `New sign-up: ${whoText(u)}`, detail: `Joined ${ago(u.joined)} from ${u.source}. Furthest step: ${stageLabel(u.stage).toLowerCase()}.`, href: href("user", r, everyone, { id: u.id }) });
   const stalled = users.filter((u) => !u.submitted && !within(u.lastActive, 3 * DAY) && !within(u.joined, 2 * DAY)).sort((a, b) => (b.lastActive ?? b.joined).localeCompare(a.lastActive ?? a.joined));

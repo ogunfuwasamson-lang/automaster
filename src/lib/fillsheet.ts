@@ -190,6 +190,9 @@ export function buildSheet(a: {
     const lives = p.identity.country_of_residence ?? "";
     const there = lives && (norm(lives).startsWith(norm(a.schoolCountry).slice(0, 5)) || norm(a.schoolCountry).startsWith(norm(lives).slice(0, 5)));
     if (!same && !there) set("immigration_status", studentStatus(a.schoolCountry));
+    // uk fee status: "will you be ordinarily resident in the uk for three years before the course begins?" (stirling,
+    // and every uk portal). someone who neither holds the country's citizenship nor lives there is not
+    if (!same && !there) set("ordinarily_resident_3y", "No");
   }
   if (intake.term) set("entry_start", `${({ Fall: "September", Spring: "January", Winter: "January", Summer: "May" } as Record<string, string>)[intake.term.season]} ${intake.term.year}`);
   // parents (quebec's permanent code needs both names, at every level): first and last from the full names given
@@ -228,6 +231,10 @@ export function buildSheet(a: {
     set(`edu${n}_end_year`, year(e.end));
     set(`edu${n}_end_month`, month(e.end));
     set(`edu${n}_grade`, e.grade);
+    // "was this course taken in the uk or overseas?": overseas when it was in another country than the school's
+    if (e.country && a.schoolCountry && !norm(e.country).startsWith(norm(a.schoolCountry).slice(0, 5)) && !norm(a.schoolCountry).startsWith(norm(e.country).slice(0, 5))) set(`edu${n}_abroad`, "Overseas");
+    // "not finished yet?" / "currently studying here": only when the course hasn't ended
+    set(`edu${n}_in_progress`, !e.end || e.end > new Date().toISOString().slice(0, 10) ? "Yes" : "No");
     set(`edu${n}_gpa`, e.gpa);
     set(`edu${n}_gpa_scale`, e.gpa_scale);
   });
@@ -261,6 +268,8 @@ export function buildSheet(a: {
     set(`${k}_date`, t.date);
   }
   set("english_route", p.english.route === "waiver" ? "medium of instruction was English" : p.english.route === "test" ? "test" : null);
+  // "other evidence of proficiency (e.g. prior study in english)": the degree taught in english, in a sentence
+  if (p.english.route === "waiver" && edu[0]?.institution) set("english_evidence", `My ${edu[0].degree ?? "degree"}${edu[0].field ? ` in ${edu[0].field}` : ""} at ${edu[0].institution}${edu[0].country ? `, ${edu[0].country}` : ""} was taught and assessed entirely in English.`);
 
   // recommenders
   a.recommenders.slice(0, 4).forEach((r, i) => {
@@ -317,6 +326,11 @@ export const LABEL_RULES: [RegExp, string][] = [
   // a bare "Term" / "Intake" / "Semester" box on an application is the term applied for
   [/^\*?\s*(term|intake|semester|session)(\s+\1)?\s*\*?\s*$/i, "entry_term"],
   [/\b(ever|previously|before|already)\b.{0,25}\bstud(y|ied|ying)\b.{0,25}\b(in|at)\b|\bprevious(ly)? stud(y|ied) in\b/i, "studied_in_country_before"],
+  // from run history (stirling, every uk portal): fee status, where a course was taken, a course still running
+  [/\bordinarily resident\b.{0,80}\b(three|3) years\b|\b(three|3) years\b.{0,60}\bordinarily resident\b/i, "ordinarily_resident_3y"],
+  [/\b(taken|studied|completed|taught)\b.{0,30}\b(in the (uk|united kingdom|us|usa|united states|canada|ireland|australia)|in-country)\b.{0,15}\bor\b.{0,10}\b(overseas|abroad|outside)\b/i, "edu1_abroad"],
+  [/\bnot (finished|completed|graduated)( yet)?\b|\bstill (studying|enrolled)\b|\bcurrently (studying|enrolled) (here|at this)\b|\b(course|degree|programme|program) (is )?(still )?in progress\b/i, "edu1_in_progress"],
+  [/\b(other )?evidence of (english )?(language )?proficiency\b|\bprior study in english\b/i, "english_evidence"],
   [/\b(taught|instruction|delivered|conducted|studied)\b.{0,25}\b(in|through|entirely in)\s+english\b|\benglish[- ]medium\b|\bmedium of instruction\b/i, "english_medium_education"],
   [/\b(hold|have|taken|possess|completed)\b.{0,30}\benglish (language )?(qualification|test|proficiency test|exam)/i, "has_english_test"],
   [/\b(mailing|postal|correspondence)\s+address\b.{0,40}\bsame as\b|\bsame as (my |your )?(permanent|home|current|residential) address\b/i, "mailing_same"],

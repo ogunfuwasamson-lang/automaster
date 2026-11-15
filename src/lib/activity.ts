@@ -102,9 +102,16 @@ export function actorLabel(actor: string): string {
   return actor.replace(/^agent:/, "");
 }
 
+// the runner's own bookkeeping (every run starting, errors, page records): the operator's, not the applicant's
+const RUNNER_PLUMBING = /^runner\.(started|error|page|corrections|status_changed|moved_to_chrome|login_revealed|failed)$/;
+const APPLICANT_STOPS = new Set(["account", "login", "verification", "payment", "unpaid", "captcha", "blocked", "question", "missing", "documents", "closed", "review"]);
+
 export function describe(e: EventRow): string | null {
   // internal plumbing stays out of the user's feed
   if (e.action.startsWith("guard.")) return null;
+  if (RUNNER_PLUMBING.test(e.action)) return null;
+  // a stop on our side isn't the applicant's to act on: the operator is told instead
+  if (e.action === "runner.needs_you" && !APPLICANT_STOPS.has(String(e.context?.reason ?? ""))) return null;
   if (e.action.startsWith("decision.")) return `you recorded a decision: ${e.action.slice(9)}`;
   if (e.action.startsWith("application.") && !LABELS[e.action]) return STAGE[e.action.slice(12)] ?? `application moved to ${e.action.slice(12).replace(/_/g, " ")}`;
   const title = typeof e.context?.title === "string" ? ` (${e.context.title})` : "";

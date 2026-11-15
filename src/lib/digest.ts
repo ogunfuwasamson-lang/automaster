@@ -1,4 +1,5 @@
 import "server-only";
+import { yourTurn } from "@/lib/portal-progress";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { buildDigest, digestText, localHour, type Digest } from "@/lib/activity";
@@ -48,7 +49,7 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
     db.from("events").select("context").eq("user_id", userId).eq("action", "artifact.ready_for_user").gte("created_at", since).limit(10),
     db.from("applications").select("status, target_deadline, programs(name, schools(name))").eq("user_id", userId).not("target_deadline", "is", null).in("status", ["shortlisted", "preparing", "ready_for_review", "packet_approved"]).order("target_deadline").limit(20),
     db.from("messages").select("subject, to_email, send_after").eq("user_id", userId).eq("status", "scheduled").limit(10),
-    db.from("applications").select("runner_note, programs(schools(name))").eq("user_id", userId).eq("runner_status", "needs_you").limit(10),
+    db.from("applications").select("status, runner_status, runner_note, reason:runner_state->>reason, programs(schools(name))").eq("user_id", userId).eq("runner_status", "needs_you").limit(10),
   ]);
   // the morning drop: what the agents found since the last note
   const [freshApps, freshFunding] = await Promise.all([
@@ -67,7 +68,10 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
       return { school: p.schools.name, program: p.name, date: a.target_deadline as string, status: a.status as string };
     }),
     scheduledEmails: (mail.data ?? []).map((m) => ({ subject: m.subject ?? "", to: m.to_email, send_after: m.send_after })),
-    runnerNeedsYou: (runner.data ?? []).map((r) => ({ school: (r.programs as unknown as { schools: { name: string } }).schools.name, note: r.runner_note })),
+    // only stops whose next step is the applicant's: the ones on our side go to the operator
+    runnerNeedsYou: (runner.data ?? [])
+      .filter((r) => yourTurn({ status: r.status as string, runnerStatus: r.runner_status as string, reason: (r as { reason?: string | null }).reason ?? null, note: r.runner_note as string | null }))
+      .map((r) => ({ school: (r.programs as unknown as { schools: { name: string } }).schools.name, note: r.runner_note })),
     freshPrograms: ((freshApps.data ?? []) as unknown as { target_deadline: string | null; programs: { name: string; degree: string | null; schools: { name: string } } | null }[])
       .filter((a) => a.programs && a.programs.degree !== "Scholarship")
       .map((a) => ({ school: a.programs!.schools.name, program: a.programs!.name.split(" (")[0], deadline: a.target_deadline })),

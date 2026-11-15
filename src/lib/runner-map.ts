@@ -355,7 +355,8 @@ export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | nul
     return null;
   }
   // yes/no boxes are the applicant's call: only ticked when they answered yes to this question
-  if (f.type === "checkbox") return key.startsWith("answer:") && /^(yes|y|true|i agree|agree|i do|correct)\b/i.test(value) ? { id: f.id, action: "check", source: key } : null;
+  // a tick box is ticked only on an answer the applicant gave, or "course not finished yet" for a course still running
+  if (f.type === "checkbox") return (key.startsWith("answer:") || /^edu\d_in_progress$/.test(key)) && /^(yes|y|true|i agree|agree|i do|correct)\b/i.test(value) ? { id: f.id, action: "check", source: key } : null;
   // a country box that takes 2 or 3 characters wants the code ("NGA"), not the name
   if ((f.maxLength === 2 || f.maxLength === 3) && /country|citizenship|nationality/i.test(`${key} ${f.label} ${f.name ?? ""}`)) {
     const code = countryCode(value, f.maxLength);

@@ -1,4 +1,5 @@
 import "server-only";
+import { ourSide } from "@/lib/portal-progress";
 import * as z from "zod/v4";
 import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
@@ -60,7 +61,7 @@ export async function buildWeekly(userId: string, now = new Date()): Promise<Wee
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const [{ data: prof }, { data: apps }, { data: events }, { data: inbound }, { data: ups }, { data: notes }, { data: drafts }, { data: past }] = await Promise.all([
     db.from("profiles").select("profile, full_name, timezone, portal_details").eq("id", userId).single(),
-    db.from("applications").select("id, status, target_deadline, runner_status, runner_note, programs(name, app_fee_usd, schools(name))").eq("user_id", userId).not("status", "in", "(dropped,withdrawn)"),
+    db.from("applications").select("id, status, target_deadline, runner_status, runner_note, reason:runner_state->>reason, programs(name, app_fee_usd, schools(name))").eq("user_id", userId).not("status", "in", "(dropped,withdrawn)"),
     db.from("events").select("action, actor").eq("user_id", userId).gte("created_at", since).limit(2000),
     db.from("messages").select("subject, summary, purpose").eq("user_id", userId).eq("direction", "in").gte("created_at", since).limit(50),
     db.from("followups").select("title, school, kind, status, event_start, why").eq("user_id", userId).gte("created_at", since).limit(20),
@@ -102,7 +103,7 @@ export async function buildWeekly(userId: string, now = new Date()): Promise<Wee
 
   const facts = `applicant first name: ${name || "(unknown)"}; time of day: ${tod}; today ${today}
 applications (${list.length}): ${list
-    .map((a) => `${a.p.schools.name} [${a.id}] ${a.status.replace(/_/g, " ")}${a.target_deadline ? `, deadline ${a.target_deadline} (${daysTo(a.target_deadline)} days)` : ""}${a.runner_status === "needs_you" ? `, portal agents stopped: ${String(a.runner_note ?? "").slice(0, 120)}` : ""}${a.p.app_fee_usd ? `, fee $${a.p.app_fee_usd}` : ""}`)
+    .map((a) => `${a.p.schools.name} [${a.id}] ${a.status.replace(/_/g, " ")}${a.target_deadline ? `, deadline ${a.target_deadline} (${daysTo(a.target_deadline)} days)` : ""}${a.runner_status === "needs_you" || a.runner_status === "failed" ? (ourSide({ status: a.status, runnerStatus: a.runner_status, reason: (a as { reason?: string | null }).reason ?? null, note: a.runner_note }) ? ", Ivyward's team is fixing something on its portal (nothing for the applicant to do)" : `, portal agents need the applicant: ${String(a.runner_note ?? "").slice(0, 120)}`) : ""}${a.p.app_fee_usd ? `, fee $${a.p.app_fee_usd}` : ""}`)
     .join("; ") || "none"}
 this week: ${submittedWeek} submitted (${submittedAll} in total); ${count(/^program\.shortlisted$/)} programs added to the shortlist; ${drafts?.length ?? 0} essay drafts ready; ${count(/^artifact\.approved|essay\.approved/)} essays approved; ${count(/^email\.sent$/)} emails sent; ${(inbound ?? []).length} school emails received; ${count(/^runner\.account_created$/)} portal accounts created; ${count(/^followup\.done$/)} school follow-ups completed (registrations, waiver forms)
 essays waiting for the applicant's review: ${toReview}

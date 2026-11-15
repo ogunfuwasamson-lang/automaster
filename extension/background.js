@@ -8,6 +8,46 @@
   };
 
   // src/lib/portal-platforms.ts
+  var SIGNS = [
+    // [platform, url, page text]
+    ["liaison_cas", /liaisoncas\.com|\.liaisonedu\.com|cas\.liaison|cas\.myliaison\.com/i, /\b(gradcas|businesscas|liaison international)\b/i],
+    ["studielink", /studielink\.nl/i, /\bstudielink\b.*\b(enrol|inschrijving|verzoek tot inschrijving)/i],
+    ["uni_assist", /uni-assist\.de|my\.uni-assist/i, /\bmy ?assist\b/i],
+    ["sits", /sits\.urd|\/urd\/sits|siw_(ipp|lgn|portal|sso)|e-?vision/i, /\b(e:vision|tribal sits)\b/i],
+    ["slate", /\/apply\/(\?|frm|portal|status|login|account|page)|\/register\/|technolutions|\/account\/(login|register|reset)\?r=/i, /\b(powered by slate|technolutions)\b/i],
+    ["peoplesoft", /\/ps[cp]\/|\/psp\/|peoplesoft|\/EMPLOYEE\/|\/CAMPUS\/HRMS|psc\/.*\/c\//i, /\b(peoplesoft|oracle)\b.*\b(campus|self service)\b/i],
+    ["collegenet", /collegenet\.com|\/cgi-bin\/WebObjects/i, /\bcollegenet\b/i],
+    ["salesforce", /\.my\.site\.com|\.force\.com|salesforce-sites|\/s\/(application|login)/i, /\blightning\b/i],
+    ["ellucian", /bwskalog|bwskwpro|\/admissions\/apply|elluciancrmrecruit|ellucian/i, /\bellucian\b/i],
+    ["applyyourself", /applyyourself\.com|hobsons|radius\.hobsons|apply\.\w+\.edu\/ayapp/i, /\bapply ?yourself\b/i],
+    ["ucas", /ucas\.com/i],
+    ["dreamapply", /dreamapply\.com/i, /\bdreamapply\b/i],
+    ["kira", /kiratalent\.com/i]
+  ];
+  function platformOf(url, text = "") {
+    for (const [p, u, t] of SIGNS) if (u.test(url) || t && t.test(text.slice(0, 6e3))) return p;
+    return null;
+  }
+  function accountUrls(url, text = "") {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    const p = platformOf(url, text);
+    if (p === "slate") {
+      const back = u.searchParams.get("r") ?? `${u.origin}${/\/portal\//.test(u.pathname) ? u.pathname.replace(/(\/portal\/[^/]+).*/, "$1") : "/apply/"}`;
+      const r = encodeURIComponent(back);
+      return { create: `${u.origin}/account/register?r=${r}`, signIn: `${u.origin}/account/login?r=${r}&cookie=1` };
+    }
+    if (p === "salesforce") {
+      const at = u.pathname.indexOf("/s/");
+      const base = `${u.origin}${at > 0 ? u.pathname.slice(0, at) : ""}`;
+      return { create: `${base}/s/login/SelfRegister`, signIn: `${base}/s/login/` };
+    }
+    return null;
+  }
   function pageKey(url, title) {
     let u;
     try {
@@ -6317,6 +6357,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     // a bare "Term" / "Intake" / "Semester" box on an application is the term applied for
     [/^\*?\s*(term|intake|semester|session)(\s+\1)?\s*\*?\s*$/i, "entry_term"],
     [/\b(ever|previously|before|already)\b.{0,25}\bstud(y|ied|ying)\b.{0,25}\b(in|at)\b|\bprevious(ly)? stud(y|ied) in\b/i, "studied_in_country_before"],
+    // from run history (stirling, every uk portal): fee status, where a course was taken, a course still running
+    [/\bordinarily resident\b.{0,80}\b(three|3) years\b|\b(three|3) years\b.{0,60}\bordinarily resident\b/i, "ordinarily_resident_3y"],
+    [/\b(taken|studied|completed|taught)\b.{0,30}\b(in the (uk|united kingdom|us|usa|united states|canada|ireland|australia)|in-country)\b.{0,15}\bor\b.{0,10}\b(overseas|abroad|outside)\b/i, "edu1_abroad"],
+    [/\bnot (finished|completed|graduated)( yet)?\b|\bstill (studying|enrolled)\b|\bcurrently (studying|enrolled) (here|at this)\b|\b(course|degree|programme|program) (is )?(still )?in progress\b/i, "edu1_in_progress"],
+    [/\b(other )?evidence of (english )?(language )?proficiency\b|\bprior study in english\b/i, "english_evidence"],
     [/\b(taught|instruction|delivered|conducted|studied)\b.{0,25}\b(in|through|entirely in)\s+english\b|\benglish[- ]medium\b|\bmedium of instruction\b/i, "english_medium_education"],
     [/\b(hold|have|taken|possess|completed)\b.{0,30}\benglish (language )?(qualification|test|proficiency test|exam)/i, "has_english_test"],
     [/\b(mailing|postal|correspondence)\s+address\b.{0,40}\bsame as\b|\bsame as (my |your )?(permanent|home|current|residential) address\b/i, "mailing_same"],
@@ -6331,7 +6376,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     [/\b(fore\s*names?|given\s*names?|christian\s*name)\b/i, "first_name"],
     [/\b(family\s*name|last\s*names?|surname)\b/i, "last_name"],
     [/^(?!.*\b(job|position|course|programme|program|thesis|dissertation)\b).*\b(salutation|honorific|title)\s*\*?\s*$|^\s*(salutation|title)\b(?!.*\b(job|course)\b)/i, "title"],
-    [/^(?!.*\b(number|no\.|expir|date|issued|uci|client|valid)\b).*(\bimmigration\s*(status|documents?)\b|\bstudy\s*permit\b|\b(visa|immigration)\s*(status|type|category)\b|\bstatus\s*(in|au)\s*canada\b|\bstatut\s*(d.immigration|au canada)\b)/i, "immigration_status"],
+    [/^(?!.*\b(number|no\.|expir|date|issued|uci|client|valid|was|were|previous|prior|past|history|held|refus\w*|when you (studied|were|lived))\b).*(\bimmigration\s*(status|documents?)\b|\bstudy\s*permit\b|\b(visa|immigration)\s*(status|type|category)\b|\bstatus\s*(in|au)\s*canada\b|\bstatut\s*(d.immigration|au canada)\b)/i, "immigration_status"],
     [/\b(nationality|citizen(ship)?|passport\s*country|country\s*of\s*citizenship)\b/i, "citizenship"],
     [/\b(sex|gender|gender identity|legal sex|sex at birth)\b/i, "gender"],
     [/\bis english your (first|native|main)\b|english.*\b(first|native|mother|main)\b.{0,10}(language|tongue)/i, "english_first_language"],
@@ -6454,6 +6499,56 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (e?.name === "AiUnavailable" || /AI is paused until|credit balance is too low|insufficient.?credit|invalid x-api-key|authentication_error/i.test(msg)) throw e;
     return fallback;
   };
+  var STEP_OF = /\b(?:step|page|section|part|stage|étape)\s+(\d{1,2})\s*(?:of|\/|sur|de)\s*(\d{1,2})\b/i;
+  function stepOf(body) {
+    const m = body.slice(0, 4e3).match(STEP_OF);
+    if (!m) return null;
+    const at = Number(m[1]);
+    const of = Number(m[2]);
+    return of >= 2 && of <= 40 && at >= 1 && at <= of ? { at, of } : null;
+  }
+  function noteProgress(state, s2, kind) {
+    const now = Date.now();
+    if ((kind === "login" || kind === "signup") && !state.portal?.ok) state.portal = { ...state.portal ?? {}, url: s2.url, ok: true, at: now };
+    if (kind === "payment" && !state.paymentAt) state.paymentAt = now;
+    const real = s2.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && f.type !== "password" && !/\bsearch\b/i.test(f.label)).length;
+    if (kind === "form" && real >= 3 && (state.signedIn || state.accountAt || !REGISTER_PAGE.test(`${s2.url} ${s2.title}`))) {
+      const k = pageKey(s2.url, s2.title);
+      if (k && !(state.formPages ?? []).includes(k)) state.formPages = [...state.formPages ?? [], k].slice(-60);
+      if (!state.portal?.ok) state.portal = { ...state.portal ?? {}, url: s2.url, ok: true, at: now };
+    }
+    const step = stepOf(s2.body);
+    if (step) state.stepOf = step;
+  }
+  var uploaded = (state, key) => {
+    if (state && key && !(state.uploads ?? []).includes(key)) state.uploads = [...state.uploads ?? [], key].slice(-30);
+  };
+  var OFF_SITE = /(^|\.)(duo\.nl|gov\.uk|canada\.ca|studentaid\.gov|fafsa\.gov|travel\.state\.gov|uscis\.gov|homeaffairs\.gov\.au|immigration\.govt\.nz|vfsglobal\.com|ind\.nl|nuffic\.nl|studyinholland\.nl|campusfrance\.org|daad\.de|ielts\.org|ets\.org|mba\.com|toefl\.org)$/i;
+  var offSite = (url, portalUrl) => {
+    try {
+      const h = new URL(url).hostname;
+      const p = portalUrl ? new URL(portalUrl).hostname : "";
+      return OFF_SITE.test(h) && h !== p;
+    } catch {
+      return false;
+    }
+  };
+  var NOT_DONE = /\b(in ?complete|not (yet )?(started|complete[d]?|submitted)|in progress|to do|required|missing|outstanding|0 ?%|action needed|non complété|à compléter)\b/i;
+  var DONE_MARK = /(^|\s)(complete[d]?|done|finished|submitted|✓|✔)(\s|$)/i;
+  var SECTION_SKIP = /\b(pay|payment|submit|sign ?out|log ?out|delete|withdraw|help|faq|contact|recommend(er|ation)s?|referees?|print|download|preview)\b/i;
+  function nextSection(s2, opened = []) {
+    for (const b of s2.buttons) {
+      const label = clean(b.label);
+      const row = (b.row ?? "").replace(/\s+/g, " ").trim();
+      if (!label || label.length > 70 || SECTION_SKIP.test(label) || FINAL.test(label)) continue;
+      const ctx = row && row.length <= 160 ? row : label;
+      if (!NOT_DONE.test(ctx)) continue;
+      if (DONE_MARK.test(ctx.replace(NOT_DONE, " "))) continue;
+      if (opened.filter((x) => x === label).length >= 2) continue;
+      return { id: b.id, label };
+    }
+    return null;
+  }
   function goingRound(ring) {
     const last = ring.slice(-12);
     if (last.length < 9) return null;
@@ -6472,7 +6567,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     else list.push(q);
     state.questions = list.slice(-12);
   }
+  var SECURITY_QA = /^\W*(security\s+)?(question|answer)\s*#?\d\W*$|\byour answer\b.{0,40}\bquestion\s*#?\d|\bsecurity (question|answer)|\b(secret|challenge|recovery) (question|answer)/i;
   function notAQuestion(state, f) {
+    if (SECURITY_QA.test(f.label)) return true;
     if (f.type === "file") {
       state.missingDocs = [.../* @__PURE__ */ new Set([...state.missingDocs ?? [], cleanLabel(f.label, f.options).slice(0, 80) || "a required document"])];
       return true;
@@ -6496,25 +6593,30 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (now && now !== lc.page) state.route = [...(state.route ?? []).filter((x) => x.page !== lc.page), lc].slice(-80);
     state.lastClick = void 0;
   }
-  async function reviewBeforeSubmit(page, deps2, state) {
-    if (!deps2.reviewSubmit || state.reviewed) return null;
+  async function reviewBeforeSubmit(page, deps2, state, extra = []) {
+    if ((!deps2.reviewSubmit || state.reviewed) && !extra.length) return null;
     const s2 = await snap(page).catch(() => null);
     if (!s2) return null;
-    const r = await deps2.reviewSubmit({ url: s2.url, title: s2.title, body: s2.body.slice(0, 12e3) }).catch(() => null);
-    if (!r) return null;
-    state.reviewed = true;
-    if (r.ok || !r.problems.length) {
-      state.navHistory = [...state.navHistory ?? [], "read the review page against your signed packet: it matches"].slice(-12);
+    const problems = [...extra];
+    if (deps2.reviewSubmit && !state.reviewed) {
+      const r = await deps2.reviewSubmit({ url: s2.url, title: s2.title, body: s2.body.slice(0, 12e3) }).catch(() => null);
+      if (r) {
+        state.reviewed = true;
+        if (!r.ok) problems.push(...r.problems);
+      }
+    }
+    if (!problems.length) {
+      if (state.reviewed) state.navHistory = [...state.navHistory ?? [], "read the review page against your signed packet: it matches"].slice(-12);
       return null;
     }
-    const sig = r.problems.map((p) => p.slice(0, 60)).sort().join("|");
+    const sig = problems.map((p) => p.slice(0, 60)).sort().join("|");
     if (state.reviewHeld === sig) {
       state.navHistory = [...state.navHistory ?? [], "you chose to submit after the review flagged something: submitting"].slice(-12);
       return null;
     }
     state.reviewed = false;
     state.reviewHeld = sig;
-    return { kind: "needs_you", reason: "review", note: `held before submitting: ${r.problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
+    return { kind: "needs_you", reason: "review", note: `held before submitting: ${problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
   }
   var FINAL = /^(submit( (my|the|your))?( application)?|submit (and|&) pay|sign (and|&) submit|submit now|final submit)$/i;
   var NEXT = /^(save (and|&) (continue|next)|next( page| section| step)?|continue( to .{0,30})?|proceed|save (and|&) proceed|go to next|save and go to next|suivant|continuer)\b/i;
@@ -6843,6 +6945,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       const option = (list.options ?? []).find((o) => re.test(o));
       if (!key || !option) continue;
       state.typedUploads = [...done, `${host}|${key}`].slice(-40);
+      uploaded(state, key);
       await deps2.progress(`uploading your ${option.toLowerCase()}`);
       await frameOf(page).evaluate((x) => window.__am.apply(x), { id: list.id, action: "choose", option, source: key }).catch(() => false);
       await sleep(800);
@@ -7075,13 +7178,18 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (!near.length || near.some((t) => t.season === want.season && t.year === want.year)) return null;
     return near[0];
   }
-  async function termHold(deps2, state, body) {
+  async function termCheck(page, deps2, state, body) {
     const f = await deps2.fillFromKey?.({ id: "term", label: "Entry term", type: "text" }, "entry_term");
     const want = f && f.action === "fill" ? parseTerm(f.value) : null;
     const wrong = otherTerm(body, want);
-    if (!wrong || !want || await deps2.keepThisApp?.()) return null;
-    state.newAppBlocked = state.newAppBlocked ?? "term";
-    return { kind: "needs_you", reason: "stuck", note: `held before submitting: this application on the portal is for ${termLabel(wrong)}, another term than the programme's ${termLabel(want)} intake` };
+    if (!wrong || !want || await deps2.keepThisApp?.()) return {};
+    if (!state.newAppAllowedUsed && deps2.portalUrl && await deps2.allowNewApp?.()) {
+      state.navHistory = [...state.navHistory ?? [], `the application here is for ${termLabel(wrong)}: back to the portal to start the ${termLabel(want)} one you asked for`].slice(-12);
+      await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => {
+      });
+      return { restarted: true };
+    }
+    return { problem: `this application on the portal is for ${termLabel(wrong)}, another term than the programme's ${termLabel(want)} intake (start a new one on the portal for ${termLabel(want)})` };
   }
   async function runEngine(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
@@ -7111,6 +7219,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       await sleep(800);
       let s2 = await snap(page);
       arrived(state, s2);
+      noteProgress(state, s2, classify(s2));
       if (isBlockPage(s2)) {
         await sleep(8e3);
         s2 = await snap(page);
@@ -7293,6 +7402,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         state.restarts = (state.restarts ?? 0) + 1;
         state.navHistory = [...state.navHistory ?? [], `the portal ended the session ("${(s2.body.match(DEAD_END)?.[0] ?? "").slice(0, 60)}"): started again from the portal`].slice(-20);
         await page.goto(deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
+        state.samePageCount = 0;
+        continue;
+      }
+      if (!deps2.goal && deps2.portalUrl && offSite(s2.url, deps2.portalUrl) && (state.offSite ?? 0) < 3) {
+        state.offSite = (state.offSite ?? 0) + 1;
+        state.navHistory = [...state.navHistory ?? [], `left ${new URL(s2.url).hostname} (not part of the application) for the portal`].slice(-20);
+        await page.goto(state.portal?.ok && state.portal.url ? state.portal.url : deps2.portalUrl, { timeout: 45e3 }).catch(() => null);
         state.samePageCount = 0;
         continue;
       }
@@ -7563,11 +7679,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       const submit = find(now, FINAL) ?? (deps2.finalButton ? find(now, deps2.finalButton) : void 0);
       if (submit) {
         state.reachedSubmit = true;
-        const hold = await termHold(deps2, state, `${now.title} ${now.body}`);
-        if (hold) return { outcome: hold, state, filled };
+        const term = await termCheck(page, deps2, state, `${now.title} ${now.body}`);
+        if (term.restarted) continue;
         const d = await deps2.canSubmit();
         if (!d.allowed) return { outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` }, state, filled };
-        const held = await reviewBeforeSubmit(page, deps2, state);
+        const held = await reviewBeforeSubmit(page, deps2, state, term.problem ? [term.problem] : []);
         if (held) return { outcome: held, state, filled };
         await deps2.progress("submitting your signed packet");
         state.submitClicked = true;
@@ -7610,6 +7726,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         await click(page, next.id);
         continue;
       }
+      const section = !s2.fields.length ? nextSection(now, state.sectionsOpened) : null;
+      if (section) {
+        state.sectionsOpened = [...state.sectionsOpened ?? [], section.label].slice(-40);
+        state.navHistory = [...state.navHistory ?? [], `opened "${section.label}", a section the portal shows as not done`].slice(-12);
+        clicked(state, now, section.label);
+        await click(page, section.id);
+        continue;
+      }
       const known = deps2.knownStep?.(pageKey(now.url, now.title));
       const knownBtn = known ? now.buttons.find((b) => clean(b.label).toLowerCase() === known.toLowerCase() && !DANGEROUS.test(b.label) && !FINAL.test(clean(b.label))) : void 0;
       const knownMark = `route|${pageKey(now.url, now.title)}`;
@@ -7621,6 +7745,19 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         continue;
       }
       if (kind === "confirmation") return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says the application is complete, but the runner didn't submit it. check it" }, state, filled };
+      if (!state.signedIn && !state.formPages?.length && !insideForm(now) && now.allFields.filter((f) => f.type !== "search" && f.type !== "hidden").length < 3) {
+        const ways = accountUrls(now.url, now.body);
+        const login = !!await deps2.existingLogin();
+        const to = login || state.accountExists ? ways?.signIn : ways?.create;
+        const mark = `acct|${to ?? ""}`;
+        if (to && to !== now.url && !(state.pressedAsked ?? []).includes(mark)) {
+          state.pressedAsked = [...state.pressedAsked ?? [], mark].slice(-30);
+          state.navHistory = [...state.navHistory ?? [], login ? "went to the portal's sign-in page" : "went to the portal's create-account page"].slice(-12);
+          await page.goto(to, { timeout: 45e3 }).catch(() => null);
+          state.samePageCount = 0;
+          continue;
+        }
+      }
       const o = await stuckStep(page, deps2, now, state, "none of the usual buttons (next, continue, apply, start, sign in, create account) are on this page. if this is a school or program page, find the link that leads to the online application (it may be called apply online, how to apply, start application, or sit in a menu)", { kind: "needs_you", reason: "stuck", note: "can't find the next step on this page; open the portal and move to the next section" });
       if (o) return { outcome: o, state, filled };
     }
@@ -7708,6 +7845,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (fill.action === "upload") {
         const file = await deps2.file(fill.file);
         await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
+        uploaded(state, fill.file);
       } else await frameOf(page).evaluate((x) => window.__am.apply(x), fill);
       return null;
     }
@@ -7724,11 +7862,11 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     }
     if (FINAL.test(label) || /^submit\b/i.test(label)) {
       state.reachedSubmit = true;
-      const hold = await termHold(deps2, state, `${s2.title} ${s2.body}`);
-      if (hold) return hold;
+      const term = await termCheck(page, deps2, state, `${s2.title} ${s2.body}`);
+      if (term.restarted) return null;
       const d = await deps2.canSubmit();
       if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
-      const held = await reviewBeforeSubmit(page, deps2, state);
+      const held = await reviewBeforeSubmit(page, deps2, state, term.problem ? [term.problem] : []);
       if (held) return held;
       state.submitClicked = true;
     }
@@ -7905,6 +8043,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           const pdf = !!state?.pdfOnly || /pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept);
           const file = await deps2.file(f.file, { pdf });
           await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
+          uploaded(state, f.file);
           n2++;
           await sleep(1500);
           await settle2(page);

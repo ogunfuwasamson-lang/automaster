@@ -1,4 +1,6 @@
 import { planFor } from "@/lib/app-plan";
+import { ourSide, portalSentence, portalStages, type RunView } from "@/lib/portal-progress";
+import { accountUrls } from "@/lib/portal-platforms";
 import { CvButton } from "./cv-button";
 import { WhatsLeft } from "./whats-left";
 import { DocChecklist } from "./doc-checklist";
@@ -93,6 +95,7 @@ export default async function ApplicationPage({
     { count: logins },
     { data: asked },
     { data: cords },
+    { data: me0 },
   ] = await Promise.all([
     auth.sb
       .from("applications")
@@ -128,6 +131,8 @@ export default async function ApplicationPage({
       .order("created_at"),
     // "pause everything" from the dashboard: said on every application, not only in the header
     auth.sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
+    // operators also see the agents' own notes, the run history and a retry
+    auth.sb.from("profiles").select("is_admin").eq("id", auth.user.id).maybeSingle(),
   ]);
   if (!app) notFound();
   const pausedAll = !!cords?.length;
@@ -272,6 +277,18 @@ export default async function ApplicationPage({
   });
 
   const step = JOURNEY_STEP[app.status] ?? 0;
+  const isAdmin = !!(me0 as { is_admin?: boolean } | null)?.is_admin;
+  // where the agents stand on the portal: one line of milestones and one sentence (lib/portal-progress)
+  const rs = ((app as { runner_state?: RunView & { reason?: string | null; paused?: boolean; last_url?: string; debug?: { errors?: string[]; complaints?: string[] } } }).runner_state ?? {}) as RunView & { reason?: string | null; paused?: boolean; last_url?: string; debug?: { errors?: string[]; complaints?: string[] } };
+  const runPaused = app.runner_status === "idle" && !!rs.paused;
+  const school = p.degree === "Scholarship" ? p.name : p.schools.name;
+  const portalView = { status: app.status, runnerStatus: app.runner_status, reason: rs.reason ?? null, note: app.runner_note, paused: runPaused, pausedAll, school, fee: p.app_fee_usd, st: rs };
+  const portalLine = portalSentence(portalView);
+  const ours = ourSide(portalView);
+  const signupUrl = (() => {
+    const from = rs.last_url ?? app.portal_url ?? p.url;
+    return (from && accountUrls(from)?.create) || app.portal_url || from || null;
+  })();
   const days = daysUntil(app.target_deadline);
   const strategizing = busy.some((j) => j.agent === "strategist");
 
@@ -312,18 +329,7 @@ export default async function ApplicationPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill
-              status={app.status}
-              runner={
-                app.runner_status === "idle" &&
-                (
-                  (app as { runner_state?: { paused?: boolean } })
-                    .runner_state ?? {}
-                ).paused
-                  ? "paused"
-                  : app.runner_status
-              }
-            />
+            <StatusPill status={app.status} runner={runPaused ? "paused" : ours ? "ours" : rs.resting && app.runner_status === "ready" ? "resting" : app.runner_status} />
             {["shortlisted", "preparing", "ready_for_review"].includes(
               app.status,
             ) && (
@@ -460,8 +466,8 @@ export default async function ApplicationPage({
           ).length,
           essaysWorking: essayData.some((e) => e.working) || busy.length > 0,
           attested: !!app.attested_at,
-          runnerStatus: app.runner_status,
-          runnerNote: app.runner_note,
+          runnerStatus: ours ? "running" : app.runner_status,
+          runnerNote: portalLine,
           openQuestions: asked?.length ?? 0,
           fee: p.app_fee_usd,
           waiver: app.fee_waiver_status,
@@ -494,6 +500,7 @@ export default async function ApplicationPage({
       />
 
       {pay && pay.kind !== "request" && (
+        <div id="pay" className="scroll-mt-24">
         <PayToSubmit
           applicationId={id}
           kind={pay.kind}
@@ -502,6 +509,7 @@ export default async function ApplicationPage({
           highlight={!!sp.pay}
           note={pay.note.replace(/^ready to submit: /, "")}
         />
+        </div>
       )}
 
       {pausedAll && app.status === "packet_approved" && (
@@ -541,7 +549,13 @@ export default async function ApplicationPage({
                 {}
               ).paused
             }
-            school={p.schools.name}
+            school={school}
+            stages={portalStages(portalView)}
+            sentence={portalLine}
+            ours={ours}
+            resting={!!rs.resting && app.runner_status === "ready"}
+            isAdmin={isAdmin}
+            signupUrl={signupUrl}
             questions={(asked ?? []).map((q) => q.question as string)}
             mailConnected={mailOk}
             pageSaid={(() => {
@@ -566,7 +580,7 @@ export default async function ApplicationPage({
         </div>
       )}
 
-      {["packet_approved", "submitted"].includes(app.status) && (
+      {isAdmin && ["packet_approved", "submitted"].includes(app.status) && (
         <RunHistory
           userId={auth.user.id}
           applicationId={id}
@@ -591,6 +605,7 @@ export default async function ApplicationPage({
       )}
 
       {(asked ?? []).length > 0 && (
+        <div id="questions" className="scroll-mt-24">
         <QuestionsCard
           title={`${p.schools.name} is asking`}
           questions={(asked ?? []).map((q) =>
@@ -604,6 +619,7 @@ export default async function ApplicationPage({
             }),
           )}
         />
+        </div>
       )}
 
       {briefText && (
