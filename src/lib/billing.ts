@@ -331,7 +331,14 @@ async function resumeAfterPayment(userId: string, applicationId: string) {
   await resolve(userId, `pay:${applicationId}`);
   if (!app || app.status !== "packet_approved") return;
   if (!["needs_you", "failed", "idle"].includes(app.runner_status as string) && app.runner_status) return;
-  await db.from("applications").update({ runner_status: "ready", runner_note: "paid: submitting now", runner_state: { ...((app.runner_state as object) ?? {}), samePageCount: 0, rechecks: 0, reason: null }, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
+  // a fresh go after paying: the stop counters from before (two "stuck" stops on one page end a run before it starts)
+  // are cleared. everything paused from the dashboard: it says it waits for that, not "submitting now"
+  const { data: cords } = await db.from("ripcords").select("scope_kind").eq("user_id", userId).eq("active", true);
+  const held = (cords ?? []).some((c) => c.scope_kind === "all" || c.scope_kind === "agent");
+  await db
+    .from("applications")
+    .update({ runner_status: "ready", runner_note: held ? "paid: it submits when you resume the agents on your dashboard" : "paid: submitting now", runner_state: { ...((app.runner_state as object) ?? {}), samePageCount: 0, rechecks: 0, reason: null, stuckRepeats: 0, stopFingerprint: null, hangs: 0 }, runner_updated_at: new Date().toISOString() })
+    .eq("id", applicationId);
   if (app.runner_mode !== "extension") await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId } });
 }
 

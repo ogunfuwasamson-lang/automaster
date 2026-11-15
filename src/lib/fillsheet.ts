@@ -5,6 +5,7 @@ import type { Profile } from "@/lib/profile";
 import { levelOf, LEVEL_LABEL } from "@/lib/profile";
 
 import { PORTAL_DETAIL_FIELDS, type PortalDetails, type RecommenderRow } from "@/lib/portal-fields";
+import { applicationTerm, isTermAnswer, termLabel } from "@/lib/intake";
 export { PORTAL_DETAIL_FIELDS, type PortalDetails, type RecommenderRow } from "@/lib/portal-fields";
 
 export interface SheetEssay {
@@ -45,6 +46,17 @@ function splitName(full: string | null | undefined) {
   return { first: parts[0], middle: parts.slice(1, -1).join(" "), last: parts[parts.length - 1] };
 }
 
+// the study permit or visa a student holds in each country, as portals list it
+function studentStatus(country: string): string {
+  const c = norm(country);
+  if (c.startsWith("canada")) return "Study Permit";
+  if (c.startsWith("unitedstates") || c === "usa" || c === "us") return "F-1 student visa";
+  if (c.startsWith("unitedkingdom") || c === "uk") return "Student visa";
+  if (c.startsWith("australia")) return "Student visa (subclass 500)";
+  if (c.startsWith("ireland")) return "Student visa (Stamp 2)";
+  return "Student visa";
+}
+
 const year = (d: string | null) => (d ? d.slice(0, 4) : "");
 const month = (d: string | null) => (d && /^\d{4}-\d{2}/.test(d) ? d.slice(5, 7) : "");
 
@@ -62,6 +74,10 @@ export function buildSheet(a: {
   recommenders: RecommenderRow[];
   essays: SheetEssay[];
   documents: { id: string; kind: string; filename: string }[];
+  // the programme's deadline rounds: the term they admit for decides the term applied for (lib/intake)
+  deadlines?: { round?: string | null; date?: string | null; notes?: string | null; intake?: string | null }[] | null;
+  // answers to this application's own portal questions that hold only for it (its term or intake)
+  appAnswers?: { question: string; answer: string }[];
 }): FillSheet {
   const p = a.profile;
   const d = a.details;
@@ -145,13 +161,12 @@ export function buildSheet(a: {
   set("program", a.program);
   set("degree", a.degree);
   set("level", LEVEL_LABEL[levelOf(p)]);
-  set("entry_term", p.goals.target_term);
-  if (p.goals.target_term) {
-    const m = p.goals.target_term.match(/(fall|spring|summer|winter|autumn)[\s-]*(\d{4})/i);
-    if (m) {
-      set("entry_season", m[1][0].toUpperCase() + m[1].slice(1).toLowerCase());
-      set("entry_year", m[2]);
-    }
+  // the term applied for: the applicant's, unless the programme only starts in another one (mcgill's summer MMA)
+  const intake = applicationTerm(a.deadlines, p.goals.target_term);
+  set("entry_term", intake.term ? termLabel(intake.term) : p.goals.target_term);
+  if (intake.term) {
+    set("entry_season", intake.term.season);
+    set("entry_year", intake.term.year);
   }
   set("field_of_interest", p.goals.fields?.join(", "));
   // answers most portals ask up front. applying through an agent is never the case here: the applicant applies.
@@ -170,11 +185,32 @@ export function buildSheet(a: {
   if (p.identity.citizenship && a.schoolCountry) {
     const same = norm(p.identity.citizenship).startsWith(norm(a.schoolCountry).slice(0, 5)) || norm(a.schoolCountry).startsWith(norm(p.identity.citizenship).slice(0, 5));
     set("visa_required", same ? "No" : "Yes");
+    // "what immigration document will you study on?": the student permit of the country, for someone who is neither
+    // its citizen nor living there (someone already there may hold another status: they're asked)
+    const lives = p.identity.country_of_residence ?? "";
+    const there = lives && (norm(lives).startsWith(norm(a.schoolCountry).slice(0, 5)) || norm(a.schoolCountry).startsWith(norm(lives).slice(0, 5)));
+    if (!same && !there) set("immigration_status", studentStatus(a.schoolCountry));
   }
-  if (p.goals.target_term) {
-    const m = p.goals.target_term.match(/(fall|autumn|spring|summer|winter)[\s-]*(\d{4})/i);
-    if (m) set("entry_start", `${({ fall: "September", autumn: "September", spring: "January", winter: "January", summer: "May" } as Record<string, string>)[m[1].toLowerCase()]} ${m[2]}`);
+  if (intake.term) set("entry_start", `${({ Fall: "September", Spring: "January", Winter: "January", Summer: "May" } as Record<string, string>)[intake.term.season]} ${intake.term.year}`);
+  // parents (quebec's permanent code needs both names, at every level): first and last from the full names given
+  for (const n of [1, 2] as const) {
+    const full = String(d[`parent${n}_name` as keyof PortalDetails] ?? "").trim();
+    if (!full) continue;
+    const pn = splitName(full);
+    set(`parent${n}_first_name`, pn.first);
+    set(`parent${n}_last_name`, pn.last);
+    set(`parent${n}_full_name`, full);
+    // "mother's first name" / "father's": from whichever parent the applicant said is which
+    const rel = String(d[`parent${n}_relationship` as keyof PortalDetails] ?? "");
+    const who = rel === "Mother" ? "mother" : rel === "Father" ? "father" : null;
+    if (who) {
+      set(`${who}_first_name`, pn.first);
+      set(`${who}_last_name`, pn.last);
+      set(`${who}_full_name`, full);
+    }
   }
+  if (d.parent2_relationship === "None") set("no_second_parent", "Yes");
+  else if (d.parent2_name || (d.parent2_relationship && d.parent2_relationship !== "None")) set("no_second_parent", "No");
   set("research_interests", p.goals.research_interests?.join(", "));
   set("short_term_goal", p.goals.short_term_goal);
   set("long_term_goal", p.goals.long_term_goal);
@@ -256,9 +292,11 @@ export function buildSheet(a: {
   if (!files.some((x) => x.key === "transcript")) missing.push("transcript (upload it on documents)");
   if (!a.recommenders.length) missing.push("recommenders' names and emails");
 
-  // everything the applicant confirmed in conversation, including answers to portal questions
-  const answers = p.confirmed_facts.map((x, i) => ({ key: `answer:${i}`, question: x.topic }));
-  p.confirmed_facts.forEach((x, i) => set(`answer:${i}`, x.value));
+  // everything the applicant confirmed in conversation, including answers to portal questions. a term or intake
+  // answer given at one school never carries to another; this application's own ones do
+  const facts = [...p.confirmed_facts.filter((x) => !isTermAnswer(x.topic, x.value)), ...(a.appAnswers ?? []).map((x) => ({ topic: x.question, value: x.answer }))];
+  const answers = facts.map((x, i) => ({ key: `answer:${i}`, question: x.topic }));
+  facts.forEach((x, i) => set(`answer:${i}`, x.value));
 
   return { application_id: a.applicationId, school: a.school, program: a.program, portal_url: a.portalUrl, attested: a.attested, fields: f, essays: a.essays, files, missing, answers };
 }
@@ -293,6 +331,7 @@ export const LABEL_RULES: [RegExp, string][] = [
   [/\b(fore\s*names?|given\s*names?|christian\s*name)\b/i, "first_name"],
   [/\b(family\s*name|last\s*names?|surname)\b/i, "last_name"],
   [/^(?!.*\b(job|position|course|programme|program|thesis|dissertation)\b).*\b(salutation|honorific|title)\s*\*?\s*$|^\s*(salutation|title)\b(?!.*\b(job|course)\b)/i, "title"],
+  [/^(?!.*\b(number|no\.|expir|date|issued|uci|client|valid|was|were|previous|prior|past|history|held|refus\w*|when you (studied|were|lived))\b).*(\bimmigration\s*(status|documents?)\b|\bstudy\s*permit\b|\b(visa|immigration)\s*(status|type|category)\b|\bstatus\s*(in|au)\s*canada\b|\bstatut\s*(d.immigration|au canada)\b)/i, "immigration_status"],
   [/\b(nationality|citizen(ship)?|passport\s*country|country\s*of\s*citizenship)\b/i, "citizenship"],
   [/\b(sex|gender|gender identity|legal sex|sex at birth)\b/i, "gender"],
   [/\bis english your (first|native|main)\b|english.*\b(first|native|mother|main)\b.{0,10}(language|tongue)/i, "english_first_language"],
@@ -371,9 +410,32 @@ export const LABEL_RULES: [RegExp, string][] = [
 // recommender blocks: "recommender 2 email", "reference #1 name"
 const REC = /\b(recommender|referee|reference|recommendation)\s*#?\s*(\d)\b/i;
 
+// a box about someone other than the applicant (a parent, a guardian, an emergency contact, a spouse): the page reader
+// puts the section's heading in front of its label ("Biological or adoptive parents: First name"). it gets that
+// person's key, or none: never the applicant's own name, email or phone
+export const OTHER_PERSON = /\b(parents?|guardians?|mother|father|step-?(mother|father)|emergency|next of kin|spouse|partner|sponsor|sibling|brother|sister|family members?|contact person|m[eè]re|p[eè]re|tuteur|tutrice|conjoint)\b/i;
+export const ABOUT_SELF = /\b(your (own )?(first|last|given|family|full)? ?name|applicant'?s?)\b/i;
+
+export function otherPersonKey(label: string): string | null {
+  const l = label.replace(/\s+/g, " ").trim();
+  const part = /\b(first|given|pr[eé]nom)\b/i.test(l) ? "first_name" : /\b(last|family|sur)\s*name\b|\bsurname\b|\bnom de famille\b/i.test(l) ? "last_name" : /\bname\b|\bnom\b/i.test(l) ? "full_name" : /e-?mail|courriel/i.test(l) ? "email" : /phone|t[eé]l[eé]phone|mobile/i.test(l) ? "phone" : /occupation|profession|job/i.test(l) ? "occupation" : /education|schooling|studies|scolarit/i.test(l) ? "education" : /relationship|lien|relation/i.test(l) ? "relationship" : null;
+  if (!part) return null;
+  if (/\b(emergency|next of kin)\b/i.test(l)) return { first_name: null, last_name: null, full_name: "emergency_contact_name", email: "emergency_contact_email", phone: "emergency_contact_phone", relationship: "emergency_contact_relationship", occupation: null, education: null }[part];
+  if (/\b(mother|m[eè]re)\b/i.test(l) && !/\b(father|p[eè]re)\b/i.test(l)) return /name/.test(part) ? `mother_${part}` : null;
+  if (/\b(father|p[eè]re)\b/i.test(l) && !/\b(mother|m[eè]re)\b/i.test(l)) return /name/.test(part) ? `father_${part}` : null;
+  if (/\b(parents?|guardians?|tuteur|tutrice)\b/i.test(l)) {
+    const n = /\b(2|two|second|deuxi[eè]me)\b|#\s*2\b|\(2\)\s*$/i.test(l) ? 2 : 1;
+    if (part === "phone") return null;
+    return part === "full_name" ? `parent${n}_full_name` : `parent${n}_${part}`;
+  }
+  return null; // a spouse, a sponsor, a sibling: nothing on file for them
+}
+
 export function keyForLabel(label: string): string | null {
   const l = label.replace(/\s+/g, " ").trim();
   if (!l) return null;
+  if (/\b(do not|don.?t) have a second (parent|guardian)\b|\bno second (parent|guardian)\b|\bonly one (parent|guardian)\b/i.test(l)) return "no_second_parent";
+  if (OTHER_PERSON.test(l) && !ABOUT_SELF.test(l) && /\b(name|nom|pr[eé]nom|e-?mail|courriel|phone|t[eé]l[eé]phone|mobile|occupation|profession|education|relationship|lien)\b/i.test(l)) return otherPersonKey(l);
   const rec = l.match(REC);
   if (rec) {
     const n = rec[2];

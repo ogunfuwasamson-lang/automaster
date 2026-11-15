@@ -3,12 +3,14 @@
 // strategy: admissions first. a program is held back only for things that block ADMISSION
 // (required tests they won't take, english proof they can't meet, closed deadlines).
 import { TESTS_FOR, levelOf, type Profile } from "@/lib/profile";
+import { applicationTerm, parseTerm, type Term } from "@/lib/intake";
 
 export interface DeadlineRow {
   round: string;
   date: string; // YYYY-MM-DD or ""
   funding_priority: "yes" | "no" | "unknown";
   notes: string;
+  intake?: string; // the term the round admits for, when research gave it
 }
 
 export interface ProgramFactsLite {
@@ -25,8 +27,29 @@ export function upcomingDeadlines(deadlines: DeadlineRow[], today: string): Dead
 }
 
 // the deadline that matters: earliest upcoming funding-priority round, else earliest upcoming round
-export function targetDeadline(deadlines: DeadlineRow[], today: string): DeadlineRow | null {
-  const up = upcomingDeadlines(deadlines, today);
+// for an applicant from abroad: rounds that say they aren't for them are skipped, and a "general" round gives way to
+// the international (F-1) round of the same intake. missouri state's MBA has "Spring 2027 (general)" on 15 january
+// and "Fall 2027 (F-1 applicants)" on 1 may: an F-1 applicant for fall 2027 needs the second.
+const INTL_ROUND = /\b(f-?1|international|overseas|non-?(us|u\.s\.|uk|eu|canadian|resident|domestic))\b/i;
+const GENERAL_ROUND = /\b(general|domestic|u\.?s\.? (citizens|applicants)|canadian (citizens|applicants)|home (students|applicants))\b/i;
+const NOT_FOR_INTL = /\bnot (applicable|available|open) (to|for) (international|f-?1|overseas)|\b(canadian citizens and (prs?|permanent residents)|domestic (applicants|students)) only\b/i;
+const intakeOf = (d: DeadlineRow): Term | null => parseTerm(d.intake ?? null) ?? parseTerm(d.round);
+const sameTerm = (a: Term | null, b: Term | null) => !!a && !!b && a.season === b.season && a.year === b.year;
+
+export function targetDeadline(deadlines: DeadlineRow[], today: string, who: { term?: string | null; international?: boolean } = {}): DeadlineRow | null {
+  // a round that says it isn't for applicants from abroad never applies to one, even when nothing else is left
+  const all = upcomingDeadlines(deadlines, today).filter((d) => !who.international || !NOT_FOR_INTL.test(`${d.round} ${d.notes}`));
+  let up = all;
+  if (who.international) {
+    up = up.filter((d) => !(GENERAL_ROUND.test(d.round) && deadlines.some((x) => INTL_ROUND.test(x.round) && sameTerm(intakeOf(x), intakeOf(d)))));
+  }
+  // the rounds for the term being applied for (the applicant's, or the programme's only intake)
+  if (who.term !== undefined) {
+    const t = applicationTerm(deadlines, who.term).term;
+    const forTerm = t ? up.filter((d) => sameTerm(intakeOf(d), t)) : [];
+    if (forTerm.length) up = forTerm;
+  }
+  if (!up.length) up = all;
   return up.find((d) => d.funding_priority === "yes") ?? up[0] ?? null;
 }
 

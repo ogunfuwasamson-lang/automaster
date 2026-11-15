@@ -1,7 +1,7 @@
 import { countryCode } from "@/lib/country-codes";
 // turns a portal page's fields into values from the fill sheet. pure; the model only ever picks a sheet KEY,
 // never writes a value, so it can't invent facts about the applicant.
-import { CERTIFY, NEVER_FILL, keyForLabel, type FillSheet } from "@/lib/fillsheet";
+import { ABOUT_SELF, CERTIFY, NEVER_FILL, OTHER_PERSON, keyForLabel, type FillSheet } from "@/lib/fillsheet";
 import { cleanLabel as cleanLabelLocal } from "@/lib/labels";
 
 export interface PageField {
@@ -292,7 +292,13 @@ const RELATED: Record<string, string[]> = {
   english_first_language: ["first_language"],
 };
 
+// the applicant's own identity: never typed into a box about someone else
+const SELF_KEY = /^(first_name|last_name|middle_name|full_name|preferred_name|other_names|legal_\w+|email|phone\w*|date_of_birth|dob_\w+|title|gender|city_of_birth|country_of_birth|username\w*)$/;
+
 export function resolve(f: PageField, key: string, sheet: FillSheet): Fill | null {
+  // a parent's, guardian's or emergency contact's name, email or phone (whatever picked the key: a rule, the model,
+  // or what earlier applicants' runs learned) is that person's, or the applicant is asked
+  if (SELF_KEY.test(key) && OTHER_PERSON.test(f.label) && !ABOUT_SELF.test(f.label)) return null;
   if (key === "date_of_birth" && f.type === "select") {
     const part = datePart(f.options ?? []);
     if (part) key = `dob_${part}`;

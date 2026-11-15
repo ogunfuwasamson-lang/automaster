@@ -67,7 +67,7 @@ export const Candidates = z.object({
 const PROGRAM_SYSTEM = `you are the recon agent researching ONE program (bachelor's, master's or PhD; any country, any field) for one applicant.
 use the program's official pages first (admissions, requirements, tuition, deadlines, scholarships/assistantships, international students). fetch them. cite what you use.
 money: give amounts in USD (convert approximately) and mention the original currency in the notes.
-report facts exactly as the school states them, with dates in YYYY-MM-DD. when a fact isn't stated anywhere you found, say "not found", never guess.
+report facts exactly as the school states them, with dates in YYYY-MM-DD. for each deadline round, give the term it admits for (intake): some programmes start only in one term (a summer or january start), and the application must be for that term, whatever the applicant would prefer. note any instruction about which term or application cycle to choose in the portal in portal_notes. when a fact isn't stated anywhere you found, say "not found", never guess.
 then judge fit for this applicant honestly: tier (reach/target/safety) and a 0-10 fit score are about ADMISSION odds, not funding. red flags are things that block admission.
 also report funding levers that open up after admission: whether admits get considered for merit aid automatically, whether assistantships are posted after admission, whether aid can be appealed or reconsidered, and who to contact.`;
 
@@ -94,7 +94,8 @@ export const ProgramFacts = z.object({
   tuition_usd_total: z.string(),
   duration_months: z.string(),
   deadlines: z.array(
-    z.object({ round: z.string(), date: z.string(), funding_priority: z.enum(["yes", "no", "unknown"]), notes: z.string() }),
+    // intake: the term the round admits for, as the school says it ("Summer 2027", "Fall 2027"); "" when not stated
+    z.object({ round: z.string(), date: z.string(), intake: z.string(), funding_priority: z.enum(["yes", "no", "unknown"]), notes: z.string() }),
   ),
   funding: z.array(
     z.object({
@@ -231,9 +232,9 @@ async function upsertProgram(f: ProgramFacts, sources: string[]) {
   return { schoolId: school.id as string, programId: program.id as string };
 }
 
-async function placeApplication(userId: string, programId: string, f: ProgramFacts, verdict: AppStatus, reasons: string[]) {
+async function placeApplication(userId: string, programId: string, f: ProgramFacts, verdict: AppStatus, reasons: string[], who: { term?: string | null; international?: boolean } = {}) {
   const db = admin();
-  const deadline = targetDeadline(f.deadlines, today());
+  const deadline = targetDeadline(f.deadlines, today(), who);
   const fields = {
     tier: f.tier,
     fit_score: Math.max(0, Math.min(10, parseFloat(f.fit_score) || 0)),
@@ -467,7 +468,11 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
     const { schoolId, programId } = cached ? { schoolId: cached.schoolId, programId: cached.programId } : await upsertProgram(facts, found.sources);
     if (inst) await linkSchool(schoolId, inst).catch(() => {});
     const { verdict, reasons } = screen(profile, facts, today());
-    const appId = await placeApplication(job.user_id, programId, facts, verdict, reasons);
+    // the deadline that applies to this applicant: their intake, and the international round when they're from abroad
+    const home = (profile.identity.citizenship ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    const there = (facts.country ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    const international = !!home && !!there && !home.startsWith(there.slice(0, 5)) && !there.startsWith(home.slice(0, 5));
+    const appId = await placeApplication(job.user_id, programId, facts, verdict, reasons, { term: row?.target_term ?? profile.goals.target_term ?? null, international });
 
     await logEvent({
       userId: job.user_id,

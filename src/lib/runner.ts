@@ -1,4 +1,5 @@
 import "server-only";
+import { isTermAnswer } from "@/lib/intake";
 import { instructionBlock } from "@/lib/instructions";
 import { isOutage } from "@/lib/ai-health";
 import { labelKey } from "@/lib/school-memory";
@@ -31,7 +32,7 @@ const NON_ESSAY = new Set(["strategy", "fee_plan", "funding_plan", "video_or_int
 export async function loadApp(userId: string, applicationId: string) {
   const { data } = await admin()
     .from("applications")
-    .select("id, status, packet_approved_at, attested_at, portal_url, runner_status, program_id, programs(name, degree, url, app_fee_usd, school_id, schools(name, country)), artifacts(id, kind, title, prompt, current_version, artifact_versions(version, content, user_approved_at))")
+    .select("id, status, packet_approved_at, attested_at, portal_url, runner_status, program_id, programs(name, degree, url, app_fee_usd, school_id, deadlines, schools(name, country)), artifacts(id, kind, title, prompt, current_version, artifact_versions(version, content, user_approved_at))")
     .eq("id", applicationId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -42,7 +43,7 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
   const db = admin();
   const app = await loadApp(userId, applicationId);
   if (!app || !app.packet_approved_at) return null;
-  const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; schools: { name: string; country: string | null } };
+  const p = app.programs as unknown as { name: string; degree: string | null; url: string | null; deadlines: { round?: string; date?: string; notes?: string; intake?: string }[] | null; schools: { name: string; country: string | null } };
   type Art = { id: string; kind: string; title: string; prompt: string | null; current_version: number; artifact_versions: { version: number; content: string; user_approved_at: string | null }[] };
   // only the exact versions the applicant approved
   const essays: SheetEssay[] = ((app.artifacts ?? []) as unknown as Art[])
@@ -51,13 +52,14 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
       const v = a.artifact_versions.find((x) => x.version === a.current_version && x.user_approved_at);
       return v ? [{ artifact_id: a.id, title: a.title, prompt: a.prompt, kind: a.kind, text: v.content }] : [];
     });
-  const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }, { data: mail }] = await Promise.all([
+  const [profile, { data: prof }, { data: recs }, { data: docs }, { data: user }, { data: mail }, { data: termAnswers }] = await Promise.all([
     getProfile(userId),
     db.from("profiles").select("email, portal_details, target_term").eq("id", userId).single(),
     db.from("recommenders").select("name, email, title, organization, relationship, phone").eq("user_id", userId).order("created_at"),
     db.from("documents").select("id, kind, filename").eq("user_id", userId).eq("status", "extracted").order("created_at"),
     db.auth.admin.getUserById(userId),
     db.from("mail_accounts").select("email, status").eq("user_id", userId).maybeSingle(),
+    db.from("portal_questions").select("question, answer").eq("user_id", userId).eq("application_id", applicationId).eq("status", "answered").order("answered_at", { ascending: true }),
   ]);
   // the target term sometimes lives only on the profile row ("fall-2027"), not in the interview profile
   if (!profile.goals.target_term && prof?.target_term) profile.goals.target_term = prof.target_term;
@@ -77,6 +79,9 @@ export async function loadSheet(userId: string, applicationId: string): Promise<
     recommenders: (recs ?? []) as RecommenderRow[],
     essays,
     documents: docs ?? [],
+    deadlines: p.deadlines,
+    // this application's own term and intake answers (they never go on the profile: lib/intake)
+    appAnswers: (termAnswers ?? []).filter((q) => q.answer && isTermAnswer(q.question as string, q.answer as string)).map((q) => ({ question: q.question as string, answer: q.answer as string })),
   });
 }
 

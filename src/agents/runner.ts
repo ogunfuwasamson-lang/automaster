@@ -218,6 +218,10 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       const { data } = await admin().from("portal_questions").select("answer").eq("user_id", c.userId).eq("application_id", c.applicationId).eq("sheet_key", "start_new_application").eq("status", "answered").order("answered_at", { ascending: false }).limit(1).maybeSingle();
       return /^\s*yes\b/i.test(String(data?.answer ?? ""));
     },
+    keepThisApp: async () => {
+      const { data } = await admin().from("portal_questions").select("answer").eq("user_id", c.userId).eq("application_id", c.applicationId).eq("sheet_key", "start_new_application").eq("status", "answered").order("answered_at", { ascending: false }).limit(1).maybeSingle();
+      return /^\s*no\b/i.test(String(data?.answer ?? ""));
+    },
     canSubmit: () => submitDecision(c.userId, c.applicationId),
     existingLogin: () => getLogin(c.userId, c.host(), c.applicationId),
     createLogin: async (email) => {
@@ -1066,9 +1070,12 @@ export async function queueRunner(userId: string, applicationId: string, opts: {
   const { data } = await db.from("applications").select("runner_state, runner_mode").eq("id", applicationId).maybeSingle();
   const st = carryOver((data?.runner_state ?? {}) as RunnerState, opts.fresh);
   const extension = data?.runner_mode === "extension";
+  // everything paused from the dashboard: it waits, and says so (mcgill sat five days at "submitting now")
+  const { data: cords } = await db.from("ripcords").select("scope_kind").eq("user_id", userId).eq("active", true);
+  const held = (cords ?? []).some((c) => c.scope_kind === "all" || c.scope_kind === "agent");
   await db
     .from("applications")
-    .update({ runner_status: "ready", runner_note: opts.note ?? (extension ? "queued for your Chrome" : st.last_url ? "carrying on where it stopped" : "queued"), runner_state: st, runner_live_url: null, runner_updated_at: new Date().toISOString() })
+    .update({ runner_status: "ready", runner_note: held ? "waiting: you paused the agents. Resume them on your dashboard and this one starts" : opts.note ?? (extension ? "queued for your Chrome" : st.last_url ? "carrying on where it stopped" : "queued"), runner_state: st, runner_live_url: null, runner_updated_at: new Date().toISOString() })
     .eq("id", applicationId);
   if (!extension) await enqueue({ userId, agent: "runner", task: "run", payload: { applicationId } });
 }

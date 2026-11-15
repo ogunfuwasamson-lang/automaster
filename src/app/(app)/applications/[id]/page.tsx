@@ -30,6 +30,7 @@ import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
 import { admin } from "@/lib/supabase/admin";
 import { RunnerPanel } from "./runner-panel";
+import { StopButton } from "../../dashboard/controls";
 import { RunHistory } from "./run-history";
 import { DeleteApplication } from "./delete-application";
 import { PayToSubmit } from "@/components/billing/pay";
@@ -91,6 +92,7 @@ export default async function ApplicationPage({
     { data: threads },
     { count: logins },
     { data: asked },
+    { data: cords },
   ] = await Promise.all([
     auth.sb
       .from("applications")
@@ -124,8 +126,11 @@ export default async function ApplicationPage({
       .eq("application_id", id)
       .eq("status", "open")
       .order("created_at"),
+    // "pause everything" from the dashboard: said on every application, not only in the header
+    auth.sb.from("ripcords").select("id").eq("active", true).eq("scope_kind", "all").limit(1),
   ]);
   if (!app) notFound();
+  const pausedAll = !!cords?.length;
   // the documents this school needs, and the english-letter email from their own degree details
   const [docs, me] = await Promise.all([checklistFor(auth.user.id, id).catch(() => null), getProfile(auth.user.id).catch(() => null)]);
   const lastDegree = [...(me?.education ?? [])].sort((a, b) => (b.end ?? "9999").localeCompare(a.end ?? "9999"))[0] ?? null;
@@ -497,6 +502,15 @@ export default async function ApplicationPage({
           highlight={!!sp.pay}
           note={pay.note.replace(/^ready to submit: /, "")}
         />
+      )}
+
+      {pausedAll && app.status === "packet_approved" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stop/25 bg-stop/5 px-4 py-3 text-sm">
+          <p>
+            <span className="font-medium text-stop">All agents are paused.</span> Nothing on this application is filled in or submitted until you resume them.
+          </p>
+          <StopButton paused compact />
+        </div>
       )}
 
       {["packet_approved", "submitted"].includes(app.status) && (

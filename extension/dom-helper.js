@@ -97,6 +97,31 @@
     }
     return own.slice(0, 300);
   };
+  // the heading of the section a box sits in: its fieldset's legend, else the nearest heading above it on the page
+  const HEADING = "h1, h2, h3, h4, h5, h6, legend, [role='heading'], .form_header, .form_question_header, .section-title, .section-header";
+  const sectionOf = (el) => {
+    const fs = el.closest("fieldset");
+    const lg = fs && fs.querySelector("legend");
+    if (lg && textOf(lg)) return textOf(lg);
+    const doc = el.ownerDocument || document;
+    if (!doc.body || !doc.body.contains(el)) return "";
+    const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+    w.currentNode = el;
+    for (let i = 0; i < 400 && w.previousNode(); i++) {
+      const n = w.currentNode;
+      if (n.matches && n.matches(HEADING)) { const t = textOf(n); if (t && t.length <= 120) return t; }
+    }
+    return "";
+  };
+  // a name, email or phone box in a section about someone else (a parent, a guardian, an emergency contact): the
+  // section says whose. "First name" alone reads as the applicant's own, and mcgill's parents got the applicant's name
+  const OTHER_PERSON = /\b(parents?|guardians?|mother|father|step-?(mother|father)|emergency|next of kin|spouse|partner|sponsor|sibling|brother|sister|family members?|contact person|m[eè]re|p[eè]re|tuteur|tutrice|conjoint)\b/i;
+  const PERSONAL = /\b(name|nom|pr[eé]nom|e-?mail|courriel|phone|t[eé]l[eé]phone|mobile|occupation|profession|education|relationship|lien|birth|deceased|living|alive)\b/i;
+  const inSection = (el, label) => {
+    if (!label || !PERSONAL.test(label) || OTHER_PERSON.test(label)) return label;
+    const sec = sectionOf(el);
+    return sec && OTHER_PERSON.test(sec) ? (sec.slice(0, 80) + ": " + label).slice(0, 300) : label;
+  };
   // a radio group's question: the nearest ancestor text once the option labels are taken out
   // (stirling puts several questions in one block; the first ancestor with its own short text is the question)
   const groupLabel = (radio) => {
@@ -127,6 +152,10 @@
 
   function fields(includeFilled) {
     const out = []; const seen = new Set();
+    // the same label twice on a page (parent 1's and parent 2's "First name"): the later ones are numbered, counted
+    // over filled and empty boxes alike so a box keeps its number whatever is filled
+    const times = {};
+    const nth = (label) => { if (!label) return label; const k = label.toLowerCase(); times[k] = (times[k] || 0) + 1; return times[k] > 1 ? label + " (" + times[k] + ")" : label; };
     for (const el of all("input, textarea, select")) {
       const type = typeOf(el);
       if (["hidden", "submit", "button", "reset", "image", "search"].includes(type) || !visible(el)) continue;
@@ -135,14 +164,14 @@
       if (type === "radio") {
         if (!el.name || seen.has(el.name)) continue; seen.add(el.name);
         const group = radioGroup(el);
+        const gl = nth(inSection(el, groupLabel(el)));
         if (!includeFilled && group.some((g) => g.checked)) continue;
-        const gl = groupLabel(el);
         // "Will you be resident in the UK...? *": an asterisk anywhere in the question marks it required
         out.push({ id: idOf(el), label: gl, type: "radio", name: el.name, options: group.map((g) => labelFor(g) || g.value), required: group.some((g) => g.required || g.getAttribute("aria-required") === "true") || /\*/.test(gl) || !!el.closest('[aria-required="true"], .required, .mandatory') });
         continue;
       }
+      const label = type === "checkbox" ? labelFor(el) : nth(inSection(el, labelFor(el)));
       if (!includeFilled && !isEmpty(el)) continue;
-      const label = labelFor(el);
       const role = (el.getAttribute("role") || "").toLowerCase();
       const combo = type === "text" && (role === "combobox" || /^(list|both)$/i.test(el.getAttribute("aria-autocomplete") || "") || !!el.getAttribute("list") || !!el.closest('[class*="select2" i], [class*="react-select" i], [class*="combobox" i], [class*="autocomplete" i], [class*="typeahead" i]'));
       out.push({ id: idOf(el), label, type, combo: combo || undefined, name: el.name || undefined, autocomplete: el.autocomplete || undefined,

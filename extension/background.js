@@ -5955,7 +5955,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       long_term_goal: s(),
       why_masters: s(),
       // "why this degree, why now" at any level (key kept for stored data)
-      gmat_gre_plan: _enum(["will_take", "avoid", "undecided"]).nullable()
+      gmat_gre_plan: _enum(["will_take", "avoid", "undecided"]).nullable(),
+      // when they mean to apply: decides how much the agents do before they're back (exploring = a lighter touch)
+      applying: _enum(["this_cycle", "next_year", "exploring"]).nullable().optional()
     }),
     funding: object({
       need: _enum(["full", "partial", "self"]).nullable(),
@@ -6242,9 +6244,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         { key: "parent2_relationship", label: "Parent or guardian 2", kind: "select", options: ["Mother", "Father", "Guardian", "Other", "None"] },
         { key: "parent2_education", label: "Their highest education", kind: "select", options: EDUCATION },
         { key: "parent2_occupation", label: "Their occupation" },
-        { key: "parent1_name", label: "Parent or guardian 1: full name", levels: ["undergraduate"] },
+        { key: "parent1_name", label: "Parent or guardian 1: full name", hint: "Some forms (Quebec universities, for example) ask for both parents' names" },
         { key: "parent1_email", label: "Parent or guardian 1: email", kind: "email", levels: ["undergraduate"] },
-        { key: "parent2_name", label: "Parent or guardian 2: full name", levels: ["undergraduate"] },
+        { key: "parent2_name", label: "Parent or guardian 2: full name" },
         { key: "parent2_email", label: "Parent or guardian 2: email", kind: "email", levels: ["undergraduate"] },
         { key: "family_alumni", label: "Did a family member study at any school you're applying to?", kind: "long", hint: "Who, which school, which years. Leave empty if none" },
         { key: "siblings", label: "Number of siblings" },
@@ -6288,6 +6290,22 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   ];
   var PORTAL_DETAIL_FIELDS = DETAIL_GROUPS.flatMap((g) => g.fields);
 
+  // src/lib/intake.ts
+  var SEASON = { fall: "Fall", autumn: "Fall", automne: "Fall", spring: "Spring", printemps: "Spring", summer: "Summer", "\xE9t\xE9": "Summer", ete: "Summer", winter: "Winter", hiver: "Winter" };
+  var TERM_RE = /\b(fall|autumn|automne|spring|printemps|summer|été|ete|winter|hiver)\b[\s\-/]*(?:[a-zé]+\s*)?(?:term|semester|intake|session|entry)?[\s\-/]*(20\d\d)\b/gi;
+  var termLabel = (t) => `${t.season} ${t.year}`;
+  function parseTerm(text) {
+    return termsIn(text)[0] ?? null;
+  }
+  function termsIn(text) {
+    const out = [];
+    for (const m of `${text ?? ""}`.matchAll(TERM_RE)) {
+      const season = SEASON[m[1].toLowerCase()];
+      if (season) out.push({ season, year: Number(m[2]) });
+    }
+    return out;
+  }
+
   // src/lib/fillsheet.ts
   var DIAL = ["1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98", "211", "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", "266", "267", "268", "269", "290", "291", "297", "298", "299", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "380", "381", "382", "383", "385", "386", "387", "389", "420", "421", "423", "852", "853", "855", "856", "880", "886", "960", "961", "962", "963", "964", "965", "966", "967", "968", "970", "971", "972", "973", "974", "975", "976", "977", "992", "993", "994", "995", "996", "998"].sort((a, b) => b.length - a.length);
   var LABEL_RULES = [
@@ -6313,6 +6331,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     [/\b(fore\s*names?|given\s*names?|christian\s*name)\b/i, "first_name"],
     [/\b(family\s*name|last\s*names?|surname)\b/i, "last_name"],
     [/^(?!.*\b(job|position|course|programme|program|thesis|dissertation)\b).*\b(salutation|honorific|title)\s*\*?\s*$|^\s*(salutation|title)\b(?!.*\b(job|course)\b)/i, "title"],
+    [/^(?!.*\b(number|no\.|expir|date|issued|uci|client|valid)\b).*(\bimmigration\s*(status|documents?)\b|\bstudy\s*permit\b|\b(visa|immigration)\s*(status|type|category)\b|\bstatus\s*(in|au)\s*canada\b|\bstatut\s*(d.immigration|au canada)\b)/i, "immigration_status"],
     [/\b(nationality|citizen(ship)?|passport\s*country|country\s*of\s*citizenship)\b/i, "citizenship"],
     [/\b(sex|gender|gender identity|legal sex|sex at birth)\b/i, "gender"],
     [/\bis english your (first|native|main)\b|english.*\b(first|native|mother|main)\b.{0,10}(language|tongue)/i, "english_first_language"],
@@ -6388,9 +6407,27 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     [/\bduolingo\b/i, "duolingo_score"]
   ];
   var REC = /\b(recommender|referee|reference|recommendation)\s*#?\s*(\d)\b/i;
+  var OTHER_PERSON = /\b(parents?|guardians?|mother|father|step-?(mother|father)|emergency|next of kin|spouse|partner|sponsor|sibling|brother|sister|family members?|contact person|m[eè]re|p[eè]re|tuteur|tutrice|conjoint)\b/i;
+  var ABOUT_SELF = /\b(your (own )?(first|last|given|family|full)? ?name|applicant'?s?)\b/i;
+  function otherPersonKey(label) {
+    const l = label.replace(/\s+/g, " ").trim();
+    const part = /\b(first|given|pr[eé]nom)\b/i.test(l) ? "first_name" : /\b(last|family|sur)\s*name\b|\bsurname\b|\bnom de famille\b/i.test(l) ? "last_name" : /\bname\b|\bnom\b/i.test(l) ? "full_name" : /e-?mail|courriel/i.test(l) ? "email" : /phone|t[eé]l[eé]phone|mobile/i.test(l) ? "phone" : /occupation|profession|job/i.test(l) ? "occupation" : /education|schooling|studies|scolarit/i.test(l) ? "education" : /relationship|lien|relation/i.test(l) ? "relationship" : null;
+    if (!part) return null;
+    if (/\b(emergency|next of kin)\b/i.test(l)) return { first_name: null, last_name: null, full_name: "emergency_contact_name", email: "emergency_contact_email", phone: "emergency_contact_phone", relationship: "emergency_contact_relationship", occupation: null, education: null }[part];
+    if (/\b(mother|m[eè]re)\b/i.test(l) && !/\b(father|p[eè]re)\b/i.test(l)) return /name/.test(part) ? `mother_${part}` : null;
+    if (/\b(father|p[eè]re)\b/i.test(l) && !/\b(mother|m[eè]re)\b/i.test(l)) return /name/.test(part) ? `father_${part}` : null;
+    if (/\b(parents?|guardians?|tuteur|tutrice)\b/i.test(l)) {
+      const n2 = /\b(2|two|second|deuxi[eè]me)\b|#\s*2\b|\(2\)\s*$/i.test(l) ? 2 : 1;
+      if (part === "phone") return null;
+      return part === "full_name" ? `parent${n2}_full_name` : `parent${n2}_${part}`;
+    }
+    return null;
+  }
   function keyForLabel(label) {
     const l = label.replace(/\s+/g, " ").trim();
     if (!l) return null;
+    if (/\b(do not|don.?t) have a second (parent|guardian)\b|\bno second (parent|guardian)\b|\bonly one (parent|guardian)\b/i.test(l)) return "no_second_parent";
+    if (OTHER_PERSON.test(l) && !ABOUT_SELF.test(l) && /\b(name|nom|pr[eé]nom|e-?mail|courriel|phone|t[eé]l[eé]phone|mobile|occupation|profession|education|relationship|lien)\b/i.test(l)) return otherPersonKey(l);
     const rec = l.match(REC);
     if (rec) {
       const n2 = rec[2];
@@ -6417,6 +6454,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (e?.name === "AiUnavailable" || /AI is paused until|credit balance is too low|insufficient.?credit|invalid x-api-key|authentication_error/i.test(msg)) throw e;
     return fallback;
   };
+  function goingRound(ring) {
+    const last = ring.slice(-12);
+    if (last.length < 9) return null;
+    const count = /* @__PURE__ */ new Map();
+    for (const k of last) count.set(k, (count.get(k) ?? 0) + 1);
+    if (count.size < 2 || count.size > 4 || [...count.values()].some((n2) => n2 < 3)) return null;
+    return [...count.keys()].sort();
+  }
   function ask(state, f, key) {
     const label = cleanLabel(f.label, f.options).slice(0, 200);
     if (!label) return;
@@ -7015,14 +7060,28 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     return { filled, empty };
   }
   var SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save changes|save section)$/i;
-  var WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course)\b/i;
-  var NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program. Should the agents start a new application for the program you're applying to?";
+  var WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application|term|intake|cycle|semester|session)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course|term|intake|cycle)\b/i;
+  var NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program or term. Should the agents start a new application for the program and term you're applying to?";
   function askAboutNewApp(r) {
     const st = r.state;
     if (r.outcome.kind !== "needs_you" || r.outcome.reason === "question" || !st.newAppBlocked || st.newAppAllowedUsed) return r;
     if (!WRONG_PROGRAM.test(`${r.outcome.note} ${(st.navHistory ?? []).slice(-4).join(" ")}`)) return r;
     ask(st, { id: "new-application", label: NEW_APP_QUESTION, type: "radio", options: ["Yes", "No"] }, "start_new_application");
     return { ...r, outcome: { kind: "needs_you", reason: "question", note: "the application already on this portal seems to be for another program: answer whether the agents should start a new one" } };
+  }
+  function otherTerm(body, want) {
+    if (!want) return null;
+    const near = termsIn(body.slice(0, 3e4)).filter((t) => Math.abs(t.year - want.year) <= 1);
+    if (!near.length || near.some((t) => t.season === want.season && t.year === want.year)) return null;
+    return near[0];
+  }
+  async function termHold(deps2, state, body) {
+    const f = await deps2.fillFromKey?.({ id: "term", label: "Entry term", type: "text" }, "entry_term");
+    const want = f && f.action === "fill" ? parseTerm(f.value) : null;
+    const wrong = otherTerm(body, want);
+    if (!wrong || !want || await deps2.keepThisApp?.()) return null;
+    state.newAppBlocked = state.newAppBlocked ?? "term";
+    return { kind: "needs_you", reason: "stuck", note: `held before submitting: this application on the portal is for ${termLabel(wrong)}, another term than the programme's ${termLabel(want)} intake` };
   }
   async function runEngine(page, deps2, state, budgetMs) {
     const end = Date.now() + budgetMs;
@@ -7098,6 +7157,27 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (alertText && !(state.navHistory ?? []).at(-1)?.startsWith("the page said:")) state.navHistory = [...state.navHistory ?? [], `the page said: ${alertText.slice(0, 200)}`].slice(-12);
       state.samePageCount = s2.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
       state.lastFingerprint = s2.fingerprint;
+      if (s2.fingerprint && state.samePageCount === 0) {
+        const at = `${s2.fingerprint.slice(0, 80)}#${s2.fields.length}`;
+        state.ring = [...state.ring ?? [], at].slice(-12);
+        const keep = new Set(state.ring);
+        state.ringFields = Object.fromEntries(Object.entries({ ...state.ringFields ?? {}, [at]: s2.fields.slice(0, 8).map((f) => ({ label: f.label, type: f.type, options: f.options?.slice(0, 40), required: f.required })) }).filter(([k]) => keep.has(k)));
+        const round = goingRound(state.ring);
+        const mark = round?.join("|");
+        if (round && mark && !(state.roundsAsked ?? []).includes(mark)) {
+          state.roundsAsked = [...state.roundsAsked ?? [], mark].slice(-6);
+          state.ring = [];
+          const left = round.flatMap((k) => state.ringFields?.[k] ?? []).filter((f) => !/\boptional\b|facultati/i.test(f.label));
+          const unknown2 = left.filter((f) => !deps2.hasValue?.(f.label) && !notAQuestion(state, f));
+          if (unknown2.length) {
+            for (const f of unknown2) ask(state, f);
+            state.navHistory = [...state.navHistory ?? [], `went round ${round.length} pages: asking about ${unknown2.length} box${unknown2.length === 1 ? "" : "es"}`].slice(-12);
+            return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+          }
+          const names = left.map((f) => cleanLabel(f.label, f.options).slice(0, 50)).filter(Boolean);
+          return { outcome: { kind: "needs_you", reason: "stuck", note: `the portal keeps going round ${round.length} sections without finishing${names.length ? `; still empty there: ${[...new Set(names)].slice(0, 4).join("; ")}` : ""}. Open the portal, complete those, then choose Try again` }, state, filled };
+        }
+      }
       if (REGISTER_PAGE.test(s2.url) && /^(forbidden|access denied|403|request blocked)/i.test(s2.title.trim() || s2.body.trim().slice(0, 40))) {
         return { outcome: { kind: "needs_you", reason: "account", note: "this portal won't let an automated browser create the account" }, state, filled };
       }
@@ -7483,6 +7563,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       const submit = find(now, FINAL) ?? (deps2.finalButton ? find(now, deps2.finalButton) : void 0);
       if (submit) {
         state.reachedSubmit = true;
+        const hold = await termHold(deps2, state, `${now.title} ${now.body}`);
+        if (hold) return { outcome: hold, state, filled };
         const d = await deps2.canSubmit();
         if (!d.allowed) return { outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` }, state, filled };
         const held = await reviewBeforeSubmit(page, deps2, state);
@@ -7642,6 +7724,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     }
     if (FINAL.test(label) || /^submit\b/i.test(label)) {
       state.reachedSubmit = true;
+      const hold = await termHold(deps2, state, `${s2.title} ${s2.body}`);
+      if (hold) return hold;
       const d = await deps2.canSubmit();
       if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
       const held = await reviewBeforeSubmit(page, deps2, state);

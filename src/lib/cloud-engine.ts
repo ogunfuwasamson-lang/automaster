@@ -7,6 +7,7 @@ import type { Fill, PageField } from "@/lib/runner-map";
 import { cleanLabel } from "@/lib/labels";
 import { NEVER_FILL } from "@/lib/never-fill";
 import { keyForLabel } from "@/lib/fillsheet";
+import { parseTerm, termLabel, termsIn, type Term } from "@/lib/intake";
 
 export interface Snapshot {
   url: string;
@@ -89,6 +90,22 @@ export interface EngineState {
   leadBacks?: number; // times this run came back from an enquiry form
   // a rejected password being reset: asked for the email, waiting for it, on the new-password page, done
   reset?: { stage: "requested" | "sent" | "link"; at: number; tries: number };
+  // the last pages arrived at, each with how many boxes were still empty, and those boxes: a round of a few pages
+  // that keeps coming back unchanged (mcgill: three sections, one box each, for hours) ends in a question
+  ring?: string[];
+  ringFields?: Record<string, { label: string; type: string; options?: string[]; required?: boolean }[]>;
+  roundsAsked?: string[];
+}
+
+// two to four pages, each back three times in the last twelve arrivals with the same boxes still empty: the agents
+// are going round, not getting anywhere. pure.
+export function goingRound(ring: string[]): string[] | null {
+  const last = ring.slice(-12);
+  if (last.length < 9) return null;
+  const count = new Map<string, number>();
+  for (const k of last) count.set(k, (count.get(k) ?? 0) + 1);
+  if (count.size < 2 || count.size > 4 || [...count.values()].some((n) => n < 3)) return null;
+  return [...count.keys()].sort();
 }
 
 export interface PortalQuestion {
@@ -183,6 +200,8 @@ export interface EngineDeps {
   signInYourself?(): boolean;
   // the applicant said yes to "start a new application for this program?" (the one started is for another)
   allowNewApp?(): Promise<boolean>;
+  // the applicant answered no to a new application: the one on the portal is the one to submit
+  keepThisApp?(): Promise<boolean>;
   // the last look before Submit: the page in view (usually the portal's review page) against the signed packet.
   // problems found hold the submission for the applicant; no answer (a failed call) lets it go, as before
   reviewSubmit?(page: { url: string; title: string; body: string }): Promise<{ ok: boolean; problems: string[] } | null>;
@@ -206,26 +225,31 @@ function arrived(state: EngineState, s: Snapshot) {
 }
 
 // the one call before a submit button is pressed: once per application (state.reviewed), on the page in view
-async function reviewBeforeSubmit(page: Page, deps: EngineDeps, state: EngineState): Promise<Outcome | null> {
-  if (!deps.reviewSubmit || state.reviewed) return null;
+async function reviewBeforeSubmit(page: Page, deps: EngineDeps, state: EngineState, extra: string[] = []): Promise<Outcome | null> {
+  if ((!deps.reviewSubmit || state.reviewed) && !extra.length) return null;
   const s = await snap(page).catch(() => null);
   if (!s) return null;
-  const r = await deps.reviewSubmit({ url: s.url, title: s.title, body: s.body.slice(0, 12000) }).catch(() => null);
-  if (!r) return null;
-  state.reviewed = true;
-  if (r.ok || !r.problems.length) {
-    state.navHistory = [...(state.navHistory ?? []), "read the review page against your signed packet: it matches"].slice(-12);
+  const problems = [...extra];
+  if (deps.reviewSubmit && !state.reviewed) {
+    const r = await deps.reviewSubmit({ url: s.url, title: s.title, body: s.body.slice(0, 12000) }).catch(() => null);
+    if (r) {
+      state.reviewed = true;
+      if (!r.ok) problems.push(...r.problems);
+    }
+  }
+  if (!problems.length) {
+    if (state.reviewed) state.navHistory = [...(state.navHistory ?? []), "read the review page against your signed packet: it matches"].slice(-12);
     return null;
   }
   // the same problems as last time, after the applicant chose Try again: they've looked and want it submitted
-  const sig = r.problems.map((p) => p.slice(0, 60)).sort().join("|");
+  const sig = problems.map((p) => p.slice(0, 60)).sort().join("|");
   if (state.reviewHeld === sig) {
     state.navHistory = [...(state.navHistory ?? []), "you chose to submit after the review flagged something: submitting"].slice(-12);
     return null;
   }
   state.reviewed = false; // looked at again after the applicant fixes it
   state.reviewHeld = sig;
-  return { kind: "needs_you", reason: "review", note: `held before submitting: ${r.problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
+  return { kind: "needs_you", reason: "review", note: `held before submitting: ${problems.slice(0, 2).join("; ")}. Fix it on the portal, or choose Try again to submit it as it is`.slice(0, 390) };
 }
 
 export interface Mark {
@@ -956,14 +980,39 @@ const SECTION_SAVE = /^save( (my|this|the))?( [a-z]+){0,3}$|^(update|save change
 
 // stopped because the application already on the portal is for another program (ut dallas: an MS/MBA application,
 // 480 stops). the agents never start a second one by themselves: they ask once, and a yes lets them start it
-export const WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course)\b/i;
-const NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program. Should the agents start a new application for the program you're applying to?";
+// (or for another term: mcgill's application was for fall 2027, the programme's intake is summer 2027)
+export const WRONG_PROGRAM = /\b(is for|for the|belongs to)\b.{0,80}\b(not|rather than|instead of)\b|\b(wrong|different|another|other) (program|programme|degree|course|application|term|intake|cycle|semester|session)\b|\bnot (the|for) (right|correct|same) (program|programme|degree|course|term|intake|cycle)\b/i;
+const NEW_APP_QUESTION = "The application already started on this portal looks like it's for a different program or term. Should the agents start a new application for the program and term you're applying to?";
 function askAboutNewApp(r: { outcome: Outcome; state: EngineState; filled: number }) {
   const st = r.state;
   if (r.outcome.kind !== "needs_you" || r.outcome.reason === "question" || !st.newAppBlocked || st.newAppAllowedUsed) return r;
   if (!WRONG_PROGRAM.test(`${r.outcome.note} ${(st.navHistory ?? []).slice(-4).join(" ")}`)) return r;
   ask(st, { id: "new-application", label: NEW_APP_QUESTION, type: "radio", options: ["Yes", "No"] } as PageField, "start_new_application");
   return { ...r, outcome: { kind: "needs_you" as const, reason: "question" as const, note: "the application already on this portal seems to be for another program: answer whether the agents should start a new one" } };
+}
+
+// the page about to be submitted names another term than the one being applied for (mcgill's application was
+// started for fall 2027; the programme admits for summer 2027): never submitted as it is. pure.
+export function otherTerm(body: string, want: Term | null): Term | null {
+  if (!want) return null;
+  const near = termsIn(body.slice(0, 30_000)).filter((t) => Math.abs(t.year - want.year) <= 1);
+  if (!near.length || near.some((t) => t.season === want.season && t.year === want.year)) return null;
+  return near[0];
+}
+
+// the page about to be submitted names another term: a problem for the last look before Submit (held once; Try again
+// submits it as it is). when the applicant said yes to a new application, back to the portal's front page to start it
+async function termCheck(page: Page, deps: EngineDeps, state: EngineState, body: string): Promise<{ problem?: string; restarted?: boolean }> {
+  const f = await deps.fillFromKey?.({ id: "term", label: "Entry term", type: "text" } as PageField, "entry_term");
+  const want = f && f.action === "fill" ? parseTerm(f.value) : null;
+  const wrong = otherTerm(body, want);
+  if (!wrong || !want || (await deps.keepThisApp?.())) return {};
+  if (!state.newAppAllowedUsed && deps.portalUrl && (await deps.allowNewApp?.())) {
+    state.navHistory = [...(state.navHistory ?? []), `the application here is for ${termLabel(wrong)}: back to the portal to start the ${termLabel(want)} one you asked for`].slice(-12);
+    await page.goto(deps.portalUrl, { timeout: 45_000 }).catch(() => {});
+    return { restarted: true };
+  }
+  return { problem: `this application on the portal is for ${termLabel(wrong)}, another term than the programme's ${termLabel(want)} intake (start a new one on the portal for ${termLabel(want)})` };
 }
 
 export async function runEngine(page: Page, deps: EngineDeps, state: EngineState, budgetMs: number): Promise<{ outcome: Outcome; state: EngineState; filled: number }> {
@@ -1054,6 +1103,28 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     if (alertText && !(state.navHistory ?? []).at(-1)?.startsWith("the page said:")) state.navHistory = [...(state.navHistory ?? []), `the page said: ${alertText.slice(0, 200)}`].slice(-12);
     state.samePageCount = s.fingerprint === state.lastFingerprint ? (state.samePageCount ?? 0) + 1 : 0;
     state.lastFingerprint = s.fingerprint;
+    // going round a few pages with the same boxes empty each time: ask about those boxes (or hand over) instead
+    if (s.fingerprint && state.samePageCount === 0) {
+      const at = `${s.fingerprint.slice(0, 80)}#${s.fields.length}`;
+      state.ring = [...(state.ring ?? []), at].slice(-12);
+      const keep = new Set(state.ring);
+      state.ringFields = Object.fromEntries(Object.entries({ ...(state.ringFields ?? {}), [at]: s.fields.slice(0, 8).map((f) => ({ label: f.label, type: f.type, options: f.options?.slice(0, 40), required: f.required })) }).filter(([k]) => keep.has(k)));
+      const round = goingRound(state.ring);
+      const mark = round?.join("|");
+      if (round && mark && !(state.roundsAsked ?? []).includes(mark)) {
+        state.roundsAsked = [...(state.roundsAsked ?? []), mark].slice(-6);
+        state.ring = [];
+        const left = round.flatMap((k) => state.ringFields?.[k] ?? []).filter((f) => !/\boptional\b|facultati/i.test(f.label));
+        const unknown = left.filter((f) => !deps.hasValue?.(f.label) && !notAQuestion(state, f as PageField));
+        if (unknown.length) {
+          for (const f of unknown) ask(state, f as PageField);
+          state.navHistory = [...(state.navHistory ?? []), `went round ${round.length} pages: asking about ${unknown.length} box${unknown.length === 1 ? "" : "es"}`].slice(-12);
+          return { outcome: { kind: "needs_you", reason: "question", note: questionNote(state).slice(0, 290) }, state, filled };
+        }
+        const names = left.map((f) => cleanLabel(f.label, f.options).slice(0, 50)).filter(Boolean);
+        return { outcome: { kind: "needs_you", reason: "stuck", note: `the portal keeps going round ${round.length} sections without finishing${names.length ? `; still empty there: ${[...new Set(names)].slice(0, 4).join("; ")}` : ""}. Open the portal, complete those, then choose Try again` }, state, filled };
+      }
+    }
     // a sign-up form that won't move even though everything is filled: the portal blocks automated sign-ups.
     // the applicant creates the account once (with our generated password); we sign in from then on.
     if (REGISTER_PAGE.test(s.url) && /^(forbidden|access denied|403|request blocked)/i.test(s.title.trim() || s.body.trim().slice(0, 40))) {
@@ -1524,9 +1595,11 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     const submit = find(now, FINAL) ?? (deps.finalButton ? find(now, deps.finalButton) : undefined);
     if (submit) {
       state.reachedSubmit = true;
+      const term = await termCheck(page, deps, state, `${now.title} ${now.body}`);
+      if (term.restarted) continue;
       const d = await deps.canSubmit();
       if (!d.allowed) return { outcome: { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` }, state, filled };
-      const held = await reviewBeforeSubmit(page, deps, state);
+      const held = await reviewBeforeSubmit(page, deps, state, term.problem ? [term.problem] : []);
       if (held) return { outcome: held, state, filled };
       await deps.progress("submitting your signed packet");
       state.submitClicked = true;
@@ -1696,9 +1769,11 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   }
   if (FINAL.test(label) || /^submit\b/i.test(label)) {
     state.reachedSubmit = true;
+    const term = await termCheck(page, deps, state, `${s.title} ${s.body}`);
+    if (term.restarted) return null;
     const d = await deps.canSubmit();
     if (!d.allowed) return { kind: "needs_you", reason: "stuck", note: `ready to submit: ${d.reason}` };
-    const held = await reviewBeforeSubmit(page, deps, state);
+    const held = await reviewBeforeSubmit(page, deps, state, term.problem ? [term.problem] : []);
     if (held) return held;
     state.submitClicked = true;
   }

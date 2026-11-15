@@ -1,4 +1,5 @@
 import "server-only";
+import { isTermAnswer } from "@/lib/intake";
 import { admin } from "@/lib/supabase/admin";
 import { getProfile, updateProfile } from "@/lib/profile-store";
 import { answerFor } from "@/lib/runner-map";
@@ -171,8 +172,9 @@ export async function answerQuestion(userId: string, id: string, answer: string 
     const { data: prof } = await db.from("profiles").select("portal_details").eq("id", userId).single();
     await db.from("profiles").update({ portal_details: { ...((prof?.portal_details as Record<string, unknown>) ?? {}), [dk]: value } }).eq("id", userId);
   }
-  // also resumes any submission that stopped for a question
-  await updateProfile(userId, (p) => confirmFact(p, q.question, value));
+  // also resumes any submission that stopped for a question. a term or intake answer belongs to this application
+  // only (it stays on the question row, which the fill sheet reads for this application): never the whole profile
+  if (!isTermAnswer(q.question as string, value)) await updateProfile(userId, (p) => confirmFact(p, q.question, value));
   await logEvent({ userId, actor: "user", action: "profile.portal_answer", context: { question: q.question.slice(0, 120), detail: dk } });
   await clearNoticeIfDone(userId);
   await carryOnIfAnswered(userId, q.application_id as string | null);
