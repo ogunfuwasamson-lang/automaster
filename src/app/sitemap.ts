@@ -23,6 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.url}/tools/scholarship-finder`, lastModified: libDate, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE.url}/match`, lastModified: now, changeFrequency: "weekly", priority: 0.85 },
     { url: `${SITE.url}/programmes`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE.url}/deadlines`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
     { url: `${SITE.url}/study-abroad`, lastModified: new Date("2026-11-01T12:00:00Z"), changeFrequency: "weekly", priority: 0.85 },
     ...allLocalUrls().map((p) => ({ url: `${SITE.url}${p}`, lastModified: new Date("2026-11-01T12:00:00Z"), changeFrequency: "monthly" as const, priority: p.split("/").length <= 2 ? 0.85 : 0.75 })),
     ...ORIGINS.map((o) => ({ url: `${SITE.url}/study-abroad/${o.slug}`, lastModified: new Date(`${ORIGINS_UPDATED}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.75 })),

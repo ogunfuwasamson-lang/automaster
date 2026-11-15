@@ -1,6 +1,7 @@
 import type { LocalGuide } from "./types";
 
 const U = "2026-11-01";
+const U2 = "2026-11-15";
 
 export const ES: LocalGuide[] = [
   {
@@ -367,5 +368,110 @@ Ivyward sigue cada ronda de cada programa y beca de tu lista, incluidas las prio
     faq: [["¿Es tarde para las becas de 2027?", "No para todas. Chevening y Commonwealth cerraron, pero Gates Cambridge (ronda internacional), Clarendon, Erasmus Mundus, Türkiye Bursları, GKS y la beca china están abiertas o por abrir."]],
     sources: [["Chevening (en inglés)", "https://www.chevening.org/scholarships/"]],
     related: ["becas-maestria-totalmente-financiadas", "exencion-tasa-de-solicitud"],
+  },
+  {
+    lang: "es",
+    slug: "estudiar-en-el-extranjero-sin-ielts",
+    title: "Estudiar en el extranjero sin IELTS: Canadá, Reino Unido y Estados Unidos",
+    seoTitle: "Estudiar en el extranjero sin IELTS (maestría, 2027)",
+    description: "Cómo postular a una maestría en Canadá, el Reino Unido o EE. UU. sin IELTS: exenciones por título en inglés, carta de idioma de instrucción (MOI), Duolingo y otros exámenes, y qué piden las visas.",
+    updated: U2,
+    keywords: ["estudiar en el extranjero sin IELTS", "maestría en Canadá sin IELTS", "universidades del Reino Unido sin IELTS", "estudiar en Estados Unidos sin TOEFL", "carta MOI universidad", "universidades que aceptan Duolingo"],
+    answer:
+      "Sí, muchas veces. En el Reino Unido, la universidad puede evaluar tu inglés por sí misma para estudios de grado y posgrado, así que muchas aceptan un título impartido en inglés, una carta de idioma de instrucción (MOI) u otros exámenes. En Canadá y EE. UU., muchos posgrados eximen del examen si tu título fue en inglés y aceptan TOEFL, Duolingo, PTE o, en Canadá, CAEL en lugar del IELTS. Las reglas cambian de una universidad a otra, e incluso entre departamentos: revisa siempre la página de requisitos de inglés del programa.",
+    body: `
+## Cuatro caminos sin IELTS
+
+1. **Exención por un título en inglés.** Muchas universidades publican una lista de países cuyos títulos cuentan automáticamente; otras aceptan una [carta de idioma de instrucción](/guides/medium-of-instruction-letter) de cualquier país.
+2. **Otro examen.** TOEFL iBT, Duolingo English Test y PTE Academic se aceptan mucho; en Canadá también CAEL. El puntaje mínimo depende del programa.
+3. **Estudios o trabajo en inglés.** Algunos programas aceptan estudios o trabajo recientes en un país de habla inglesa.
+4. **Admisión condicional.** Algunas universidades te admiten con la condición de completar antes su curso de inglés.
+
+## País por país
+
+| País | Qué suele bastar | La visa |
+|---|---|---|
+| Reino Unido | Evaluación propia de la universidad: título en inglés, MOI en algunos casos, Duolingo, TOEFL o entrevista | Para estudios de grado, la universidad patrocinadora puede evaluar tu inglés; los nacionales de países de mayoría anglófona están exentos |
+| Canadá | Exención por título en inglés (lista de países o MOI), o TOEFL, Duolingo, PTE, CAEL | El permiso de estudios no fija un puntaje de IELTS para la mayoría de los universitarios; cuenta la carta de admisión |
+| Estados Unidos | Exención por título en inglés en muchos posgrados; Duolingo muy aceptado | La visa F-1 no exige un puntaje, pero la entrevista es en inglés |
+
+## Dinero que piden las visas
+
+- **Reino Unido:** desde el 30 de noviembre de 2026, £1.570 al mes en Londres o £1.203 fuera de Londres, hasta nueve meses, además de la matrícula.
+- **Canadá:** CA$23.448 para un solicitante soltero fuera de Quebec (solicitudes desde el 1 de septiembre de 2026), más la matrícula del primer año.
+- **Estados Unidos:** el costo total que figura en tu I-20. Antes de invertir en postulaciones, revisa si tu nacionalidad está en las restricciones de entrada vigentes desde el 1 de enero de 2026.
+
+## Dónde empezar
+
+Nuestras listas de programas que aceptan una carta MOI muestran lo que nuestros agentes comprobaron, con plazos y matrícula: [Canadá](/programmes/canada/english-medium-letter), [Reino Unido](/programmes/uk/english-medium-letter) y [Estados Unidos](/programmes/usa/english-medium-letter).
+
+## Cómo te ayuda Ivyward
+
+Los agentes de Ivyward leen las reglas de inglés de cada programa, marcan dónde tu título te exime, redactan la solicitud de carta MOI para tu universidad y solo te proponen un examen cuando tu lista de verdad lo necesita.
+`,
+    faq: [
+      ["¿Puedo estudiar en Canadá sin IELTS?", "Sí, en muchas universidades: con un título impartido en inglés (por lista de países o con carta MOI) o con otro examen como TOEFL, Duolingo, PTE o CAEL. El permiso de estudios se basa en la admisión de la universidad."],
+      ["¿Las universidades del Reino Unido aceptan Duolingo?", "Muchas sí para cursos de grado y posgrado, pero no todas. Revisa la página de requisitos de inglés de cada universidad."],
+      ["¿Necesito IELTS para la visa de estudiante de EE. UU.?", "No hay un puntaje fijo para la visa F-1, pero la entrevista es en inglés y tu I-20 depende de la admisión de la universidad."],
+    ],
+    sources: [
+      ["GOV.UK: Student visa, conocimiento de inglés (en inglés)", "https://www.gov.uk/student-visa/knowledge-of-english"],
+      ["IRCC: permiso de estudios (en inglés)", "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit.html"],
+      ["Departamento de Estado de EE. UU.: visa de estudiante", "https://travel.state.gov/content/travel/en/us-visas/study/student-visa.html"],
+    ],
+    related: ["becas-maestria-totalmente-financiadas", "costo-maestria-en-el-extranjero"],
+  },
+  {
+    lang: "es",
+    slug: "costo-maestria-en-el-extranjero",
+    en: "cost-of-masters-abroad-by-country",
+    title: "Cuánto cuesta una maestría en el extranjero, país por país (2027)",
+    seoTitle: "Costo de una maestría en el extranjero por país (2027)",
+    description: "Rangos de matrícula y los montos oficiales de manutención que piden las visas del Reino Unido, Canadá, Alemania y EE. UU., para presupuestar tu maestría antes de postular.",
+    updated: U2,
+    keywords: ["cuánto cuesta una maestría en el extranjero", "país más barato para estudiar una maestría", "costo maestría Canadá", "costo maestría Reino Unido", "estudiar en Alemania costo", "presupuesto estudiar en el extranjero"],
+    answer:
+      "Presupuesta dos cosas: la matrícula y la manutención que la visa te pide demostrar. Por ejemplo, la visa de estudiante del Reino Unido exige £1.570 al mes en Londres o £1.203 fuera de Londres (desde el 30 de noviembre de 2026); Canadá pide a un solicitante soltero fuera de Quebec CA$23.448 más la matrícula del primer año (desde el 1 de septiembre de 2026); y Alemania pide una cuenta bloqueada de €11.904 al año, con poca o ninguna matrícula en universidades públicas. En EE. UU. el costo varía más: el costo de asistencia publicado suele ir de US$40.000 a US$90.000 al año antes de cualquier beca.",
+    body: `
+## Matrícula, por destino
+
+- **Reino Unido:** maestría de un año, normalmente entre £15.000 y £40.000 para estudiantes internacionales; más en negocios y medicina.
+- **Canadá:** a menudo entre CA$20.000 y CA$60.000 al año; muchas maestrías duran uno o dos años.
+- **Estados Unidos:** rango muy amplio; las maestrías de investigación y los doctorados suelen estar financiados, las profesionales rara vez.
+- **Alemania:** la mayoría de las universidades públicas no cobra matrícula, solo una cuota semestral; Baden-Wurtemberg cobra a estudiantes de fuera de la UE.
+- **Resto de Europa:** desde cuotas bajas en algunos países hasta más de €15.000 en Países Bajos e Irlanda.
+- **Australia:** a menudo entre A$30.000 y A$50.000 al año.
+
+Nuestras [listas de programas](/programmes) muestran la matrícula que publica cada universidad.
+
+## Manutención que exige la visa
+
+- **Reino Unido:** £1.570 al mes en Londres o £1.203 fuera de Londres, hasta nueve meses (desde el 30 de noviembre de 2026).
+- **Canadá:** CA$23.448 para un solicitante soltero fuera de Quebec (desde el 1 de septiembre de 2026), más la matrícula.
+- **Alemania:** €11.904 al año en una cuenta bloqueada.
+- **Estados Unidos:** el costo de asistencia que figura en tu I-20, fijado por la universidad.
+
+## Cómo bajar el costo
+
+- [Exención de la tasa de solicitud](/es/guias/exencion-tasa-de-solicitud)
+- [Becas de maestría totalmente financiadas](/es/guias/becas-maestria-totalmente-financiadas)
+- [Estudiar en Alemania gratis](/es/guias/estudiar-en-alemania-gratis)
+- Ayudantías de posgrado en EE. UU. ([guía en inglés](/guides/graduate-assistantships-explained))
+
+## Cómo te ayuda Ivyward
+
+Ivyward muestra la matrícula y las opciones de financiación de cada programa de tu lista, pide exenciones de tasas y encuentra becas a las que puedes postular, para que compares el costo real antes de postular.
+`,
+    faq: [
+      ["¿Cuál es el país más barato para hacer una maestría?", "Las universidades públicas de Alemania, con poca o ninguna matrícula, están entre las más baratas; igual necesitas la cuenta bloqueada para la manutención."],
+      ["¿Cuánto dinero necesito para la visa de estudiante del Reino Unido?", "Desde el 30 de noviembre de 2026: £1.570 al mes en Londres o £1.203 fuera de Londres, hasta nueve meses, más la matrícula que no hayas pagado."],
+      ["¿Cuánto es la prueba de fondos para Canadá en 2026?", "Para un solicitante soltero fuera de Quebec, CA$23.448 para solicitudes desde el 1 de septiembre de 2026, más la matrícula del primer año."],
+    ],
+    sources: [
+      ["GOV.UK: Student visa, dinero (en inglés)", "https://www.gov.uk/student-visa/money"],
+      ["CIC News: prueba de fondos de Canadá desde el 1 de septiembre de 2026 (en inglés)", "https://www.cicnews.com/2026/08/canada-hikes-funds-needed-by-study-permit-applicants-0879805.html"],
+      ["Oficina Federal de Relaciones Exteriores de Alemania: visa de estudios", "https://www.auswaertiges-amt.de/en/visa-service"],
+    ],
+    related: ["estudiar-en-alemania-gratis", "becas-maestria-totalmente-financiadas", "estudiar-en-el-extranjero-sin-ielts"],
   },
 ];

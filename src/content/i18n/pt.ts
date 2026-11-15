@@ -1,6 +1,7 @@
 import type { LocalGuide } from "./types";
 
 const U = "2026-11-01";
+const U2 = "2026-11-15";
 
 export const PT: LocalGuide[] = [
   {
@@ -229,5 +230,165 @@ A Ivyward encontra mestrados em inglês que combinam com você, indica se cada u
     faq: [["Quanto é a conta bloqueada em 2026?", "11.904 € por ano, ou 992 € por mês."]],
     sources: [["Expatrio: conta bloqueada 2026 (em inglês)", "https://www.expatrio.com/about-germany/blocked-amount-2025"]],
     related: ["bolsas-mestrado-totalmente-financiadas"],
+  },
+  {
+    lang: "pt",
+    slug: "calendario-candidaturas-2027",
+    en: "application-deadlines-2027-intake",
+    title: "Calendário de candidaturas e bolsas para o ingresso em 2027",
+    seoTitle: "Prazos 2027: universidades e bolsas no exterior",
+    description: "Quando se candidatar para começar em setembro de 2027: as janelas habituais das universidades e das grandes bolsas, e o que já fechou.",
+    updated: U2,
+    keywords: ["prazos candidatura 2027", "calendário bolsas 2027", "ingresso setembro 2027 exterior", "prazo Chevening", "prazo Erasmus Mundus 2027", "mestrado no exterior 2027"],
+    answer:
+      "Para começar em setembro de 2027, as grandes bolsas fecham primeiro (Chevening em 6 de outubro de 2026, Commonwealth em 20 de outubro de 2026). Depois vêm os doutorados nos EUA em dezembro, a maioria dos mestrados nos EUA entre dezembro e fevereiro, os prazos de financiamento de Oxford e Cambridge em dezembro e janeiro, o Erasmus Mundus de outubro a fevereiro, e as admissões contínuas do Reino Unido e de boa parte da Europa até a primavera.",
+    body: `
+## Bolsas
+
+| Bolsa | Janela habitual | Situação em 15 de novembro de 2026 |
+|---|---|---|
+| [Chevening](/scholarships/chevening) | Agosto ao início de outubro | Fechou em 6 de outubro de 2026 |
+| [Commonwealth Master's](/scholarships/commonwealth-masters) | Agosto a outubro | Fechou em 20 de outubro de 2026 |
+| [Gates Cambridge](/scholarships/gates-cambridge) | Outubro (EUA), dezembro e janeiro (demais países) | Rodada internacional aberta em muitos cursos |
+| [Clarendon](/scholarships/clarendon) | Dezembro ou janeiro | Aberta |
+| [Erasmus Mundus](/scholarships/erasmus-mundus) | Outubro a fevereiro | Aberta em muitos programas |
+| [Türkiye Bursları](/scholarships/turkiye-burslari) | Janeiro e fevereiro | Em breve |
+| [GKS](/scholarships/global-korea-scholarship) | Fevereiro e março | Em breve |
+| [Governo chinês](/scholarships/chinese-government-scholarship) | Janeiro a abril | Em breve |
+| [MEXT](/scholarships/mext) (embaixada) | Abril e maio | Para ingresso em 2028 |
+
+## Universidades
+
+| País | Prazos habituais para setembro de 2027 |
+|---|---|
+| Estados Unidos | Doutorado: início a meados de dezembro de 2026; mestrado: dezembro de 2026 a fevereiro de 2027 |
+| Reino Unido | Admissões contínuas desde outubro; financiamento de Oxford e Cambridge em dezembro e janeiro |
+| Canadá | Principalmente de dezembro de 2026 a fevereiro de 2027 |
+| Alemanha | Muitas vezes até o fim de maio ou 15 de julho |
+| Portugal | Várias fases entre o inverno e o verão; confira cada universidade |
+
+Nosso [calendário de prazos por mês](/deadlines) mostra os programas que nossos agentes verificaram, com a data de cada um.
+
+## Como a Ivyward ajuda
+
+A Ivyward acompanha cada rodada de cada programa e bolsa da sua lista, inclusive as prioritárias e as de financiamento, e prepara suas candidaturas a tempo da mais cedo.
+`,
+    faq: [
+      ["Ainda dá tempo para as bolsas de 2027?", "Para muitas, sim. Chevening e Commonwealth fecharam, mas Gates Cambridge (rodada internacional), Clarendon, Erasmus Mundus, Türkiye Bursları, GKS e a bolsa do governo chinês estão abertas ou vão abrir."],
+      ["Quando se candidatar a um mestrado nos EUA para 2027?", "Entre dezembro de 2026 e fevereiro de 2027 na maioria dos programas; os doutorados costumam fechar no início ou em meados de dezembro."],
+    ],
+    sources: [
+      ["Chevening (em inglês)", "https://www.chevening.org/scholarships/"],
+      ["Commonwealth Scholarship Commission (em inglês)", "https://cscuk.fcdo.gov.uk/masters"],
+    ],
+    related: ["bolsas-mestrado-totalmente-financiadas", "isencao-taxa-de-inscricao"],
+  },
+  {
+    lang: "pt",
+    slug: "estudar-no-exterior-sem-ielts",
+    title: "Estudar no exterior sem IELTS: Canadá, Reino Unido e Estados Unidos",
+    seoTitle: "Estudar no exterior sem IELTS (mestrado, 2027)",
+    description: "Como se candidatar a um mestrado no Canadá, no Reino Unido ou nos EUA sem IELTS: dispensas por diploma em inglês, carta de idioma de instrução (MOI), Duolingo e outros testes, e o que os vistos exigem.",
+    updated: U2,
+    keywords: ["estudar no exterior sem IELTS", "mestrado no Canadá sem IELTS", "universidades do Reino Unido sem IELTS", "estudar nos EUA sem TOEFL", "carta MOI universidade", "universidades que aceitam Duolingo"],
+    answer:
+      "Muitas vezes, sim. No Reino Unido, a universidade pode avaliar seu inglês por conta própria em cursos de graduação e pós-graduação, então muitas aceitam um diploma em inglês, uma carta de idioma de instrução (MOI) ou outros testes. No Canadá e nos EUA, muitos mestrados dispensam o teste se seu diploma foi em inglês e aceitam TOEFL, Duolingo, PTE ou, no Canadá, CAEL no lugar do IELTS. Para quem se formou em português, a dispensa por diploma é rara: normalmente você vai precisar de um teste, mas não necessariamente o IELTS. As regras mudam de uma universidade para outra: leia sempre a página de requisitos de inglês do programa.",
+    body: `
+## Quatro caminhos sem IELTS
+
+1. **Dispensa por diploma em inglês.** Muitas universidades publicam uma lista de países cujos diplomas contam automaticamente; outras aceitam uma [carta de idioma de instrução](/guides/medium-of-instruction-letter) de qualquer país.
+2. **Outro teste.** TOEFL iBT, Duolingo English Test e PTE Academic são muito aceitos; no Canadá, também o CAEL. A nota mínima depende do programa.
+3. **Estudo ou trabalho em inglês.** Alguns programas aceitam estudo ou trabalho recente num país de língua inglesa.
+4. **Admissão condicional.** Algumas universidades admitem você com a condição de fazer antes o curso de inglês delas.
+
+## País por país
+
+| País | O que costuma bastar | O visto |
+|---|---|---|
+| Reino Unido | Avaliação da própria universidade: diploma em inglês, MOI em alguns casos, Duolingo, TOEFL ou entrevista | Para cursos de nível superior, a universidade patrocinadora pode avaliar seu inglês; cidadãos de países de maioria anglófona são isentos |
+| Canadá | Dispensa por diploma em inglês (lista de países ou MOI), ou TOEFL, Duolingo, PTE, CAEL | A permissão de estudos não fixa nota de IELTS para a maioria dos universitários; vale a carta de admissão |
+| Estados Unidos | Dispensa por diploma em inglês em muitos mestrados; Duolingo muito aceito | O visto F-1 não exige nota, mas a entrevista é em inglês |
+
+Em Portugal, muitos mestrados são em português: para falantes de português, não há teste de inglês nesses casos.
+
+## O dinheiro que os vistos pedem
+
+- **Reino Unido:** a partir de 30 de novembro de 2026, £1.570 por mês em Londres ou £1.203 fora de Londres, por até nove meses, além da anuidade.
+- **Canadá:** CA$23.448 para um solicitante sozinho fora de Quebec (pedidos a partir de 1º de setembro de 2026), mais a anuidade do primeiro ano.
+- **Estados Unidos:** o custo total indicado no seu I-20. Antes de investir em candidaturas, confira se sua nacionalidade está nas restrições de entrada em vigor desde 1º de janeiro de 2026.
+
+## Por onde começar
+
+Nossas listas de programas que aceitam carta MOI mostram o que nossos agentes verificaram, com prazos e anuidades: [Canadá](/programmes/canada/english-medium-letter), [Reino Unido](/programmes/uk/english-medium-letter) e [Estados Unidos](/programmes/usa/english-medium-letter).
+
+## Como a Ivyward ajuda
+
+Os agentes da Ivyward leem as regras de inglês de cada programa, marcam onde seu diploma dispensa o teste, redigem o pedido da carta MOI para sua universidade e só sugerem um teste quando sua lista realmente precisa.
+`,
+    faq: [
+      ["Dá para estudar no Canadá sem IELTS?", "Sim, em muitas universidades: com diploma em inglês (lista de países ou carta MOI) ou com outro teste, como TOEFL, Duolingo, PTE ou CAEL. A permissão de estudos se baseia na admissão da universidade."],
+      ["As universidades do Reino Unido aceitam Duolingo?", "Muitas aceitam em cursos de nível superior, mas não todas. Confira a página de requisitos de inglês de cada universidade."],
+      ["Preciso de IELTS para o visto de estudante dos EUA?", "Não há nota fixa para o visto F-1, mas a entrevista é em inglês e o seu I-20 depende da admissão da universidade."],
+    ],
+    sources: [
+      ["GOV.UK: Student visa, conhecimento de inglês (em inglês)", "https://www.gov.uk/student-visa/knowledge-of-english"],
+      ["IRCC: permissão de estudos (em inglês)", "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit.html"],
+      ["Departamento de Estado dos EUA: visto de estudante (em inglês)", "https://travel.state.gov/content/travel/en/us-visas/study/student-visa.html"],
+    ],
+    related: ["bolsas-mestrado-totalmente-financiadas", "custo-mestrado-no-exterior"],
+  },
+  {
+    lang: "pt",
+    slug: "custo-mestrado-no-exterior",
+    en: "cost-of-masters-abroad-by-country",
+    title: "Quanto custa um mestrado no exterior, país por país (2027)",
+    seoTitle: "Custo de um mestrado no exterior por país (2027)",
+    description: "Faixas de anuidade e os valores oficiais de manutenção exigidos pelos vistos de estudante do Reino Unido, Canadá, Alemanha e EUA, para planejar o orçamento antes de se candidatar.",
+    updated: U2,
+    keywords: ["quanto custa um mestrado no exterior", "país mais barato para fazer mestrado", "custo mestrado Canadá", "custo mestrado Reino Unido", "estudar na Alemanha custo", "orçamento estudar fora"],
+    answer:
+      "Planeje duas coisas: a anuidade e o custo de vida que o visto exige comprovar. Por exemplo, o visto de estudante do Reino Unido exige £1.570 por mês em Londres ou £1.203 fora de Londres (a partir de 30 de novembro de 2026); o Canadá pede a um solicitante sozinho fora de Quebec CA$23.448 mais a anuidade do primeiro ano (a partir de 1º de setembro de 2026); e a Alemanha, uma conta bloqueada de €11.904 por ano, com pouca ou nenhuma anuidade nas universidades públicas. Nos EUA o custo varia mais: o custo de frequência publicado costuma ficar entre US$40.000 e US$90.000 por ano, antes de qualquer bolsa.",
+    body: `
+## Anuidade, por destino
+
+- **Reino Unido:** mestrado de um ano, em geral entre £15.000 e £40.000 para estudantes internacionais, mais em negócios e medicina.
+- **Canadá:** muitas vezes entre CA$20.000 e CA$60.000 por ano; muitos mestrados duram de um a dois anos.
+- **Estados Unidos:** faixa muito ampla; mestrados de pesquisa e doutorados costumam ser financiados, os profissionais raramente.
+- **Alemanha:** a maioria das universidades públicas não cobra anuidade, só uma taxa semestral; Baden-Württemberg cobra de estudantes de fora da UE.
+- **Portugal:** propinas de mestrado nas universidades públicas costumam ser bem menores que no Reino Unido; estudantes internacionais podem pagar um valor próprio.
+- **Resto da Europa:** de taxas baixas em alguns países a mais de €15.000 na Holanda e na Irlanda.
+- **Austrália:** muitas vezes entre A$30.000 e A$50.000 por ano.
+
+Nossas [listas de programas](/programmes) mostram a anuidade publicada por cada universidade.
+
+## O custo de vida que o visto exige
+
+- **Reino Unido:** £1.570 por mês em Londres ou £1.203 fora de Londres, por até nove meses (a partir de 30 de novembro de 2026).
+- **Canadá:** CA$23.448 para um solicitante sozinho fora de Quebec (a partir de 1º de setembro de 2026), mais a anuidade.
+- **Alemanha:** €11.904 por ano numa conta bloqueada.
+- **Estados Unidos:** o custo indicado no seu I-20, definido pela universidade.
+
+## Como baixar o custo
+
+- [Isenção da taxa de inscrição](/pt/guias/isencao-taxa-de-inscricao)
+- [Bolsas de mestrado totalmente financiadas](/pt/guias/bolsas-mestrado-totalmente-financiadas)
+- [Estudar na Alemanha de graça](/pt/guias/estudar-na-alemanha-de-graca)
+- Assistências de pós-graduação nos EUA ([guia em inglês](/guides/graduate-assistantships-explained))
+
+## Como a Ivyward ajuda
+
+A Ivyward mostra a anuidade e as chances de financiamento de cada programa da sua lista, pede isenções de taxas e encontra bolsas para as quais você se qualifica, para você comparar o custo real antes de se candidatar.
+`,
+    faq: [
+      ["Qual é o país mais barato para fazer mestrado?", "As universidades públicas da Alemanha, com pouca ou nenhuma anuidade, estão entre as mais baratas; você ainda precisa da conta bloqueada para o custo de vida."],
+      ["Quanto dinheiro preciso para o visto de estudante do Reino Unido?", "A partir de 30 de novembro de 2026: £1.570 por mês em Londres ou £1.203 fora de Londres, por até nove meses, mais a anuidade não paga."],
+      ["Quanto é a comprovação financeira para o Canadá em 2026?", "Para um solicitante sozinho fora de Quebec, CA$23.448 para pedidos a partir de 1º de setembro de 2026, mais a anuidade do primeiro ano."],
+    ],
+    sources: [
+      ["GOV.UK: Student visa, dinheiro (em inglês)", "https://www.gov.uk/student-visa/money"],
+      ["CIC News: comprovação financeira do Canadá desde 1º de setembro de 2026 (em inglês)", "https://www.cicnews.com/2026/08/canada-hikes-funds-needed-by-study-permit-applicants-0879805.html"],
+      ["Ministério das Relações Exteriores da Alemanha: visto de estudos", "https://www.auswaertiges-amt.de/en/visa-service"],
+    ],
+    related: ["estudar-na-alemanha-de-graca", "bolsas-mestrado-totalmente-financiadas", "estudar-no-exterior-sem-ielts"],
   },
 ];

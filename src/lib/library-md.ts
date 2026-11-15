@@ -1,7 +1,7 @@
 import { GUIDES, SCHOLARSHIPS, guide, scholarship } from "@/content";
 import { COUNTRY_NOTES, UNIVERSITIES, university } from "@/content/universities";
 import { SITE } from "@/lib/site";
-import { ORIGINS, fitsFor, origin, usLine } from "@/content/countries";
+import { ORIGINS, fitsFor, origin, usLine, inText } from "@/content/countries";
 
 // plain-markdown versions of library pages, for AI agents that prefer markdown to html (linked from each page's
 // <head> as an alternate, and listed in /llms.txt).
@@ -26,7 +26,7 @@ export function libraryMarkdown(kind: string, slug: string): string | null {
     const o = origin(slug);
     if (!o) return null;
     const label = { open: "open", check: "check the rules", no: "not open" } as const;
-    return `# Study abroad from ${o.name}: scholarships, admissions and visas\n\nSource: ${SITE.url}/study-abroad/${o.slug}\nLast checked: 2026-11-01\n\n## Major fully funded scholarships for ${o.demonym} citizens\n\n${fitsFor(o).map((f) => `- ${f.name}: ${label[f.status]}. ${f.note}. ${SITE.url}${f.href}`).join("\n")}${o.local?.length ? `\n\nHome-country awards: ${o.local.join("; ")}.` : ""}\n\n## US visas\n\n${usLine(o)}\n`;
+    return `# Study abroad from ${inText(o)}: scholarships, admissions and visas\n\nSource: ${SITE.url}/study-abroad/${o.slug}\nLast checked: 2026-11-01\n\n## Major fully funded scholarships for ${o.demonym} citizens\n\n${fitsFor(o).map((f) => `- ${f.name}: ${label[f.status]}. ${f.note}. ${SITE.url}${f.href}`).join("\n")}${o.local?.length ? `\n\nHome-country awards: ${o.local.join("; ")}.` : ""}${o.fundAbroad ? `\n\nStudent finance you can take abroad: ${o.fundAbroad}.` : ""}\n\n## US visas\n\n${usLine(o)}\n`;
   }
   return null;
 }

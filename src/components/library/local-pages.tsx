@@ -231,10 +231,14 @@ export function LocalCountryPage({ lang, slug }: { lang: Lang; slug: string }) {
   const answer =
     lang === "fr"
       ? `Les étudiants ${c.adj} peuvent postuler à ${open.length} des ${fits.length} grandes bourses entièrement financées que nous suivons, dont ${open.slice(0, 5).map((f) => f.name.replace(/ \(.*\)/, "")).join(", ")}. ${localUsLine(lang, c)}`
-      : `Los estudiantes ${c.adj} pueden postular a ${open.length} de las ${fits.length} grandes becas totalmente financiadas que seguimos, entre ellas ${open.slice(0, 5).map((f) => f.name.replace(/ \(.*\)/, "")).join(", ")}${local?.length ? `, además de programas nacionales como ${local[0]}` : ""}. ${localUsLine(lang, c)}`;
+      : lang === "pt"
+        ? `Estudantes ${c.adj} podem se candidatar a ${open.length} das ${fits.length} grandes bolsas integrais que acompanhamos, entre elas ${open.slice(0, 5).map((f) => f.name.replace(/ \(.*\)/, "")).join(", ")}${local?.length ? `, além de programas nacionais como ${local[0]}` : ""}. ${localUsLine(lang, c)}`
+        : lang === "ar"
+          ? `يمكن للطلاب ${c.adj} التقدم إلى ${open.length} من أصل ${fits.length} منحة كبرى ممولة بالكامل نتابعها، منها ${open.slice(0, 5).map((f) => f.name.replace(/ \(.*\)/, "")).join("، ")}${local?.length ? `، إضافة إلى برامج وطنية مثل ${local[0]}` : ""}. ${localUsLine(lang, c)}`
+          : `Los estudiantes ${c.adj} pueden postular a ${open.length} de las ${fits.length} grandes becas totalmente financiadas que seguimos, entre ellas ${open.slice(0, 5).map((f) => f.name.replace(/ \(.*\)/, "")).join(", ")}${local?.length ? `, además de programas nacionales como ${local[0]}` : ""}. ${localUsLine(lang, c)}`;
   const cw = COMMONWEALTH_ELIGIBLE.has(o.name);
   const faq: [string, string][] = [
-    [k.faqQ[0](c.adj), `${open.map((f) => f.name).join(" ; ")}.`],
+    [k.faqQ[0](c.adj), `${open.map((f) => f.name).join(lang === "fr" ? " ; " : lang === "ar" ? "؛ " : "; ")}.`],
     [k.faqQ[1](c.adj), localUsLine(lang, c)],
     [k.faqQ[2](the(c)), cw ? k.cwYes(the(c)) : k.cwNo(the(c))],
   ];

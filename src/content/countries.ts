@@ -6,7 +6,7 @@ export type Origin = {
   slug: string;
   name: string;
   demonym: string;
-  region: "Africa" | "Asia" | "Latin America" | "Middle East" | "Caribbean" | "Europe and Central Asia";
+  region: "Africa" | "Asia" | "Latin America" | "Middle East" | "Caribbean" | "Europe and Central Asia" | "Europe" | "North America" | "Oceania";
   iso: string;
   exam?: string; // school-leaving English results many universities accept
   french?: boolean; // francophone: France and Québec are natural options
@@ -15,6 +15,12 @@ export type Origin = {
   local?: string[]; // well-known home-country awards for study abroad
   guide?: string; // a dedicated guide on /guides
   highIncome?: boolean; // World Bank high-income: not eligible for EPOS or JJ/WBGSP
+  // high-income countries whose students mostly fund themselves: the page leads with home funding, costs and
+  // visas rather than development scholarships
+  outbound?: boolean;
+  english?: boolean; // majority English-speaking: usually exempt from English tests
+  eu?: boolean; // EU or EEA citizen: no visa and local tuition elsewhere in the EU and EEA
+  fundAbroad?: string; // home grants or loans that can pay for a full degree abroad (checked on the official sites)
 };
 
 export const COMMONWEALTH_ELIGIBLE = new Set([
@@ -164,12 +170,42 @@ export const ORIGINS: Origin[] = [
   { slug: "grenada", name: "Grenada", demonym: "Grenadian", region: "Caribbean", iso: "GD", exam: CSEC },
   { slug: "belize", name: "Belize", demonym: "Belizean", region: "Caribbean", iso: "BZ", exam: CSEC },
   { slug: "dominica", name: "Dominica", demonym: "Dominican (Dominica)", region: "Caribbean", iso: "DM", exam: CSEC },
+  // high-income countries whose students mostly fund themselves. home funding checked 15 Nov 2026 on
+  // studentaid.gov (federal loans at foreign schools), provincial Canada Student Loans pages, BAföG, DUO, CSN,
+  // Lånekassen, borger.dk (SU) and Kela.
+  { slug: "united-states", name: "United States", demonym: "American", region: "North America", iso: "US", highIncome: true, outbound: true, english: true, local: ["Fulbright U.S. Student Program", "Marshall Scholarships (UK)", "Mitchell Scholarship (Ireland)", "Rhodes Scholarships (US constituency)", "Schwarzman Scholars (Tsinghua University, China)"], fundAbroad: "US federal Direct Loans (not Pell Grants) can pay for a full degree at a foreign university that takes part in the federal loan programme" },
+  { slug: "canada", name: "Canada", demonym: "Canadian", region: "North America", iso: "CA", highIncome: true, outbound: true, english: true, local: ["Fulbright Canada student awards for graduate study in the US", "Rhodes Scholarships (Canada constituency)"], fundAbroad: "Canada Student Loans can be used at designated universities outside Canada; check that yours is designated before you enrol" },
+  { slug: "united-kingdom", name: "United Kingdom", demonym: "British", region: "Europe", iso: "GB", highIncome: true, outbound: true, english: true, local: ["US-UK Fulbright Commission postgraduate awards", "Kennedy Scholarships (Harvard and MIT)", "Frank Knox Fellowships (Harvard)", "Thouron Award (University of Pennsylvania)"] },
+  { slug: "ireland", name: "Ireland", demonym: "Irish", region: "Europe", iso: "IE", highIncome: true, outbound: true, english: true, eu: true, local: ["Fulbright Ireland awards for graduate study in the US"] },
+  { slug: "germany", name: "Germany", demonym: "German", region: "Europe", iso: "DE", highIncome: true, outbound: true, eu: true, local: ["DAAD scholarships for German graduates studying abroad", "Fulbright Germany awards for graduate study in the US"], fundAbroad: "Auslands-BAföG can fund a full degree elsewhere in the EU or in Switzerland, and part of a degree further afield" },
+  { slug: "france", name: "France", demonym: "French", region: "Europe", iso: "FR", highIncome: true, outbound: true, eu: true, local: ["Fulbright France awards for graduate study in the US"] },
+  { slug: "italy", name: "Italy", demonym: "Italian", region: "Europe", iso: "IT", highIncome: true, outbound: true, eu: true, local: ["Fulbright Italy awards for graduate study in the US"] },
+  { slug: "spain", name: "Spain", demonym: "Spanish", region: "Europe", iso: "ES", highIncome: true, outbound: true, eu: true, local: ["Fulbright Spain awards for graduate study in the US"] },
+  { slug: "netherlands", name: "Netherlands", demonym: "Dutch", region: "Europe", iso: "NL", highIncome: true, outbound: true, eu: true, local: ["Fulbright Netherlands awards for graduate study in the US"], fundAbroad: "Dutch student finance from DUO can go with you for a full degree abroad if you meet its residence rule (living in the Netherlands for three of the last six years)" },
+  { slug: "belgium", name: "Belgium", demonym: "Belgian", region: "Europe", iso: "BE", highIncome: true, outbound: true, eu: true, local: ["Fulbright Belgium awards for graduate study in the US"] },
+  { slug: "sweden", name: "Sweden", demonym: "Swedish", region: "Europe", iso: "SE", highIncome: true, outbound: true, eu: true, local: ["Fulbright Sweden awards for graduate study in the US"], fundAbroad: "CSN study grants and loans can fund a full degree at an approved university abroad" },
+  { slug: "norway", name: "Norway", demonym: "Norwegian", region: "Europe", iso: "NO", highIncome: true, outbound: true, eu: true, local: ["Fulbright Norway awards for graduate study in the US"], fundAbroad: "Lånekassen grants and loans, including help with tuition, can fund a full degree at an approved university abroad" },
+  { slug: "denmark", name: "Denmark", demonym: "Danish", region: "Europe", iso: "DK", highIncome: true, outbound: true, eu: true, local: ["Fulbright Denmark awards for graduate study in the US"], fundAbroad: "SU can be paid for a full degree abroad if you meet its conditions" },
+  { slug: "finland", name: "Finland", demonym: "Finnish", region: "Europe", iso: "FI", highIncome: true, outbound: true, eu: true, local: ["Fulbright Finland awards for graduate study in the US"], fundAbroad: "Kela student financial aid can be paid for a full degree at a university abroad" },
+  { slug: "austria", name: "Austria", demonym: "Austrian", region: "Europe", iso: "AT", highIncome: true, outbound: true, eu: true, local: ["Fulbright Austria awards for graduate study in the US"] },
+  { slug: "portugal", name: "Portugal", demonym: "Portuguese", region: "Europe", iso: "PT", highIncome: true, outbound: true, eu: true, local: ["Fulbright Portugal awards for graduate study in the US"] },
+  { slug: "poland", name: "Poland", demonym: "Polish", region: "Europe", iso: "PL", highIncome: true, outbound: true, eu: true, local: ["Fulbright Poland awards for graduate study in the US"] },
+  { slug: "greece", name: "Greece", demonym: "Greek", region: "Europe", iso: "GR", highIncome: true, outbound: true, eu: true, local: ["Fulbright Greece awards for graduate study in the US"] },
+  { slug: "australia", name: "Australia", demonym: "Australian", region: "Oceania", iso: "AU", highIncome: true, outbound: true, english: true, local: ["General Sir John Monash Scholarships", "Fulbright Australia scholarships for graduate study in the US", "Rhodes Scholarships (Australia constituency)"] },
+  { slug: "new-zealand", name: "New Zealand", demonym: "New Zealander", region: "Oceania", iso: "NZ", highIncome: true, outbound: true, english: true, local: ["Fulbright New Zealand awards for graduate study in the US", "Rhodes Scholarships (New Zealand constituency)"] },
+  { slug: "japan", name: "Japan", demonym: "Japanese", region: "Asia", iso: "JP", highIncome: true, outbound: true, local: ["JASSO scholarships for degree-seeking graduate study abroad", "Fulbright Japan awards for graduate study in the US"] },
+  { slug: "israel", name: "Israel", demonym: "Israeli", region: "Middle East", iso: "IL", highIncome: true, outbound: true, local: ["Fulbright Israel awards for graduate study in the US", "Rhodes Scholarships (Israel constituency)"] },
 ];
 
 // when the country pages were last checked (and the 85 added for every region of the world)
-export const ORIGINS_UPDATED = "2026-11-14";
+export const ORIGINS_UPDATED = "2026-11-15";
 
 export const origin = (slug: string) => ORIGINS.find((o) => o.slug === slug);
+
+// names that take "the" in a sentence ("study abroad from the United Kingdom")
+const THE = new Set(["United States", "United Kingdom", "Netherlands", "United Arab Emirates", "Philippines", "Maldives", "Dominican Republic", "Democratic Republic of the Congo", "Republic of the Congo"]);
+export const inText = (o: Pick<Origin, "name">) => (THE.has(o.name) ? `the ${o.name}` : o.name);
+export const atStart = (o: Pick<Origin, "name">) => (THE.has(o.name) ? `The ${o.name}` : o.name);
 
 export type Fit = { name: string; href: string; status: "open" | "check" | "no"; note: string };
 
@@ -178,23 +214,33 @@ const DEVELOPING = (o: Origin) => !o.highIncome && o.name !== "Chile";
 
 // which major scholarships a citizen can go for, with the reason
 export function fitsFor(o: Origin): Fit[] {
+  // (status per award; the home-country exceptions are the award's own rules: Gates and Chevening exclude UK
+  // citizens, MEXT Japanese, DAAD's inbound awards Germans, the Fulbright Foreign Student Program Americans)
   const africa = o.region === "Africa";
   const cw = COMMONWEALTH_ELIGIBLE.has(o.name);
   const usFull = US_FULL.has(o.name);
   const usPartial = US_PARTIAL.has(o.name);
   const us = usFull || usPartial;
   return [
-    { name: "Chevening (UK, master's)", href: "/scholarships/chevening", status: "check", note: "Open to most countries. Confirm yours is on the Chevening country list" },
-    { name: "Commonwealth Master's (UK)", href: "/scholarships/commonwealth-masters", status: cw ? "open" : "no", note: cw ? `${o.name} is on the 2027/28 eligible list` : `${o.name} is not on the 2027/28 eligible list` },
-    { name: "Gates Cambridge (UK)", href: "/scholarships/gates-cambridge", status: "open", note: "Open to all non-UK citizens" },
+    o.iso === "GB"
+      ? { name: "Chevening (UK, master's)", href: "/scholarships/chevening", status: "no", note: "Not for British citizens" }
+      : { name: "Chevening (UK, master's)", href: "/scholarships/chevening", status: "check", note: "Open to most countries. Confirm yours is on the Chevening country list" },
+    { name: "Commonwealth Master's (UK)", href: "/scholarships/commonwealth-masters", status: cw ? "open" : "no", note: cw ? `${atStart(o)} is on the 2027/28 eligible list` : `${atStart(o)} is not on the 2027/28 eligible list` },
+    { name: "Gates Cambridge (UK)", href: "/scholarships/gates-cambridge", status: o.iso === "GB" ? "no" : "open", note: o.iso === "GB" ? "Only for citizens of countries outside the UK" : "Open to all non-UK citizens" },
     { name: "Clarendon (Oxford)", href: "/scholarships/clarendon", status: "open", note: "Open to all nationalities, automatic consideration" },
     { name: "Rhodes (Oxford)", href: "/scholarships/rhodes", status: "check", note: "Check whether there's a constituency for your country, or apply in the Global round" },
     { name: "Erasmus Mundus (Europe)", href: "/scholarships/erasmus-mundus", status: "open", note: "Open to all nationalities" },
-    { name: "DAAD / EPOS (Germany)", href: "/scholarships/daad", status: DEVELOPING(o) ? "open" : "check", note: DEVELOPING(o) ? "EPOS is aimed at professionals from developing countries" : "Check DAAD's database for your country" },
+    o.iso === "DE"
+      ? { name: "DAAD / EPOS (Germany)", href: "/scholarships/daad", status: "no", note: "For international students coming to Germany. German graduates can apply for DAAD's study-abroad scholarships instead" }
+      : { name: "DAAD / EPOS (Germany)", href: "/scholarships/daad", status: DEVELOPING(o) ? "open" : "check", note: DEVELOPING(o) ? "EPOS is aimed at professionals from developing countries" : "Check DAAD's database for your country" },
     { name: "Mastercard Foundation Scholars", href: "/scholarships/mastercard-foundation", status: africa ? "open" : "no", note: africa ? "For young Africans with financial need" : "Only for African citizens" },
     { name: "Knight-Hennessy (Stanford)", href: "/scholarships/knight-hennessy", status: us ? "check" : "open", note: us ? "Open to all, but new US student visas are restricted for your nationality" : "Open to all nationalities" },
-    { name: "Fulbright (USA)", href: "/scholarships/fulbright-foreign-student", status: us ? "check" : "check", note: us ? "Its J-1 visa falls under the 2026 US restrictions for your nationality" : "Run by your country's Fulbright office or US embassy; check this year's call" },
-    { name: "MEXT (Japan)", href: "/scholarships/mext", status: "open", note: "Through the Japanese embassy in your country" },
+    o.iso === "US"
+      ? { name: "Fulbright (USA)", href: "/scholarships/fulbright-foreign-student", status: "no", note: "For non-US citizens. Americans apply to the Fulbright U.S. Student Program to study abroad" }
+      : { name: "Fulbright (USA)", href: "/scholarships/fulbright-foreign-student", status: "check", note: us ? "Its J-1 visa falls under the 2026 US restrictions for your nationality" : "Run by your country's Fulbright office or US embassy; check this year's call" },
+    o.iso === "JP"
+      ? { name: "MEXT (Japan)", href: "/scholarships/mext", status: "no", note: "Not for Japanese citizens" }
+      : { name: "MEXT (Japan)", href: "/scholarships/mext", status: "open", note: "Through the Japanese embassy in your country" },
     { name: "GKS (South Korea)", href: "/scholarships/global-korea-scholarship", status: o.name === "South Korea" ? "no" : "open", note: o.name === "South Korea" ? "Not for South Korean citizens" : "Embassy or university track" },
     { name: "Türkiye Bursları", href: "/scholarships/turkiye-burslari", status: o.name === "Türkiye" ? "no" : "open", note: o.name === "Türkiye" ? "Not for Turkish citizens" : "All nationalities, within age limits" },
     { name: "Chinese Government Scholarship", href: "/scholarships/chinese-government-scholarship", status: o.name === "China" ? "no" : o.name === "Taiwan" ? "check" : "open", note: o.name === "China" ? "Not for Chinese citizens" : o.name === "Taiwan" ? "Check the current rules for applicants from Taiwan" : "Through the Chinese embassy or a university" },
@@ -204,7 +250,8 @@ export function fitsFor(o: Origin): Fit[] {
 }
 
 export function usLine(o: Origin) {
-  if (US_FULL.has(o.name)) return `${o.name} is under full US entry restrictions since 1 January 2026, so new US student visas are suspended for ${o.demonym} nationals, with limited exceptions.`;
-  if (US_PARTIAL.has(o.name)) return `${o.name} is under partial US entry restrictions since 1 January 2026: new F, M and J (student and exchange) visas are suspended for ${o.demonym} nationals. Students already holding valid visas are not affected.`;
-  return `${o.name} is not on the US entry restriction lists that took effect on 1 January 2026, so ${o.demonym} students can apply for F-1 visas as usual.`;
+  if (o.iso === "US") return "US citizens don't need a student visa to study in the United States.";
+  if (US_FULL.has(o.name)) return `${atStart(o)} is under full US entry restrictions since 1 January 2026, so new US student visas are suspended for ${o.demonym} nationals, with limited exceptions.`;
+  if (US_PARTIAL.has(o.name)) return `${atStart(o)} is under partial US entry restrictions since 1 January 2026: new F, M and J (student and exchange) visas are suspended for ${o.demonym} nationals. Students already holding valid visas are not affected.`;
+  return `${atStart(o)} is not on the US entry restriction lists that took effect on 1 January 2026, so ${o.demonym} students can apply for F-1 visas as usual.`;
 }

@@ -1,6 +1,7 @@
 import type { LocalGuide } from "./types";
 
 const U = "2026-11-01";
+const U2 = "2026-11-15";
 
 export const FR: LocalGuide[] = [
   {
@@ -420,5 +421,112 @@ Ivyward suit chaque tour de chaque programme et bourse de votre liste, y compris
       ["Commission des bourses du Commonwealth (en anglais)", "https://cscuk.fcdo.gov.uk/masters"],
     ],
     related: ["bourses-master-entierement-financees", "exoneration-frais-de-dossier"],
+  },
+  {
+    lang: "fr",
+    slug: "etudier-a-l-etranger-sans-ielts",
+    title: "Étudier à l'étranger sans IELTS : Canada, Royaume-Uni et États-Unis",
+    seoTitle: "Étudier à l'étranger sans IELTS (master, 2027)",
+    description: "Comment candidater à un master au Canada, au Royaume-Uni ou aux États-Unis sans IELTS : dispenses pour un diplôme en anglais, attestation de langue d'enseignement (MOI), Duolingo et autres tests, et ce qu'exigent les visas.",
+    updated: U2,
+    keywords: ["étudier à l'étranger sans IELTS", "master au Canada sans IELTS", "universités britanniques sans IELTS", "étudier aux États-Unis sans TOEFL", "attestation MOI université", "universités qui acceptent Duolingo"],
+    answer:
+      "Souvent, oui. Au Royaume-Uni, l'université peut évaluer elle-même votre anglais pour un diplôme de niveau licence ou plus, donc beaucoup acceptent un diplôme enseigné en anglais, une attestation de langue d'enseignement (MOI) ou d'autres tests. Au Canada et aux États-Unis, de nombreux masters dispensent du test si votre diplôme était en anglais, et acceptent le TOEFL, le Duolingo, le PTE ou, au Canada, le CAEL à la place de l'IELTS. Pour les diplômés francophones, la dispense par diplôme est plus rare : prévoyez souvent un test, mais pas forcément l'IELTS. Les règles changent d'une université à l'autre : lisez toujours la page des exigences d'anglais du programme.",
+    body: `
+## Quatre voies sans IELTS
+
+1. **Dispense pour un diplôme en anglais.** Beaucoup d'universités publient une liste de pays dont les diplômes comptent automatiquement ; d'autres acceptent une [attestation de langue d'enseignement](/guides/medium-of-instruction-letter) de n'importe quel pays.
+2. **Un autre test.** TOEFL iBT, Duolingo English Test et PTE Academic sont très acceptés ; au Canada, le CAEL aussi. Le score minimum dépend du programme.
+3. **Études ou travail en anglais.** Certains programmes acceptent des études ou un emploi récents dans un pays anglophone.
+4. **Admission conditionnelle.** Certaines universités vous admettent à condition de suivre d'abord leur cours d'anglais.
+
+## Pays par pays
+
+| Pays | Ce qui suffit souvent | Le visa |
+|---|---|---|
+| Royaume-Uni | Évaluation par l'université : diplôme en anglais, MOI dans certains cas, Duolingo, TOEFL ou entretien | Pour un diplôme de niveau licence ou plus, l'université qui vous parraine peut évaluer votre anglais ; les ressortissants de pays majoritairement anglophones sont dispensés |
+| Canada | Dispense pour un diplôme en anglais (liste de pays ou MOI), ou TOEFL, Duolingo, PTE, CAEL | Le permis d'études ne fixe pas de score IELTS pour la plupart des étudiants universitaires : c'est la lettre d'admission qui compte |
+| États-Unis | Dispense pour un diplôme en anglais dans beaucoup de masters ; Duolingo largement accepté | Le visa F-1 n'exige pas de score, mais l'entretien se fait en anglais |
+
+Au Québec, de nombreux programmes sont enseignés en français : votre français suffit alors, sans test d'anglais.
+
+## L'argent exigé pour le visa
+
+- **Royaume-Uni :** à partir du 30 novembre 2026, 1 570 £ par mois à Londres ou 1 203 £ ailleurs, jusqu'à neuf mois, en plus des frais de scolarité.
+- **Canada :** 23 448 $ CA pour une personne seule hors Québec (demandes reçues à partir du 1er septembre 2026), plus les frais de la première année.
+- **États-Unis :** le coût total indiqué sur votre I-20. Avant d'investir dans des candidatures, vérifiez si votre nationalité fait partie des restrictions d'entrée en vigueur depuis le 1er janvier 2026.
+
+## Par où commencer
+
+Nos listes de programmes qui acceptent une attestation MOI montrent ce que nos agents ont vérifié, avec dates limites et frais : [Canada](/programmes/canada/english-medium-letter), [Royaume-Uni](/programmes/uk/english-medium-letter) et [États-Unis](/programmes/usa/english-medium-letter).
+
+## Ce que fait Ivyward
+
+Les agents d'Ivyward lisent les règles d'anglais de chaque programme, repèrent où votre diplôme vous dispense de test, rédigent la demande d'attestation MOI pour votre université et ne vous proposent un test que si votre liste en a vraiment besoin.
+`,
+    faq: [
+      ["Peut-on étudier au Canada sans IELTS ?", "Oui, dans beaucoup d'universités : avec un diplôme enseigné en anglais (liste de pays ou attestation MOI), avec un autre test comme le TOEFL, le Duolingo, le PTE ou le CAEL, ou en français au Québec. Le permis d'études s'appuie sur l'admission de l'université."],
+      ["Les universités britanniques acceptent-elles le Duolingo ?", "Beaucoup, oui, pour les diplômes de niveau licence ou plus, mais pas toutes. Vérifiez la page des exigences d'anglais de chaque université."],
+      ["Faut-il l'IELTS pour le visa étudiant américain ?", "Aucun score n'est fixé pour le visa F-1, mais l'entretien se fait en anglais et votre I-20 dépend de l'admission de l'université."],
+    ],
+    sources: [
+      ["GOV.UK : Student visa, connaissance de l'anglais (en anglais)", "https://www.gov.uk/student-visa/knowledge-of-english"],
+      ["IRCC : permis d'études", "https://www.canada.ca/fr/immigration-refugies-citoyennete/services/etudier-canada/permis-etudes.html"],
+      ["Département d'État américain : visa étudiant (en anglais)", "https://travel.state.gov/content/travel/en/us-visas/study/student-visa.html"],
+    ],
+    related: ["etudier-au-canada", "cout-master-a-l-etranger"],
+  },
+  {
+    lang: "fr",
+    slug: "cout-master-a-l-etranger",
+    en: "cost-of-masters-abroad-by-country",
+    title: "Combien coûte un master à l'étranger, pays par pays (2027)",
+    seoTitle: "Coût d'un master à l'étranger par pays (2027)",
+    description: "Les fourchettes de frais de scolarité et les montants officiels exigés pour le visa étudiant au Royaume-Uni, au Canada, en Allemagne, aux États-Unis et ailleurs, pour budgéter un master avant de candidater.",
+    updated: U2,
+    keywords: ["combien coûte un master à l'étranger", "pays le moins cher pour un master", "coût master Canada", "coût master Royaume-Uni", "coût études Allemagne", "budget études à l'étranger"],
+    answer:
+      "Prévoyez deux postes : les frais de scolarité et les frais de vie que le visa vous demande de prouver. Par exemple, le visa étudiant britannique exige 1 570 £ par mois à Londres ou 1 203 £ ailleurs (à partir du 30 novembre 2026), le Canada demande à une personne seule hors Québec 23 448 $ CA plus les frais de la première année (à partir du 1er septembre 2026), et l'Allemagne un compte bloqué de 11 904 € par an, avec peu ou pas de frais dans les universités publiques. Aux États-Unis, le coût varie le plus : le coût de scolarité publié va souvent de 40 000 à 90 000 dollars par an avant toute aide.",
+    body: `
+## Frais de scolarité, par destination
+
+- **Royaume-Uni :** master d'un an, en général entre 15 000 et 40 000 £ pour les étudiants internationaux, davantage en commerce et en médecine.
+- **Canada :** souvent entre 20 000 et 60 000 $ CA par an ; beaucoup de masters durent un à deux ans. Au Québec, des ententes réduisent les frais pour les Français et certains autres pays francophones.
+- **États-Unis :** très variable ; les masters de recherche et les doctorats sont souvent financés, les masters professionnels rarement.
+- **Allemagne :** la plupart des universités publiques ne facturent pas de frais de scolarité, seulement une contribution semestrielle ; le Bade-Wurtemberg fait payer les étudiants hors UE.
+- **Reste de l'Europe :** de frais modestes dans certains pays à plus de 15 000 € aux Pays-Bas et en Irlande.
+- **Australie :** souvent entre 30 000 et 50 000 $ AU par an.
+
+Nos [listes de programmes](/programmes) indiquent les frais publiés par chaque université.
+
+## Les frais de vie exigés pour le visa
+
+- **Royaume-Uni :** 1 570 £ par mois à Londres ou 1 203 £ ailleurs, jusqu'à neuf mois (à partir du 30 novembre 2026).
+- **Canada :** 23 448 $ CA pour une personne seule hors Québec (à partir du 1er septembre 2026), plus les frais de scolarité.
+- **Allemagne :** 11 904 € par an sur un compte bloqué.
+- **États-Unis :** le coût indiqué sur votre I-20, fixé par l'université.
+
+## Comment réduire la facture
+
+- [Exonération des frais de dossier](/fr/guides/exoneration-frais-de-dossier)
+- [Bourses de master entièrement financées](/fr/guides/bourses-master-entierement-financees)
+- [Étudier en France](/fr/guides/etudier-en-france)
+- Assistanats de recherche ou d'enseignement aux États-Unis ([guide en anglais](/guides/graduate-assistantships-explained))
+
+## Ce que fait Ivyward
+
+Ivyward affiche les frais et les perspectives de financement de chaque programme de votre liste, demande les exonérations de frais de dossier et trouve les bourses auxquelles vous avez droit, pour comparer le coût réel avant de candidater.
+`,
+    faq: [
+      ["Quel est le pays le moins cher pour un master ?", "Les universités publiques allemandes, avec peu ou pas de frais de scolarité, sont parmi les moins chères ; il faut quand même le compte bloqué pour les frais de vie."],
+      ["Combien faut-il pour un visa étudiant britannique ?", "À partir du 30 novembre 2026 : 1 570 £ par mois à Londres ou 1 203 £ ailleurs, jusqu'à neuf mois, plus les frais de scolarité non payés."],
+      ["Quel montant prouver pour le Canada en 2026 ?", "Pour une personne seule hors Québec, 23 448 $ CA pour les demandes reçues à partir du 1er septembre 2026, plus les frais de la première année."],
+    ],
+    sources: [
+      ["GOV.UK : Student visa, argent (en anglais)", "https://www.gov.uk/student-visa/money"],
+      ["CIC News : preuve de fonds au Canada à partir du 1er septembre 2026 (en anglais)", "https://www.cicnews.com/2026/08/canada-hikes-funds-needed-by-study-permit-applicants-0879805.html"],
+      ["Office fédéral allemand des Affaires étrangères : visa d'études", "https://www.auswaertiges-amt.de/en/visa-service"],
+    ],
+    related: ["etudier-en-france", "bourses-master-entierement-financees", "etudier-a-l-etranger-sans-ielts"],
   },
 ];
