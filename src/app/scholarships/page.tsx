@@ -23,7 +23,10 @@ export default function Scholarships() {
             The large, well-established awards for international students: who funds them, who can apply, what they cover and when they usually close. Each profile links to the official page, because dates move every cycle.
           </p>
           <p className="mt-5 text-[15px]">
-            Not sure which you qualify for?{" "}
+            <Link href="/scholarships/deadlines" className="font-medium text-brand underline decoration-current/30 underline-offset-4">
+              See which are open now
+            </Link>
+            . Not sure which you qualify for?{" "}
             <Link href="/tools/scholarship-finder" className="font-medium text-brand underline decoration-current/30 underline-offset-4">
               Try the scholarship finder
             </Link>{" "}

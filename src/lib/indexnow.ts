@@ -17,7 +17,7 @@ export function publicUrls(sinceIso?: string) {
     ...allLocalUrls().map((path) => ({ path, updated: "2026-11-01" })),
   ];
   const fresh = sinceIso ? lib.filter((p) => p.updated >= sinceIso) : lib;
-  const hubs = !sinceIso || fresh.length ? ["/", "/guides", "/scholarships", "/about", "/pricing", "/universities", "/schools", "/schools/us", "/schools/uk", "/study-abroad", "/glossary", "/tools/scholarship-finder", "/match", "/programmes", "/deadlines", "/llms.txt", "/llms-full.txt"] : [];
+  const hubs = !sinceIso || fresh.length ? ["/", "/guides", "/scholarships", "/about", "/pricing", "/universities", "/schools", "/schools/us", "/schools/uk", "/study-abroad", "/glossary", "/tools/scholarship-finder", "/match", "/programmes", "/deadlines", "/scholarships/deadlines", "/llms.txt", "/llms-full.txt"] : [];
   return [...hubs, ...fresh.map((p) => p.path)].map((p) => `${SITE.url}${p}`);
 }
 

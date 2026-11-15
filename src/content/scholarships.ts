@@ -95,7 +95,7 @@ export const SCHOLARSHIPS: Scholarship[] = [
       "Gates Cambridge pays the full cost of a postgraduate degree at the University of Cambridge for applicants from outside the UK: university fees, a maintenance allowance, one economy flight each way and visa costs. Around 80 scholarships are awarded each year. You apply through the normal Cambridge graduate application and tick the Gates Cambridge box. US citizens apply in the October round; everyone else by the December or January funding deadline for their course.",
     covers: ["The University Composition Fee", "A maintenance allowance for a single student", "One economy airfare at the start and end of the course", "The visa and Immigration Health Surcharge", "Discretionary funding for academic development, family and fieldwork"],
     eligibility: ["Citizen of any country outside the United Kingdom", "Applying for a full-time master's (one year or more) or PhD at Cambridge", "Outstanding intellectual ability, leadership potential and a commitment to improving the lives of others"],
-    deadline: "Mid-October for US citizens; early December or early January for everyone else, depending on your course's funding deadline.",
+    deadline: "For 2027 entry: US citizens resident in the US by 14 October 2026 (closed); everyone else by 8 December 2026 or 6 January 2027, depending on the course, as listed in the Cambridge Course Directory.",
     howToApply: [
       "Apply to your Cambridge course through the university's graduate application portal",
       "Complete the Gates Cambridge section in the same form, including a personal statement and a reference that speaks to leadership",
@@ -103,7 +103,7 @@ export const SCHOLARSHIPS: Scholarship[] = [
     ],
     tips: ["The Gates statement is separate from your course statement. Make it about leadership and social commitment", "Ask one referee to write specifically about leadership and impact", "Apply in the earliest funding round your course allows"],
     url: "https://www.gatescambridge.org/",
-    updated: U,
+    updated: "2026-11-15",
     faq: [
       ["Is Gates Cambridge fully funded?", "Yes. It covers Cambridge fees, a living allowance, flights, visa costs and the health surcharge."],
       ["Do I need a separate application for Gates Cambridge?", "No separate portal. You apply in the Cambridge graduate application and complete the Gates Cambridge section there."],
@@ -162,11 +162,11 @@ export const SCHOLARSHIPS: Scholarship[] = [
       "Knight-Hennessy Scholars funds up to three years of graduate study in any Stanford graduate program, including MBA, JD, MD, master's and PhD, for applicants of any nationality. It pays tuition, a living stipend and travel. You apply to Knight-Hennessy and, separately, to your Stanford program. The Knight-Hennessy deadline is in early-to-mid October, about a year before you start, and you must have earned your bachelor's degree within roughly the last seven years.",
     covers: ["Full tuition and fees", "A stipend for living and academic expenses", "Travel stipend for one round trip a year", "Leadership programming through the King Global Leadership Program"],
     eligibility: ["Any nationality", "A bachelor's degree earned within about seven years of the application year (check the exact cut-off for your cohort)", "Applying to, or newly enrolled in, a full-time Stanford graduate program"],
-    deadline: "Early to mid October, the year before you start.",
+    deadline: "Early to mid October, the year before you start. The deadline for the 2027 cohort was 6 October 2026; the application for the 2028 cohort opens in summer 2027.",
     howToApply: ["Submit the Knight-Hennessy application: short essays, a video, a resume and two recommendations", "Apply separately to your Stanford graduate program by its own deadline", "Finalists attend Immersion Weekend in February"],
     tips: ["Show independence of thought and purpose-driven leadership with concrete stories", "Your Stanford program application is judged separately. Both must succeed"],
     url: "https://knight-hennessy.stanford.edu/",
-    updated: U,
+    updated: "2026-11-15",
     faq: [
       ["Can international students apply for Knight-Hennessy?", "Yes. It is open to every nationality. Check current US visa rules for your country, because you'll need a student visa to enrol."],
       ["How many years does Knight-Hennessy fund?", "Up to three years of your Stanford graduate study."],

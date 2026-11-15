@@ -24,6 +24,7 @@ export default async function Deadlines() {
           Most master&apos;s and PhD deadlines for the next autumn intake fall between November and March, with scholarship rounds usually earlier. Pick a month to see every deadline we&apos;ve checked, soonest first.
         </ShortAnswer>
         <PageLinks title="Months" links={months.map((m) => ({ href: `/deadlines/${m.month}`, label: monthName(m.month), count: m.count }))} />
+        <PageLinks title="Scholarships" links={[{ href: "/scholarships/deadlines", label: "Scholarship deadlines for 2027 entry" }]} />
         <Cta title="Never miss one" body="Ivyward tracks every deadline on your list and its agents start each application early enough to finish it. You sign before anything goes." href="/match" label="Find my matches" />
       </div>
     </LibraryShell>
