@@ -64,19 +64,21 @@ Never work around a block, CAPTCHA or checkpoint.
 
 - **Chrome (the Claude in Chrome extension)** is signed in to Facebook as the Ivyward Page and is the browser for posting.
   Load the `chrome-browser` skill first. Open your own tab; close it at the end.
-- **Videos never go through the browser's file picker** (Chrome can't attach local files in scheduled runs). Instead:
-  1. *Morning run:* commit each day's mp4s to `marketing/facebook/videos/` in the repo (`YYYY-MM-DD-<slug>.mp4`, under
-     10 MB each) and push to main; put that file name in the item's `video.file`.
-  2. *Posting run, first use of a video that day:* start the GitHub workflow "Post video to Facebook Page"
-     (`facebook-video.yml`, on main) with `file` = the file name, `text` = the approved text of the first approved item
-     that uses the video (a Page post if there is one), `title` = the video's title. Wait for it to finish and read
-     `video_id` and `url` from its summary. Save them on every item that uses that video (`video.fbUrl`). That item is
-     now `posted` with that URL.
-  3. *Each group post using that video:* in Chrome as the Ivyward Page, open `video.fbUrl` → Share → "Share to a
-     group" → pick the group → paste the item's own approved text → Post. Record the group post's link.
-  4. If the workflow fails with "FB_PAGE_TOKEN secret is not set" or "Facebook refused the token", the Page token is
-     missing or expired: leave video posts `approved` with `result.note: "Waiting: Facebook token"`, post the replies,
-     and tell the user once. Never try another route.
+- **Attaching videos** (tested 15 Nov 2026): Chrome's `file_upload` only accepts files under `/mnt/user-data/uploads/` in
+  the run's own container. Paths on the Mac (the connected folder) and `/mnt/user-data/outputs/` are refused with "only
+  files this session is allowed to read can be uploaded". So, before each video post:
+  1. Put the mp4 under `/mnt/user-data/uploads/ivyward-video/` (create the folder). Either fetch it from the review page
+     (`Artifact` read with `url` = the review page and `path` = the item's `video.assetId`, then `cp` the saved file
+     there), or, when the Mac is connected, stage it from the connected folder with `device_stage_files`
+     (`/Users/sam/Documents/ivyward video/<file>`; it lands in `/mnt/user-data/uploads/ivyward video/<file>`).
+  2. Open the composer first (Page: "Photo/video"; group: "Write something…", then "Photo/video"), so the "Create post"
+     dialog is open. Find the file input *inside that dialog* and give it to `file_upload` with the `/mnt/user-data/uploads/…`
+     path. Never use the "Attach a photo or video" inputs under existing posts: those are comment boxes.
+  3. Wait until the dialog shows the video preview, then add the text and post.
+  4. If `file_upload` still refuses the file, leave the item `approved` with `result.note: "Waiting: video attach"`,
+     post the text-only items, and tell the user once. Never post a video item without its video.
+  The GitHub workflow "Post video to Facebook Page" (`facebook-video.yml`) is the fallback for Page posts only, when a
+  `FB_PAGE_TOKEN` secret exists; it isn't needed for normal runs.
 - The built-in browser pane is also signed in to Facebook; use it for reading, searching and joining if Chrome isn't connected.
 - Check who you are acting as before the first action (top-right avatar should be the Ivyward mark). If it's Samson's
   profile, switch to Ivyward (avatar menu → Ivyward) before doing anything.
@@ -143,10 +145,10 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
    `status: "approved"` and a slot at or before this one, not yet posted (earlier slots' items approved late go now).
    Nothing approved: write a short `runs` entry and stop.
 2. In Chrome as the Ivyward Page, for each item in `order`:
-   - **page_post:** facebook.com/tryivyward → "Photo/video" → `file_upload` the mp4 → paste the text (`edited` if set,
-     else `text`) → Post.
-   - **group_post:** open the group → "Write something…" → attach the video with `file_upload` → text → Post. If the group
-     holds posts for admin approval, record `result.note: "Waiting for group admin approval"` and still mark `posted`.
+   - **page_post:** facebook.com/tryivyward → "Photo/video" → attach the mp4 as in "Attaching videos" → paste the text
+     (`edited` if set, else `text`) → Post.
+   - **group_post:** open the group → "Write something…" → attach the video as in "Attaching videos" → text → Post. If the
+     group holds posts for admin approval, record `result.note: "Waiting for group admin approval"` and still mark `posted`.
    - **comment / reply:** open `context.url` → reply to that comment/post → text → submit.
    - Wait 60–120 seconds between actions.
 3. After each, read back the post's URL (open it from the Page's or group's feed) and update the item: `status: "posted"`,
