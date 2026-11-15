@@ -61,9 +61,9 @@ export default function ScholarshipDeadlines() {
   const open = CALENDAR.filter((e) => phaseOf(e) === "open");
   const soon = CALENDAR.filter((e) => phaseOf(e) === "soon");
   const closed = CALENDAR.filter((e) => phaseOf(e) === "closed");
-  const answer = `For 2027 entry, ${names(closed.slice(0, 4))} have closed. Still open: ${names(open.slice(0, 5))}. Opening in early 2027: ${names(soon.slice(0, 5))}. Each scholarship links to its profile with the official page, because exact dates move every cycle.`;
+  const answer = `For 2027 entry, ${names(closed.slice(0, 4))} have closed. Still open: ${names(open.slice(0, 5))}. Coming up in 2027: ${names(soon.slice(0, 5))}. Each scholarship links to its profile with the official page, because exact dates move every cycle.`;
   const faq: [string, string][] = [
-    ["Which fully funded scholarships are still open for 2027?", `${names(open.filter((e) => !/may already have closed/.test(e.when)))}, as of ${longDate(CALENDAR_CHECKED)}. ${names(soon)} open in early 2027.`],
+    ["Which fully funded scholarships are still open for 2027?", `${names(open.filter((e) => !/may already have closed/.test(e.when)))}, as of ${longDate(CALENDAR_CHECKED)}. ${names(soon)} come next, in early 2027.`],
     ["When is the Gates Cambridge deadline for 2027?", "US citizens resident in the US applied by 14 October 2026. Everyone else applies by 8 December 2026 or 6 January 2027, depending on the course, through the normal Cambridge graduate application."],
     ["When does Chevening open again?", "Chevening applications usually open in early August and close in early October. The round for 2027/28 closed on 6 October 2026, so the next one, for 2028/29, should open in August 2027."],
     ["Is it too late to get a scholarship for September 2027?", "No. Gates Cambridge (international round), Clarendon, Erasmus Mundus programmes, Eiffel, Stipendium Hungaricum, Türkiye Bursları, the Chinese Government Scholarship and GKS are all still ahead. University funding deadlines in the US, UK and Canada also run from December to February."],
@@ -83,7 +83,7 @@ export default function ScholarshipDeadlines() {
           <Table rows={open} />
         </section>
         <section className="mt-10">
-          <h2 className="font-serif text-[28px]">Opening in early 2027</h2>
+          <h2 className="font-serif text-[28px]">Coming up in 2027</h2>
           <Table rows={soon} />
         </section>
         <section className="mt-10">
