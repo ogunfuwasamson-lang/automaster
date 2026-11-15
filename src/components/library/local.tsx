@@ -73,7 +73,7 @@ export function LocalCrumbs({ items }: { items: [string, string][] }) {
     <nav aria-label="Breadcrumb" className="text-[13.5px] text-muted">
       <ol className="flex flex-wrap items-center gap-1.5">
         {items.map(([name, href], i) => (
-          <li key={href} className="flex items-center gap-1.5">
+          <li key={`${i}-${href}`} className="flex items-center gap-1.5">
             {i > 0 && <span aria-hidden>/</span>}
             {i === items.length - 1 ? (
               <span aria-current="page" className="text-foreground/80">
