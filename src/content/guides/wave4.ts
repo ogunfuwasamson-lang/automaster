@@ -147,7 +147,7 @@ Banks set limits for international card spending, and they change. Check your ba
     ["Central Bank of Nigeria", "https://www.cbn.gov.ng/"],
     ["Flywire: paying education fees", "https://www.flywire.com/"],
   ],
-  related: ["how-to-get-application-fee-waivers", "scholarships-for-nigerian-and-african-students"],
+  related: ["how-to-get-application-fee-waivers", "universities-with-no-application-fee", "scholarships-for-nigerian-and-african-students"],
 };
 
 export const transcriptsNigeria: Guide = {
@@ -363,7 +363,7 @@ UK, Canadian and European deadlines differ: see [September 2027 intake deadlines
     ["Council of Graduate Schools: April 15 resolution", "https://cgsnet.org/resources/for-current-prospective-graduate-students/april-15-resolution"],
     ["UCAS: 2027 entry deadline", "https://www.ucas.com/events/2027-entry-deadline-for-all-undergraduate-courses-except-those-with-a-15-october-deadline-475546"],
   ],
-  related: ["application-deadlines-2027-intake", "apply-to-us-universities-as-an-international-student", "how-to-apply-to-graduate-school", "graduate-assistantships-explained"],
+  related: ["application-deadlines-2027-intake", "apply-to-us-universities-as-an-international-student", "graduate-assistantships-explained", "universities-with-no-application-fee"],
 };
 
 export const slate: Guide = {

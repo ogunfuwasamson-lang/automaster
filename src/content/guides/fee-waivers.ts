@@ -86,5 +86,5 @@ Ivyward's agents read each program's waiver policy, apply for any waiver you qua
     ["Georgia Tech: application fee waivers", "https://grad.gatech.edu/admissions/application-fee-waivers"],
     ["Brown University: fee waiver and reduction", "https://gradfunding.brown.edu/financial-aid-basics/fee-waiver-and-reduction"],
   ],
-  related: ["fully-funded-masters-scholarships-international-students", "how-to-apply-to-graduate-school", "how-to-email-a-professor", "best-ai-tools-for-university-applications"],
+  related: ["universities-with-no-application-fee", "fully-funded-masters-scholarships-international-students", "how-to-apply-to-graduate-school", "how-to-email-a-professor"],
 };

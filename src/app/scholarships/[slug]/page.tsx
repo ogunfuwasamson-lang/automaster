@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { SCHOLARSHIPS, scholarship } from "@/content";
+import { GUIDES, SCHOLARSHIPS, scholarship } from "@/content";
 import { ArticleJsonLd } from "@/components/seo/json-ld";
 import { AlertSignup } from "@/components/growth/alert-signup";
 import { translationsOfScholarship } from "@/content/i18n/scholarships";
@@ -54,6 +54,10 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ sl
     .sort((a, b) => Number(b.country === s.country) - Number(a.country === s.country))
     .slice(0, 4)
     .map((x) => ({ href: `/scholarships/${x.slug}`, title: x.name, kind: `Scholarship, ${x.country}` }));
+  // guides written about this scholarship (they list it in their related links): link back so readers and crawlers find them
+  const guides = GUIDES.filter((g) => g.related?.includes(`scholarships/${s.slug}`))
+    .slice(0, 3)
+    .map((g) => ({ href: `/guides/${g.slug}`, title: g.title, kind: g.category }));
   const facts: [string, string][] = [
     ["Study in", s.country],
     ["Funded by", s.funder],
@@ -102,7 +106,7 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ sl
         <AlertSignup source={`scholarship:${s.slug}`} />
         <ShareRow path={path} title={s.name} />
         <p className="mt-10 text-[13.5px] leading-relaxed text-muted">Rules, amounts and dates change every cycle. Confirm everything on the official page before you apply. Ivyward is not affiliated with {s.funder}.</p>
-        <Related items={[...similar, { href: "/guides/fully-funded-masters-scholarships-international-students", title: "Fully funded master's scholarships for international students", kind: "Funding" }]} />
+        <Related items={[...guides, ...similar, { href: "/guides/fully-funded-masters-scholarships-international-students", title: "Fully funded master's scholarships for international students", kind: "Funding" }]} />
       </div>
     </LibraryShell>
   );
