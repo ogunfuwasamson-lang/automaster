@@ -210,7 +210,7 @@ export const noAppFee: Guide = {
     "Universities and programmes that charge no application fee for 2027 entry, each checked on the school's own page on 21 November 2026, plus Cambridge's automatic waiver for nationals of 51 countries and the schools that waive fees for some programmes.",
   category: "Funding",
   updated: U,
-  keywords: ["universities with no application fee", "no application fee universities 2027", "free application universities for international students", "masters with no application fee", "phd no application fee", "uk universities no application fee", "application fee waiver cambridge", "universities without application fee"],
+  keywords: ["universities with no application fee", "no application fee universities 2027", "free application universities for international students", "masters with no application fee", "phd no application fee", "uk universities no application fee", "application fee waiver cambridge", "universities without application fee", "lse application fee waiver", "oxford application fee waiver", "uk universities application fee waiver"],
   answer:
     "Checked on official pages on 21 November 2026: the University of Buckingham (UK) charges no fee for postgraduate applications except Education courses; the University of Tasmania (Australia) charges no application fee; Imperial College London charges none for MRes, PhD and EngD courses; Northeastern's D'Amore-McKim School of Business (US) waives fees for all campus programmes starting in 2027; Wayne State University (US) charges no fee for doctoral programmes; and Rotterdam School of Management's full-time PhD has no fee. Cambridge waives its fee automatically for nationals of 51 listed countries. Fee rules change every year, so check the page before you pay.",
   body: `
@@ -236,6 +236,18 @@ Afghanistan, Angola, Bangladesh, Benin, Burkina Faso, Burundi, Cambodia, Central
 
 Applicants from other countries pay, and Cambridge refuses requests not to. Cambridge also has waiver forms for Mastercard Foundation Scholars Program applicants (the 2027 form closed on 20 November 2026) and Martingale Postgraduate Scholarship candidates (by 8 December 2026). Some nationals face the UK's restrictions on new Student visas, so check before you apply.
 
+## UK universities: who pays and who gets a waiver
+
+| University | Application fee | Who doesn't pay |
+|---|---|---|
+| University of Bristol | £60 only for taught master's at the Business School and School of Economics (its 2027 policy); other courses have no fee | Nationals of countries in the UN Human Development Index's medium or low groups, refugees and asylum-seekers, displaced applicants, sponsored students and Bristol alumni |
+| University of Oxford | Charged per application | Applicants living in one of 47 low-income countries (Afghanistan, Nepal, Syria and Zambia among them) who couldn't apply otherwise, refugees and displaced people. Request it two weeks before your deadline |
+| LSE | An administrative fee | Applicants facing persistent financial hardship (people in countries with armed conflict or without banking access are particularly considered) and forced migrants. Request it at least 10 working days before your deadline |
+| Imperial College London | £80 for MSc (£100 Business School, £150 MBA); none for MRes, PhD and EngD | Eligible applicants whose waiver request is approved |
+| University of Cambridge | Charged, except as below | Nationals of 51 listed countries, automatically (see above) |
+
+To find your country's Human Development Index group for Bristol, check the UN's latest Human Development Report.
+
 ## Fees change every year
 
 A school that was free last year can charge this year. The University of South Carolina's Graduate School, for example, had waived its $50 application fee and reinstated it on 1 August 2026. Check the official page for your year of entry before you rely on any list, this one included.
@@ -252,6 +264,9 @@ Ivyward checks the fee and the waiver rules for each programme on your list, ask
     ["Which universities have no application fee for international students?", "Checked on 21 November 2026: the University of Buckingham (postgraduate, except Education), the University of Tasmania, Imperial College London (MRes, PhD and EngD only), Northeastern's D'Amore-McKim School of Business (campus programmes starting in 2027), Wayne State University (doctoral programmes) and Rotterdam School of Management's full-time PhD."],
     ["Does Cambridge waive the application fee?", "Yes, automatically, for nationals of 51 listed countries (including Bangladesh, Ethiopia, Nepal, Rwanda, Tanzania, Uganda and Zambia) who have lived there since birth. Other international applicants pay."],
     ["Are UK universities free to apply to for a master's?", "Some are, many aren't. Buckingham charges no postgraduate fee (except Education), and Imperial charges none for research degrees, but Imperial charges £80 to £150 for MSc and MBA applications. Check each university's page."],
+    ["Does LSE waive the application fee?", "Yes, for applicants facing persistent financial hardship (applicants in countries with armed conflict or without access to banking are particularly considered) and for forced migrants. Start your application, then submit LSE's waiver form at least 10 working days before your application or funding deadline."],
+    ["Does Oxford waive the graduate application fee?", "Yes, on request, for applicants living in one of 47 low-income countries who couldn't apply without a waiver, for refugees and displaced people, and for some UK low-income applicants. Ask at least two weeks before your deadline."],
+    ["Is the University of Bristol free to apply to?", "Mostly. Under its 2027 policy, only taught master's applications to the Business School and School of Economics carry a £60 fee, and that's waived for nationals of countries in the UN's medium or low human development groups, refugees, displaced applicants, sponsored students and Bristol alumni."],
     ["Is there an application fee for PhDs?", "Often not. Imperial, Wayne State and Rotterdam School of Management charge no fee for their doctoral programmes, and Cambridge waives its fee for nationals of 51 countries."],
   ],
   sources: [
@@ -263,6 +278,9 @@ Ivyward checks the fee and the waiver rules for each programme on your list, ask
     ["Rotterdam School of Management: full-time PhD FAQ", "https://www.rsm.nl/faculty-research/phd-in-management/full-time-phd-programme/faq/"],
     ["University of Edinburgh: MScR Integrated Micro and Nano Systems", "https://study.ed.ac.uk/programmes/postgraduate-research/27-integrated-micro-and-nano-systems-imns"],
     ["University of Cambridge: application fee waivers", "https://www.postgraduate.study.cam.ac.uk/application-process/how-do-i-apply/application-fee/application-fee-waivers"],
+    ["University of Bristol: 2027 application fee policy", "https://www.bristol.ac.uk/media-library/sites/study/documents/policies/2027-Application Fee Policy.pdf"],
+    ["University of Oxford: application fee waivers", "https://www.ox.ac.uk/admissions/graduate/applying-to-oxford/application-guide/declaration-and-payment/application-fee-waivers"],
+    ["LSE: administrative fee waiver", "https://www.lse.ac.uk/study-at-lse/Graduate/Applicants/How-do-I/Secure/Administrative-fee-waiver"],
     ["University of South Carolina Graduate School: apply", "https://sc.edu/study/colleges_schools/graduate_school/apply/index.php"],
   ],
   related: ["how-to-get-application-fee-waivers", "how-to-study-abroad-for-free", "application-deadlines-2027-intake", "fully-funded-scholarships-2027"],

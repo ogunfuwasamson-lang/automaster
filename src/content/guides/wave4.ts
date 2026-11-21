@@ -283,51 +283,87 @@ Every program wants its own statement and short answers. [Ivyward](/) builds the
 
 export const timeline2027: Guide = {
   slug: "fall-2027-application-timeline",
-  title: "Fall 2027 master's and PhD application timeline, month by month",
-  seoTitle: "Fall 2027 grad school application timeline (month by month)",
+  title: "Fall 2027 application deadlines: US college and grad school, with a month-by-month plan",
+  seoTitle: "Fall 2027 application deadlines: college and grad school",
   description:
-    "What to do each month from now to a Fall 2027 start: tests, shortlist, statements, references, applications, funding and visa.",
+    "When college (undergraduate) and graduate school applications are due for Fall 2027 in the US, with real deadlines from Harvard, MIT and Stanford, what's still open in late November 2026, and what to do each month until you start.",
   category: "Applying",
-  updated: "2026-11-09",
-  keywords: ["fall 2027 application timeline", "when to apply for masters 2027", "grad school timeline 2027", "PhD application timeline", "masters abroad timeline"],
+  updated: "2026-11-21",
+  keywords: ["college application deadlines for fall 2027", "fall 2027 application deadlines", "grad school application deadlines for fall 2027", "when are grad school applications due for fall 2027", "fall 2027 college application deadlines", "regular decision deadline 2027", "fall 2027 application timeline", "when to apply for masters 2027", "PhD application deadlines fall 2027"],
   answer:
-    "For a Fall 2027 start, most deadlines fall between December 2026 and February 2027 (later for many UK programs). In November, finish your shortlist and ask referees. Submit in December and January, apply for funding alongside, and expect decisions from February to April. Visa applications follow admission, from April to July.",
+    "For a Fall 2027 start in the US, college (undergraduate) Early Action and Early Decision deadlines have mostly passed (usually 1 or 15 November 2026; Stanford's was 15 October). Regular Decision deadlines fall mostly between early December 2026 and mid-January 2027: Stanford 5 December, Harvard 1 January, MIT 4 January. Most colleges ask for your reply by 1 May 2027. Graduate school deadlines run from about 1 December 2026 for many PhDs (MIT EECS: 1 December) to February 2027 for many master's, and funded offers usually give you until 15 April to reply.",
   body: `
-## November 2026
+## College (undergraduate) deadlines for Fall 2027
 
-- Finalise a shortlist of 6–10 programs ([how many?](/guides/how-many-universities-should-i-apply-to)).
-- Ask your referees, giving them at least four weeks.
-- Request [fee waivers](/guides/how-to-get-application-fee-waivers) and unofficial transcripts.
+| College | Early round | Regular Decision | Decisions | Reply by |
+|---|---|---|---|---|
+| Stanford | Restrictive Early Action: 15 October 2026 (closed) | **5 December 2026** | By early April | 1 May |
+| Harvard | Restrictive Early Action: 1 November 2026 (closed) | **1 January 2027**, 11:59pm local time | By the end of March | Early May |
+| MIT | Early Action: 1 November 2026 (closed) | **4 January 2027** | Mid-March | 1 May |
 
-## December 2026
+Most US colleges follow the same pattern:
 
-- Submit early-deadline applications (many US PhDs, some funded master's).
-- Draft and tailor statements.
+- **Early Decision (ED) and Early Action (EA):** usually 1 or 15 November. ED is binding; EA isn't. Most have now closed for Fall 2027, though some colleges run a second, binding "ED II" round in early January.
+- **Regular Decision:** mostly 1 to 15 January, with some (like Stanford) in early December.
+- **Reply date:** most colleges ask admitted students to decide by 1 May.
 
-## January–February 2027
+International students apply on the same dates, usually through the Common App, and should send the financial aid forms each college asks for by its own deadline, which can be earlier than the application deadline.
 
-- Submit the rest. Check each portal's checklist for missing items.
+## Grad school deadlines for Fall 2027
+
+- **PhD programmes:** mostly 1 to 15 December 2026. MIT's Electrical Engineering and Computer Science department, for example, wants completed applications by 1 December 2026.
+- **Master's programmes:** from December 2026 to February 2027, with some rolling into spring. Funding and assistantship consideration often has an earlier "priority" date than the final deadline.
+- **Decisions:** mostly February to April 2027.
+- **Reply:** under the Council of Graduate Schools resolution, students offered funding (fellowships, scholarships, assistantships) don't have to accept before 15 April.
+
+Each department sets its own date, so check the programme page, not just the graduate school's.
+
+## Your month-by-month plan
+
+### Late November 2026
+- Finalise a shortlist of 6 to 10 programmes ([how many?](/guides/how-many-universities-should-i-apply-to)).
+- Ask referees now; give them at least three to four weeks.
+- Request [fee waivers](/guides/how-to-get-application-fee-waivers) before you submit; most must be approved first.
+
+### December 2026
+- Submit PhD applications and early-deadline master's and college applications.
+- Tailor each statement to the programme.
+
+### January to February 2027
+- Submit Regular Decision and remaining master's applications. Check each portal's checklist for missing items.
 - Apply for external scholarships with their own deadlines.
 
-## March–April 2027
+### March to April 2027
+- Decisions and funding offers arrive. Compare total cost and funding, not only the ranking.
+- Ask for more aid where it's allowed; reply by 15 April (funded grad offers) or 1 May (college).
 
-- Decisions and funding offers arrive. Compare total cost and funding, not just the ranking.
+### May to July 2027
+- Accept, pay the deposit and get your I-20.
+- Book the F-1 visa interview as early as you can, with [proof of funds](/guides/student-visa-proof-of-funds).
 
-## May–July 2027
+## Outside the US
 
-- Accept an offer and pay the deposit.
-- Apply for your visa with [proof of funds](/guides/student-visa-proof-of-funds).
+UK, Canadian and European deadlines differ: see [September 2027 intake deadlines by country](/guides/application-deadlines-2027-intake). UK undergraduate applications go through UCAS by 18:00 UK time on 13 January 2027.
 
-## Start now
+## How Ivyward helps
 
-[Ivyward](/) builds the shortlist from official deadlines and runs every application in parallel. See [application deadlines for the 2027 intake](/guides/application-deadlines-2027-intake).
+[Ivyward](/) builds your shortlist from each programme's official deadline, tracks priority and funding dates, and fills in every application in parallel. You review and sign each one before it's submitted.
 `,
   faq: [
-    ["Is it too late to apply for Fall 2027?", "Not in November 2026. Many deadlines are in January and February, and many UK and European programs run later."],
-    ["When do UK master's applications close?", "Many UK taught master's programs accept applications into the spring or summer, but popular programs and scholarships close earlier."],
+    ["When are college applications due for Fall 2027?", "Early Action and Early Decision deadlines were mostly 1 or 15 November 2026. Regular Decision deadlines are mostly between early December 2026 and mid-January 2027: Stanford 5 December 2026, Harvard 1 January 2027 and MIT 4 January 2027."],
+    ["When are grad school applications due for Fall 2027?", "Many PhD deadlines fall between 1 and 15 December 2026 (MIT EECS: 1 December 2026). Master's deadlines run from December 2026 to February 2027, and some programmes accept applications into the spring."],
+    ["Is it too late to apply for Fall 2027?", "No. In late November 2026 most Regular Decision college deadlines and most graduate deadlines are still ahead. Early rounds have closed at many colleges."],
+    ["When do I have to accept a Fall 2027 offer?", "Most US colleges ask for a reply by 1 May 2027. For graduate offers with funding, the Council of Graduate Schools resolution means you don't have to accept before 15 April."],
   ],
-  sources: [["Ivyward: 2027 intake deadlines", "https://tryivyward.com/guides/application-deadlines-2027-intake"]],
-  related: ["application-deadlines-2027-intake", "how-to-apply-to-graduate-school"],
+  sources: [
+    ["Stanford Undergraduate Admission: deadlines", "https://admission.stanford.edu/apply/deadlines/"],
+    ["Harvard College: first-year applicants", "https://college.harvard.edu/admissions/apply/first-year-applicants"],
+    ["MIT Admissions: deadlines and requirements", "https://mitadmissions.org/apply/firstyear/deadlines-requirements/"],
+    ["MIT EECS: graduate admission process", "https://www.eecs.mit.edu/academics/graduate-programs/admission-process/"],
+    ["Council of Graduate Schools: April 15 resolution", "https://cgsnet.org/resources/for-current-prospective-graduate-students/april-15-resolution"],
+    ["UCAS: 2027 entry deadline", "https://www.ucas.com/events/2027-entry-deadline-for-all-undergraduate-courses-except-those-with-a-15-october-deadline-475546"],
+  ],
+  related: ["application-deadlines-2027-intake", "apply-to-us-universities-as-an-international-student", "how-to-apply-to-graduate-school", "graduate-assistantships-explained"],
 };
 
 export const slate: Guide = {
