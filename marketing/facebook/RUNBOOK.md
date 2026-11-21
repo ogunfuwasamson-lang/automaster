@@ -18,22 +18,27 @@ Samson: whatever can run in the cloud runs there; whatever needs a browser signe
 | Run (scheduled task) | Where | When (Lagos) | Does |
 |---|---|---|---|
 | Ivyward social: daily drafts (cloud) | cloud | 06:17 | drafts 2 LinkedIn posts (10:00, 16:00) and 2 Facebook Page posts (12:00, 18:00), text with a guide link, as `draft` items |
-| Ivyward social: posting (cloud) | cloud | 10:09, 12:09, 16:09, 18:09 | posts today's **approved** `linkedin_post` items, and `page_post` items **without a video**, through the API |
+| Ivyward social: posting (cloud) | cloud | 12:09, 18:09 | posts today's **approved** `page_post` items **without a video** to the Ivyward Page, through the API |
+| Ivyward LinkedIn: laptop posting | laptop | 10:09, 16:09 | posts today's **approved** `linkedin_post` items as the Ivyward company page, in Chrome ("Posting run in Chrome" below) |
 | Ivyward social: laptop drafts (groups, replies, videos) | laptop | 06:33 | joins groups; drafts group posts, replies and videos ("Morning run, step by step"). Page posts already drafted by the cloud run count toward the day's 2 |
 | Ivyward social: laptop posting (groups, replies, video posts) | laptop | every 2 hours, 08:05–20:05 | posts approved `group_post`, `comment` and `reply` items, and `page_post` items **with a video**, in Chrome |
 
+**Why LinkedIn is on the laptop:** the API connection (Composio's LinkedIn app) can't post as an organization. On
+21 Nov LinkedIn answered `400 "Organization Or Events permissions must be used when using organization as author"`.
+Posting as Ivyward through the API needs a LinkedIn developer app with the Community Management API; until then the
+laptop run posts in Chrome, where Samson is a page admin. Laptop runs need Chrome signed in to Facebook and LinkedIn.
+
 **The split rule, so nothing is posted twice:**
-- The **laptop** runs never post `linkedin_post` items, and never post a `page_post` that has no video. Those are the
-  cloud's. Leave them exactly as they are.
-- The **cloud** run never posts `group_post`, `comment` or `reply` items, or a `page_post` that has a video (Facebook's API
-  can't post in groups, and the videos aren't at a public address the API can fetch). It leaves those `approved` for
-  the laptop run.
+- The **cloud** run posts only `page_post` items without a video. It never touches anything else.
+- The **laptop Facebook** run never posts a `page_post` without a video (the cloud's) or a `linkedin_post` (the laptop
+  LinkedIn run's). Leave them exactly as they are.
+- The **laptop LinkedIn** run posts only `linkedin_post` items.
 
 ### How the cloud run posts
 
 - **Through the Composio connector**, using Samson's own LinkedIn and Facebook connections (he connects them once; if
   one is missing or expired, the run posts nothing on that network, writes a `runs` entry and messages him once).
-  LinkedIn: `LINKEDIN_CREATE_LINKED_IN_POST` with `author: "urn:li:organization:147011114"`. Facebook:
+  (LinkedIn through the API is on hold, see above.) Facebook:
   `FACEBOOK_CREATE_POST` with `page_id: "338109873010273"` (the Ivyward Page; the same connection also manages
   Samson's other Pages, such as Flolyt and Skhooly: never post to them), `message` and,
   when the post is about a guide, `link` (Facebook shows the guide's share card). Neither tool is idempotent: never
@@ -182,7 +187,8 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 1. This run's slot is the even hour it runs in (a run at 10:05 is the `10:00` slot). Read `items` for today with
    `status: "approved"` and a slot at or before this one, not yet posted (earlier slots' items approved late go now).
    Nothing approved: write a short `runs` entry and stop.
-   **Skip `linkedin_post` items and `page_post` items without a video: the cloud run posts those** (see "Who does what").
+   **Skip `linkedin_post` items (the laptop LinkedIn run posts them) and `page_post` items without a video (the cloud
+   run posts them)**; see "Who does what".
 2. In Chrome as the Ivyward Page, for each item in `order`:
    - **page_post:** facebook.com/tryivyward → "Photo/video" → attach the mp4 as in "Attaching videos" → paste the text
      (`edited` if set, else `text`) → Post.
@@ -270,7 +276,7 @@ promise admission, don't name the founder). On top of them:
 3. Write a `runs` entry (`kind: "draft"`, "LinkedIn: drafted 2 posts for 10:00 and 16:00 …") and send Samson one short
    message: the two first lines and the review page link.
 
-### Posting run in Chrome (laptop, paused since 21 Nov; the cloud run posts through the API)
+### Posting run in Chrome (laptop, 10:09 and 16:09 Lagos)
 
 1. Read today's `linkedin_post` items with `status: "approved"` and a slot at or before this run's slot (10:00 or
    16:00), not yet posted. None: write a short `runs` entry and stop.
