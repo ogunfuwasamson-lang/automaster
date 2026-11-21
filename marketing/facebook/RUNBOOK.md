@@ -1,13 +1,39 @@
 # Ivyward on Facebook and LinkedIn: the daily runbook
 
-The scheduled runs follow this file (a morning run, and a posting run every 2 hours, for Facebook; and two LinkedIn
-runs, see "LinkedIn" at the end). Each starts fresh, so everything a run needs is here or in the review page.
+**From 21 Nov 2026 every scheduled run is in the cloud** (Samson: his laptop doesn't need to be on). Read
+"Cloud runs" first; it overrides the older laptop sections below wherever they differ. Each run starts fresh, so
+everything it needs is here or in the review page.
 
 - **Review page (the source of truth):** https://claude.ai/artifact/7cxMZ7UyB8BwXAguNYhqba ("Ivyward Social Desk").
-  Read and write it with the `ArtifactData` tool (collections below) and upload videos to it with the `Artifact` tool
-  (`url` = that link, `asset: true`, `file_path` = the mp4).
-- **Facebook page:** https://www.facebook.com/tryivyward. Every action is taken *as the Ivyward Page*, never as Samson's profile.
-- **Times are Lagos time (Africa/Lagos, UTC+1).** Morning run 7am; posting runs every 2 hours, 8am to 8pm (8, 10, 12, 2, 4, 6, 8).
+  Read and write it with the `ArtifactData` tool (collections below).
+- **Facebook page:** https://www.facebook.com/tryivyward. **LinkedIn page:** https://www.linkedin.com/company/ivyward/
+  (organization id 147011114). Everything goes out *as Ivyward*, never as Samson's profile.
+- **Times are Lagos time (Africa/Lagos, UTC+1).**
+
+## Cloud runs (from 21 Nov 2026)
+
+| Run (scheduled task) | When (Lagos) | Does |
+|---|---|---|
+| Ivyward social: daily drafts (cloud) | 06:17 | drafts 2 LinkedIn posts (10:00, 16:00) and 2 Facebook Page posts (12:00, 18:00) as `draft` items |
+| Ivyward social: posting (cloud) | 08:09, then every 2 hours to 20:09 | posts today's **approved** `linkedin_post` and `page_post` items whose slot has come, through the API, and records the links |
+
+- **Posting goes through the Composio connector**, using Samson's own LinkedIn and Facebook connections (he connects
+  them once; if one is missing or expired, the run posts nothing on that network, writes a `runs` entry and messages
+  him once). LinkedIn: `LINKEDIN_CREATE_LINKED_IN_POST` with `author: "urn:li:organization:147011114"`. Facebook:
+  `FACEBOOK_LIST_MANAGED_PAGES` to get the Ivyward Page's id, then `FACEBOOK_CREATE_POST` with `page_id`, `message` and,
+  when the post is about a guide, `link` (Facebook shows the guide's share card). Neither tool is idempotent: never
+  retry a post that may have gone out; check the page's recent posts first (`FACEBOOK_GET_PAGE_POSTS`,
+  `LINKEDIN_GET_POST_CONTENT`).
+- **Page posts are text with a link to a guide** (the link preview carries the image). Videos need a public file URL
+  the API can fetch, which the review page's assets aren't, so cloud runs don't attach videos.
+- **Paused:** group posts, comments, replies and joining groups. Facebook's API doesn't allow posting in groups, so
+  those need a browser signed in on Samson's laptop; the laptop runs are disabled, not deleted, and can be turned back on.
+- Approval is unchanged: nothing goes out unless Samson set it to `approved` on the review page.
+
+---
+
+The sections below describe the laptop runs (paused since 21 Nov 2026). The brand and honesty rules, the stop
+signals, the data format and "Writing LinkedIn posts" still apply to the cloud runs.
 
 ## What each run does
 
@@ -205,8 +231,7 @@ and the same approval rule: a LinkedIn post goes out only when its item is `appr
   personal profile, and never send connection requests or DMs.
 - **Items:** `kind: "linkedin_post"`, ids `<day>-linkedin_post-1` and `-2`, slots `10:00` and `16:00`,
   `target: { "name": "Ivyward on LinkedIn", "url": "https://www.linkedin.com/company/ivyward/" }`, `video: null`.
-- **Runs:** "Ivyward LinkedIn: drafts" (cloud, 06:17 Lagos) writes the day's two drafts; "Ivyward LinkedIn: posting"
-  (Samson's computer, 10:09 and 16:09 Lagos) posts approved ones. The Facebook runs leave `linkedin_post` items alone.
+- **Runs:** see "Cloud runs" at the top. The Facebook laptop runs leave `linkedin_post` items alone.
 
 ### Writing LinkedIn posts
 
@@ -226,14 +251,14 @@ promise admission, don't name the founder). On top of them:
    `sources`. If you can't verify it, leave it out.
 5. **Video:** none needed. Text posts only, unless Samson adds a video to an item.
 
-### Drafts run (06:17 Lagos, cloud)
+### Drafts (now part of "daily drafts (cloud)", 06:17 Lagos)
 
 1. Read the last 7 days of `linkedin_post` items. If today's two items already exist, stop (write nothing).
 2. Draft the missing ones as above with `status: "draft"`, `why` (one line: why this topic today) and `sources`.
 3. Write a `runs` entry (`kind: "draft"`, "LinkedIn: drafted 2 posts for 10:00 and 16:00 …") and send Samson one short
    message: the two first lines and the review page link.
 
-### Posting run (10:09 and 16:09 Lagos, Samson's computer)
+### Posting run in Chrome (laptop, paused since 21 Nov; the cloud run posts through the API)
 
 1. Read today's `linkedin_post` items with `status: "approved"` and a slot at or before this run's slot (10:00 or
    16:00), not yet posted. None: write a short `runs` entry and stop.
