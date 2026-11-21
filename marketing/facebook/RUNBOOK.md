@@ -25,7 +25,8 @@ everything it needs is here or in the review page.
   retry a post that may have gone out; check the page's recent posts first (`FACEBOOK_GET_PAGE_POSTS`,
   `LINKEDIN_GET_POST_CONTENT`).
 - **Page posts are text with a link to a guide** (the link preview carries the image). Videos need a public file URL
-  the API can fetch, which the review page's assets aren't, so cloud runs don't attach videos.
+  the API can fetch, which the review page's assets aren't, so cloud runs don't attach videos. An approved Page post
+  that has a video is never posted without it: the cloud run leaves it `approved` with a "Waiting" note.
 - **Paused:** group posts, comments, replies and joining groups. Facebook's API doesn't allow posting in groups, so
   those need a browser signed in on Samson's laptop; the laptop runs are disabled, not deleted, and can be turned back on.
 - Approval is unchanged: nothing goes out unless Samson set it to `approved` on the review page.
