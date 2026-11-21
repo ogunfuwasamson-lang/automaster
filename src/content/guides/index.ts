@@ -24,6 +24,7 @@ import { ghana, kenya, india, pakistan } from "./origin";
 import { bachelors, undergradAid, france, sweden, japan, korea, china, hungaryTurkey, publicHealth, engineeringCs, businessLaw, agricultureEducation } from "./wave3";
 import { aiApplyForMe, portalProblems, payFeesNigeria, transcriptsNigeria, wes, howMany, timeline2027, slate } from "./wave4";
 import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, academicCv, scams, mba, cheapest } from "./more";
+import { fullyFunded2027, howToGetFullyFunded, chevening2027, commonwealth2027, erasmus2027, daad2027, mastercard2027, studyAbroadFree } from "./wave6";
 import { lowGpa, gpaConvert, moiLetter, canadaNoIelts, ukNoIelts, usaNoIelts, noGre, januaryIntake, costByCountry, ageLimits, gapYears, oneVsTwoYear, offers, chooseCountry } from "./wave5";
 
 // order within a category is the order on /guides
@@ -50,6 +51,14 @@ export const GUIDES: Guide[] = [
   payFeesNigeria,
   transcriptsNigeria,
   wes,
+  fullyFunded2027,
+  howToGetFullyFunded,
+  studyAbroadFree,
+  commonwealth2027,
+  chevening2027,
+  erasmus2027,
+  daad2027,
+  mastercard2027,
   feeWaivers,
   undergradAid,
   fundedMasters,

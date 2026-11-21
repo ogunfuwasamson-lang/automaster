@@ -1,5 +1,5 @@
 import { CHROME_STORE_URL } from "@/lib/chrome-store";
-import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
+import { FACTS, PLAN_OFFERS, SITE, CHANNELS } from "@/lib/site";
 import { FAQ } from "@/lib/faq";
 import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
@@ -60,6 +60,8 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Programmes](${SITE.url}/programmes): programme lists by destination and field, checked on official pages, with next deadline, tuition, GRE policy, English-medium letter acceptance and how realistic full funding is. By destination: ${DESTINATIONS.map((d) => `[${d.name.replace(/^the /, "")}](${SITE.url}/programmes/${d.slug})`).join(", ")}. Special lists per destination: /without-gre, /english-medium-letter, /fully-funded, /phd, /bachelors, and fields such as /data-science, /business-analytics, /mba, /finance, /public-health
 - [Application deadlines by month](${SITE.url}/deadlines): every deadline our agents have checked, month by month, soonest first
 - [Scholarship deadlines for 2027 entry](${SITE.url}/scholarships/deadlines): which big scholarships are open now, which open next and which have closed, checked on the official pages
+- [Global Scholarship by Ivyward AI on WhatsApp](${CHANNELS.whatsapp}): a free WhatsApp channel posting 5 scholarship and funding opportunities a day, each with its deadline and official link
+- [Ivyward on LinkedIn](${CHANNELS.linkedin}) and [Facebook](${CHANNELS.facebook})
 - [Scholarship finder](${SITE.url}/tools/scholarship-finder): screen the major fully funded scholarships by citizenship, level, work experience and age
 - [Glossary](${SITE.url}/glossary): admissions and funding terms defined
 - [Full library as plain text](${SITE.url}/llms-full.txt)
