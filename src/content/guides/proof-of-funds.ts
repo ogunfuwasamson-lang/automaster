@@ -57,5 +57,5 @@ Ivyward's shortlist works within the budget you give it and hunts for scholarshi
     ["Expatrio: German blocked account amount 2026", "https://www.expatrio.com/about-germany/blocked-amount-2025"],
     ["GOV.UK: Student visa money requirements", "https://www.gov.uk/student-visa/money"],
   ],
-  related: ["apply-for-masters-in-the-uk", "apply-for-masters-in-canada", "study-in-germany-tuition-free", "apply-to-us-universities-as-an-international-student"],
+  related: ["post-study-work-visas-by-country", "apply-for-masters-in-the-uk", "apply-for-masters-in-canada", "study-in-germany-tuition-free"],
 };

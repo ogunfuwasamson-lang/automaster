@@ -597,7 +597,7 @@ Ivyward's shortlist shows each programme's length, tuition and funding side by s
     ["GOV.UK: Graduate visa", "https://www.gov.uk/graduate-visa"],
     ["IRCC: Post-Graduation Work Permit", "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation.html"],
   ],
-  related: ["apply-for-masters-in-the-uk", "apply-for-masters-in-canada", "cost-of-masters-abroad-by-country"],
+  related: ["post-study-work-visas-by-country", "apply-for-masters-in-the-uk", "apply-for-masters-in-canada", "cost-of-masters-abroad-by-country"],
 };
 
 export const offers: Guide = {
@@ -692,5 +692,5 @@ Ivyward's [matcher](/match) shows programmes that fit your field and budget acro
     ["IRCC: work after graduation", "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation.html"],
     ["DAAD: study in Germany", "https://www2.daad.de/deutschland/en/"],
   ],
-  related: ["affordable-countries-to-study-abroad", "cost-of-masters-abroad-by-country", "fully-funded-masters-scholarships-international-students"],
+  related: ["post-study-work-visas-by-country", "affordable-countries-to-study-abroad", "cost-of-masters-abroad-by-country", "fully-funded-masters-scholarships-international-students"],
 };

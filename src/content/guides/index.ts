@@ -26,6 +26,7 @@ import { aiApplyForMe, portalProblems, payFeesNigeria, transcriptsNigeria, wes, 
 import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, academicCv, scams, mba, cheapest } from "./more";
 import { fullyFunded2027, howToGetFullyFunded, chevening2027, commonwealth2027, erasmus2027, daad2027, mastercard2027, studyAbroadFree } from "./wave6";
 import { mext2027, gks2027, csc2027, noAppFee } from "./wave7";
+import { postStudyWork } from "./wave8";
 import { lowGpa, gpaConvert, moiLetter, canadaNoIelts, ukNoIelts, usaNoIelts, noGre, januaryIntake, costByCountry, ageLimits, gapYears, oneVsTwoYear, offers, chooseCountry } from "./wave5";
 
 // order within a category is the order on /guides
@@ -106,6 +107,7 @@ export const GUIDES: Guide[] = [
   china,
   hungaryTurkey,
   proofOfFunds,
+  postStudyWork,
   bestAiTools,
   aiAllowed,
   vsChatgpt,
