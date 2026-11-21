@@ -34,6 +34,18 @@ const BASE_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=(), payment=(), usb=()" },
 ];
+// AI agents that ask for markdown (Accept: text/markdown, not after text/html) get the library page's markdown version
+// at the same URL: the free version of Cloudflare's "Markdown for Agents". Browsers and search crawlers still get HTML.
+// (a rewrite here, not in middleware: a middleware rewrite to the same host failed behind the proxy in production.)
+const WANTS_MARKDOWN = [{ type: "header" as const, key: "accept", value: "(?!.*text/html.*text/markdown).*text/markdown.*" }];
+nextConfig.rewrites = async () => ({
+  beforeFiles: [
+    { source: "/:kind(guides|scholarships|universities|study-abroad)/:slug((?!deadlines$)[a-z0-9-]+)", has: WANTS_MARKDOWN, destination: "/md/:kind/:slug" },
+  ],
+  afterFiles: [],
+  fallback: [],
+});
+
 nextConfig.headers = async () => [
   { source: "/((?!embed/).*)", headers: [...BASE_HEADERS, { key: "X-Frame-Options", value: "SAMEORIGIN" }, { key: "Content-Security-Policy", value: "frame-ancestors 'self'" }] },
   { source: "/embed/:path*", headers: BASE_HEADERS },

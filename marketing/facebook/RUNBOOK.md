@@ -1,7 +1,7 @@
 # Ivyward on Facebook and LinkedIn: the daily runbook
 
-**From 21 Nov 2026 every scheduled run is in the cloud** (Samson: his laptop doesn't need to be on). Read
-"Cloud runs" first; it overrides the older laptop sections below wherever they differ. Each run starts fresh, so
+**From 21 Nov 2026 the runs are split between the cloud and Samson's laptop.** Read "Who does what" first; it
+overrides the older sections below wherever they differ. Each run starts fresh, so
 everything it needs is here or in the review page.
 
 - **Review page (the source of truth):** https://claude.ai/artifact/7cxMZ7UyB8BwXAguNYhqba ("Ivyward Social Desk").
@@ -10,31 +10,40 @@ everything it needs is here or in the review page.
   (organization id 147011114). Everything goes out *as Ivyward*, never as Samson's profile.
 - **Times are Lagos time (Africa/Lagos, UTC+1).**
 
-## Cloud runs (from 21 Nov 2026)
+## Who does what (from 21 Nov 2026)
 
-| Run (scheduled task) | When (Lagos) | Does |
-|---|---|---|
-| Ivyward social: daily drafts (cloud) | 06:17 | drafts 2 LinkedIn posts (10:00, 16:00) and 2 Facebook Page posts (12:00, 18:00) as `draft` items |
-| Ivyward social: posting (cloud) | 08:09, then every 2 hours to 20:09 | posts today's **approved** `linkedin_post` and `page_post` items whose slot has come, through the API, and records the links |
+Samson: whatever can run in the cloud runs there; whatever needs a browser signed in on his laptop runs on the laptop
+(those runs only work while the laptop is on and the Claude app is open, and fire late otherwise).
 
-- **Posting goes through the Composio connector**, using Samson's own LinkedIn and Facebook connections (he connects
-  them once; if one is missing or expired, the run posts nothing on that network, writes a `runs` entry and messages
-  him once). LinkedIn: `LINKEDIN_CREATE_LINKED_IN_POST` with `author: "urn:li:organization:147011114"`. Facebook:
+| Run (scheduled task) | Where | When (Lagos) | Does |
+|---|---|---|---|
+| Ivyward social: daily drafts (cloud) | cloud | 06:17 | drafts 2 LinkedIn posts (10:00, 16:00) and 2 Facebook Page posts (12:00, 18:00), text with a guide link, as `draft` items |
+| Ivyward social: posting (cloud) | cloud | 10:09, 12:09, 16:09, 18:09 | posts today's **approved** `linkedin_post` items, and `page_post` items **without a video**, through the API |
+| Ivyward social: laptop drafts (groups, replies, videos) | laptop | 06:33 | joins groups; drafts group posts, replies and videos ("Morning run, step by step"). Page posts already drafted by the cloud run count toward the day's 2 |
+| Ivyward social: laptop posting (groups, replies, video posts) | laptop | every 2 hours, 08:05–20:05 | posts approved `group_post`, `comment` and `reply` items, and `page_post` items **with a video**, in Chrome |
+
+**The split rule, so nothing is posted twice:**
+- The **laptop** runs never post `linkedin_post` items, and never post a `page_post` that has no video. Those are the
+  cloud's. Leave them exactly as they are.
+- The **cloud** run never posts `group_post`, `comment` or `reply` items, or a `page_post` that has a video (Facebook's API
+  can't post in groups, and the videos aren't at a public address the API can fetch). It leaves those `approved` for
+  the laptop run.
+
+### How the cloud run posts
+
+- **Through the Composio connector**, using Samson's own LinkedIn and Facebook connections (he connects them once; if
+  one is missing or expired, the run posts nothing on that network, writes a `runs` entry and messages him once).
+  LinkedIn: `LINKEDIN_CREATE_LINKED_IN_POST` with `author: "urn:li:organization:147011114"`. Facebook:
   `FACEBOOK_LIST_MANAGED_PAGES` to get the Ivyward Page's id, then `FACEBOOK_CREATE_POST` with `page_id`, `message` and,
   when the post is about a guide, `link` (Facebook shows the guide's share card). Neither tool is idempotent: never
   retry a post that may have gone out; check the page's recent posts first (`FACEBOOK_GET_PAGE_POSTS`,
   `LINKEDIN_GET_POST_CONTENT`).
-- **Page posts are text with a link to a guide** (the link preview carries the image). Videos need a public file URL
-  the API can fetch, which the review page's assets aren't, so cloud runs don't attach videos. An approved Page post
-  that has a video is never posted without it: the cloud run leaves it `approved` with a "Waiting" note.
-- **Paused:** group posts, comments, replies and joining groups. Facebook's API doesn't allow posting in groups, so
-  those need a browser signed in on Samson's laptop; the laptop runs are disabled, not deleted, and can be turned back on.
 - Approval is unchanged: nothing goes out unless Samson set it to `approved` on the review page.
 
 ---
 
-The sections below describe the laptop runs (paused since 21 Nov 2026). The brand and honesty rules, the stop
-signals, the data format and "Writing LinkedIn posts" still apply to the cloud runs.
+The sections below describe the laptop runs. The brand and honesty rules, the stop signals, the data format and
+"Writing LinkedIn posts" apply to every run.
 
 ## What each run does
 
@@ -172,6 +181,7 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 1. This run's slot is the even hour it runs in (a run at 10:05 is the `10:00` slot). Read `items` for today with
    `status: "approved"` and a slot at or before this one, not yet posted (earlier slots' items approved late go now).
    Nothing approved: write a short `runs` entry and stop.
+   **Skip `linkedin_post` items and `page_post` items without a video: the cloud run posts those** (see "Who does what").
 2. In Chrome as the Ivyward Page, for each item in `order`:
    - **page_post:** facebook.com/tryivyward → "Photo/video" → attach the mp4 as in "Attaching videos" → paste the text
      (`edited` if set, else `text`) → Post.
@@ -232,7 +242,7 @@ and the same approval rule: a LinkedIn post goes out only when its item is `appr
   personal profile, and never send connection requests or DMs.
 - **Items:** `kind: "linkedin_post"`, ids `<day>-linkedin_post-1` and `-2`, slots `10:00` and `16:00`,
   `target: { "name": "Ivyward on LinkedIn", "url": "https://www.linkedin.com/company/ivyward/" }`, `video: null`.
-- **Runs:** see "Cloud runs" at the top. The Facebook laptop runs leave `linkedin_post` items alone.
+- **Runs:** see "Who does what" at the top. The laptop runs leave `linkedin_post` items alone.
 
 ### Writing LinkedIn posts
 
