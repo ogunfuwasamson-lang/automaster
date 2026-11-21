@@ -285,10 +285,10 @@ promise admission, don't name the founder). On top of them:
 3. Write a `runs` entry (`kind: "draft"`, "LinkedIn: drafted 2 posts for 10:00 and 16:00 …") and send Samson one short
    message: the two first lines and the review page link.
 
-### Posting run in Chrome (laptop, 10:09 and 16:09 Lagos)
+### Posting run in Chrome (laptop, every hour; part of "laptop posting (LinkedIn + Facebook groups)")
 
-1. Read today's `linkedin_post` items with `status: "approved"` and a slot at or before this run's slot (10:00 or
-   16:00), not yet posted. None: write a short `runs` entry and stop.
+1. Read today's and yesterday's approved `linkedin_post` items not yet posted, whatever their slot, and claim each
+   (see "Who does what"). None: carry on with Facebook.
 2. In Chrome (load the `chrome-browser` skill first; open your own tab): go to the admin view above, check the page
    name at the top is Ivyward, click "Create" / "Start a post", paste the text (`edited` if set, else `text`) exactly,
    and click "Post". One item at a time, 60–120 seconds apart.
