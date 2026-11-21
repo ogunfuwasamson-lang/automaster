@@ -1,6 +1,7 @@
-# Ivyward on Facebook: the daily runbook
+# Ivyward on Facebook and LinkedIn: the daily runbook
 
-The scheduled runs follow this file (a morning run, and a posting run every 2 hours). Each starts fresh, so everything a run needs is here or in the review page.
+The scheduled runs follow this file (a morning run, and a posting run every 2 hours, for Facebook; and two LinkedIn
+runs, see "LinkedIn" at the end). Each starts fresh, so everything a run needs is here or in the review page.
 
 - **Review page (the source of truth):** https://claude.ai/artifact/7cxMZ7UyB8BwXAguNYhqba ("Ivyward Social Desk").
   Read and write it with the `ArtifactData` tool (collections below) and upload videos to it with the `Artifact` tool
@@ -92,7 +93,7 @@ Never work around a block, CAPTCHA or checkpoint.
   "day": "2026-11-12",            // Lagos date it posts
   "slot": "12:00",                // "08:00" "10:00" "12:00" "14:00" "16:00" "18:00" or "20:00"
   "order": 1,
-  "kind": "page_post",            // page_post | group_post | comment | reply
+  "kind": "page_post",            // page_post | group_post | comment | reply | linkedin_post
   "target": { "name": "Chevening Applicants 2027-2028", "url": "https://www.facebook.com/groups/…", "members": 215000 },
   "context": { "url": "https://www.facebook.com/groups/…/posts/…", "excerpt": "Their question, ≤200 chars" },  // comments/replies only
   "why": "One line: why this group and this angle",
@@ -193,3 +194,56 @@ and say so in the run log.
 - On screen, each scene repeats the key point in a few words, so the video also works with the sound off.
 - `stat` scenes only show real, sourced numbers. A `step` label only when the scenes really are a sequence.
 - Name files `<item id>.mp4`. Keep each under 10 MB (Chrome's upload limit); the renderer's output is ~1–3 MB.
+
+## LinkedIn (company page)
+
+Samson asked for **2 posts a day on the Ivyward LinkedIn page** (21 Nov 2026). They go through the same review page
+and the same approval rule: a LinkedIn post goes out only when its item is `approved`.
+
+- **Page:** https://www.linkedin.com/company/ivyward/ (admin view: https://www.linkedin.com/company/147011114/admin/).
+  Every post is made from the admin view, so it posts *as Ivyward*. Never post, comment, react or message from Samson's
+  personal profile, and never send connection requests or DMs.
+- **Items:** `kind: "linkedin_post"`, ids `<day>-linkedin_post-1` and `-2`, slots `10:00` and `16:00`,
+  `target: { "name": "Ivyward on LinkedIn", "url": "https://www.linkedin.com/company/ivyward/" }`, `video: null`.
+- **Runs:** "Ivyward LinkedIn: drafts" (cloud, 06:17 Lagos) writes the day's two drafts; "Ivyward LinkedIn: posting"
+  (Samson's computer, 10:09 and 16:09 Lagos) posts approved ones. The Facebook runs leave `linkedin_post` items alone.
+
+### Writing LinkedIn posts
+
+The brand and honesty rules above apply word for word (no Ivyward prices, sourced facts only, no testimonials, never
+promise admission, don't name the founder). On top of them:
+
+1. **Audience:** graduates and professionals planning a master's, MBA or PhD abroad, and people who advise them. Plain,
+   professional, specific. No emoji, at most 3 hashtags at the end, no "🚀" hype or engagement bait ("Comment YES").
+2. **Shape:** a first line that states the useful fact (it's all that shows before "…see more"); 3–8 short lines or
+   bullets; the official source by name and domain; a link to the matching guide on tryivyward.com when one exists
+   (`src/content/guides/`); then one line on Ivyward ending "Start free at tryivyward.com". 120–250 words.
+3. **Topics:** open deadlines in the next 4–8 weeks (check the guides and the scholarship deadline data), how a scheme
+   actually selects, what work experience a scheme asks for, application timelines after submitting, fee waivers,
+   intakes, document checklists. Two different topics a day; don't repeat a topic within 7 days (read the last 7 days
+   of `linkedin_post` items first).
+4. **Facts:** every date, amount and rule is checked that morning on the official page (WebFetch), and the URL goes in
+   `sources`. If you can't verify it, leave it out.
+5. **Video:** none needed. Text posts only, unless Samson adds a video to an item.
+
+### Drafts run (06:17 Lagos, cloud)
+
+1. Read the last 7 days of `linkedin_post` items. If today's two items already exist, stop (write nothing).
+2. Draft the missing ones as above with `status: "draft"`, `why` (one line: why this topic today) and `sources`.
+3. Write a `runs` entry (`kind: "draft"`, "LinkedIn: drafted 2 posts for 10:00 and 16:00 …") and send Samson one short
+   message: the two first lines and the review page link.
+
+### Posting run (10:09 and 16:09 Lagos, Samson's computer)
+
+1. Read today's `linkedin_post` items with `status: "approved"` and a slot at or before this run's slot (10:00 or
+   16:00), not yet posted. None: write a short `runs` entry and stop.
+2. In Chrome (load the `chrome-browser` skill first; open your own tab): go to the admin view above, check the page
+   name at the top is Ivyward, click "Create" / "Start a post", paste the text (`edited` if set, else `text`) exactly,
+   and click "Post". One item at a time, 60–120 seconds apart.
+3. Open the page's Posts tab (https://www.linkedin.com/company/ivyward/posts/), open the new post and record its URL:
+   `status: "posted"`, `result: { url, at }`. On any failure: `status: "failed"`, `result.note` saying what happened.
+4. **Stop signals:** a security check or CAPTCHA, "You've reached the weekly/daily limit", a restriction notice, or the
+   composer posting as Samson instead of Ivyward. Stop at once, don't work around it, write a `runs` entry saying exactly
+   what appeared, and message Samson.
+5. Write a `runs` entry (`kind: "post"`, "LinkedIn 10:00: posted 1, failed 0"). Message Samson only on a failure or a
+   stop signal.
