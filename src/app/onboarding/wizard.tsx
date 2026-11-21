@@ -13,6 +13,7 @@ import { chipClass, Tag } from "@/components/ui/chip";
 import { uploadDocument } from "@/lib/upload-client";
 import { guessKind } from "@/lib/doc-kinds";
 import { SharpenCard } from "@/components/profile/sharpen-card";
+import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -391,6 +392,8 @@ export function Onboarding(props: {
                   </div>
                   <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files, kindFor.current)} />
                 </section>
+
+                <WhatsAppChannel variant="compact" />
 
                 <div className="flex flex-wrap gap-3">
                   <Button size="lg" disabled={busy || !!uploading} onClick={start}>

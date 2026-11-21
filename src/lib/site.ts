@@ -11,6 +11,14 @@ export const SITE = {
   short: "AI agents that run your university applications, from shortlist to submission. You review and sign everything.",
 } as const;
 
+// Ivyward's public channels
+export const CHANNELS = {
+  // "Global Scholarship by Ivyward AI": 5 scholarship and funding posts a day
+  whatsapp: "https://whatsapp.com/channel/0029VbEjj7L5kg71urPUPA0g",
+  linkedin: "https://www.linkedin.com/company/ivyward/",
+  facebook: "https://www.facebook.com/tryivyward",
+} as const;
+
 // plain facts, used in structured data and /llms.txt. keep these true: they're quoted back to people.
 export const FACTS = [
   "Ivyward is a web app at tryivyward.com where AI agents prepare and submit university applications for an applicant.",

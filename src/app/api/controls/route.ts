@@ -9,6 +9,7 @@ import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { requeueAfterPause, sweepOrphans } from "@/lib/requeue";
 import { after } from "next/server";
+import { setOptOut } from "@/lib/broadcast";
 
 // the applicant's own controls: stop button, autonomy dial, fee envelope, digest
 const Body = z.discriminatedUnion("action", [
@@ -17,6 +18,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_grant"), capability: z.string(), mode: z.enum(["auto", "auto_undo", "approve", "deny"]) }),
   z.object({ action: z.literal("set_fee_envelope"), usd: z.number().int().min(0).max(5000) }),
   z.object({ action: z.literal("set_digest"), enabled: z.boolean() }),
+  z.object({ action: z.literal("set_news"), enabled: z.boolean() }),
   z.object({ action: z.literal("retry_runner") }),
   z.object({ action: z.literal("check_inbox") }),
 ]);
@@ -83,6 +85,12 @@ export async function POST(req: NextRequest) {
     for (const a of stuck ?? []) await queueRunner(uid, a.id);
     after(() => fetch(`${req.nextUrl.origin}/api/runner/work`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, signal: AbortSignal.timeout(8000) }).then(() => undefined, () => undefined));
     return NextResponse.json({ ok: true, queued: stuck?.length ?? 0 });
+  }
+
+  if (b.action === "set_news") {
+    await setOptOut(uid, !b.enabled);
+    await logEvent({ userId: uid, actor: "user", action: b.enabled ? "email.news_on" : "email.news_off" }).catch(() => {});
+    return NextResponse.json({ ok: true });
   }
 
   await db.from("profiles").update({ digest_enabled: b.enabled }).eq("id", uid);

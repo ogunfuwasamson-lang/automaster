@@ -4,6 +4,7 @@ import { ArticleJsonLd, ItemListJsonLd } from "@/components/seo/json-ld";
 import { AlertSignup } from "@/components/growth/alert-signup";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 import { CALENDAR, CALENDAR_CHECKED, phaseOf, type CalendarEntry } from "@/content/scholarship-calendar";
+import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
 
 // no database: rebuilt daily so a published deadline that has passed moves to "closed"
 export const revalidate = 86400;
@@ -77,6 +78,7 @@ export default function ScholarshipDeadlines() {
         <h1 className="mt-5 text-[36px] leading-[1.08] sm:text-[50px]">Scholarship deadlines for 2027 entry</h1>
         <p className="mt-4 text-[13.5px] text-muted">Checked against the official pages on {longDate(CALENDAR_CHECKED)}</p>
         <ShortAnswer>{answer}</ShortAnswer>
+        <WhatsAppChannel variant="compact" className="mt-6" />
 
         <section className="mt-10">
           <h2 className="font-serif text-[28px]">Open now</h2>

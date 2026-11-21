@@ -1,5 +1,5 @@
 import { CHROME_STORE_URL } from "@/lib/chrome-store";
-import { FACTS, PLAN_OFFERS, SITE } from "@/lib/site";
+import { FACTS, PLAN_OFFERS, SITE, CHANNELS } from "@/lib/site";
 
 // structured data (schema.org JSON-LD): tells search engines and AI assistants what Ivyward is, what it costs,
 // and the answers to common questions, in a form they read directly.
@@ -8,7 +8,7 @@ export function Script({ data }: { data: unknown }) {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;
 }
 
-export const ORG = { "@type": "Organization", "@id": `${SITE.url}/#org`, name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon.svg`, slogan: SITE.tagline, description: SITE.short, sameAs: [CHROME_STORE_URL], knowsAbout: ["university admissions", "university application portals", "AI application agents", "graduate school applications", "application fee waivers", "scholarships", "fully funded master's and PhD programs", "statements of purpose", "AI admissions assistance"] };
+export const ORG = { "@type": "Organization", "@id": `${SITE.url}/#org`, name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon.svg`, slogan: SITE.tagline, description: SITE.short, sameAs: [CHROME_STORE_URL, CHANNELS.linkedin, CHANNELS.facebook, CHANNELS.whatsapp], knowsAbout: ["university admissions", "university application portals", "AI application agents", "graduate school applications", "application fee waivers", "scholarships", "fully funded master's and PhD programs", "statements of purpose", "AI admissions assistance"] };
 
 export function SiteJsonLd({ faq }: { faq?: [string, string][] }) {
   const graph: unknown[] = [

@@ -2,7 +2,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
-import { Dial, FeeEnvelope, DigestToggle, MailCard, RunnerCard, DeleteAccount, CalendarCard } from "./controls";
+import { Dial, FeeEnvelope, DigestToggle, NewsToggle, MailCard, RunnerCard, DeleteAccount, CalendarCard } from "./controls";
+import { isOptedOut } from "@/lib/broadcast";
 import type { GrantMode } from "@/lib/policy";
 import { PlanCard } from "@/components/billing/pay";
 import { billingState, confirmReturn } from "@/lib/billing";
@@ -71,8 +72,11 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <FeeEnvelope usd={Math.round((prof?.fee_envelope_cents ?? 0) / 100)} />
       </Group>
 
-      <Group title="Digest">
-        <DigestToggle enabled={prof?.digest_enabled ?? true} />
+      <Group title="Emails">
+        <div className="space-y-5">
+          <DigestToggle enabled={prof?.digest_enabled ?? true} />
+          <NewsToggle enabled={!(await isOptedOut(uid))} />
+        </div>
       </Group>
 
       <section className="border-t border-line pt-8">

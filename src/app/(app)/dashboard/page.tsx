@@ -49,6 +49,7 @@ import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home
 import { TodayCard } from "@/components/home/today-card";
 import { loadToday } from "@/lib/today-data";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
+import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -451,6 +452,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </Card>
 
           <div className="space-y-4 lg:col-span-4">
+            <WhatsAppChannel variant="compact" />
             {upcoming.length > 0 && (
               <Card className="p-5 sm:p-6">
                 <h2 className="mb-1 text-lg font-bold tracking-[-0.02em]">Coming up</h2>

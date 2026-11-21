@@ -5,6 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 import { CostsView, CreditView, GrowthView, LearningView, OverviewView, PortalsView, SubmissionsView, SystemView, UserView, UsersView } from "./views";
 import { href, parseRange } from "./range";
 import { RangeBar } from "./range-bar";
+import { EmailView } from "./email-view";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operator", robots: { index: false, follow: false } };
@@ -17,6 +18,7 @@ const VIEWS = [
   ["costs", "AI costs"],
   ["credit", "Credit"],
   ["growth", "Growth"],
+  ["email", "Email"],
   ["learning", "Learning"],
   ["system", "System"],
 ] as const;
@@ -84,6 +86,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         {view === "costs" && <CostsView range={range} everyone={everyone} />}
         {view === "growth" && <GrowthView range={range} everyone={everyone} />}
         {view === "learning" && <LearningView />}
+        {view === "email" && <EmailView />}
         {view === "system" && <SystemView range={range} />}
       </main>
     </div>

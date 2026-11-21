@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SCHOLARSHIPS, scholarshipCountries } from "@/content";
 import { ItemListJsonLd } from "@/components/seo/json-ld";
 import { Cta, LibraryShell } from "@/components/library/library";
+import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
 
 export const metadata: Metadata = {
   title: "Fully funded scholarships for international students, by country",
@@ -44,6 +45,8 @@ export default function Scholarships() {
             ))}
           </nav>
         </header>
+
+        <WhatsAppChannel className="mt-10 max-w-3xl" />
 
         <div className="mt-14 space-y-14">
           {countries.map((c) => (

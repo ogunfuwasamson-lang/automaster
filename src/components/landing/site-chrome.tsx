@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ThemeButton } from "@/components/theme";
 import { ButtonLink } from "@/components/ui/button";
 import { Wordmark } from "@/components/wordmark";
-import { SITE } from "@/lib/site";
+import { CHANNELS, SITE } from "@/lib/site";
 
 // the public site's header and footer, shared by the landing and pricing pages
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
@@ -56,6 +56,11 @@ export function SiteFooter() {
         <div>
           <Wordmark small />
           <p className="mt-3 max-w-xs leading-relaxed text-muted">{SITE.short}</p>
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-muted">
+            <a href={CHANNELS.whatsapp} target="_blank" rel="noopener me" className="hover:text-foreground">WhatsApp</a>
+            <a href={CHANNELS.linkedin} target="_blank" rel="noopener me" className="hover:text-foreground">LinkedIn</a>
+            <a href={CHANNELS.facebook} target="_blank" rel="noopener me" className="hover:text-foreground">Facebook</a>
+          </p>
         </div>
         <nav aria-label="Product" className="space-y-2.5">
           <p className="font-medium">Product</p>
@@ -104,6 +109,9 @@ export function SiteFooter() {
           <Link href="/scholarships" className="block text-muted hover:text-foreground">
             Scholarships
           </Link>
+          <a href={CHANNELS.whatsapp} target="_blank" rel="noopener" className="block text-muted hover:text-foreground">
+            5 scholarships a day on WhatsApp
+          </a>
           <Link href="/study-abroad" className="block text-muted hover:text-foreground">
             By home country
           </Link>

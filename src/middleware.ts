@@ -6,6 +6,7 @@ const PUBLIC = [
   "/login",
   "/auth",
   "/api/worker",
+  "/api/email/news", // the signed "stop these emails" link in news emails (no sign-in)
   "/api/health",
   "/api/runner/tasks",
   "/api/runner/sheet",

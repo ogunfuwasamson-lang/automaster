@@ -134,6 +134,38 @@ export function DigestToggle({ enabled }: { enabled: boolean }) {
   );
 }
 
+// news from Ivyward (new features, the scholarship channel): off with the link in any of those emails, or here
+export function NewsToggle({ enabled }: { enabled: boolean }) {
+  const [on, setOn] = useState(enabled);
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4">
+      <span>
+        <span className="block text-sm font-medium">News from Ivyward</span>
+        <span className="block text-xs text-muted">A short email when something new can help your applications. A few a month at most.</span>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={async () => {
+          const next = !on;
+          setOn(next);
+          try {
+            await post("/api/controls", { action: "set_news", enabled: next });
+            toast.success(next ? "News emails on" : "News emails off");
+          } catch {
+            setOn(!next);
+            toast.error("Couldn't change it");
+          }
+        }}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-neutral-900 dark:bg-go" : "bg-neutral-300 dark:bg-neutral-700"}`}
+      >
+        <span className={`absolute left-0 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+      </button>
+    </label>
+  );
+}
+
 export function MailCard({
   available,
   email,

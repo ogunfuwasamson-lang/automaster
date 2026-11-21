@@ -7,6 +7,7 @@ import { translationsOfScholarship } from "@/content/i18n/scholarships";
 import { TranslationLinks } from "@/components/library/translation-links";
 import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
+import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -92,6 +93,7 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ sl
           </a>
         </p>
 
+        <WhatsAppChannel variant="compact" className="mt-8" />
         <Cta
           title={`Apply for ${s.name.replace(/ Scholarships?$/, "")} with Ivyward`}
           body="Ivyward matches you to scholarships you're eligible for, drafts your essays from your own record and checks every claim, keeps track of each deadline, and applies to the universities the scholarship needs. You review and sign everything."
