@@ -12,27 +12,36 @@ everything it needs is here or in the review page.
 
 ## Who does what (from 21 Nov 2026)
 
-Samson: whatever can run in the cloud runs there; whatever needs a browser signed in on his laptop runs on the laptop
-(those runs only work while the laptop is on and the Claude app is open, and fire late otherwise).
+Samson, 21 Nov: **posts go out as soon as they're approved.** Don't wait for a slot. Whatever can run in the cloud runs
+there; whatever needs a browser signed in on his laptop runs on the laptop, every hour, so it starts as soon as the
+laptop is on. A slot is now only the order to post in, never a time to wait for.
 
 | Run (scheduled task) | Where | When (Lagos) | Does |
 |---|---|---|---|
-| Ivyward social: daily drafts (cloud) | cloud | 06:17 | drafts 2 LinkedIn posts (10:00, 16:00) and 2 Facebook Page posts (12:00, 18:00), text with a guide link, as `draft` items |
-| Ivyward social: posting (cloud) | cloud | 12:09, 18:09 | posts today's **approved** `page_post` items **without a video** to the Ivyward Page, through the API |
-| Ivyward LinkedIn: laptop posting | laptop | 10:09, 16:09 | posts today's **approved** `linkedin_post` items as the Ivyward company page, in Chrome ("Posting run in Chrome" below) |
+| Ivyward social: daily drafts (cloud) | cloud | 06:17 | drafts 2 LinkedIn posts and 2 Facebook Page posts (text with a guide link) as `draft` items |
+| Ivyward social: Facebook Page posting (cloud) | cloud | every hour, 08:09–21:09 | posts **every approved `page_post`** not yet posted, through the API |
 | Ivyward social: laptop drafts (groups, replies, videos) | laptop | 06:33 | joins groups; drafts group posts, replies and videos ("Morning run, step by step"). Page posts already drafted by the cloud run count toward the day's 2 |
-| Ivyward social: laptop posting (groups, replies, video posts) | laptop | every 2 hours, 08:05–20:05 | posts approved `group_post`, `comment` and `reply` items, and `page_post` items **with a video**, in Chrome |
+| Ivyward social: laptop posting (LinkedIn + Facebook groups) | laptop | every hour, 07:07–22:07, and when the laptop wakes | posts **every approved `linkedin_post`, `group_post`, `comment` and `reply`** not yet posted, in Chrome |
+
+**What each side posts, so nothing is posted twice:**
+- The **cloud** posts only `page_post` items. A Page post with a video goes out as its text (plus its `link`, if any)
+  without the video: the API can't fetch the review page's videos, and Samson wants posts out immediately.
+- The **laptop** posts only `linkedin_post`, `group_post`, `comment` and `reply` items. It never posts a `page_post`.
+- **Which items:** approved, not yet posted, from today or yesterday (Lagos dates), in slot order. Older approved items
+  are left alone.
+- **Claim before posting.** Set the item's `status` to `"posting"` with `claimedAt` (ISO time) before you start it, then
+  `"posted"` or `"failed"`. Skip items another run has claimed in the last 90 minutes. If a claim is older than that,
+  check the page or group feed for the post before trying again, so it's never posted twice.
+- **Pace on Facebook:** at most 10 group posts, comments and replies per laptop run, 60–120 seconds apart. The next
+  hourly run carries on. LinkedIn posts go first; there are only 2 a day.
+- **Signed out?** If Chrome shows a login wall on Facebook or LinkedIn, post nothing on that site, write a `runs` entry,
+  and message Samson once that day: "Facebook (or LinkedIn) is signed out in Chrome on your laptop. Sign in and posts
+  resume within the hour." Never type a password.
 
 **Why LinkedIn is on the laptop:** the API connection (Composio's LinkedIn app) can't post as an organization. On
 21 Nov LinkedIn answered `400 "Organization Or Events permissions must be used when using organization as author"`.
 Posting as Ivyward through the API needs a LinkedIn developer app with the Community Management API; until then the
-laptop run posts in Chrome, where Samson is a page admin. Laptop runs need Chrome signed in to Facebook and LinkedIn.
-
-**The split rule, so nothing is posted twice:**
-- The **cloud** run posts only `page_post` items without a video. It never touches anything else.
-- The **laptop Facebook** run never posts a `page_post` without a video (the cloud's) or a `linkedin_post` (the laptop
-  LinkedIn run's). Leave them exactly as they are.
-- The **laptop LinkedIn** run posts only `linkedin_post` items.
+laptop posts in Chrome, where Samson is a page admin.
 
 ### How the cloud run posts
 
@@ -187,8 +196,8 @@ Always read before you write and pass `if_version` (the tool explains). Never ov
 1. This run's slot is the even hour it runs in (a run at 10:05 is the `10:00` slot). Read `items` for today with
    `status: "approved"` and a slot at or before this one, not yet posted (earlier slots' items approved late go now).
    Nothing approved: write a short `runs` entry and stop.
-   **Skip `linkedin_post` items (the laptop LinkedIn run posts them) and `page_post` items without a video (the cloud
-   run posts them)**; see "Who does what".
+   **"Who does what" overrides this section:** post as soon as approved (no waiting for a slot), claim first, at most
+   10 Facebook actions per run, and never post a `page_post` (the cloud posts those).
 2. In Chrome as the Ivyward Page, for each item in `order`:
    - **page_post:** facebook.com/tryivyward → "Photo/video" → attach the mp4 as in "Attaching videos" → paste the text
      (`edited` if set, else `text`) → Post.
