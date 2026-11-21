@@ -17,19 +17,15 @@ export const metadata: Metadata = {
 
 // free, with no agent work (lib/free-tier)
 const FREE = [
-  "A shortlist from programmes Ivyward has already checked on official pages",
-  "Each programme's deadline, tuition, fees and funding",
-  "Deadline alerts, and your CV read into your profile",
-  "Invite 2 friends who finish setup and the agents unlock",
+  "A shortlist of checked programmes",
+  "Deadlines, fees and funding for each",
 ];
 
 // what unlocking the agents adds
 const AGENTS = [
-  "A fit check for every programme against your own record, and more programmes researched",
-  "Essays drafted from your own facts and fact-checked",
-  "Portal accounts created, every page filled, documents uploaded",
-  "Fee waivers, scholarships and funding chased for you",
-  "Ivyward AI: answers, reminders and follow-ups on school emails",
+  "Essays drafted and fact-checked",
+  "Portals filled in and submitted",
+  "Fee waivers and funding chased",
 ];
 
 const NAMES: Record<string, string> = { NG: "Nigeria", GH: "Ghana", KE: "Kenya", UG: "Uganda", TZ: "Tanzania", RW: "Rwanda", ZM: "Zambia", MW: "Malawi", ZA: "South Africa", EG: "Egypt", SN: "Senegal", CI: "Côte d'Ivoire", CM: "Cameroon", ET: "Ethiopia" };
@@ -72,18 +68,15 @@ export default async function Pricing() {
         {p.model === "pack" ? (
           <>
             <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. {p.label} to unlock the agents.</h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              Your free shortlist comes from programmes we&apos;ve already checked. One pack unlocks the agents, who check your fit, write your essays and fill in every page of the portal, and it covers your next {p.size} submissions. No subscription. Or invite 2 friends who finish setup to unlock the agents free.
-            </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Free" price="Free" per="" note="A checked shortlist, deadlines and fees." items={FREE} cta="Start free" />
+              <Card title="Free" price="Free" per="" note="Or invite 2 friends to unlock the agents." items={FREE} cta="Start free" />
               <Card
                 featured
                 title={`${p.size} submissions`}
                 price={p.label.replace(/ for \d+ submissions$/, "")}
                 per={`${p.each} each`}
-                note="Unlocks the agents. Applications, scholarship forms and funding requests."
-                items={[...AGENTS, `${p.size} submissions in one payment, no subscription`, "Credits don't expire: use them this cycle or next", "Pay in your own currency: card, bank transfer or mobile money", "You sign every application before it's submitted"]}
+                note="Unlocks the agents. No subscription."
+                items={[...AGENTS, `${p.size} submissions, no expiry`]}
                 cta="Start free"
               />
             </div>
@@ -91,12 +84,9 @@ export default async function Pricing() {
         ) : (
           <>
             <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. Pro unlocks the agents.</h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              Your free shortlist comes from programmes we&apos;ve already checked. Pro unlocks the agents, who research programs, write and fact-check your essays, submit to the portals and chase funding. Or invite 2 friends who finish setup: the agents unlock and your first {p.free} applications are free. You review and sign everything.
-            </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Free" price="$0" per="" note="A checked shortlist, deadlines and fees." items={[...FREE, `With 2 friends: your first ${p.free} applications submitted for you`]} cta="Start free" />
-              <Card featured title="Pro" price="$20" per="a month" note="Unlocks the agents. Up to 10 submissions a month. Cancel any time." items={[...AGENTS, "10 submissions a month: applications or scholarships", "Cancel any time; it runs to the end of the month you paid for"]} cta="Start free, upgrade later" />
+              <Card title="Free" price="$0" per="" note="Or invite 2 friends to unlock the agents." items={FREE} cta="Start free" />
+              <Card featured title="Pro" price="$20" per="a month" note="Unlocks the agents. Cancel any time." items={[...AGENTS, "10 submissions a month"]} cta="Start free, upgrade later" />
             </div>
           </>
         )}
