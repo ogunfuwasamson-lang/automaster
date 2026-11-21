@@ -467,7 +467,7 @@ export default async function ApplicationPage({
           s={share}
           storageKey={`iv_share_ask_app_${id}`}
           title={sent ? `Your ${share.school} application is in. Know someone who'd want to apply too?` : `You've signed ${share.school}'s application. Know someone who'd want to study there too?`}
-          body="Send them the deadline, fees and requirements, with a link to apply. If they join through it, their first submission is free, and you get one when they submit."
+          body="Send them the deadline, fees and requirements, with a link to apply. If they join through it and finish setup, you both get a free submission."
         />
       )}
 

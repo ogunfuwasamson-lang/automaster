@@ -40,7 +40,7 @@ Schools care that the application is truthful and that the essays are yours. Usi
 
 ## How Ivyward does it
 
-[Ivyward](/) runs a team of agents for international students: shortlist, essays, fee waivers and the portal itself. It works in the cloud, and in your own Chrome when a portal blocks cloud browsers. It's free to prepare; you pay only for submissions. See [pricing](/pricing).
+[Ivyward](/) runs a team of agents for international students: shortlist, essays, fee waivers and the portal itself. It works in the cloud, and in your own Chrome when a portal blocks cloud browsers. It starts free with a shortlist of programmes Ivyward has already checked; the agents unlock when you pay for submissions or invite 2 friends who finish setup. See [pricing](/pricing).
 `,
   faq: [
     ["Will universities know I used AI?", "Forms filled in by a tool look the same as forms you typed. Essays are different: write them in your own words and keep every fact true. Several schools check for AI-written essays."],

@@ -11,12 +11,21 @@ import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Preparing your university applications with Ivyward is free. In Africa you pay ₦10,000 (or the local equivalent) for a pack of 5 submissions; elsewhere your first 3 applications are free, then $20 a month for up to 10 submissions a month.",
+  description: "Start free with a shortlist of programmes Ivyward has already checked. The agents unlock when you pay (₦10,000 for 5 submissions in Africa; $20 a month for up to 10 elsewhere) or when 2 friends you invite finish setup.",
   alternates: { canonical: "/pricing" },
 };
 
-const EVERYTHING = [
-  "A shortlist from every region you choose: bachelor's, master's, MBA or PhD",
+// free, with no agent work (lib/free-tier)
+const FREE = [
+  "A shortlist from programmes Ivyward has already checked on official pages",
+  "Each programme's deadline, tuition, fees and funding",
+  "Deadline alerts, and your CV read into your profile",
+  "Invite 2 friends who finish setup and the agents unlock",
+];
+
+// what unlocking the agents adds
+const AGENTS = [
+  "A fit check for every programme against your own record, and more programmes researched",
   "Essays drafted from your own facts and fact-checked",
   "Portal accounts created, every page filled, documents uploaded",
   "Fee waivers, scholarships and funding chased for you",
@@ -62,32 +71,32 @@ export default async function Pricing() {
       <main className="relative z-10 mx-auto max-w-6xl px-5 pb-24 pt-16 text-center">
         {p.model === "pack" ? (
           <>
-            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Free to prepare. {p.label} to submit.</h1>
+            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. {p.label} to unlock the agents.</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              The agents do all the work first: shortlist, essays, every page of the portal. When you&apos;re ready to send, one pack covers your next {p.size} submissions. No subscription: buy another pack when they&apos;re used.
+              Your free shortlist comes from programmes we&apos;ve already checked. One pack unlocks the agents, who check your fit, write your essays and fill in every page of the portal, and it covers your next {p.size} submissions. No subscription. Or invite 2 friends who finish setup to unlock the agents free.
             </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Preparing" price="Free" per="" note="Everything up to the submit button." items={EVERYTHING} cta="Start free" />
+              <Card title="Free" price="Free" per="" note="A checked shortlist, deadlines and fees." items={FREE} cta="Start free" />
               <Card
                 featured
                 title={`${p.size} submissions`}
                 price={p.label.replace(/ for \d+ submissions$/, "")}
                 per={`${p.each} each`}
-                note="Applications, scholarship forms and funding requests. Pay now or when your first one is ready."
-                items={[`${p.size} submissions in one payment, no subscription`, "Credits don't expire: use them this cycle or next", "Pay in your own currency: card, bank transfer or mobile money", "You sign every application before it's submitted"]}
+                note="Unlocks the agents. Applications, scholarship forms and funding requests."
+                items={[...AGENTS, `${p.size} submissions in one payment, no subscription`, "Credits don't expire: use them this cycle or next", "Pay in your own currency: card, bank transfer or mobile money", "You sign every application before it's submitted"]}
                 cta="Start free"
               />
             </div>
           </>
         ) : (
           <>
-            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Your first {p.free} applications are free.</h1>
+            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. Pro unlocks the agents.</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-              The agents research programs, write and fact-check your essays, submit to the portals and chase funding. You review and sign everything. Need more than {p.free}? Pro covers up to 10 submissions every month.
+              Your free shortlist comes from programmes we&apos;ve already checked. Pro unlocks the agents, who research programs, write and fact-check your essays, submit to the portals and chase funding. Or invite 2 friends who finish setup: the agents unlock and your first {p.free} applications are free. You review and sign everything.
             </p>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Free" price="$0" per="" note={`Everything, for your first ${p.free} applications.`} items={[...EVERYTHING, `${p.free} applications submitted for you`]} cta="Start free" />
-              <Card featured title="Pro" price="$20" per="a month" note="Up to 10 submissions a month. Cancel any time." items={["Everything in Free", "10 submissions a month: applications or scholarships", "More agent work every month", "Cancel any time; it runs to the end of the month you paid for"]} cta="Start free, upgrade later" />
+              <Card title="Free" price="$0" per="" note="A checked shortlist, deadlines and fees." items={[...FREE, `With 2 friends: your first ${p.free} applications submitted for you`]} cta="Start free" />
+              <Card featured title="Pro" price="$20" per="a month" note="Unlocks the agents. Up to 10 submissions a month. Cancel any time." items={[...AGENTS, "10 submissions a month: applications or scholarships", "Cancel any time; it runs to the end of the month you paid for"]} cta="Start free, upgrade later" />
             </div>
           </>
         )}

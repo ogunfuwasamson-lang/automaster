@@ -2,12 +2,12 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
-// the applicant's invite link: a friend who joins through it gets a free submission, and so do you once their first
-// application is submitted.
-export function InviteCard({ url, joined, submitted, bonus }: { url: string | null; joined: number; submitted: number; bonus: number }) {
+// the applicant's invite link (rules in lib/referrals): when a friend who joined through it finishes setup, you both
+// get a free submission; 2 such friends unlock your agents, 4 make a study group with free funding requests.
+export function InviteCard({ url, joined, finished, bonus, requests = 0, locked = false, unlockAt = 2, groupAt = 4 }: { url: string | null; joined: number; finished: number; bonus: number; requests?: number; locked?: boolean; unlockAt?: number; groupAt?: number }) {
   const [copied, setCopied] = useState(false);
   if (!url) return <p className="text-sm text-muted">Your invite link isn&apos;t ready yet. Refresh in a moment.</p>;
-  const text = `I'm using Ivyward to apply to universities abroad: AI agents shortlist programs, draft essays, ask for fee waivers and fill in every portal. Join with my link and your first submission is free: ${url}`;
+  const text = `I'm using Ivyward to apply to universities abroad: AI agents shortlist programs, draft essays, ask for fee waivers and fill in every portal. Join with my link, finish setup, and we both get a free submission: ${url}`;
   const share = [
     { label: "WhatsApp", href: `https://wa.me/?text=${encodeURIComponent(text)}` },
     { label: "X", href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}` },
@@ -17,7 +17,7 @@ export function InviteCard({ url, joined, submitted, bonus }: { url: string | nu
   return (
     <div className="space-y-4 py-1">
       <p className="text-[14.5px] leading-relaxed">
-        Friends who join through your link get <strong>one free submission</strong>. When their first application is submitted, you get one too.
+        When a friend joins through your link and finishes setup, <strong>you both get a free submission</strong>. {locked ? <>{Math.max(0, unlockAt - finished)} more and <strong>your agents unlock</strong>. </> : null}Bring {groupAt} friends and you make a study group of {groupAt + 1}: each of you gets 3 free funding requests.
       </p>
       <div className="flex gap-2">
         <input readOnly value={url} aria-label="Your invite link" className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-background px-3 text-[14px]" onFocus={(e) => e.currentTarget.select()} />
@@ -42,7 +42,7 @@ export function InviteCard({ url, joined, submitted, bonus }: { url: string | nu
         ))}
       </div>
       <p className="text-[13.5px] text-muted">
-        {joined} joined through your link, {submitted} submitted. Free submissions waiting for you: {bonus}.
+        {joined} joined through your link, {finished} finished setup. Free submissions waiting for you: {bonus}.{requests ? ` Free funding requests: ${requests}.` : ""}
       </p>
     </div>
   );

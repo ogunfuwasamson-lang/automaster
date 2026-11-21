@@ -4,7 +4,7 @@ import { AmbassadorForm } from "./form";
 
 export const metadata: Metadata = {
   title: "Become an Ivyward ambassador",
-  description: "Help students in your university, school or community apply abroad with Ivyward. Everyone who joins through your link gets a free submission, and you earn free submissions as they apply.",
+  description: "Help students in your university, school or community apply abroad with Ivyward. When someone joins through your link and finishes setup, you both get a free submission.",
   alternates: { canonical: "/ambassadors" },
 };
 
@@ -21,7 +21,7 @@ export default function Ambassadors() {
       <div className="mx-auto max-w-[820px] px-5 pb-20 pt-12 sm:pt-16">
         <h1 className="text-[42px] leading-[1.05] sm:text-[58px]">Bring your people with you.</h1>
         <p className="mt-5 max-w-2xl text-[18px] leading-relaxed text-muted">
-          Ivyward ambassadors help students in their university, school or community apply abroad. Everyone who joins through your link gets a free submission, and each time one of them submits their first application, you get one too.
+          Ivyward ambassadors help students in their university, school or community apply abroad. When someone joins through your link and finishes setup, you both get a free submission, and their agents unlock sooner too.
         </p>
         <section className="mt-12">
           <h2 className="font-serif text-[28px]">Who it&apos;s for</h2>

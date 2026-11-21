@@ -1,7 +1,8 @@
 // plans and their limits. every applicant gets the whole product; what differs is how they pay (lib/geo-pricing)
 // and the monthly allowance of agent work (the ai budget, the hard cost ceiling).
 //   free: preparing applications. in africa each submission is paid for (and adds to the allowance); elsewhere
-//         the first 3 applications are free.
+//         the first 3 applications are free. from 22 nov 2026 the agents are locked until a payment or two
+//         invited friends finish setup (lib/credit-rules, lib/free-tier).
 //   pro:  $20 a month (outside africa): up to 10 submissions a month and a bigger allowance. counts only while paid up.
 
 export type PlanId = "free" | "pro";

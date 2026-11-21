@@ -21,11 +21,15 @@ export interface BillingState {
   exempt: boolean; // staff accounts
   credits: number; // submissions left from packs (africa)
   bonus: number; // free submissions earned by inviting friends
+  bonusRequests: number; // free funding requests (study group reward, lib/referrals)
 }
 
 export async function billingState(userId: string): Promise<BillingState> {
-  const { data, error } = await admin().from("profiles").select("plan, plan_until, plan_cancelled_at, billing_country, bachs_customer, is_admin, submission_credits, bonus_submissions").eq("id", userId).maybeSingle();
-  if (error || !data) return { pricing: pricingFor(null), pro: false, planUntil: null, cancelled: false, customer: null, exempt: false, credits: 0, bonus: 0 };
+  const db = admin();
+  const { data, error } = await db.from("profiles").select("plan, plan_until, plan_cancelled_at, billing_country, bachs_customer, is_admin, submission_credits, bonus_submissions").eq("id", userId).maybeSingle();
+  if (error || !data) return { pricing: pricingFor(null), pro: false, planUntil: null, cancelled: false, customer: null, exempt: false, credits: 0, bonus: 0, bonusRequests: 0 };
+  // free funding requests arrive with migration 0033: read on their own, so billing works before it's applied
+  const { data: req } = await db.from("profiles").select("bonus_requests").eq("id", userId).maybeSingle();
   return {
     pricing: pricingFor(data.billing_country, await submissionAmounts().catch(() => null)),
     pro: planOf(data.plan, data.plan_until).id === "pro",
@@ -35,6 +39,7 @@ export async function billingState(userId: string): Promise<BillingState> {
     exempt: !!data.is_admin,
     credits: data.submission_credits ?? 0,
     bonus: data.bonus_submissions ?? 0,
+    bonusRequests: Number((req as { bonus_requests?: number } | null)?.bonus_requests ?? 0),
   };
 }
 
@@ -53,6 +58,8 @@ export async function requestPaymentNeeded(userId: string, messageId: string): P
   if (!FUNDING_PURPOSES.includes(m.purpose as string) || m.paid_at) return null;
   const b = await billingState(userId);
   if (b.exempt || b.pro) return null;
+  // a free request from a study group covers it (spent at the send gate)
+  if (b.bonusRequests > 0) return null;
   if (b.pricing.model === "pack") return b.credits > 0 ? null : { kind: "pack", label: b.pricing.label, note: `your submissions are used. Buy ${b.pricing.label} to send this request` };
   const [{ count: apps }, { count: reqs }] = await Promise.all([
     db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).or(`status.in.(${SENT.join(",")}),paid_at.not.is.null`),
@@ -88,6 +95,11 @@ export async function settleBeforeSubmit(userId: string, applicationId: string):
 export async function settleBeforeRequest(userId: string, messageId: string): Promise<PaymentNeed> {
   const need = await requestPaymentNeeded(userId, messageId);
   const b = await billingState(userId);
+  // a free request (study group) is used up here in every pricing model, once per message and atomically
+  if (!b.exempt && !b.pro && b.bonusRequests > 0) {
+    const { data: got } = await admin().rpc("reserve_request", { uid: userId, msg: messageId });
+    if (got === "bonus" || got === "already") return null;
+  }
   if (b.pricing.model !== "pack" || b.exempt) return need;
   const { data: m } = await admin().from("messages").select("purpose, paid_at").eq("id", messageId).eq("user_id", userId).maybeSingle();
   if (!m || !FUNDING_PURPOSES.includes(m.purpose as string) || m.paid_at) return null;
@@ -239,11 +251,17 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   const { releaseHeld } = await import("@/lib/credit");
   await releaseHeld(userId).catch(() => {});
   await resolve(userId, /^paynudge:/).catch(() => {});
+  // the free tier: paying unlocks the agents (lib/free-tier). after the credits land, so the tier reads as paid
+  const unlock = async () => {
+    const { unlockAgents } = await import("@/lib/free-tier");
+    await unlockAgents(userId, "paid").catch(() => false);
+  };
 
   if (meta.kind === "pack") {
     const { data: bal } = await db.rpc("grant_credits", { uid: userId, n: PACK_SIZE, ref: reference });
     if (customer) await db.from("profiles").update({ bachs_customer: customer }).eq("id", userId);
     await logEvent({ userId, actor: "user", action: "billing.pack_paid", applicationId: meta.application_id ?? undefined, context: { amount: amt, currency: c.currency, credits: PACK_SIZE, balance: bal } });
+    await unlock();
     await resolve(userId, "pack:empty");
     // whatever was waiting on payment goes now: the one it was bought from first, then the rest
     if (meta.message_id) {
@@ -261,6 +279,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
     await db.from("messages").update({ paid_at: new Date().toISOString() }).eq("id", meta.message_id).eq("user_id", userId);
     if (customer) await db.from("profiles").update({ bachs_customer: customer }).eq("id", userId);
     await logEvent({ userId, actor: "user", action: "billing.request_paid", context: { messageId: meta.message_id, amount: amt, currency: c.currency } });
+    await unlock();
     await resolve(userId, `payreq:${meta.message_id}`);
     // they paid from the send button: send it now (with the usual undo window)
     const { schedule } = await import("@/lib/outbox");
@@ -272,6 +291,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
     await db.from("applications").update({ paid_at: new Date().toISOString() }).eq("id", meta.application_id).eq("user_id", userId);
     if (customer) await db.from("profiles").update({ bachs_customer: customer }).eq("id", userId);
     await logEvent({ userId, actor: "user", action: "billing.submission_paid", applicationId: meta.application_id, context: { amount: amt, currency: c.currency } });
+    await unlock();
     await resumeAfterPayment(userId, meta.application_id);
     return { applied: true, kind: "submission" };
   }
@@ -282,6 +302,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
     .update({ plan: "pro", plan_until: new Date(until.getTime() + 3 * 86_400_000).toISOString(), plan_cancelled_at: null, ...(customer ? { bachs_customer: customer } : {}), ...(sub ? { bachs_subscription: sub } : {}) })
     .eq("id", userId);
   await logEvent({ userId, actor: "user", action: "billing.pro_started", context: { amount: amt } });
+  await unlock();
   // everything that was waiting on payment can go
   const { data: waiting } = await db.from("applications").select("id").eq("user_id", userId).eq("runner_status", "needs_you").ilike("runner_note", "%subscribe%");
   for (const a of waiting ?? []) await resumeAfterPayment(userId, a.id);

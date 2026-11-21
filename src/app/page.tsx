@@ -79,7 +79,7 @@ export default async function Home() {
                   </button>
                 </div>
                 <p className="mt-2.5 text-[13px] text-muted">
-                  {price.model === "pack" ? `Free to prepare. Then ${price.label}, used as your applications go in.` : `Your first ${price.free} applications are free. No card needed.`} Nothing goes to a school until you sign.
+                  {price.model === "pack" ? `Start free with a checked shortlist. ${price.label} unlocks the agents.` : `Start free with a checked shortlist. Pro, or 2 friends who join, unlocks the agents.`} Nothing goes to a school until you sign.
                 </p>
               </form>
             </HeroIn>

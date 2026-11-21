@@ -28,7 +28,7 @@ export default function Terms() {
       </section>
       <section>
         <h2>Fees and plans</h2>
-        <p>Preparing applications is free. In Africa submissions are bought in packs: ₦10,000 (or the local equivalent) for 5, used one at a time as applications, scholarship forms and funding requests are submitted. Packs are not a subscription, credits do not expire, and a credit is used only when a submission is made. Elsewhere the first 3 applications are free and Pro is $20 a month for up to 10 submissions a month, renewed monthly until you cancel; it runs to the end of the month you paid for. Payments are processed by Bachs; card details never reach Ivyward. You pay application fees directly to schools; the agents never enter card details.</p>
+        <p>Starting is free: a shortlist from programmes Ivyward has already checked. The agents unlock when you buy submissions or a plan, or when 2 friends who joined through your invite link finish setup. In Africa submissions are bought in packs: ₦10,000 (or the local equivalent) for 5, used one at a time as applications, scholarship forms and funding requests are submitted. Packs are not a subscription, credits do not expire, and a credit is used only when a submission is made. Elsewhere Pro is $20 a month for up to 10 submissions a month, renewed monthly until you cancel; it runs to the end of the month you paid for. If you unlock the agents through friends, your first 3 applications outside Africa are free. Payments are processed by Bachs; card details never reach Ivyward. You pay application fees directly to schools; the agents never enter card details.</p>
       </section>
       <section>
         <h2>Acceptable use</h2>

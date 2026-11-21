@@ -75,7 +75,7 @@ describe("the message", () => {
     expect(text).toContain("📝 IELTS 7.0 or TOEFL 100 · No GRE/GMAT needed");
     expect(text).toContain(`Full details and the official page: ${url}`);
     expect(text).toContain("Ivyward AI can run the whole application for you");
-    expect(text).toContain("your first submission is free");
+    expect(text).toContain("we both get a free submission");
   });
   it("offers the free submission only with an invite code", () => {
     expect(shareText(shareFacts(delft, TODAY), url, { invite: false })).not.toContain("free");

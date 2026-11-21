@@ -17,7 +17,7 @@ export const vsConsultant: Guide = {
 | | Admissions consultant | Commission-based study agent | Ivyward |
 |---|---|---|---|
 | Who pays | You | Usually the partner university | You, a small fee for submissions (preparing is free) |
-| Typical cost | Often hundreds to thousands of dollars per package | Often free to you | Free to prepare; ₦10,000 for 5 submissions in Africa; elsewhere 3 free, then $20/month for 10 |
+| Typical cost | Often hundreds to thousands of dollars per package | Often free to you | Free checked shortlist; agents unlock with ₦10,000 for 5 submissions in Africa or $20/month for 10 elsewhere, or by inviting 2 friends |
 | School list | Any school | Often partner schools | Any school in any country with an online application |
 | Essays | Coaching and edits | Varies | Drafts from your facts, every claim checked; you edit and approve |
 | Filling portals | Usually you | Sometimes the agent | The agents create accounts and fill every page |

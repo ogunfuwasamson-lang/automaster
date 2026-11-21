@@ -109,7 +109,7 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; eac
           {p.bonus ? <span className="text-muted"> ({p.bonus} free from invites)</span> : null}
         </p>
         <p className="text-muted">
-          Preparing is free. Submissions come in packs: {p.label} ({p.each} each), used one at a time as applications, scholarship forms and funding requests go in. No subscription, and they don&apos;t expire.
+          A pack unlocks the agents and covers your submissions: {p.label} ({p.each} each), used one at a time as applications, scholarship forms and funding requests go in. No subscription, and they don&apos;t expire. Or invite 2 friends who finish setup to unlock the agents free.
         </p>
         <BuyPack label={p.label} back="settings" size="sm" variant={left ? "secondary" : "primary"}>{left ? "Buy another pack" : `Buy ${p.label}`}</BuyPack>
         {!p.ready && <p className="text-xs text-muted">Payments open shortly.</p>}

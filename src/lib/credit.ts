@@ -45,13 +45,15 @@ export async function todaySpendUsd(fresh = false): Promise<number> {
 export async function signalsFor(userId: string): Promise<Signals & { createdAt: string | null }> {
   const db = admin();
   const head = { count: "exact" as const, head: true };
-  const [{ data: p }, team, { count: docs }, { count: mail }, { count: signed }, { count: paidEvents }] = await Promise.all([
+  const [{ data: p }, team, { count: docs }, { count: mail }, { count: signed }, { count: paidEvents }, { count: friends }] = await Promise.all([
     db.from("profiles").select("plan, plan_until, is_admin, submission_credits, created_at").eq("id", userId).maybeSingle(),
     teamIds().catch(() => new Set<string>()),
     db.from("documents").select("id", head).eq("user_id", userId),
     db.from("mail_accounts").select("user_id", head).eq("user_id", userId),
     db.from("applications").select("id", head).eq("user_id", userId).in("status", SIGNED),
     db.from("billing_events").select("reference", head).eq("user_id", userId),
+    // friends this account invited who finished setup (lib/referrals stamps referral_rewarded_at then)
+    db.from("profiles").select("id", head).eq("referred_by", userId).not("referral_rewarded_at", "is", null),
   ]);
   return {
     staff: !!p?.is_admin || team.has(userId),
@@ -60,10 +62,15 @@ export async function signalsFor(userId: string): Promise<Signals & { createdAt:
     gmail: (mail ?? 0) > 0,
     signed: (signed ?? 0) > 0,
     createdAt: (p?.created_at as string | undefined) ?? null,
+    friendsDone: friends ?? 0,
   };
 }
 
 const tierCache = new Map<string, { tier: Tier; lastActive: number | null; at: number }>();
+// after a payment or a friend finishing setup: the next call looks again instead of using the cached tier
+export function forgetTier(userId: string) {
+  tierCache.delete(userId);
+}
 export async function tierFor(userId: string, fresh = false): Promise<{ tier: Tier; lastActive: number | null }> {
   const hit = tierCache.get(userId);
   if (!fresh && hit && Date.now() - hit.at < 5 * 60_000) return hit;
@@ -98,11 +105,11 @@ export const inBackground = <T>(fn: () => Promise<T>): Promise<T> => background.
 // a starter over their allowance is a budget stop (parked until they engage or the month turns); a busy day or a
 // long absence is a hold.
 export async function creditGate(userId: string, category: Category, spend: Spend): Promise<Gate> {
-  if (category === "core") return { ok: true };
   const [{ tier, lastActive }, policy, today] = await Promise.all([tierFor(userId), creditPolicy(), todaySpendUsd()]);
+  if (category === "core" && tier !== "locked") return { ok: true };
   const g = gate({ tier, category, spend, todayUsd: today, lastActiveMs: lastActive, now: Date.now(), policy });
   if (today >= policy.dailyLimitUsd && policy.dailyLimitUsd > 0) await alertDailyLimit(today, policy.dailyLimitUsd).catch(() => {});
-  if (!g.ok && g.kind !== "starter" && !background.getStore()) return { ok: true };
+  if (!g.ok && g.kind !== "starter" && g.kind !== "locked" && !background.getStore()) return { ok: true };
   return g;
 }
 

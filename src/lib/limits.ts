@@ -2,10 +2,15 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { userPlan } from "@/lib/budget";
 import { monthStartUTC } from "@/lib/pricing";
+import { isLocked } from "@/lib/free-tier";
+
+export const LOCKED_MESSAGE = "your free shortlist is ready. For the agents to research more programmes and prepare applications, buy your first submission or invite 2 friends who finish setup (Settings, Invite friends).";
 
 // plan limits checked at the door, before any work is queued. returns a message when blocked.
 export async function checkLimit(userId: string, what: "recon_run" | "application" | "document"): Promise<string | null> {
   const db = admin();
+  // the free tier: research and preparation wait for the agents to unlock (lib/free-tier)
+  if (what !== "document" && (await isLocked(userId))) return LOCKED_MESSAGE;
   const { plan } = await userPlan(userId);
   const upgrade = "";
   if (what === "recon_run") {

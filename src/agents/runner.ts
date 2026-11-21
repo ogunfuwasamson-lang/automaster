@@ -32,7 +32,6 @@ import { checkPortal, crawlForApply } from "@/lib/apply-crawl";
 import { hostRoot as rootOf } from "@/lib/verify-mail";
 import { notify } from "@/lib/notify";
 import { askToPay, paymentNeeded, spendBonusIfUsed } from "@/lib/billing";
-import { rewardInviter } from "@/lib/referrals";
 import { aiPausedNow, ensureAiWorks, isOutage, tripAi } from "@/lib/ai-health";
 import { say } from "@/lib/followups";
 const sentenceCase = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
@@ -468,7 +467,6 @@ export async function afterSubmitted(userId: string, applicationId: string, opts
   // invite credits only count for submissions the agents made, not ones the applicant marked as sent themselves
   if (opts.byAgents !== false) {
     await spendBonusIfUsed(userId, applicationId).catch(() => {});
-    await rewardInviter(userId).catch(() => {});
   }
   await db.from("user_funding").update({ status: "applied" }).eq("user_id", userId).eq("application_id", applicationId);
   const { data } = await db.from("applications").select("programs(degree)").eq("id", applicationId).maybeSingle();

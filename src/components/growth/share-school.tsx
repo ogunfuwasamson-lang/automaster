@@ -58,7 +58,7 @@ export function ShareDialog({ s, trigger, open, onOpenChange, onShared }: { s: S
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <Dialog.Title className="font-serif text-[22px] leading-snug">Share {s.school}</Dialog.Title>
-              <Dialog.Description className="mt-1 text-[13.5px] leading-snug text-muted">The programme&apos;s details and a link to apply. If your friend joins through it, their first submission is free, and you get one when they submit.</Dialog.Description>
+              <Dialog.Description className="mt-1 text-[13.5px] leading-snug text-muted">The programme&apos;s details and a link to apply. If your friend joins through it and finishes setup, you both get a free submission.</Dialog.Description>
             </div>
             <Dialog.Close className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800" aria-label="Close">
               <X className="size-4" aria-hidden />

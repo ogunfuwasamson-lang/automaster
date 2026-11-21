@@ -70,6 +70,6 @@ export async function assertBudget(userId: string, agent: string) {
   // who goes first when credit is short (lib/credit-rules)
   const g = await creditGate(userId, category, spend);
   if (g.ok) return;
-  if (g.kind === "starter") throw new BudgetExceeded(g.reason, category);
+  if (g.kind === "starter" || g.kind === "locked") throw new BudgetExceeded(g.reason, category);
   throw new CreditHeld(g.kind, g.reason, holdUntil());
 }

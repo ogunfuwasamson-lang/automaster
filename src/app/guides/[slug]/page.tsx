@@ -70,7 +70,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             <div className="prose-iv mt-10" dangerouslySetInnerHTML={{ __html: html }} />
             <Cta
               title="Let the agents do the legwork"
-              body="Ivyward builds your shortlist, drafts and fact-checks your essays, asks schools for fee waivers, finds funding and fills in every application portal. You review and sign. Preparing is free."
+              body="Ivyward builds your shortlist, drafts and fact-checks your essays, asks schools for fee waivers, finds funding and fills in every application portal. You review and sign. Start free with a checked shortlist."
             />
             <Faq items={g.faq} />
             <AlertSignup source={`guide:${g.slug}`} />

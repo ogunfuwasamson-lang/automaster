@@ -85,7 +85,7 @@ export default async function SharedProgramme({ params }: P) {
 
         <Cta
           title="Ivyward AI can apply for you"
-          body={`Ivyward's agents find programmes that fit you, draft and fact-check your essays, ask schools to waive the fee and fill in each portal. You review and sign before anything is sent.${invited ? " You came from a friend's link, so your first submission is free." : ""}`}
+          body={`Ivyward's agents find programmes that fit you, draft and fact-check your essays, ask schools to waive the fee and fill in each portal. You review and sign before anything is sent.${invited ? " You came from a friend's link: finish setup and you both get a free submission." : ""}`}
           href="/login?mode=signup"
           label="Start free"
         />

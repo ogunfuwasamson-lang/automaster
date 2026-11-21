@@ -39,6 +39,8 @@ export interface AdminUser {
   team: boolean;
   source: string;
   invited: boolean;
+  referredBy: string | null; // who invited them
+  setupRewardedAt: string | null; // when they finished setup through an invite (lib/referrals), if they did
   lastSignIn: string | null;
   lastActive: string | null; // the latest of: signing in, doing something in the app, talking to the interviewer
   stage: MilestoneKey | "signup";
@@ -132,7 +134,7 @@ async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string
 
 const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
 
-type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null; applying: string | null; need: string | null; budget: string | null };
+type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null; referral_rewarded_at: string | null; applying: string | null; need: string | null; budget: string | null };
 type AppRow = { id: string; user_id: string; status: string; runner_status: string | null; runner_note: string | null; runner_state: unknown; runner_updated_at: string | null; portal_url: string | null; submitted_at: string | null; programs: unknown };
 
 export async function loadAdmin() {
@@ -141,7 +143,7 @@ export async function loadAdmin() {
   const month = monthStartUTC();
   const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
     teamIds(),
-    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
+    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by, referral_rewarded_at, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
     every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
     // what the user did: their own actions, plus each message they sent the interviewer
@@ -214,6 +216,8 @@ export async function loadAdmin() {
       team: team.has(p.id),
       source: sourceOf(p.signup_source),
       invited: !!p.referred_by,
+      referredBy: p.referred_by ?? null,
+      setupRewardedAt: p.referral_rewarded_at ?? null,
       lastSignIn: logins.get(p.id) ?? null,
       lastActive: later(last.get(p.id), logins.get(p.id)),
       stage: reached?.key ?? "signup",

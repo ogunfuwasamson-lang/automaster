@@ -107,7 +107,7 @@ export function shareText(f: ShareFacts, url: string, opts: { invite: boolean })
     "",
     `Full details and the official page: ${url}`,
     "",
-    `Ivyward AI can run the whole application for you: the essays, fee-waiver requests and the school's portal, start to finish. You review and sign.${opts.invite ? " Sign up with this link and your first submission is free." : ""}`,
+    `Ivyward AI can run the whole application for you: the essays, fee-waiver requests and the school's portal, start to finish. You review and sign.${opts.invite ? " Sign up with this link and finish setup, and we both get a free submission." : ""}`,
   ];
   return lines.filter((l) => l !== null).join("\n");
 }

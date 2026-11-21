@@ -4,10 +4,17 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { notify } from "@/lib/notify";
 import { SITE } from "@/lib/site";
+import { UNLOCK_FRIENDS } from "@/lib/credit-rules";
 
-// invite links: a friend who signs up through yours gets one free submission straight away, and you get one when
-// their first application is submitted (so fake signups earn nothing). capped so it can't be farmed.
+// invite links (rules approved by the founder, 21 nov 2026):
+//   - when a friend who signed up through your link finishes setup, you both get a free submission
+//   - UNLOCK_FRIENDS (2) friends who finish setup unlock your agents on the free tier (lib/free-tier)
+//   - GROUP_SIZE - 1 (4) friends who finish setup make a study group of 5: you and each of them get GROUP_REQUESTS
+//     free funding requests (fee waiver, scholarship and assistantship emails)
+// rewards wait for setup, not signup, so an empty account earns nothing; capped so it can't be farmed.
 export const REFERRAL_CAP = 25;
+export const GROUP_SIZE = 5;
+export const GROUP_REQUESTS = 3;
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
 function newCode() {
@@ -34,12 +41,14 @@ export const inviteUrl = (code: string) => `${SITE.url}/?ref=${code}`;
 
 export async function referralStats(userId: string) {
   const db = admin();
-  const [{ data: me }, { count: joined }, { count: submitted }] = await Promise.all([
+  const [{ data: me }, { count: joined }, { count: finished }] = await Promise.all([
     db.from("profiles").select("bonus_submissions").eq("id", userId).maybeSingle(),
     db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", userId),
     db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", userId).not("referral_rewarded_at", "is", null),
   ]);
-  return { bonus: me?.bonus_submissions ?? 0, joined: joined ?? 0, submitted: submitted ?? 0 };
+  // free funding requests arrive with the migration that adds the column: read it separately so stats still load before
+  const { data: req } = await db.from("profiles").select("bonus_requests").eq("id", userId).maybeSingle();
+  return { bonus: me?.bonus_submissions ?? 0, joined: joined ?? 0, finished: finished ?? 0, requests: Number((req as { bonus_requests?: number } | null)?.bonus_requests ?? 0) };
 }
 
 type Source = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; landing?: string; referrer?: string; at?: string };
@@ -55,23 +64,67 @@ export async function recordSignup(userId: string, createdAt: string | undefined
     const { data: inviter } = await db.from("profiles").select("id").eq("referral_code", ref.toLowerCase()).maybeSingle();
     if (inviter && inviter.id !== userId) {
       patch.referred_by = inviter.id;
-      patch.bonus_submissions = 1;
       await logEvent({ userId, actor: "system", action: "referral.joined", context: { inviter: inviter.id } }).catch(() => {});
     }
   }
   await db.from("profiles").update(patch).eq("id", userId);
 }
 
-// their first submitted application earns the inviter a free submission
-export async function rewardInviter(userId: string) {
+// a friend who joined through an invite link finished setup: they and their inviter each get a free submission,
+// the second such friend unlocks the inviter's agents, and the fourth makes a study group of five. once per friend
+// (referral_rewarded_at is claimed atomically). called from setup (lib/kickoff) and WhatsApp sign-up.
+export async function rewardOnIntake(userId: string) {
   const db = admin();
   const { data: me } = await db.from("profiles").select("referred_by, referral_rewarded_at").eq("id", userId).maybeSingle();
   if (!me?.referred_by || me.referral_rewarded_at) return;
   const { data: claimed } = await db.from("profiles").update({ referral_rewarded_at: new Date().toISOString() }).eq("id", userId).is("referral_rewarded_at", null).select("id");
   if (!claimed?.length) return;
-  const { data: inviter } = await db.from("profiles").select("bonus_submissions, referral_cap").eq("id", me.referred_by).maybeSingle();
-  const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", me.referred_by).not("referral_rewarded_at", "is", null);
-  if ((count ?? 0) > (inviter?.referral_cap ?? REFERRAL_CAP)) return;
-  await db.from("profiles").update({ bonus_submissions: (inviter?.bonus_submissions ?? 0) + 1 }).eq("id", me.referred_by);
-  await notify({ userId: me.referred_by, key: `referral:${userId}`, kind: "info", title: "Your invite earned you a free submission", body: "Someone you invited just submitted their first application with Ivyward. Your next submission is on us.", href: "/settings#invite", actionLabel: "Invite more" }).catch(() => {});
+  const inviterId = me.referred_by as string;
+  await addBonus(userId, "bonus_submissions", 1);
+  await notify({ userId, key: "referral:joined", kind: "info", title: "You've got a free submission", body: "You joined through a friend's invite and finished setup, so your next submission is on us.", href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
+  const { data: inviter } = await db.from("profiles").select("referral_cap, group_rewarded_at").eq("id", inviterId).maybeSingle();
+  const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", inviterId).not("referral_rewarded_at", "is", null);
+  const done = count ?? 0;
+  await logEvent({ userId: inviterId, actor: "system", action: "referral.intake_done", context: { friend: userId, done } }).catch(() => {});
+  if (done > (inviter?.referral_cap ?? REFERRAL_CAP)) return;
+  await addBonus(inviterId, "bonus_submissions", 1);
+  const toUnlock = Math.max(0, UNLOCK_FRIENDS - done);
+  await notify({
+    userId: inviterId,
+    key: `referral:${userId}`,
+    kind: "info",
+    title: "A friend finished setup: you've got a free submission",
+    body: toUnlock ? `Someone you invited finished setup on Ivyward. Your next submission is on us. ${toUnlock} more friend${toUnlock === 1 ? "" : "s"} and your agents unlock.` : "Someone you invited finished setup on Ivyward. Your next submission is on us.",
+    href: "/settings#invite",
+    actionLabel: "Invite more",
+  }).catch(() => {});
+  if (done === UNLOCK_FRIENDS) {
+    const { unlockAgents } = await import("@/lib/free-tier");
+    await unlockAgents(inviterId, "friends").catch(() => false);
+  }
+  if (done >= GROUP_SIZE - 1 && !inviter?.group_rewarded_at) await rewardGroup(inviterId).catch(() => {});
+}
+
+// a study group of five: the inviter and the first four friends who finished setup each get GROUP_REQUESTS free
+// funding requests. once per inviter.
+async function rewardGroup(inviterId: string) {
+  const db = admin();
+  const { data: claimed, error } = await db.from("profiles").update({ group_rewarded_at: new Date().toISOString() }).eq("id", inviterId).is("group_rewarded_at", null).select("id");
+  if (error || !claimed?.length) return;
+  const { data: friends } = await db.from("profiles").select("id").eq("referred_by", inviterId).not("referral_rewarded_at", "is", null).order("referral_rewarded_at", { ascending: true }).limit(GROUP_SIZE - 1);
+  for (const id of [inviterId, ...(friends ?? []).map((f) => f.id as string)]) {
+    await addBonus(id, "bonus_requests", GROUP_REQUESTS);
+    await notify({ userId: id, key: `group:${inviterId}`, kind: "info", title: `Study group of ${GROUP_SIZE}: ${GROUP_REQUESTS} free funding requests`, body: `${GROUP_SIZE} of you joined Ivyward together, so you each get ${GROUP_REQUESTS} free funding requests: fee waiver, scholarship and assistantship emails the agents send for you.`, href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
+  }
+  await logEvent({ userId: inviterId, actor: "system", action: "referral.group_rewarded", context: { members: 1 + (friends?.length ?? 0) } }).catch(() => {});
+}
+
+async function addBonus(userId: string, column: "bonus_submissions" | "bonus_requests", n: number) {
+  const db = admin();
+  const { error } = await db.rpc("add_bonus", { uid: userId, col: column, n });
+  if (!error) return;
+  // before the migration: read and write (a rare race costs at most one bonus)
+  const { data } = await db.from("profiles").select(column).eq("id", userId).maybeSingle();
+  const cur = Number((data as Record<string, number> | null)?.[column] ?? 0);
+  await db.from("profiles").update({ [column]: cur + n }).eq("id", userId);
 }

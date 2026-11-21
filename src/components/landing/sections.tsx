@@ -185,7 +185,7 @@ const WAYS: { name: string; line: string; items: [string, Tone][]; ours?: boolea
       ["Drafted from your own facts and fact-checked. You edit and sign", "yes"],
       ["Accounts created, pages filled, documents uploaded for you", "yes"],
       ["Agents ask for fee waivers, scholarships and merit aid", "yes"],
-      ["Free to prepare; you pay only to submit", "yes"],
+      ["Free checked shortlist; the agents unlock with a pack or 2 friends", "yes"],
     ],
   },
 ];

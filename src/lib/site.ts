@@ -7,7 +7,7 @@ export const SITE = {
   tagline: "Your way in.",
   title: "Ivyward: AI agents that run your university applications",
   description:
-    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Preparing is free; you pay only to submit.",
+    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Start free with a checked shortlist; the agents unlock when you pay for submissions or invite 2 friends.",
   short: "AI agents that run your university applications, from shortlist to submission. You review and sign everything.",
 } as const;
 
@@ -30,12 +30,12 @@ export const FACTS = [
   "Application fees are paid by the applicant directly to the school. The agents ask for fee waivers first. Card details never reach Ivyward.",
   "When a portal blocks cloud browsers, the application finishes in the applicant's own Chrome through the Ivyward runner extension. Bot checks are always left to the applicant.",
   "After an admission, the agents look for merit reconsideration, assistantships and scholarships, and draft the emails.",
-  "Preparing applications is free. In Africa, ₦10,000 (or the local equivalent) buys a pack of 5 submissions, with no subscription; buy another pack when they're used. Everywhere else, the first 3 applications are free and Pro is $20 a month for up to 10 submissions a month.",
+  "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents unlock when you pay or when 2 friends you invite finish setup. In Africa, ₦10,000 (or the local equivalent) buys a pack of 5 submissions, with no subscription; buy another pack when they're used. Everywhere else, Pro is $20 a month for up to 10 submissions a month, and applicants who unlock the agents through friends get their first 3 applications free.",
   "Applicants can pause every agent at once. Portal passwords are encrypted, and applicant data is not used to train AI models.",
 ] as const;
 
 export const PLAN_OFFERS = [
-  { name: "Free", price: "0", description: "Shortlist, essays and portal preparation for every application; 3 submissions free outside Africa." },
+  { name: "Free", price: "0", description: "A shortlist from checked programmes, with deadlines, fees and funding; the agents unlock when 2 invited friends finish setup, with 3 submissions free outside Africa." },
   { name: "Pro", price: "20", description: "Up to 10 submissions a month (outside Africa). Cancel any time." },
   { name: "5-submission pack (Africa)", price: "7.60", description: "₦10,000 or the local equivalent for 5 submitted applications, scholarship or funding forms. No subscription; credits don't expire." },
 ] as const;

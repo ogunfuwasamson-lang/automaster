@@ -9,6 +9,8 @@ import { notify, resolve } from "@/lib/notify";
 import { checkLimit } from "@/lib/limits";
 import { canReadMail } from "@/lib/gmail";
 import { queueInstantMatches } from "@/lib/matches";
+import { isLocked, placeLibraryShortlist } from "@/lib/free-tier";
+import { rewardOnIntake } from "@/lib/referrals";
 
 // a new applicant's first shortlist goes to the front of the queue (jobs run oldest first), so they see programmes
 // in their first session instead of waiting behind everyone's background work
@@ -59,9 +61,15 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
     } else await resolve(userId, `setup:${a.id}`);
   }
 
+  // a friend who invited them earns their reward once setup is done (lib/referrals)
+  if (profile.goals.study_level && regions.length && ((profile.goals.fields ?? []).length || kinds.size)) await rewardOnIntake(userId).catch(() => {});
+
   // the shortlist: once, as soon as the agents know what and where
   let shortlist = false;
-  if (profile.goals.study_level && regions.length && !apps && !runs) {
+  // the free tier: a shortlist from the checked library, no model call (lib/free-tier)
+  if (profile.goals.study_level && regions.length && !apps && !runs && (await isLocked(userId))) {
+    shortlist = (await placeLibraryShortlist(userId, source)) > 0;
+  } else if (profile.goals.study_level && regions.length && !apps && !runs) {
     await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
     const instant = await queueInstantMatches(userId).catch(() => 0);
     await logEvent({ userId, actor: "system", action: "recon.requested", context: { source, instant } });
@@ -106,6 +114,8 @@ export async function autoPrepare(userId: string): Promise<number> {
   const db = admin();
   // someone just exploring gets a shortlist, not essays: drafting starts when they pick a programme themselves
   if ((await getProfile(userId)).goals.applying === "exploring") return 0;
+  // the free tier drafts nothing until the agents are unlocked
+  if (await isLocked(userId)) return 0;
   const { count: active } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]);
   const room = 3 - (active ?? 0);
   if (room <= 0) return 0;
@@ -144,11 +154,15 @@ export async function startShortlist(userId: string, source: string): Promise<bo
     const { count: read } = await db.from("documents").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "extracted");
     if (!read) return false;
   }
+  // setup is done: a friend who invited them earns their reward (lib/referrals)
+  await rewardOnIntake(userId).catch(() => {});
   const [{ count: apps }, { count: runs }] = await Promise.all([
     db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId),
     db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover").in("status", ["queued", "running", "done"]),
   ]);
   if (apps || runs) return false;
+  // the free tier: a shortlist from the checked library, no model call (lib/free-tier)
+  if (await isLocked(userId)) return (await placeLibraryShortlist(userId, source)) > 0;
   await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
   // programmes already on file that fit, checked against this applicant in minutes (lib/matches)
   const instant = await queueInstantMatches(userId).catch(() => 0);

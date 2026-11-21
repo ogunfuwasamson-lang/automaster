@@ -1159,6 +1159,7 @@ export async function GrowthView({ range: r, everyone }: { range: Range; everyon
             </Table>
           </Panel>
         </div>
+        <FeeDraw users={d.users} />
         <Panel title={`Ambassador applications (${(ambassadors ?? []).length})`} note={`Received in ${r.label}, newest first.`} scroll="xl">
           <ul className="divide-y divide-line text-[13.5px]">
             {(ambassadors ?? []).length ? (
@@ -1443,11 +1444,18 @@ async function lessonData() {
 
 // ---- credit: who gets AI first, and the asks to pay ----
 
-const TIER_LABEL: Record<Tier, string> = { paid: "Paying", staff: "Staff and team", engaged: "Engaged (docs, Gmail or signed)", starter: "Starters" };
+const TIER_LABEL: Record<Tier, string> = { paid: "Paying", staff: "Staff and team", engaged: "Engaged (docs, Gmail or signed)", starter: "Starters", locked: "Free tier (agents locked)" };
 
-function tierOfUser(u: AdminUser): Tier {
+function tierOfUser(u: AdminUser, friendsDone = 0): Tier {
   const signed = Object.entries(u.apps).some(([s, n]) => n > 0 && (s === "packet_approved" || SUBMITTED.has(s)));
-  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", documents: u.docs, gmail: !!u.gmail, signed });
+  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", documents: u.docs, gmail: !!u.gmail, signed, createdAt: u.joined, friendsDone });
+}
+
+// friends each account invited who finished setup (lib/referrals)
+function friendsDoneBy(users: AdminUser[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const u of users) if (u.referredBy && u.setupRewardedAt) m.set(u.referredBy, (m.get(u.referredBy) ?? 0) + 1);
+  return m;
 }
 
 export async function CreditView({ range: r, everyone }: { range: Range; everyone: boolean }) {
@@ -1463,14 +1471,15 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
     ),
   ]);
   const { users } = scope(d, true);
-  const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u)]));
+  const friends = friendsDoneBy(d.users);
+  const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u, friends.get(u.id) ?? 0)]));
   const spentToday = today.reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
   const limit = policy.dailyLimitUsd;
   const state = !limit ? "No daily limit" : spentToday >= limit * policy.runawayMultiple ? "Only paying and staff run" : spentToday >= limit ? "Limit reached" : spentToday >= limit * policy.starterShareOfDay ? "Starters waiting" : "Everyone runs";
   const tone: Tone = !limit ? undefined : spentToday >= limit ? "stop" : spentToday >= limit * policy.starterShareOfDay ? "signal" : "go";
 
   const shown = (id: string) => everyone || !d.team.has(id);
-  const tiers: Tier[] = ["paid", "engaged", "starter", "staff"];
+  const tiers: Tier[] = ["paid", "engaged", "starter", "locked", "staff"];
   const rows = tiers.map((t) => {
     const ids = users.filter((u) => tierBy.get(u.id) === t && shown(u.id)).map((u) => u.id);
     const set = new Set(ids);
@@ -1569,6 +1578,40 @@ async function PaymentAttempts({ userId }: { userId: string }) {
           <Empty cols={6}>No unfinished checkouts.</Empty>
         )}
       </Table>
+    </Panel>
+  );
+}
+
+// the monthly fee draw (marketing plan): two application fees a month go to winners from this list. counted: friends
+// who joined through the person's link and finished setup this calendar month (UTC).
+function FeeDraw({ users }: { users: AdminUser[] }) {
+  const now = new Date();
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const count = new Map<string, number>();
+  for (const u of users) if (u.referredBy && u.setupRewardedAt && u.setupRewardedAt >= month) count.set(u.referredBy, (count.get(u.referredBy) ?? 0) + 1);
+  const top = [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+  const label = now.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+  return (
+    <Panel title={`Fee draw: top inviters, ${label}`} note="Friends who joined through each link and finished setup this month. Two application fees a month go to winners from this list." scroll="xl">
+      <ul className="divide-y divide-line text-[13.5px]">
+        {top.length ? (
+          top.map(([id, n], i) => {
+            const u = byId.get(id);
+            return (
+              <li key={id} className="flex items-baseline justify-between gap-3 px-4 py-2.5">
+                <span>
+                  <span className="mr-2 tabular-nums text-muted">{i + 1}.</span>
+                  {u?.name ?? u?.email ?? id} {u?.name && <span className="text-muted">{u.email}</span>}
+                </span>
+                <span className="tabular-nums font-medium">{n}</span>
+              </li>
+            );
+          })
+        ) : (
+          <li className="px-4 py-3 text-muted">No friends have finished setup through an invite this month yet.</li>
+        )}
+      </ul>
     </Panel>
   );
 }

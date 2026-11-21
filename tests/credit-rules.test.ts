@@ -92,3 +92,28 @@ describe("policy", () => {
     expect(fill("{school} closes in {days} days {nope}", { school: "UCL", days: 9 })).toBe("UCL closes in 9 days {nope}");
   });
 });
+
+describe("the free tier (locked)", () => {
+  const s = { paid: false, staff: false, documents: 0, gmail: false, signed: false };
+  const after = "2026-11-23T10:00:00Z";
+  const before = "2026-11-20T10:00:00Z";
+  it("locks a new account until it pays or two friends finish setup", () => {
+    expect(tierOf({ ...s, createdAt: after })).toBe("locked");
+    expect(tierOf({ ...s, documents: 2, gmail: true, createdAt: after })).toBe("locked");
+    expect(tierOf({ ...s, createdAt: after, friendsDone: 1 })).toBe("locked");
+    expect(tierOf({ ...s, createdAt: after, friendsDone: 2 })).toBe("starter");
+    expect(tierOf({ ...s, documents: 1, createdAt: after, friendsDone: 2 })).toBe("engaged");
+    expect(tierOf({ ...s, paid: true, createdAt: after })).toBe("paid");
+    expect(tierOf({ ...s, staff: true, createdAt: after })).toBe("staff");
+  });
+  it("leaves accounts made before the cutoff, and callers that don't pass a date, on the old rules", () => {
+    expect(tierOf({ ...s, createdAt: before })).toBe("starter");
+    expect(tierOf(s)).toBe("starter");
+  });
+  it("blocks research and writing, and core work past the small allowance", () => {
+    expect(gate({ ...base, tier: "locked", category: "research" })).toMatchObject({ ok: false, kind: "locked" });
+    expect(gate({ ...base, tier: "locked", category: "writing" })).toMatchObject({ ok: false, kind: "locked" });
+    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.05) }).ok).toBe(true);
+    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.1) })).toMatchObject({ ok: false, kind: "locked" });
+  });
+});

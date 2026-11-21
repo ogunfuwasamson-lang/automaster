@@ -395,7 +395,7 @@ export default async function Shortlist({ searchParams }: { searchParams: Promis
             s={shareOf(best, invite, today)}
             storageKey="iv_share_ask_shortlist"
             title={`Know someone who'd want to study at ${best.programs.schools.name}?`}
-            body={`Send them the deadline, fees and requirements for ${best.programs.name}, with a link to apply. If they join through it, their first submission is free, and you get one when they submit.`}
+            body={`Send them the deadline, fees and requirements for ${best.programs.name}, with a link to apply. If they join through it and finish setup, you both get a free submission.`}
           />
         </div>
       )}
