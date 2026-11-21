@@ -346,46 +346,63 @@ Ivyward records each programme's test rule, asks for waivers where you qualify, 
 
 export const januaryIntake: Guide = {
   slug: "january-intake-universities",
-  title: "January intake 2027: universities that start in January, and when to apply",
-  seoTitle: "January 2027 intake: where to apply and deadlines",
-  description: "Which countries and universities take master's students in January (UK, Canada, Australia, Ireland, parts of Europe and the US), when applications close, and how visas and funding differ from the autumn intake.",
+  title: "January intake 2027: universities that start in January, what's still open, and when to apply",
+  seoTitle: "January 2027 intake: what's still open and deadlines",
+  description: "Which countries and universities take students in January 2027 (UK, Canada, Australia, Ireland, parts of Europe and the US), which deadlines have passed and which are still open as of 21 November 2026, and how visas and funding differ from September.",
   category: "Applying",
-  updated: "2026-11-14",
-  keywords: ["january intake 2027", "january intake uk universities", "january intake canada masters", "winter intake 2027", "spring intake usa masters", "february intake australia"],
+  updated: "2026-11-21",
+  keywords: ["january intake 2027", "january 2027 intake", "january intake uk universities", "january intake 2027 uk deadline", "january intake canada masters", "winter intake 2027", "spring intake usa masters", "february intake australia", "summer semester 2027 germany"],
   answer:
-    "Many UK universities run a January start for taught master's, Canadian universities have a winter (January) intake for some programmes, Australia's main intakes start in February and July, and US universities have a spring (January) start for some programmes. Applications for January usually close between September and November, often earlier for international students because of visa time. Funding is thinner in January, so if you need a scholarship, the autumn intake gives you more options.",
+    "Some January 2027 places are still open, but time is short. Many UK universities run January starts for taught master's, and some still take international applications into December (Aberystwyth closes on 11 December 2026), while others have closed (Liverpool John Moores closed on 30 October 2026 for its 11 January 2027 start). Canada's winter deadlines have mostly passed (Toronto Metropolitan's guaranteed date was 15 October 2026). The UK Student visa usually takes about 3 weeks after you have your CAS, so apply now or move to September 2027, which has far more funding.",
   body: `
+## What's still open (checked 21 November 2026)
+
+| University or route | January 2027 status |
+|---|---|
+| Aberystwyth University (UK) | Recruiting for January 2027; international deadline **11 December 2026** |
+| Loughborough University London (UK) | 17 master's start in January 2027 (business, finance, digital marketing, international relations, sport business and more) |
+| Liverpool John Moores University (UK) | Starts 11 January 2027; applications **closed 30 October 2026** |
+| Toronto Metropolitan University (Canada) | Winter 2027 guaranteed consideration date was **15 October 2026**; later applications only if space remains |
+| German universities, summer semester 2027 (April start) | Deadline often **15 January 2027** via uni-assist, which asks you to apply at least 8 weeks ahead and takes 4 to 6 weeks to evaluate |
+
+Deadlines differ by course, even within one university. Check the course page before you apply.
+
 ## Where January works
 
-- **United Kingdom**: a good number of taught master's, especially business, computing and health, start in January or February. Some close in October or November.
-- **Canada**: some course-based master's and many college programmes start in January. Fewer research master's do.
+- **United Kingdom**: a good number of taught master's, especially business, computing and health, start in January or February. Many close in October or November for international applicants; some run into December.
+- **Canada**: some course-based master's and many college programmes start in January. Fewer research master's do, and most winter deadlines are in the autumn.
 - **Australia and New Zealand**: the main intakes start around February/March and July.
 - **United States**: spring starts exist for some master's programmes; most funding is tied to autumn.
-- **Europe**: most programmes start in September; a few business schools and Erasmus partners start in February.
+- **Germany**: the summer semester starts in April, so "January" applicants usually mean a summer-semester start.
+- **Elsewhere in Europe**: most programmes start in September; a few business schools and Erasmus partners start in February.
 
-## The timeline for a January start
+## The visa is the real deadline
 
-- **August to October**: apply (international deadlines are often earlier)
-- **October to November**: offer, deposit, CAS or I-20 or acceptance letter
-- **November to December**: visa application; allow at least three weeks, more in peak season
+- **UK:** you can apply for a Student visa up to 6 months before your course starts, and a decision usually takes about 3 weeks. You need your CAS first, which comes after you meet your offer conditions and pay any deposit. For an early-January start, that means an offer in November at the latest.
+- **Canada:** study permit processing times vary by country; check IRCC's current times before you rely on a January start.
+- **US:** the F-1 interview wait is the bottleneck in many countries.
 
 ## Funding
 
-Many scholarships and assistantships are tied to the autumn intake. If you need full funding, apply for autumn and use the extra months to strengthen your application.
+Many scholarships and assistantships are tied to the autumn intake. If you need full funding, apply for September 2027 and use the extra months to strengthen your application. See the [September 2027 deadlines](/guides/application-deadlines-2027-intake).
 
 ## How Ivyward helps
 
 Ivyward's [deadline lists by month](/deadlines) show what's closing soon, and its agents start each application early enough to finish before the visa deadline.
 `,
   faq: [
-    ["Is it too late to apply for January 2027?", "For some UK and Canadian programmes it's still possible in November, but many international deadlines have passed. Check each programme now, and plan the visa time."],
-    ["Are there scholarships for the January intake?", "Fewer than for autumn. Some universities run January scholarships, but most large funding rounds are for September starts."],
-    ["Which UK universities have a January intake?", "Many, especially for business, computing, engineering management and health. Check each university's course page for start dates."],
+    ["Is it too late to apply for January 2027?", "Not everywhere. Some UK universities still take international applications into December (Aberystwyth's deadline is 11 December 2026), but many closed in October or November, and most Canadian winter deadlines have passed. Allow about 3 weeks for a UK Student visa after you get your CAS."],
+    ["Are there scholarships for the January intake?", "Fewer than for September. Some universities run January scholarships, but most large funding rounds are for September starts."],
+    ["Which UK universities have a January 2027 intake?", "Many, especially for business, computing, engineering management and health. Examples: Loughborough University London (17 master's starting January 2027), Aberystwyth and Liverpool John Moores. Check each course page for start dates and deadlines."],
+    ["When is the German summer semester 2027 deadline?", "Often 15 January 2027 for courses that use uni-assist, but universities set their own dates and some are earlier. uni-assist asks you to apply at least 8 weeks before the deadline."],
   ],
   sources: [
-    ["UCAS: postgraduate study", "https://www.ucas.com/postgraduate"],
-    ["EduCanada", "https://www.educanada.ca/"],
-    ["Study Australia", "https://www.studyaustralia.gov.au/"],
+    ["Aberystwyth University: January 2027 courses", "https://www.aber.ac.uk/en/study-with-us/pg-studies/study-options/jan2027/"],
+    ["Loughborough University: begin your studies in January 2027", "https://lboro.ac.uk/study/postgraduate/masters-degrees/january-start/"],
+    ["Liverpool John Moores University: January 2027 intake", "https://cm-prod.ljmu.ac.uk/campaigns/january-intake-2027"],
+    ["Toronto Metropolitan University: January start", "https://www.torontomu.ca/international/admissions/how-to-apply/january-start/"],
+    ["uni-assist: deadlines and processing time", "https://www.uni-assist.de/en/how-to-apply/plan-your-application/deadlines-processing-time/"],
+    ["GOV.UK: apply for a Student visa", "https://www.gov.uk/student-visa/apply"],
   ],
   related: ["application-deadlines-2027-intake", "fall-2027-application-timeline", "apply-for-masters-in-the-uk"],
 };

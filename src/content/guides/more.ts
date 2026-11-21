@@ -4,47 +4,55 @@ const U = "2026-10-31";
 
 export const deadlines2027: Guide = {
   slug: "application-deadlines-2027-intake",
-  title: "University and scholarship application deadlines for 2027 entry",
-  seoTitle: "Fall 2027 application deadlines by country",
-  description: "When to apply for a September 2027 start: the usual deadline windows for universities in the US, UK, Canada, Europe and Asia, and for the major scholarships, in one calendar.",
+  title: "September 2027 intake (Fall 2027): university and scholarship deadlines by country",
+  seoTitle: "September 2027 intake: deadlines by country (Fall 2027)",
+  description: "When to apply for a September 2027 start, checked 21 November 2026: which scholarships are still open, the UCAS dates, and the usual university deadlines in the US, UK, Canada, Germany, the Netherlands, Australia and Asia.",
   category: "Applying",
-  updated: U,
-  keywords: ["fall 2027 application deadlines", "masters application deadlines 2027", "scholarship deadlines 2027", "when to apply for masters abroad", "September 2027 intake deadlines", "PhD application deadlines 2027"],
+  updated: "2026-11-21",
+  keywords: ["september 2027 intake", "september intake 2027 uk", "fall 2027 intake", "fall 2027 application deadlines", "masters application deadlines 2027", "scholarship deadlines 2027", "when to apply for masters abroad", "September 2027 intake deadlines", "PhD application deadlines 2027", "ucas deadline 2027"],
   answer:
-    "For a September 2027 start, the big scholarship deadlines come first (Chevening closed on 6 October 2026, Commonwealth on 20 October 2026, Knight-Hennessy in early-to-mid October), then US PhD deadlines in December, most US master's deadlines from December to February, Oxford and Cambridge funding deadlines in December and January, Erasmus Mundus between October and February, and rolling UK and many European deadlines into spring. Apply as early as you can: earlier applicants get more scholarship money and more time for visas.",
+    "For a September 2027 start, applications are open now. Still open for funding: the Commonwealth Shared Scholarships (until 16:00 GMT on 8 December 2026), Gates Cambridge's international round (8 December 2026 or 6 January 2027, by course), Erasmus Mundus programmes (to about February) and the Chinese Government Scholarship (embassy deadlines from January to March). Chevening and Commonwealth Master's closed in October. US PhD deadlines fall mostly in December, US and Canadian master's from December to February, and UK master's are often rolling into spring. UK undergraduate applications are due through UCAS by 18:00 UK time on 13 January 2027.",
   body: `
-## Scholarships for 2027 entry
+## Scholarships for 2027 entry (checked 21 November 2026)
 
 | Scholarship | Usual window | 2027/28 status |
 |---|---|---|
-| [Chevening](/scholarships/chevening) | August to early October | Closed 6 October 2026 |
+| [Chevening](/guides/chevening-scholarship-2027-2028) | August to early October | Closed 6 October 2026; interviews March to April 2027 |
+| [Commonwealth Shared](/guides/commonwealth-scholarships-2027) | October to December | **Open until 16:00 GMT, 8 December 2026** |
 | [Commonwealth Master's](/scholarships/commonwealth-masters) | Nominator deadline, then October | CSC form closed 20 October 2026 |
-| [Knight-Hennessy](/scholarships/knight-hennessy) | Early to mid October | Check the official site |
+| [Knight-Hennessy](/scholarships/knight-hennessy) | Early to mid October | Closed for 2027 |
 | [Rhodes](/scholarships/rhodes) | July to October by constituency | Most constituencies closed |
-| [Gates Cambridge](/scholarships/gates-cambridge) | Mid-October (US), early December or January (others) | International round still open for many courses |
+| [Gates Cambridge](/scholarships/gates-cambridge) | Mid-October (US), early December or January (others) | International round open: 8 December 2026 or 6 January 2027, by course |
 | [Clarendon](/scholarships/clarendon) | Oxford course deadline in December or January | Open |
-| [Erasmus Mundus](/scholarships/erasmus-mundus) | October to February, per programme | Open for many programmes |
-| [DAAD / EPOS](/scholarships/daad) | August to October, per course | Mostly closed for 2027 |
+| [Erasmus Mundus](/guides/erasmus-mundus-2027) | October to February, per programme | Open for many programmes |
+| [DAAD / EPOS](/guides/daad-scholarships-2027) | Per course | Check each course's own deadline |
 | [Eiffel](/scholarships/eiffel-excellence) | Institution nominations by early January | Apply to French schools now |
 | [Stipendium Hungaricum](/scholarships/stipendium-hungaricum) | Mid-January | Opens in the autumn |
 | [Swedish Institute SISGP](/scholarships/swedish-institute-global-professionals) | University application mid-January, SI in February | Upcoming |
 | [Türkiye Bursları](/scholarships/turkiye-burslari) | January to February | Upcoming |
-| [GKS](/scholarships/global-korea-scholarship) | February to March | Upcoming |
-| [Chinese Government](/scholarships/chinese-government-scholarship) | January to April | Upcoming |
-| [MEXT](/scholarships/mext) (embassy) | April to May | For 2028 entry |
+| [Chinese Government (CSC)](/guides/chinese-government-scholarship-2027) | Opens in the autumn, embassy deadlines January to March | **Open now** (the embassy in Indonesia closes 14 February 2027) |
+| [GKS](/guides/global-korea-scholarship-2027) | Graduate round in February | Upcoming (2026 embassy track: 12 to 25 February) |
+| [MEXT](/guides/mext-scholarship-2027) (embassy) | April to May | 2027 round closed; 2028 round usually from April 2027 |
 
 ## Universities by country
 
 | Country | Usual deadlines for September 2027 | Notes |
 |---|---|---|
 | United States | PhD: early to mid December 2026. Master's: December 2026 to February 2027, some rolling | Many funded offers need a reply by 15 April |
-| United Kingdom | Rolling from October; Oxford and Cambridge funding deadlines in December and January | Popular courses close early; scholarships often need an offer |
-| Canada | Mostly December 2026 to February 2027 | Thesis programs may need a supervisor first |
-| Germany | Often until the end of May or 15 July for the winter semester, earlier for some non-EU applicants | uni-assist adds processing time |
+| United Kingdom, postgraduate | Rolling from October; Oxford and Cambridge funding deadlines in December and January | Popular courses close early; scholarships often need an offer |
+| United Kingdom, undergraduate | UCAS: 15 October 2026 for Oxford, Cambridge and most medicine, dentistry and veterinary courses; **13 January 2027, 18:00 UK time** for everything else | Late applications to 30 June 2027; Clearing from 2 July 2027 |
+| Canada | Mostly December 2026 to February 2027 | Thesis programmes may need a supervisor first |
+| Germany | Often 15 July for the winter semester, earlier at some universities and for some courses | Apply via uni-assist at least 8 weeks before the deadline; its evaluation takes 4 to 6 weeks |
 | Netherlands | Often 1 February to 1 May for non-EU applicants | Scholarship deadlines often 1 February |
 | Ireland | Rolling, often into spring | Apply early for visa time |
-| Australia | For February 2027 entry, often by October to November 2026; for July 2027, by April to May | Two main intakes |
+| Australia | Main intakes in February and July; for July 2027, usually by April to May | Two main intakes |
 | Japan, Korea, China | Tied to government scholarship rounds (see above) | University-track deadlines vary |
+
+## Visas set the real deadline
+
+- **UK Student visa:** you can apply up to 6 months before your course starts, and a decision usually takes about 3 weeks. You need your CAS from the university first, so leave time for offer conditions and the deposit.
+- **US F-1:** your I-20 comes after you accept an offer and show funds; interview waits vary a lot by country, so check your US embassy's wait time early.
+- **Germany:** add uni-assist's 4 to 6 weeks of processing before the university even sees your application.
 
 ## Working backwards from a deadline
 
@@ -55,18 +63,24 @@ export const deadlines2027: Guide = {
 
 ## How Ivyward helps
 
-Ivyward tracks every round for every program and scholarship on your list, including priority and funding rounds, and fills in applications in time for the earlier one. It asks for fee waivers before the waiver deadline and keeps you posted on what's due.
+Ivyward tracks every round for every programme and scholarship on your list, including priority and funding rounds, and fills in applications in time for the earlier one. It asks for fee waivers before the waiver deadline and keeps you posted on what's due.
 `,
   faq: [
-    ["When is the deadline for fall 2027 master's applications?", "Most US master's deadlines fall between December 2026 and February 2027; UK courses are often rolling into spring; Canadian programs mostly close between December and February."],
-    ["Is it too late to apply for 2027 scholarships?", "Not all of them. Chevening and Commonwealth have closed, but Gates Cambridge (international round), Clarendon, Erasmus Mundus, Eiffel, Stipendium Hungaricum, SISGP, Türkiye Bursları, GKS and the Chinese Government Scholarship are open or upcoming."],
+    ["When is the deadline for the September 2027 intake?", "It depends on the country and course. US PhD deadlines are mostly in December 2026, US and Canadian master's from December 2026 to February 2027, UK master's often rolling into spring, Germany often 15 July for the winter semester, and UK undergraduate applications through UCAS by 18:00 UK time on 13 January 2027."],
+    ["Is it too late to apply for 2027 scholarships?", "No. Chevening and Commonwealth Master's have closed, but the Commonwealth Shared Scholarships are open until 8 December 2026, the Gates Cambridge international round closes on 8 December 2026 or 6 January 2027 by course, and Clarendon, Erasmus Mundus, the Chinese Government Scholarship, Eiffel, Stipendium Hungaricum, SISGP, Türkiye Bursları and GKS are open or coming up."],
+    ["What is the UCAS deadline for 2027 entry?", "15 October 2026 for Oxford, Cambridge and most medicine, dentistry and veterinary courses; 18:00 UK time on 13 January 2027 for equal consideration on all other courses. You can apply late until 30 June 2027, and Clearing opens on 2 July 2027."],
+    ["How early can I apply for a UK Student visa for September 2027?", "Up to 6 months before your course starts. Decisions usually take about 3 weeks, and you need your CAS from the university first."],
   ],
   sources: [
-    ["Chevening", "https://www.chevening.org/scholarships/"],
-    ["Commonwealth Scholarship Commission: Master's Scholarships", "https://cscuk.fcdo.gov.uk/masters"],
+    ["UCAS: 2027 entry deadline", "https://www.ucas.com/events/2027-entry-deadline-for-all-undergraduate-courses-except-those-with-a-15-october-deadline-475546"],
+    ["University of Bath: important dates for undergraduate applicants starting in 2027", "https://www.bath.ac.uk/corporate-information/important-dates-for-undergraduate-applicants-starting-in-2027/"],
+    ["uni-assist: deadlines and processing time", "https://www.uni-assist.de/en/how-to-apply/plan-your-application/deadlines-processing-time/"],
+    ["GOV.UK: apply for a Student visa", "https://www.gov.uk/student-visa/apply"],
+    ["Commonwealth Scholarship Commission: Shared Scholarships", "https://cscuk.fcdo.gov.uk/scholarships/commonwealth-shared-scholarships-applications/"],
+    ["Chevening: application timeline", "https://www.chevening.org/scholarships/application-timeline/"],
     ["Council of Graduate Schools: April 15 resolution", "https://cgsnet.org/resources/for-current-prospective-graduate-students/april-15-resolution"],
   ],
-  related: ["how-to-apply-to-graduate-school", "fully-funded-masters-scholarships-international-students", "how-to-get-application-fee-waivers"],
+  related: ["fall-2027-application-timeline", "january-intake-universities", "fully-funded-scholarships-2027", "how-to-get-application-fee-waivers"],
 };
 
 export const ireland: Guide = {
