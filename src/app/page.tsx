@@ -11,10 +11,7 @@ import { SeasonSteps } from "@/components/landing/season-steps";
 import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
 import { SITE } from "@/lib/site";
-import { headers } from "next/headers";
 import Link from "next/link";
-import { pricingFor } from "@/lib/geo-pricing";
-import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },
@@ -45,7 +42,6 @@ export default async function Home() {
   // signed in already: the header takes you back into the app instead of offering sign-in
   const signedIn = !!(await requireUser().catch(() => null));
   // prices by where the visitor is (Vercel's country header): submission packs in Africa, a monthly plan elsewhere
-  const price = pricingFor((await headers()).get("x-vercel-ip-country"), await submissionAmounts().catch(() => null));
   return (
     <div className="relative min-h-dvh overflow-x-clip">
       <SiteJsonLd faq={FAQ} />

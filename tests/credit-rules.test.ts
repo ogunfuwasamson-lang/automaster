@@ -10,10 +10,11 @@ const base = { spend: spend(), todayUsd: 0, lastActiveMs: Date.now(), now: Date.
 describe("tierOf", () => {
   const s = { paid: false, staff: false, documents: 0, gmail: false, signed: false };
   it("starter until a document, gmail or a signature", () => {
-    expect(tierOf(s)).toBe("starter");
-    expect(tierOf({ ...s, documents: 1 })).toBe("engaged");
-    expect(tierOf({ ...s, gmail: true })).toBe("engaged");
-    expect(tierOf({ ...s, signed: true })).toBe("engaged");
+    const ok = { ...s, friendsDone: 2 };
+    expect(tierOf(ok)).toBe("starter");
+    expect(tierOf({ ...ok, documents: 1 })).toBe("engaged");
+    expect(tierOf({ ...ok, gmail: true })).toBe("engaged");
+    expect(tierOf({ ...ok, signed: true })).toBe("engaged");
   });
   it("paying and staff accounts outrank engagement", () => {
     expect(tierOf({ ...s, documents: 3, paid: true })).toBe("paid");
@@ -106,9 +107,8 @@ describe("the free tier (locked)", () => {
     expect(tierOf({ ...s, paid: true, createdAt: after })).toBe("paid");
     expect(tierOf({ ...s, staff: true, createdAt: after })).toBe("staff");
   });
-  it("leaves accounts made before the cutoff, and callers that don't pass a date, on the old rules", () => {
-    expect(tierOf({ ...s, createdAt: before })).toBe("starter");
-    expect(tierOf(s)).toBe("starter");
+  it("applies to accounts made before the free tier too", () => {
+    expect(tierOf({ ...s, createdAt: before })).toBe("locked");
   });
   it("blocks research and writing, and core work past the small allowance", () => {
     expect(gate({ ...base, tier: "locked", category: "research" })).toMatchObject({ ok: false, kind: "locked" });

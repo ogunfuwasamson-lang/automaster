@@ -10,7 +10,7 @@
 //            hasn't brought UNLOCK_FRIENDS friends who finished setup. no research or writing at all: their shortlist
 //            comes from the checked library with no model call (lib/free-tier). core work (reading a CV, the
 //            interview) runs up to LOCKED_CORE_USD so the profile still fills in. paying or the second friend unlocks
-//            the agents; accounts made before the cutoff keep the starter/engaged rules.
+//            the agents. applies to every account, old and new (founder's call, 21 nov 2026).
 //
 // interview, document reading and profile work ("core") is never held for the other tiers: it's cheap, and it's how
 // a starter becomes engaged.
@@ -43,7 +43,6 @@ export interface Signals {
 // a new account that hasn't paid and hasn't brought enough friends
 export function lockedOut(s: Signals): boolean {
   if (s.staff || s.paid) return false;
-  if (!s.createdAt || Date.parse(s.createdAt) < Date.parse(FREE_TIER_FROM)) return false;
   return (s.friendsDone ?? 0) < UNLOCK_FRIENDS;
 }
 

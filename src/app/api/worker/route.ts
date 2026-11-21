@@ -50,6 +50,8 @@ async function handle(req: NextRequest) {
   if (tick) await announceSchoolsOnce().catch(() => null);
   // once: applicants whose shortlist finished before auto-prepare existed get their nearest deadlines started too
   if (tick) await autoPrepareBackfillOnce().catch(() => null);
+  // once: the free tier now covers accounts made before it (founder, 21 nov 2026): tell the locked ones how to unlock
+  if (tick) await freeTierNoticeOnce().catch(() => null);
   // applications waiting on the applicant's sign-off with a deadline inside a week: remind them (once per step)
   if (tick) await nudgeReviews().catch(() => 0);
   // once an hour is plenty: the notice key lets it through once a week per applicant
@@ -117,6 +119,17 @@ async function autoPrepareBackfillOnce() {
   await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
   const { data: rows } = await db.from("applications").select("user_id").eq("status", "shortlisted").limit(2000);
   for (const u of [...new Set((rows ?? []).map((r) => r.user_id as string))]) await autoPrepare(u).catch(() => 0);
+}
+
+async function freeTierNoticeOnce() {
+  const db = admin();
+  const KEY = "free_tier_notice_v1";
+  const { data } = await db.from("billing_settings").select("value").eq("key", KEY).maybeSingle();
+  if (data?.value) return;
+  await db.from("billing_settings").upsert({ key: KEY, value: new Date().toISOString() });
+  const { isLocked, unlockNotice } = await import("@/lib/free-tier");
+  const { data: people } = await db.from("profiles").select("id").limit(5000);
+  for (const p of people ?? []) if (await isLocked(p.id as string).catch(() => false)) await unlockNotice(p.id as string).catch(() => {});
 }
 
 async function handoffBackfillOnce() {
