@@ -34,7 +34,8 @@ Samson: whatever can run in the cloud runs there; whatever needs a browser signe
 - **Through the Composio connector**, using Samson's own LinkedIn and Facebook connections (he connects them once; if
   one is missing or expired, the run posts nothing on that network, writes a `runs` entry and messages him once).
   LinkedIn: `LINKEDIN_CREATE_LINKED_IN_POST` with `author: "urn:li:organization:147011114"`. Facebook:
-  `FACEBOOK_LIST_MANAGED_PAGES` to get the Ivyward Page's id, then `FACEBOOK_CREATE_POST` with `page_id`, `message` and,
+  `FACEBOOK_CREATE_POST` with `page_id: "338109873010273"` (the Ivyward Page; the same connection also manages
+  Samson's other Pages, such as Flolyt and Skhooly: never post to them), `message` and,
   when the post is about a guide, `link` (Facebook shows the guide's share card). Neither tool is idempotent: never
   retry a post that may have gone out; check the page's recent posts first (`FACEBOOK_GET_PAGE_POSTS`,
   `LINKEDIN_GET_POST_CONTENT`).
