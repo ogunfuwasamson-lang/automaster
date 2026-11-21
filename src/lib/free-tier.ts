@@ -61,7 +61,7 @@ export async function unlockNotice(userId: string, placed?: number) {
     urgent: true,
     title: "Unlock your agents to apply",
     body: `${have}To have the agents check your fit, draft your statements, ask for fee waivers and fill in the portals, buy your first submission or invite ${left} more friend${left === 1 ? "" : "s"} who finish${left === 1 ? "es" : ""} setup.`,
-    href: "/settings#invite",
+    href: "/unlock",
     actionLabel: "Unlock the agents",
   }).catch(() => {});
 }
