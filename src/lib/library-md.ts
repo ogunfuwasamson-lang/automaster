@@ -20,7 +20,7 @@ export function libraryMarkdown(kind: string, slug: string): string | null {
   if (kind === "universities") {
     const u = university(slug);
     if (!u) return null;
-    return `# How to apply to ${u.name} as an international student\n\nSource: ${SITE.url}/universities/${u.slug}\nOfficial admissions page: ${u.applyUrl}\nLast checked: ${u.updated}\n\n## How applications work\n\n${u.how}\n\n## Deadlines\n\n${u.deadlines}\n\n## Funding\n\n${u.funding.map((f) => `- ${f}`).join("\n")}\n\n## What to know\n\n${u.notes.map((n) => `- ${n}`).join("\n")}\n\n## Visa and money\n\n${COUNTRY_NOTES[u.country].visa}\n\nIvyward's agents can create your account on ${u.short}'s portal, fill in every page and submit once you sign: ${SITE.url}\n`;
+    return `# How to apply to ${u.name} as an international student\n\nSource: ${SITE.url}/universities/${u.slug}\nOfficial admissions page: ${u.applyUrl}\nLast checked: ${u.updated}\n\n## How applications work\n\n${u.how}\n\n## Deadlines\n\n${u.deadlines}\n\n## Funding\n\n${u.funding.map((f) => `- ${f}`).join("\n")}\n\n## What to know\n\n${u.notes.map((n) => `- ${n}`).join("\n")}${u.fees ? `\n\n## Application fee\n\n${u.fees.fee}\n\nFee waivers: ${u.fees.waiver}\n\nChecked ${u.fees.checked}: ${u.fees.source}` : ""}\n\n## Visa and money\n\n${COUNTRY_NOTES[u.country].visa}\n\nIvyward's agents can create your account on ${u.short}'s portal, fill in every page and submit once you sign: ${SITE.url}\n`;
   }
   if (kind === "study-abroad") {
     const o = origin(slug);

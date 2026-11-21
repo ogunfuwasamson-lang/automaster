@@ -15,6 +15,8 @@ export type University = {
   funding: string[]; // where the money comes from
   notes: string[]; // what's distinctive
   scholarships?: string[]; // profile slugs on /scholarships
+  // the application fee and who gets it waived, read on the school's own fee page (only where we've checked it)
+  fees?: { summary: string; fee: string; waiver: string; source: string; checked: string };
   updated: string;
 };
 
@@ -222,7 +224,14 @@ export const UNIVERSITIES: University[] = [
     funding: ["Clarendon Fund scholarships: full fees and a living grant, with automatic consideration for applicants who apply by the funding deadline", "Rhodes Scholarships, departmental and college scholarships"],
     notes: ["Over 1,000 fully funded graduate scholarships are available each year across schemes, but most need the earlier deadline", "Each college also has its own funding"],
     scholarships: ["clarendon", "rhodes"],
-    updated: U,
+    fees: {
+      summary: "Oxford charges £75 to apply for a taught course and £20 for a research degree, and waives it for applicants from 47 low-income countries who couldn't otherwise apply.",
+      fee: "£75 for taught courses (MSc, MPhil, MSt, PGDip, PGCert) and £20 for research courses (DPhil, MSc by Research and some MPhils), per application. It can't be refunded.",
+      waiver: "Oxford waives the fee on request for applicants living in one of 47 low-income countries who couldn't apply without a waiver, for refugees and displaced people, and for some UK applicants on low incomes. Ask at least two weeks before your deadline.",
+      source: "https://www.ox.ac.uk/admissions/graduate/application-guide/declaration-and-payment/application-fee",
+      checked: "2026-11-21",
+    },
+    updated: "2026-11-21",
   },
   {
     slug: "cambridge",
@@ -237,7 +246,14 @@ export const UNIVERSITIES: University[] = [
     funding: ["Gates Cambridge scholarships for applicants from outside the UK", "Cambridge Trust, department and college awards"],
     notes: ["Tick the funding boxes in the application: one form considers you for most awards"],
     scholarships: ["gates-cambridge"],
-    updated: U,
+    fees: {
+      summary: "Cambridge charges £85 per master's application and £20 for doctoral applicants, and waives it automatically for nationals of 51 countries.",
+      fee: "£85 per application for master's and other non-doctoral courses; £20 per applicant per year of entry for doctoral courses, which covers up to 7 applications (fees from September 2025). You pay before you submit.",
+      waiver: "Waived automatically for nationals of 51 listed countries (Bangladesh, Ethiopia, Nepal, Rwanda, Tanzania, Uganda and Zambia among them) who have lived there since birth. Applicants from other countries pay. There are also waiver forms for Mastercard Foundation Scholars Program and Martingale Postgraduate Scholarship applicants.",
+      source: "https://www.postgraduate.study.cam.ac.uk/apply/how/application-fee",
+      checked: "2026-11-21",
+    },
+    updated: "2026-11-21",
   },
   {
     slug: "imperial",
@@ -251,7 +267,14 @@ export const UNIVERSITIES: University[] = [
     deadlines: "Taught master's courses often have several rounds from autumn to spring; popular courses fill early.",
     funding: ["President's PhD Scholarships", "Departmental scholarships and studentships"],
     notes: ["Apply in an early round. Later rounds can close once places fill", "London living costs mean a higher visa maintenance amount"],
-    updated: U,
+    fees: {
+      summary: "Imperial charges £80 for most MSc applications (£100 at the Business School, £150 for the MBA) and nothing for MRes, PhD and EngD courses.",
+      fee: "£80 for MSc courses, £100 at the Business School and £150 for the MBA. No fee for MRes, postgraduate certificates and diplomas, PhD and EngD courses. Imperial's page quotes these for 2024 to 2026 entry.",
+      waiver: "Imperial offers waivers so the fee doesn't stop qualified applicants who can't afford it; an approved waiver lets you submit without paying. Its page doesn't list the criteria, so ask postgraduate admissions before you pay.",
+      source: "https://www.imperial.ac.uk/study/apply/postgraduate-taught/application-process/application-fee/",
+      checked: "2026-11-21",
+    },
+    updated: "2026-11-21",
   },
   {
     slug: "ucl",
@@ -265,7 +288,14 @@ export const UNIVERSITIES: University[] = [
     deadlines: "Rolling, with course closing dates often between March and July; scholarship deadlines are earlier.",
     funding: ["UCL scholarships for international master's students", "Research council and departmental studentships for PhDs"],
     notes: ["Apply early for courses that fill, and for scholarships that need an offer"],
-    updated: U,
+    fees: {
+      summary: "UCL charges £90 for most master's applications (£160 for four Management MSc courses), nothing for research degrees, and waives the fee only for applicants affected by conflict or displacement.",
+      fee: "£90 for most master's degrees, PG Diplomas, PG Certificates and Graduate Diplomas; £160 for the Business Analytics, Finance, Management, and Project and Enterprise Management MSc; £35 for Slade School of Fine Art courses. Research degrees and a list of named taught courses charge nothing. The fee is non-refundable.",
+      waiver: "UCL waives the fee only for applicants living in conflict zones or displaced by conflict, and for those seeking asylum or with refugee status in the UK. It doesn't waive it for any other reason, including for scholarship applicants. Request it through UCL's graduate admissions enquiry form, naming your course.",
+      source: "https://www.ucl.ac.uk/study/prospective-students/graduate/how-apply/application-fees",
+      checked: "2026-11-21",
+    },
+    updated: "2026-11-21",
   },
   {
     slug: "lse",
@@ -279,7 +309,14 @@ export const UNIVERSITIES: University[] = [
     deadlines: "Programmes open in October; many close or become oversubscribed by January to March.",
     funding: ["The Graduate Support Scheme, LSE's need-based award for master's students", "Departmental and external scholarships"],
     notes: ["To be considered for most LSE funding you must hold an offer and apply by the funding deadline"],
-    updated: U,
+    fees: {
+      summary: "LSE waives its application fee for applicants facing persistent financial hardship and for refugees and asylum-seekers; request it 10 working days before your deadline.",
+      fee: "LSE charges an application assessment fee for your first two programme choices; adding programmes later costs an extra £105.",
+      waiver: "LSE waives the fee for applicants facing persistent financial hardship, particularly those in countries with armed conflict or without access to banking, and encourages refugees, asylum-seekers, people with humanitarian protection and stateless people to apply. It doesn't waive it for applicants with enough savings or a temporary cash-flow problem. Upload all your documents first, then submit the waiver form at least 10 working days before your application or funding deadline.",
+      source: "https://www.lse.ac.uk/study-at-lse/Graduate/Applicants/How-do-I/Secure/Administrative-fee-waiver",
+      checked: "2026-11-21",
+    },
+    updated: "2026-11-21",
   },
   {
     slug: "kings-college-london",

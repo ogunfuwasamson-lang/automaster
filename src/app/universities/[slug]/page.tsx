@@ -18,9 +18,12 @@ const title = (n: string) => `How to apply to ${n} as an international student`;
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const u = university((await params).slug);
   if (!u) return {};
-  const description = `How graduate applications to ${u.name} work, the usual deadlines, funding and scholarships, fee waivers, and the ${u.country} student visa rules for 2026–27.`;
+  // where we've checked the school's fee page, lead with the fee answer: it's what "<school> application fee waiver" searches want
+  const description = u.fees
+    ? `${u.fees.summary} Plus deadlines, funding and visa rules.`
+    : `How graduate applications to ${u.name} work, the usual deadlines, funding and scholarships, fee waivers, and the ${u.country} student visa rules for 2026–27.`;
   return {
-    title: `How to apply to ${u.short}: deadlines, funding, fee waivers`,
+    title: u.fees ? `Apply to ${u.short}: application fee, waivers and deadlines` : `How to apply to ${u.short}: deadlines, funding, fee waivers`,
     description,
     keywords: [`how to apply to ${u.name}`, `${u.short} application deadline`, `${u.short} graduate admissions`, `${u.short} scholarships for international students`, `${u.short} application fee waiver`, `${u.short} masters`, `${u.short} PhD funding`],
     alternates: { canonical: `/universities/${u.slug}`, types: { "text/markdown": `/md/universities/${u.slug}` } },
@@ -34,11 +37,17 @@ export default async function UniversityPage({ params }: { params: Promise<{ slu
   const path = `/universities/${u.slug}`;
   const cn = COUNTRY_NOTES[u.country];
   const awards = (u.scholarships ?? []).map((s) => scholarship(s)).filter((s) => !!s);
-  const answer = `${u.how} ${u.deadlines} ${u.funding[0]}.`;
+  const answer = `${u.how} ${u.deadlines} ${u.funding[0]}.${u.fees ? ` ${u.fees.summary}` : ""}`;
   const faq: [string, string][] = [
     [`What is the application deadline for ${u.short}?`, `${u.deadlines} Deadlines differ by program, so check the program page on ${u.short}'s admissions site.`],
     [`Can international students get funding at ${u.short}?`, `${u.funding.join(". ")}.`],
     [`How do I apply to ${u.short}?`, u.how],
+    ...(u.fees
+      ? ([
+          [`How much is the ${u.short} application fee?`, u.fees.fee],
+          [`Does ${u.short} waive the application fee?`, u.fees.waiver],
+        ] as [string, string][])
+      : []),
     [`What visa do I need to study at ${u.short}?`, cn.visa],
     [`Can Ivyward apply to ${u.short} for me?`, `Yes. Ivyward's agents create your account on ${u.short}'s application portal, fill in every page from your profile, upload your documents and submit once you've signed the packet. They also ask for an application fee waiver first where ${u.short} allows one.`],
   ];
@@ -109,9 +118,25 @@ export default async function UniversityPage({ params }: { params: Promise<{ slu
             {cn.visa} More in our <Link href={cn.guide}>country guide</Link> and the <Link href="/guides/student-visa-proof-of-funds">proof of funds guide</Link>.
           </p>
           <h2 id="fees">Application fees</h2>
-          <p>
-            Fees vary by program. Look for a fee waiver before you pay: event attendance, financial hardship and partner programs are the usual routes. Our <Link href="/guides/how-to-get-application-fee-waivers">fee waiver guide</Link> has a request template.
-          </p>
+          {u.fees ? (
+            <>
+              <p>{u.fees.fee}</p>
+              <p>
+                <strong>Fee waivers:</strong> {u.fees.waiver}
+              </p>
+              <p>
+                Checked on{" "}
+                <a href={u.fees.source} target="_blank" rel="noopener">
+                  {u.short}&apos;s fee page
+                </a>{" "}
+                on {new Date(u.fees.checked).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}. Other schools that charge nothing are in our <Link href="/guides/universities-with-no-application-fee">no-fee list</Link>, and the <Link href="/guides/how-to-get-application-fee-waivers">fee waiver guide</Link> has a request template.
+              </p>
+            </>
+          ) : (
+            <p>
+              Fees vary by program. Look for a fee waiver before you pay: event attendance, financial hardship and partner programs are the usual routes. Our <Link href="/guides/how-to-get-application-fee-waivers">fee waiver guide</Link> has a request template.
+            </p>
+          )}
         </div>
 
         <p className="mt-8 text-[15px]">
