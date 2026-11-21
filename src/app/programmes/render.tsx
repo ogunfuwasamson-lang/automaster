@@ -34,7 +34,7 @@ export async function programmeMetadata(dest: string, sub?: string): Promise<Met
   const rows = rowsFor(key, await publicProgrammes(), today);
   if (rows.length < MIN_ROWS) return { robots: { index: false } };
   const t = titleOf(key, rows.length, today);
-  return { title: t.title, description: t.description, alternates: { canonical: pathOf(key) }, openGraph: { title: t.h1, description: t.description, url: pathOf(key) } };
+  return { title: t.title, description: t.description, alternates: { canonical: pathOf(key) }, openGraph: { title: t.h1, description: t.description, url: pathOf(key), images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Ivyward" }] } };
 }
 
 export async function renderProgrammes(dest: string, sub?: string) {

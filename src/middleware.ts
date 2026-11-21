@@ -57,7 +57,28 @@ const PUBLIC = [
   "/apple-icon",
 ];
 
+// AI agents that ask for markdown (Accept: text/markdown ahead of text/html) get the page's markdown version at the
+// same URL: the free version of Cloudflare's "Markdown for Agents". Browsers and search crawlers still get HTML.
+const MD_PAGE = /^\/(guides|scholarships|universities|study-abroad)\/([a-z0-9-]+)\/?$/;
+function markdownFor(req: NextRequest) {
+  if (req.method !== "GET" && req.method !== "HEAD") return null;
+  const m = MD_PAGE.exec(req.nextUrl.pathname);
+  if (!m || m[2] === "deadlines") return null;
+  const accept = req.headers.get("accept") ?? "";
+  const md = accept.indexOf("text/markdown");
+  const html = accept.indexOf("text/html");
+  if (md < 0 || (html >= 0 && html < md)) return null;
+  const to = req.nextUrl.clone();
+  to.pathname = `/md/${m[1]}/${m[2]}`;
+  to.search = "";
+  const res = NextResponse.rewrite(to);
+  res.headers.set("vary", "Accept");
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
+  const md = markdownFor(req);
+  if (md) return md;
   let res = NextResponse.next({ request: req });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
