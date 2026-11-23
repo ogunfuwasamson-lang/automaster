@@ -26,7 +26,8 @@ export function budgetFor(p: BudgetProfile | null, singles: number, packs: numbe
   if (p?.monthly_budget_usd != null) return Number(p.monthly_budget_usd);
   // staff accounts (and the learning jobs that run under them) aren't capped by a plan
   if (p?.is_admin) return staffUsd;
-  // africa: every submission paid for this month (one-off, or 5 per pack) adds to the month's allowance of agent work
+  // the plan's month ($10 from 23 nov 2026; paid submissions no longer add to it). free and invited accounts are held to
+  // less by the credit gate (lib/credit-rules)
   return planOf(p?.plan, p?.plan_until ?? null).aiBudgetUsd + (singles + packs * PACK_SIZE) * BUDGET_PER_SUBMISSION_USD;
 }
 

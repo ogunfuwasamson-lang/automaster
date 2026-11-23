@@ -9,8 +9,14 @@
 //   locked:  the free tier from 22 nov 2026 (founder's call, marketing plan): a new account that hasn't paid and
 //            hasn't brought UNLOCK_FRIENDS friends who finished setup. no research or writing at all: their shortlist
 //            comes from the checked library with no model call (lib/free-tier). core work (reading a CV, the
-//            interview) runs up to LOCKED_CORE_USD so the profile still fills in. paying or the second friend unlocks
+//            interview) runs up to FREE_MONTHLY_USD so the profile still fills in. paying or the second friend unlocks
 //            the agents. applies to every account, old and new (founder's call, 21 nov 2026).
+//
+// what each kind of account may spend on AI in a calendar month (founder's call, 23 nov 2026):
+//   free (locked):   FREE_MONTHLY_USD, CV reading and the interview only
+//   invited:         INVITED_MONTHLY_USD once UNLOCK_FRIENDS invited friends finish setup without a payment: a fit
+//                    check on the shortlist and about one application prepared
+//   paid:            $10 (lib/plans), whatever they bought
 //
 // interview, document reading and profile work ("core") is never held for the other tiers: it's cheap, and it's how
 // a starter becomes engaged.
@@ -24,8 +30,10 @@ export type Tier = "paid" | "staff" | "engaged" | "starter" | "locked";
 export const FREE_TIER_FROM = "2026-11-22T00:00:00Z";
 // friends who finish setup through your invite link before the agents unlock for you
 export const UNLOCK_FRIENDS = 2;
-// what a locked account may spend on core work (reading documents, the interview) before it unlocks
-export const LOCKED_CORE_USD = 0.1;
+// a free account's month: core work only (reading documents, the interview), the agents stay locked
+export const FREE_MONTHLY_USD = 0.5;
+// an account unlocked by invites but not paid: everything, up to this a month
+export const INVITED_MONTHLY_USD = 2;
 // the numbers live in lib/credit-policy (the operator edits them in the console)
 
 export interface Signals {
@@ -56,7 +64,16 @@ export function tierOf(s: Signals): Tier {
 
 export const isSerious = (t: Tier) => t !== "starter" && t !== "locked";
 
+// the month's AI allowance for an account of this tier, given its plan budget (lib/budget): free and invited
+// accounts are held to their own smaller amounts by the gate below; this is what the operator console shows
+export function monthlyCapFor(tier: Tier, planBudget: number): number {
+  if (tier === "locked") return Math.min(planBudget, FREE_MONTHLY_USD);
+  if (tier === "starter" || tier === "engaged") return Math.min(planBudget, INVITED_MONTHLY_USD);
+  return planBudget;
+}
+
 export const LOCKED_REASON = "the agents unlock when you buy your first submission, or when 2 friends you invite finish setup";
+export const INVITED_REASON = "this month's free allowance is used: buy your first submission to keep the agents working";
 
 export type Gate = { ok: true } | { ok: false; kind: "starter" | "day" | "inactive" | "locked"; reason: string };
 
@@ -66,9 +83,11 @@ type Limits = Pick<CreditPolicy, "dailyLimitUsd" | "starterUsd" | "starterShareO
 export function gate(a: { tier: Tier; category: Category; spend: Spend; todayUsd: number; lastActiveMs: number | null; now: number; policy?: Partial<Limits> }): Gate {
   const p = { ...DEFAULT_POLICY, ...a.policy };
   if (a.tier === "locked") {
-    if (a.category === "core" && a.spend.byCategory.core < LOCKED_CORE_USD) return { ok: true };
+    if (a.category === "core" && a.spend.total < FREE_MONTHLY_USD) return { ok: true };
     return { ok: false, kind: "locked", reason: LOCKED_REASON };
   }
+  // unlocked by invites, not paid: the month's allowance covers everything, core work included
+  if ((a.tier === "starter" || a.tier === "engaged") && a.spend.total >= INVITED_MONTHLY_USD) return { ok: false, kind: "locked", reason: INVITED_REASON };
   if (a.category === "core") return { ok: true };
   if (a.tier === "paid" || a.tier === "staff") return { ok: true };
   if (a.tier === "starter" && a.spend.byCategory.research + a.spend.byCategory.writing >= p.starterUsd)

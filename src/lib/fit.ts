@@ -18,6 +18,10 @@ export interface ProgramFactsLite {
   english_moi_waiver: "accepted" | "not_accepted" | "case_by_case" | "unknown";
   full_funding_realistic: "likely" | "possible" | "rare" | "unknown";
   deadlines: DeadlineRow[];
+  // where and what, when the caller knows them: bachelor's entry in some countries has no admissions test at all
+  country?: string;
+  region?: string;
+  program_name?: string;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,6 +63,17 @@ export function daysUntil(date: string, today: string): number {
 
 export type Verdict = "shortlisted" | "researching" | "dropped";
 
+// bachelor's entry in the UK, Ireland, Australia and New Zealand goes on school results and English: there's no
+// general admissions test (SAT/ACT) to confirm. medicine, dentistry, veterinary and law are the exceptions (UCAT,
+// HPAT, GAMSAT, LNAT), so an unknown policy still holds those back
+const NO_TEST_COUNTRY = /\b(united kingdom|uk|england|scotland|wales|northern ireland|great britain|ireland|australia|new zealand)\b/i;
+const TESTED_COURSE = /\b(medicine|mbbs|mbchb|bmbs|dentistry|dental surgery|veterinary|law|llb)\b/i;
+export function noTestEntry(level: string, f: Pick<ProgramFactsLite, "country" | "region" | "program_name">): boolean {
+  if (level !== "undergraduate") return false;
+  const where = f.region === "uk" || f.region === "australia_nz" || NO_TEST_COUNTRY.test(f.country ?? "");
+  return where && !TESTED_COURSE.test(f.program_name ?? "");
+}
+
 export function screen(p: Profile, f: ProgramFactsLite, today: string): { verdict: Verdict; reasons: string[] } {
   const reasons: string[] = [];
   let verdict: Verdict = "shortlisted";
@@ -72,7 +87,7 @@ export function screen(p: Profile, f: ProgramFactsLite, today: string): { verdic
   };
 
   if (f.test_policy === "required" && p.goals.gmat_gre_plan === "avoid") drop(`requires an admissions test (${TESTS_FOR[levelOf(p)]}) and you want programs without one`);
-  if (f.test_policy === "unknown") demote("test policy not confirmed");
+  if (f.test_policy === "unknown" && !noTestEntry(levelOf(p), f)) demote("test policy not confirmed");
 
   const hasEnglishTest = p.tests.some((t) => ["TOEFL", "IELTS", "Duolingo"].includes(t.name) && t.status !== "not_planned");
   if (p.english.route === "waiver" && !hasEnglishTest) {
@@ -82,7 +97,9 @@ export function screen(p: Profile, f: ProgramFactsLite, today: string): { verdic
 
   const known = f.deadlines.filter((d) => ISO.test(d.date));
   if (known.length && !upcomingDeadlines(f.deadlines, today).length) drop("all deadlines for this cycle have passed");
-  if (!known.length) demote("deadlines not confirmed");
+  // rolling admission (common in Australia and New Zealand) is a real answer: no single closing date to confirm
+  const rolling = f.deadlines.some((d) => !ISO.test(d.date) && /\brolling\b/i.test(`${d.round} ${d.notes}`));
+  if (!known.length && !rolling) demote("deadlines not confirmed");
 
   // admissions first: funding is never a filter here. most schools don't publish full-funding odds,
   // and the closer agent works on aid after the admit (merit reconsideration, assistantships,

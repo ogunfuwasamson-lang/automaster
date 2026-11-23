@@ -9,6 +9,7 @@ import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
 import { profileBrief, REGIONS, levelOf } from "@/lib/profile";
 import { levelGuide, programChecklist, levelName } from "@/lib/levels";
+import { withSystemDeadlines } from "@/lib/system-deadlines";
 import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
@@ -449,7 +450,7 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
       jobId: job.id,
       tier: "cheap",
       promptVersion: "program-parse-v2",
-      system: `turn research notes into structured program data. use only what the notes say. "unknown" or "" when the notes don't say. dates as YYYY-MM-DD; if a date has no year, assume the ${row?.target_term ?? "fall-2027"} cycle. fit judgement comes from the notes' assessment.`,
+      system: `turn research notes into structured program data. use only what the notes say. "unknown" or "" when the notes don't say. dates as YYYY-MM-DD; if a date has no year, assume the ${row?.target_term ?? "fall-2027"} cycle. fit judgement comes from the notes' assessment. when admission is rolling with no closing date, add one deadline row with round "rolling admission", date "" and the intake.`,
       prompt: `${cached ? "stored program facts (judge fit for THIS applicant from them):" : "research notes:"}\n${found.text}${
         cached ? `\n\napplicant:\n${profileBrief(profile, row?.target_term)}` : ""
       }`,
@@ -457,6 +458,9 @@ find and report: degree type and length; ${programChecklist(levelOf(profile))}; 
       maxTokens: 6000,
     });
 
+    // a closing date set by the application system (UCAS for UK bachelor's courses) when the course pages gave none
+    if (levelOf(profile) === "undergraduate")
+      facts.deadlines = withSystemDeadlines(facts.deadlines, { school: facts.school_name, program: facts.program_name, country: facts.country, region: facts.region, term: row?.target_term ?? profile.goals.target_term ?? null });
     // one school, one record: when the official registry already ties this institution to a school on file, use
     // that school's name ("UNSW Sydney" and "University of New South Wales" were two schools, and one applicant got
     // the same program prepared twice)

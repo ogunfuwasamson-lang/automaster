@@ -5,6 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 import { MILESTONES, MILESTONE_ACTIONS, journeys, type MilestoneKey, type UserJourney } from "@/lib/first-submission";
 import { teamIds } from "@/lib/team";
 import { budgetFor } from "@/lib/budget";
+import { monthlyCapFor, tierOf } from "@/lib/credit-rules";
 import { monthStartUTC } from "@/lib/pricing";
 
 // everything the operator console counts, loaded once per request: every account, every application, the
@@ -193,6 +194,9 @@ export async function loadAdmin() {
   const appsOf = new Map<string, AdminApp[]>();
   for (const a of allApps) appsOf.set(a.userId, [...(appsOf.get(a.userId) ?? []), a]);
 
+  // friends each account invited who finished setup: unpaid accounts unlock with UNLOCK_FRIENDS of them
+  const friendsDone = new Map<string, number>();
+  for (const p of profiles) if (p.referred_by && p.referral_rewarded_at) friendsDone.set(p.referred_by, (friendsDone.get(p.referred_by) ?? 0) + 1);
   const users: AdminUser[] = profiles.map((p) => {
     const j = trips.get(p.id)!;
     const reached = [...MILESTONES].reverse().find((m) => j.at[m.key]);
@@ -230,11 +234,27 @@ export async function loadAdmin() {
       docKinds: docKinds.get(p.id) ?? {},
       deactivated: signin.banned.has(p.id),
       gmail: gmail.get(p.id) ?? null,
-      budget: budgetFor(
-        { plan: p.plan, plan_until: p.plan_until, monthly_budget_usd: p.monthly_budget_usd, is_admin: p.is_admin },
-        thisMonth.filter((x) => x.kind === "submission").length,
-        thisMonth.filter((x) => x.kind === "pack").length,
-        policy.staffMonthlyUsd,
+      // the plan's month, then the free tier's smaller amounts for accounts that haven't paid (lib/credit-rules)
+      budget: ((planned: number) =>
+        p.monthly_budget_usd != null || p.is_admin || team.has(p.id)
+          ? planned
+          : monthlyCapFor(
+              tierOf({
+                staff: false,
+                paid: paid.length > 0 || p.plan === "pro",
+                documents: docCount.get(p.id) ?? 0,
+                gmail: !!gmail.get(p.id),
+                signed: mine.some((a) => a.status === "packet_approved" || SUBMITTED.has(a.status)),
+                friendsDone: friendsDone.get(p.id) ?? 0,
+              }),
+              planned,
+            ))(
+        budgetFor(
+          { plan: p.plan, plan_until: p.plan_until, monthly_budget_usd: p.monthly_budget_usd, is_admin: p.is_admin },
+          thisMonth.filter((x) => x.kind === "submission").length,
+          thisMonth.filter((x) => x.kind === "pack").length,
+          policy.staffMonthlyUsd,
+        ),
       ),
       payments: paid,
     };
