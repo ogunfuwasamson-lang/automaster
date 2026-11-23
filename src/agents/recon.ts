@@ -396,6 +396,7 @@ finish with honest strategy notes for this region: which of their constraints co
     const p = job.payload as {
       school: string; program: string; degree: string; url: string; why: string; funding_angle: string;
       country?: string; region?: string; ranking_note?: string; library_id?: string;
+      fresh?: boolean; // a re-check: read the official pages again instead of reusing facts stored in the last 30 days
     };
     const profile = await getProfile(job.user_id);
     const db = admin();
@@ -418,7 +419,7 @@ finish with honest strategy notes for this region: which of their constraints co
 
     // the world model is shared: if this program was researched recently (by any run, any user),
     // reuse the facts and only judge fit for this applicant. no web calls.
-    const cached = await cachedProgramNotes(p.school, p.program, p.library_id);
+    const cached = p.fresh ? null : await cachedProgramNotes(p.school, p.program, p.library_id);
     const found = cached ?? await research({
       userId: job.user_id,
       agent: "recon",

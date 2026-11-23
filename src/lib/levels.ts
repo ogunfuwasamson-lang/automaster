@@ -27,7 +27,7 @@ export function levelGuide(level: StudyLevel): string {
 // extra things program research must report at this level
 export function programChecklist(level: StudyLevel): string {
   if (level === "undergraduate") {
-    return "application system (Common App, UCAS, etc.) and its deadline rounds (early decision/action, regular); SAT/ACT policy; required school exams and minimum grades; need-based and merit aid for international students and whether admission is need-blind for internationals";
+    return "application system (Common App, UCAS, etc.) and its deadline rounds (early decision/action, regular) with dates; for UCAS, the equal-consideration date for the intake; where admission is rolling (common in Australia and New Zealand), the last date applications are accepted for the intake, or say it's rolling and give the intake's start date; SAT/ACT policy, and where the official entry requirements list no admissions test (normal in the UK, Ireland, Australia, New Zealand and most of Europe), say plainly that none is required; required school exams (WAEC, A-levels, IB) and minimum grades; need-based and merit aid for international students and whether admission is need-blind for internationals";
   }
   if (level === "phd") {
     return "whether applicants must contact or secure a supervisor first; whether a research proposal is required and its length; the standard funding package (stipend amount, tuition waiver, years guaranteed) and whether it covers international students; GRE policy; faculty in the applicant's research area";
