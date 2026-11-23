@@ -72,6 +72,9 @@ export async function unlockAgents(userId: string, why: "paid" | "friends"): Pro
   forgetTier(userId);
   const { tier } = await tierFor(userId, true);
   if (tier === "locked") return false;
+  // unlocked: the card asking them to pay or invite goes, even when the agents had already started (an account
+  // from before the free tier that then paid kept seeing "Unlock your agents" after paying)
+  await resolve(userId, "unlock:agents").catch(() => {});
   const db = admin();
   const { count: runs } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover");
   if (runs) return false; // the agents were already working for this account

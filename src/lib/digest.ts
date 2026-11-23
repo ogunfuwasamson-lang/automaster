@@ -82,9 +82,14 @@ export async function makeDigest(userId: string, now = new Date()): Promise<{ di
 
 // the system.digest job: build, store, and email it to the applicant: from their own Gmail if it's connected
 // (it lands as a note to self), otherwise from Ivyward through Resend
+// a digest is at most daily: after a long pause the queue can hold one per missed day, and each would go out
+const MIN_GAP_MS = 20 * 3600_000;
+
 export async function runDigest(userId: string) {
   const db = admin();
   const now = new Date();
+  const { data: last } = await db.from("profiles").select("last_digest_at").eq("id", userId).maybeSingle();
+  if (last?.last_digest_at && now.getTime() - Date.parse(last.last_digest_at) < MIN_GAP_MS) return { headline: null, via: null, skipped: "sent in the last 20 hours" };
   const { digest, since, name } = await makeDigest(userId, now);
   // the one small thing for today (lib/today), the same as the dashboard's card
   const task = (await loadToday(userId).catch(() => null))?.task ?? null;
