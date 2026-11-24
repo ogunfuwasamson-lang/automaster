@@ -6,8 +6,9 @@ import { alert } from "@/lib/alerts";
 import { notify } from "@/lib/notify";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { SITE } from "@/lib/site";
-import { CODE, TERMS, cleanCode, dayKey, earnings, monthKey, naira, type Month } from "@/lib/creator-terms";
+import { CODE, CREATOR_TERMS_VERSION, TERMS, cleanCode, dayKey, earnings, monthKey, naira, type Month } from "@/lib/creator-terms";
 import { describe } from "@/lib/payout-methods";
+
 
 // the creator partnership (lib/creator-terms has the rules; supabase/migrations/0035 the tables). a creator applies,
 // the operator approves them, and from then on visits through their links are counted, accounts made through them
@@ -69,7 +70,7 @@ export async function applyAsCreator(userId: string, email: string, a: Applicati
     .select(COLS)
     .single();
   if (error) throw new Error(/duplicate/.test(error.message) ? "You've already applied." : error.message);
-  await logEvent({ userId, actor: "user", action: "creator.applied", context: { handles: a.handles } }).catch(() => {});
+  await logEvent({ userId, actor: "user", action: "creator.applied", context: { handles: a.handles, terms: CREATOR_TERMS_VERSION } }).catch(() => {});
   await alert(`creator-applied:${userId}`, `New creator application: ${a.name}`, { email, handles: a.handles, followers: a.followers, audience: a.audience, review: "tryivyward.com/admin?view=creators" });
   return data as Creator;
 }

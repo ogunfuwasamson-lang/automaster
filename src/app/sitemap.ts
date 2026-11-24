@@ -19,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.url}/universities`, lastModified: libDate, changeFrequency: "weekly", priority: 0.85 },
     { url: `${SITE.url}/alerts`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/ambassadors`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE.url}/creator-terms`, lastModified: libDate, changeFrequency: "monthly", priority: 0.3 },
     { url: `${SITE.url}/glossary`, lastModified: libDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE.url}/tools/scholarship-finder`, lastModified: libDate, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE.url}/match`, lastModified: now, changeFrequency: "weekly", priority: 0.85 },

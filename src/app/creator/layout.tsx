@@ -36,9 +36,18 @@ export default async function CreatorLayout({ children }: { children: React.Reac
           </div>
         ) : null}
       </header>
-      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-24 pt-7 sm:px-6 lg:pt-10">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-16 pt-7 sm:px-6 lg:pt-10">
         {children}
       </main>
+      <footer className="mx-auto max-w-6xl border-t border-line px-4 py-6 text-[13px] text-muted sm:px-6">
+        <Link href="/creator-terms" className="hover:text-foreground">
+          Creator Partnership terms
+        </Link>
+        <span aria-hidden> · </span>
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
+      </footer>
     </div>
   );
 }

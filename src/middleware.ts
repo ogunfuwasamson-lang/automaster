@@ -52,6 +52,7 @@ const PUBLIC = [
   "/ambassadors",
   "/api/ambassadors",
   "/c/", // a creator's tracked link (lib/creators): counts the visit, then the home page
+  "/creator-terms", // the creator partnership's terms, readable before applying
   "/opengraph-image",
   "/twitter-image",
   "/icon",

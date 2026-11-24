@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { TERMS, monthLabel, naira } from "@/lib/creator-terms";
 import type { Creator, overviewOf } from "@/lib/creators";
 import { ApplyForm, CopyButton, DailyBars, MainLink, NewLink } from "./ui";
+import { CREATOR_TERMS_VERSION, CreatorTermsBody } from "@/components/legal/creator-terms";
 import { Box, Funnel, PayLadder, Stat, StatusPill, TargetMeter, WeekDots, shortDay } from "./parts";
 
 // the creator studio's home screens (app/creator/page): the application, waiting for review, turned down, and the
@@ -55,9 +56,24 @@ export function Apply({ name }: { name: string }) {
           <p className="mt-4 text-[13px] text-muted">It takes a student about 90 seconds. A second account from the same phone doesn&apos;t count.</p>
         </Box>
       </div>
-      <Box title="Apply" note="The team reviews applications within two working days. You'll get an email either way.">
-        <ApplyForm name={name} />
-      </Box>
+      <div className="space-y-8">
+        <Box title="Apply" note="The team reviews applications within two working days. You'll get an email either way.">
+          <ApplyForm name={name} />
+        </Box>
+        <Box
+          title="Terms and conditions"
+          note={`Creator Partnership terms, updated ${CREATOR_TERMS_VERSION}. Read them before you agree.`}
+          action={
+            <Link href="/creator-terms" target="_blank" className="inline-flex items-center gap-1 text-[13.5px] font-medium underline underline-offset-4">
+              Open in a new tab <ArrowUpRight className="size-3.5" aria-hidden />
+            </Link>
+          }
+        >
+          <div id="creator-terms" tabIndex={0} aria-label="Creator Partnership terms" className="max-h-[32rem] space-y-6 overflow-y-auto overscroll-contain rounded-2xl border border-line bg-background px-5 py-5 text-[14.5px] leading-relaxed text-foreground/90 outline-none focus-visible:ring-2 focus-visible:ring-focus [&_a]:text-brand [&_a:hover]:underline [&_h2]:font-serif [&_h2]:text-[19px] [&_h2]:leading-snug [&_li]:mt-1.5 [&_p]:mt-2.5 [&_strong]:font-semibold [&_ul]:mt-2.5 [&_ul]:list-disc [&_ul]:pl-5">
+            <CreatorTermsBody />
+          </div>
+        </Box>
+      </div>
     </div>
   );
 }

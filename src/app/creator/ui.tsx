@@ -218,7 +218,11 @@ export function ApplyForm({ name }: { name: string }) {
       <label className="flex items-start gap-3 rounded-2xl border border-line bg-background p-4 text-[14px] leading-relaxed">
         <input type="checkbox" checked={f.agree} onChange={(e) => setF({ ...f, agree: e.target.checked })} className="mt-1 size-4 shrink-0 accent-current" required />
         <span>
-          I&apos;ll share only what&apos;s true about my experience, say clearly that this is a paid partnership, and never promise admission, scholarships or visas.
+          I&apos;ve read and agree to the{" "}
+          <a href="/creator-terms" target="_blank" className="font-medium underline underline-offset-4">
+            Creator Partnership terms
+          </a>
+          . I&apos;ll share only my real experience, say clearly in every video that it&apos;s a paid partnership, and never promise admission, scholarships or visas.
         </span>
       </label>
       <Button type="submit" size="lg" disabled={busy || !f.agree}>

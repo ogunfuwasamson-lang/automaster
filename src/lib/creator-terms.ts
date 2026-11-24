@@ -23,6 +23,9 @@ export const TERMS = {
 
 export const ZONE = "Africa/Lagos";
 
+// the version of the creator terms (components/legal/creator-terms) an applicant agrees to
+export const CREATOR_TERMS_VERSION = "24 November 2026";
+
 export const naira = (n: number) => `₦${Math.round(n).toLocaleString("en-NG")}`;
 
 // the bonus for a month with this many qualified sign-ups
