@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TERMS, naira } from "@/lib/creator-terms";
+import { TERMS, bonusFor, naira } from "@/lib/creator-terms";
 export { CREATOR_TERMS_VERSION } from "@/lib/creator-terms";
 
 // the creator partnership's terms and conditions: the public page (/creator-terms) and the application (/creator)
@@ -75,10 +75,13 @@ export function CreatorTermsBody() {
             <strong>Your rate.</strong> {naira(TERMS.rate)} per qualified sign-up, unless your dashboard shows a different rate agreed with you. A sign-up earns the rate in force on the day it qualifies.
           </li>
           <li>
-            <strong>The monthly target and bonus.</strong> The target is {n(TERMS.target)} qualified sign-ups a month. For every full {n(TERMS.bonusStep)} qualified sign-ups above {n(TERMS.target)} in a month, you earn a bonus of {naira(TERMS.bonusPerStep)} (for example, {n(TERMS.target + 2 * TERMS.bonusStep)} earns {naira(2 * TERMS.bonusPerStep)}). The bonus is added once the month has ended.
+            <strong>The bonus.</strong> For every full {n(TERMS.bonusStep)} qualified sign-ups above {n(TERMS.bonusFrom)} in a month, you earn a bonus of {naira(TERMS.bonusPerStep)}, with no upper limit. For example, {n(1000)} qualified sign-ups in a month earn {naira(1000 * TERMS.rate)} at the standard rate plus a {naira(bonusFor(1000))} bonus: {naira(1000 * TERMS.rate + bonusFor(1000))}. The bonus is added once the month has ended.
+          </li>
+          <li>
+            <strong>The monthly target.</strong> The target is {n(TERMS.target)} qualified sign-ups a month. It&apos;s the goal we plan campaigns around; missing it doesn&apos;t reduce what you&apos;ve earned.
           </li>
           <li>Months run on West Africa Time (Lagos). A sign-up belongs to the month in which it qualified, not the month the account was made.</li>
-          <li>Earnings are counted in Nigerian naira. Missing the target doesn&apos;t reduce what you&apos;ve earned once you&apos;re past the pay floor.</li>
+          <li>Earnings are counted in Nigerian naira.</li>
         </ul>
       </section>
 

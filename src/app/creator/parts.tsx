@@ -30,15 +30,18 @@ export function Stat({ label, value, sub, tone }: { label: string; value: string
   );
 }
 
-// qualified sign-ups this month: where pay starts, the target, and the bonus steps past it
+// qualified sign-ups this month: where pay starts, where the bonus starts (a mark for every bonus step), and the target
 export function TargetMeter({ qualified }: { qualified: number }) {
-  const top = Math.max(TERMS.target + 3 * TERMS.bonusStep, Math.ceil((qualified + 1) / TERMS.bonusStep) * TERMS.bonusStep);
+  const top = Math.max(TERMS.target + 2 * TERMS.bonusStep, Math.ceil((qualified + 1) / TERMS.bonusStep) * TERMS.bonusStep);
   const share = Math.min(1, qualified / top);
-  const steps = Array.from({ length: Math.floor((top - TERMS.target) / TERMS.bonusStep) }, (_, i) => TERMS.target + (i + 1) * TERMS.bonusStep);
+  const steps = Array.from({ length: Math.floor((top - TERMS.bonusFrom) / TERMS.bonusStep) }, (_, i) => TERMS.bonusFrom + (i + 1) * TERMS.bonusStep);
   const nb = nextBonus(qualified);
+  const bonus = bonusFor(qualified);
   const toPay = TERMS.payFrom - qualified;
+  const toBonus = TERMS.bonusFrom - qualified;
   const left = TERMS.target - qualified;
   const at = (n: number) => `${(n / top) * 100}%`;
+  const now = toPay > 0 ? "pay" : toBonus > 0 ? "bonus" : left > 0 ? "target" : "past";
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
@@ -47,42 +50,53 @@ export function TargetMeter({ qualified }: { qualified: number }) {
           <span className="ml-2 text-[15px] text-muted">of {TERMS.target.toLocaleString()} qualified sign-ups</span>
         </p>
         <p className="text-[14px] text-muted">
-          {toPay > 0 ? (
+          {now === "pay" ? (
             <>
               <span className="font-medium text-foreground">{toPay.toLocaleString()} more</span> and this month starts paying
             </>
-          ) : left > 0 ? (
+          ) : now === "bonus" ? (
             <>
-              This month is paying. <span className="font-medium text-foreground">{left.toLocaleString()} to go</span> to the target
+              This month is paying. <span className="font-medium text-foreground">{toBonus.toLocaleString()} more</span> and bonuses start
             </>
           ) : (
             <>
-              Target reached. <span className="font-medium text-foreground">{nb.need} more</span> for a {naira(nb.bonus)} bonus
+              {bonus ? (
+                <>
+                  Bonus so far <span className="font-medium text-foreground">{naira(bonus)}</span>.{" "}
+                </>
+              ) : null}
+              <span className="font-medium text-foreground">{nb.need} more</span> for {naira(nb.bonus)}
+              {now === "target" ? <> · {left.toLocaleString()} to the target</> : null}
             </>
           )}
         </p>
       </div>
-      <div className="relative mt-5" role="img" aria-label={`${qualified} qualified sign-ups this month. Pay starts at ${TERMS.payFrom}; the target is ${TERMS.target}.`}>
+      <div className="relative mt-5" role="img" aria-label={`${qualified} qualified sign-ups this month. Pay starts at ${TERMS.payFrom}, bonuses at ${TERMS.bonusFrom}; the target is ${TERMS.target}.`}>
         <div className="h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
           <div className={`h-full rounded-full transition-[width] duration-700 ${toPay > 0 ? "bg-brand/55" : "bg-brand"}`} style={{ width: `${share * 100}%` }} />
         </div>
-        {[TERMS.payFrom, TERMS.target, ...steps].map((m) => (
-          <span key={m} className="absolute top-0 h-3 w-0.5 -translate-x-1/2 bg-surface" style={{ left: at(m) }} aria-hidden />
+        {[TERMS.payFrom, TERMS.bonusFrom, ...steps].map((m) => (
+          <span key={m} className={`absolute top-0 h-3 -translate-x-1/2 bg-surface ${m === TERMS.payFrom || m === TERMS.bonusFrom || m === TERMS.target ? "w-[3px]" : "w-px"}`} style={{ left: at(m) }} aria-hidden />
         ))}
         <div className="relative mt-2 h-4 text-[11.5px] tabular-nums text-muted" aria-hidden>
           <span className="absolute left-0">0</span>
-          <span className={`absolute -translate-x-1/2 whitespace-nowrap ${toPay > 0 ? "font-semibold text-foreground" : ""}`} style={{ left: at(TERMS.payFrom) }}>
-            {TERMS.payFrom} pay starts
-          </span>
-          <span className={`absolute -translate-x-1/2 whitespace-nowrap ${toPay <= 0 && left > 0 ? "font-semibold text-foreground" : ""}`} style={{ left: at(TERMS.target) }}>
-            {TERMS.target.toLocaleString()}
-            <span className="hidden sm:inline"> target</span>
-          </span>
-          <span className="absolute right-0">{top.toLocaleString()}</span>
+          {(
+            [
+              [TERMS.payFrom, "pay starts", "pay"],
+              [TERMS.bonusFrom, "bonus starts", "bonus"],
+              [TERMS.target, "target", "target"],
+            ] as const
+          ).map(([m, word, stage]) => (
+            <span key={m} className={`absolute -translate-x-1/2 whitespace-nowrap ${now === stage ? "font-semibold text-foreground" : ""}`} style={{ left: at(m) }}>
+              {m.toLocaleString()}
+              <span className="hidden md:inline"> {word}</span>
+            </span>
+          ))}
+          <span className="absolute right-0 hidden sm:inline">{top.toLocaleString()}</span>
         </div>
       </div>
       <p className="mt-3 text-[12.5px] text-muted">
-        A month pays once it reaches {TERMS.payFrom} qualified sign-ups: then {naira(TERMS.rate)} for every one of them. Each mark past {TERMS.target.toLocaleString()} adds {naira(TERMS.bonusPerStep)} to the month&apos;s bonus.
+        A month pays once it reaches {TERMS.payFrom} qualified sign-ups: then {naira(TERMS.rate)} for every one of them. From {TERMS.bonusFrom}, every {TERMS.bonusStep} more adds {naira(TERMS.bonusPerStep)} to the month&apos;s bonus: 1,000 pays {naira(1000 * TERMS.rate + bonusFor(1000))}.
       </p>
     </div>
   );
@@ -116,9 +130,9 @@ export function Funnel({ steps }: { steps: [string, number, string][] }) {
 }
 
 // what a month pays at each step: nothing below the pay floor, then every qualified sign-up, then a bonus for every
-// hundred past the target
+// hundred from the bonus start
 export function PayLadder({ qualified, rate }: { qualified: number; rate: number }) {
-  const rows = [TERMS.payFrom - 1, TERMS.payFrom, 600, 1000, TERMS.target, 1600, 1700, 2000];
+  const rows = [TERMS.payFrom - 1, TERMS.payFrom, TERMS.bonusFrom, 600, 800, 1000, TERMS.target, 2000];
   const pay = (q: number) => (q >= TERMS.payFrom ? q * rate : 0);
   return (
     <table className="w-full text-[14px]">
@@ -138,6 +152,7 @@ export function PayLadder({ qualified, rate }: { qualified: number; rate: number
               <td className="py-2 pl-2">
                 {i === 0 ? `Under ${TERMS.payFrom}` : q.toLocaleString()}
                 {q === TERMS.payFrom ? <span className="ml-1.5 text-[12px] text-muted">pay starts</span> : null}
+                {q === TERMS.bonusFrom ? <span className="ml-1.5 text-[12px] text-muted">bonus starts</span> : null}
                 {q === TERMS.target ? <span className="ml-1.5 text-[12px] text-muted">target</span> : null}
                 {here ? <span className="ml-1.5 text-[12px] text-brand">you&apos;re here</span> : null}
               </td>

@@ -84,7 +84,7 @@ export default async function Payouts() {
         )}
       </Box>
 
-      <Box title="Earnings by month" note={`A month pays once it reaches ${TERMS.payFrom} qualified sign-ups: then your rate for every one, plus ${naira(TERMS.bonusPerStep)} for every ${TERMS.bonusStep} above ${TERMS.target.toLocaleString()}.`}>
+      <Box title="Earnings by month" note={`A month pays once it reaches ${TERMS.payFrom} qualified sign-ups: then your rate for every one, plus ${naira(TERMS.bonusPerStep)} for every ${TERMS.bonusStep} above ${TERMS.bonusFrom}.`}>
         {money.months.length ? (
           <div className="-mx-5 overflow-x-auto sm:-mx-6">
             <table className="w-full min-w-[34rem] text-[14px]">

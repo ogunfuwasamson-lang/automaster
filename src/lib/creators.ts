@@ -341,6 +341,32 @@ export async function setReferral(id: string, status: "rejected" | "pending", re
   if (status === "pending") await sweepCreator(r.creator_id as string);
 }
 
+// the operator deletes a creator profile: the creator row and everything under it (links, visits, sign-up records,
+// videos, payout details and payout history) go for good. their Ivyward account stays, and they could apply again.
+// a payout still waiting must be paid or rejected first. what they had is kept in the event log.
+export async function deleteCreator(id: string, by: string): Promise<string | null> {
+  const db = admin();
+  const c = await creatorById(id);
+  if (!c) return "Already deleted.";
+  const { count: waiting } = await db.from("creator_withdrawals").select("id", { count: "exact", head: true }).eq("creator_id", id).eq("status", "pending");
+  if (waiting) return "They have a payout waiting. Pay or reject it first.";
+  const [{ data: links }, { data: money }, { count: signups }, { count: qualified }] = await Promise.all([
+    db.from("creator_links").select("code").eq("creator_id", id),
+    db.from("creator_withdrawals").select("amount_ngn").eq("creator_id", id).eq("status", "paid"),
+    db.from("creator_referrals").select("id", { count: "exact", head: true }).eq("creator_id", id),
+    db.from("creator_referrals").select("id", { count: "exact", head: true }).eq("creator_id", id).eq("status", "qualified"),
+  ]);
+  const { error } = await db.from("creators").delete().eq("id", id);
+  if (error) return "Couldn't delete it. Try again.";
+  await logEvent({
+    userId: c.user_id,
+    actor: "user",
+    action: "staff.creator_deleted",
+    context: { by, name: c.name, status: c.status, handles: c.handles, rate: c.rate_ngn, links: (links ?? []).map((l) => l.code), signups: signups ?? 0, qualified: qualified ?? 0, paid: (money ?? []).reduce((a, w) => a + Number(w.amount_ngn), 0) },
+  }).catch(() => {});
+  return null;
+}
+
 export async function setRate(id: string, rate: number) {
   await admin().from("creators").update({ rate_ngn: rate }).eq("id", id);
 }

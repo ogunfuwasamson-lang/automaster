@@ -2,10 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { payoutDetails, reviewPost, setCreatorStatus, setRate, setReferral, settleWithdrawal } from "@/lib/creators";
+import { deleteCreator, payoutDetails, reviewPost, setCreatorStatus, setRate, setReferral, settleWithdrawal } from "@/lib/creators";
 
 // the operator's creator actions (admin console, Creators): approve or pause a creator, change their rate, pay or
-// reject a payout, review a video, and take a sign-up out of their count (or put it back)
+// reject a payout, review a video, take a sign-up out of their count (or put it back), and delete a creator profile
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), id: z.uuid(), status: z.enum(["active", "paused", "rejected", "pending"]), note: z.string().trim().max(300).optional() }),
   z.object({ action: z.literal("rate"), id: z.uuid(), rate: z.number().int().min(0).max(100_000) }),
@@ -14,6 +14,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("account"), id: z.uuid() }),
   z.object({ action: z.literal("post"), id: z.uuid(), status: z.enum(["approved", "rejected", "submitted"]), note: z.string().trim().max(300).optional() }),
   z.object({ action: z.literal("referral"), id: z.uuid(), status: z.enum(["rejected", "pending"]), reason: z.string().trim().max(200).optional() }),
+  z.object({ action: z.literal("delete"), id: z.uuid(), confirm: z.literal("DELETE") }),
 ]);
 
 export async function POST(req: NextRequest) {
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
     case "referral":
       await setReferral(b.id, b.status, b.reason || null, by);
       break;
+    case "delete": {
+      const err = await deleteCreator(b.id, by);
+      if (err) return NextResponse.json({ error: err }, { status: 409 });
+      break;
+    }
   }
   return NextResponse.json({ ok: true });
 }

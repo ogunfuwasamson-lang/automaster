@@ -3,19 +3,20 @@ import { checkDetails, describe as describeDetails } from "@/lib/payout-methods"
 import { CODE, TERMS, bonusFor, cleanCode, dayKey, earnings, isBot, monthKey, monthStart, nextBonus, platformOf, weeksOf } from "@/lib/creator-terms";
 
 describe("creator pay", () => {
-  it("pays the bonus per full hundred above the target", () => {
+  it("pays the bonus per full hundred from 500", () => {
     expect(bonusFor(0)).toBe(0);
-    expect(bonusFor(1500)).toBe(0);
-    expect(bonusFor(1599)).toBe(0);
-    expect(bonusFor(1600)).toBe(20_000);
-    expect(bonusFor(1700)).toBe(40_000);
-    expect(bonusFor(2000)).toBe(100_000);
+    expect(bonusFor(500)).toBe(0);
+    expect(bonusFor(599)).toBe(0);
+    expect(bonusFor(600)).toBe(20_000);
+    expect(bonusFor(1500)).toBe(200_000);
+    // the founder's example: 1,000 in a month is N350,000 base and N100,000 bonus
+    expect(1000 * TERMS.rate + bonusFor(1000)).toBe(450_000);
   });
 
   it("names the next bonus step", () => {
-    expect(nextBonus(120)).toEqual({ need: 1480, at: 1600, bonus: 20_000 });
-    expect(nextBonus(1600)).toEqual({ need: 100, at: 1700, bonus: 40_000 });
-    expect(nextBonus(1651)).toEqual({ need: 49, at: 1700, bonus: 40_000 });
+    expect(nextBonus(120)).toEqual({ need: 480, at: 600, bonus: 20_000 });
+    expect(nextBonus(600)).toEqual({ need: 100, at: 700, bonus: 40_000 });
+    expect(nextBonus(1651)).toEqual({ need: 49, at: 1700, bonus: 240_000 });
   });
 
   it("pays a month only from the floor, base at once, bonus once it's over", () => {
@@ -34,8 +35,8 @@ describe("creator pay", () => {
       ["2026-10", 299, true, false],
     ]);
     // october ended below 300 and pays nothing; november pays base and bonus; december's base counts, its bonus waits
-    expect(e.earned).toBe(1610 * 350 + 20_000 + 1605 * 350);
-    expect(e.pendingBonus).toBe(20_000);
+    expect(e.earned).toBe(1610 * 350 + 220_000 + 1605 * 350);
+    expect(e.pendingBonus).toBe(220_000);
     expect(e.lockedBase).toBe(0);
   });
 

@@ -2,7 +2,7 @@ import { admin } from "@/lib/supabase/admin";
 import { TERMS, dayKey, earnings, monthKey, naira } from "@/lib/creator-terms";
 import { linkUrl, type Creator } from "@/lib/creators";
 import { Empty, Kpis, Panel, Pill, Stat, Table } from "./views";
-import { CreatorStatus, PayoutActions, PostReview, RateEditor, ReferralToggle } from "./creator-actions";
+import { CreatorStatus, DeleteCreator, PayoutActions, PostReview, RateEditor, ReferralToggle } from "./creator-actions";
 import type { Range } from "./range";
 
 // the operator's view of the creator partnership (lib/creators): payouts to send (due within 24 hours), applications
@@ -133,7 +133,10 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                 <td className={td}>{c.followers}</td>
                 <td className={`${td} max-w-[22rem] text-[12.5px]`}>{c.audience}</td>
                 <td className={td}>
-                  <CreatorStatus id={c.id} status={c.status} />
+                  <div className="space-y-1.5">
+                    <CreatorStatus id={c.id} status={c.status} />
+                    <DeleteCreator id={c.id} name={c.name} />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -175,7 +178,7 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                   <td className={`${td} tabular-nums`}>{(x?.qualified_since ?? 0).toLocaleString()}</td>
                   <td className={`${td} tabular-nums`}>
                     {(tm?.qualified ?? 0).toLocaleString()} of {TERMS.target.toLocaleString()}
-                    <p className="text-[12px] text-muted">{tm?.unlocked ? (tm.bonus ? `paying; +${naira(tm.bonus)} bonus at month end` : "paying") : `pays from ${TERMS.payFrom}`}</p>
+                    <p className="text-[12px] text-muted">{tm?.unlocked ? (tm.bonus ? `paying; +${naira(tm.bonus)} bonus at month end` : `paying; bonus from ${TERMS.bonusFrom}`) : `pays from ${TERMS.payFrom}`}</p>
                   </td>
                   <td className={`${td} tabular-nums`}>{naira(e.earned)}</td>
                   <td className={`${td} tabular-nums`}>{naira(x?.paid ?? 0)}</td>
@@ -185,7 +188,10 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                     <p className="text-[12px] text-muted">{x?.last_post ? `last ${x.last_post}` : "none yet"}</p>
                   </td>
                   <td className={td}>
+                    <div className="space-y-1.5">
                     <CreatorStatus id={c.id} status={c.status} />
+                    <DeleteCreator id={c.id} name={c.name} />
+                  </div>
                   </td>
                 </tr>
               );
@@ -282,7 +288,10 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                   </td>
                   <td className={`${td} text-muted`}>{c.note ?? "·"}</td>
                   <td className={td}>
+                    <div className="space-y-1.5">
                     <CreatorStatus id={c.id} status={c.status} />
+                    <DeleteCreator id={c.id} name={c.name} />
+                  </div>
                   </td>
                 </tr>
               ))}

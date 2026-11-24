@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { TERMS, monthLabel, naira } from "@/lib/creator-terms";
+import { TERMS, bonusFor, monthLabel, naira } from "@/lib/creator-terms";
 import type { Creator, overviewOf } from "@/lib/creators";
 import { ApplyForm, CopyButton, DailyBars, MainLink, NewLink } from "./ui";
 import { CREATOR_TERMS_VERSION, CreatorTermsBody } from "@/components/legal/creator-terms";
@@ -13,7 +13,7 @@ function Terms() {
   const rows: [string, string][] = [
     ["Pay", `${naira(TERMS.rate)} for every qualified sign-up, once you reach ${TERMS.payFrom} in a month`],
     ["Monthly target", `${TERMS.target.toLocaleString()} qualified sign-ups`],
-    ["Bonus", `${naira(TERMS.bonusPerStep)} for every extra ${TERMS.bonusStep} above ${TERMS.target.toLocaleString()}, each month`],
+    ["Bonus", `${naira(TERMS.bonusPerStep)} for every ${TERMS.bonusStep} above ${TERMS.bonusFrom} in a month: 1,000 pays ${naira(1000 * TERMS.rate + bonusFor(1000))}`],
     ["Videos", `At least ${TERMS.videosPerMonth} a month, one a week, 30 to 90 seconds, vertical`],
     ["Payouts", `To your bank or mobile money, in your currency, within ${TERMS.payoutHours} hours of asking`],
   ];

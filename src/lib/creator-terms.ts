@@ -1,8 +1,10 @@
-// the creator partnership's terms (the campaign guide, 24 nov 2026; target and pay floor changed the same day). pure,
+// the creator partnership's terms (the campaign guide, 24 nov 2026; target, pay floor and bonus start changed the
+// same day). pure,
 // so the dashboard, the operator console, the payout check and the tests read the same numbers.
 //   pay:     a month pays once it reaches PAY_FROM qualified sign-ups: then RATE naira for every one of them. a month
 //            that ends below PAY_FROM pays nothing. on top, a bonus of BONUS_PER_STEP for every full BONUS_STEP
-//            qualified sign-ups above the monthly TARGET (cumulative), paid once the month is over.
+//            qualified sign-ups above BONUS_FROM (cumulative), paid once the month is over: 1,000 in a month pays
+//            ₦350,000 base and ₦100,000 bonus. TARGET is the monthly goal; the bonus keeps growing past it.
 //   counts:  someone who came through the creator's link, made an account, uploaded a CV and finished the basic
 //            profile in setup (level and regions). duplicates (the same device as an earlier sign-up) don't count.
 //   content: VIDEOS_PER_MONTH original videos a month, at least one a week.
@@ -12,6 +14,7 @@
 export const TERMS = {
   rate: 350,
   payFrom: 300,
+  bonusFrom: 500,
   target: 1500,
   bonusStep: 100,
   bonusPerStep: 20_000,
@@ -30,13 +33,13 @@ export const naira = (n: number) => `₦${Math.round(n).toLocaleString("en-NG")}
 
 // the bonus for a month with this many qualified sign-ups
 export function bonusFor(qualified: number): number {
-  if (qualified <= TERMS.target) return 0;
-  return Math.floor((qualified - TERMS.target) / TERMS.bonusStep) * TERMS.bonusPerStep;
+  if (qualified <= TERMS.bonusFrom) return 0;
+  return Math.floor((qualified - TERMS.bonusFrom) / TERMS.bonusStep) * TERMS.bonusPerStep;
 }
 
 // the next bonus step: how many more qualified sign-ups it takes, and what the bonus becomes
 export function nextBonus(qualified: number): { need: number; at: number; bonus: number } {
-  const at = qualified < TERMS.target + TERMS.bonusStep ? TERMS.target + TERMS.bonusStep : TERMS.target + (Math.floor((qualified - TERMS.target) / TERMS.bonusStep) + 1) * TERMS.bonusStep;
+  const at = qualified < TERMS.bonusFrom + TERMS.bonusStep ? TERMS.bonusFrom + TERMS.bonusStep : TERMS.bonusFrom + (Math.floor((qualified - TERMS.bonusFrom) / TERMS.bonusStep) + 1) * TERMS.bonusStep;
   return { need: at - qualified, at, bonus: bonusFor(at) };
 }
 

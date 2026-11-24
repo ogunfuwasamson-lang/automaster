@@ -274,3 +274,40 @@ export function ReferralToggle({ id, status }: { id: string; status: string }) {
     </button>
   );
 }
+
+// delete a creator profile for good: typed confirmation, since their links, sign-up records, videos and payout
+// history go with it
+export function DeleteCreator({ id, name }: { id: string; name: string }) {
+  const { busy, run } = useAct();
+  const [asking, setAsking] = useState(false);
+  const [typed, setTyped] = useState("");
+  if (!asking)
+    return (
+      <button type="button" className={`${btn} text-stop hover:border-stop/50`} onClick={() => setAsking(true)}>
+        Delete
+      </button>
+    );
+  return (
+    <form
+      className="w-64 space-y-1.5 rounded-md border border-stop/40 bg-stop/[0.04] p-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void run({ action: "delete", id, confirm: typed.trim() }, `${name}'s creator profile is deleted`);
+      }}
+    >
+      <p className="text-[12px] leading-snug">
+        Deletes {name}&apos;s creator profile with their links, sign-up records, videos and payout history. Their Ivyward account stays. This can&apos;t be undone. Type DELETE to confirm.
+      </p>
+      <input className={`${input} w-full`} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="DELETE" autoFocus aria-label="Type DELETE to confirm" />
+      <div className="flex gap-1.5">
+        <button className={`${btn} border-stop/50 text-stop`} disabled={busy || typed.trim() !== "DELETE"}>
+          {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : null}
+          Delete for good
+        </button>
+        <button type="button" className={btn} onClick={() => { setAsking(false); setTyped(""); }}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
