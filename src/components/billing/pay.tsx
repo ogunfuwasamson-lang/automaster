@@ -14,7 +14,7 @@ async function go(body: Record<string, unknown>) {
 }
 
 // buy a pack of credits (africa). from an application or request it goes in straight after paying.
-export function BuyPack({ label, applicationId, messageId, back, size = "md", variant = "primary", children }: { label: string; applicationId?: string; messageId?: string; back?: "onboarding" | "settings"; size?: "sm" | "md" | "lg"; variant?: "primary" | "secondary" | "accent"; children?: React.ReactNode }) {
+export function BuyPack({ label, applicationId, messageId, back, size = "md", variant = "primary", children }: { label: string; applicationId?: string; messageId?: string; back?: "onboarding" | "settings" | "credits"; size?: "sm" | "md" | "lg"; variant?: "primary" | "secondary" | "accent"; children?: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -87,7 +87,8 @@ export function PayToSubmit({ applicationId, kind, label, school, highlight, not
 }
 
 // settings: the credit wallet (lib/wallet): what's left, what's set aside, what expires next, and how to get more
-export function PlanCard(p: { model: "pack" | "subscription"; label: string; credits: number; held: number; expiring: { credits: number; at: string } | null; bonus?: number; pro: boolean; until: string | null; cancelled: boolean; ready: boolean }) {
+// explain: the price line under the balance (the credits page lists the prices on their own, so it leaves it out)
+export function PlanCard(p: { model: "pack" | "subscription"; label: string; credits: number; held: number; expiring: { credits: number; at: string } | null; bonus?: number; pro: boolean; until: string | null; cancelled: boolean; ready: boolean; explain?: boolean; back?: "settings" | "credits" }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   async function manage(action: "portal" | "cancel") {
@@ -119,12 +120,12 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; cre
         </p>
       ) : null}
       <p className="text-muted">
-        {PRICE_LINE} {how} Invite a friend and you both get {CREDITS.invite}, which don&apos;t expire.
+        {p.explain === false ? how : `${PRICE_LINE} ${how} Invite a friend and you both get ${CREDITS.invite}, which don't expire.`}
       </p>
       {p.bonus ? <p className="text-muted">You also have a free submission from before credits: it pays for an application you&apos;ve already signed.</p> : null}
       <div className="flex flex-wrap gap-2">
         {p.model === "pack" ? (
-          <BuyPack label={p.label} back="settings" size="sm" variant={p.credits >= CREDITS.application ? "secondary" : "primary"}>{`Buy ${p.label}`}</BuyPack>
+          <BuyPack label={p.label} back={p.back ?? "credits"} size="sm" variant={p.credits >= CREDITS.application ? "secondary" : "primary"}>{`Buy ${p.label}`}</BuyPack>
         ) : null}
         {p.model === "subscription" && !p.pro && (
           <Button
@@ -133,7 +134,7 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; cre
             onClick={async () => {
               setBusy("pro");
               try {
-                await go({ kind: "pro" });
+                await go({ kind: "pro", back: p.back ?? "credits" });
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
                 setBusy(null);
@@ -172,7 +173,7 @@ export function UpgradeLink({ kind, children = "Upgrade" }: { kind: "pack" | "pr
       onClick={async () => {
         setBusy(true);
         try {
-          await go({ kind, back: "settings", from: "limit" });
+          await go({ kind, back: "credits", from: "limit" });
         } catch (e) {
           toast.error(e instanceof Error ? e.message : "Couldn't open the payment page");
           setBusy(false);

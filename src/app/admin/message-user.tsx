@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 // every page a message's button can open: the signed-in app's pages, then this applicant's own applications
 const PAGES: [string, string][] = [
   ["/dashboard", "Dashboard"],
-  ["/settings#plan", "Plan and payment"],
+  ["/credits", "Credits"],
   ["/documents", "Documents (upload)"],
   ["/shortlist", "Shortlist"],
   ["/applications", "Applications"],

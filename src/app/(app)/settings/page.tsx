@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
@@ -13,6 +14,7 @@ import { MyLessons } from "@/components/learning/lessons-admin";
 import { InviteCard } from "@/components/growth/invite-card";
 import { GROUP_SIZE, inviteUrl, referralCode, referralStats } from "@/lib/referrals";
 import { isLocked } from "@/lib/free-tier";
+import { CREDITS } from "@/lib/credit-prices";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -79,7 +81,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <RunnerCard tokens={tokens ?? []} />
       </section>
 
-      <Group title="Invite friends" description="When a friend finishes setup, you both get one application free.">
+      <Group title="Invite friends" description={`When a friend finishes setup, you both get ${CREDITS.invite} credits, enough for one application.`}>
         <div id="invite" className="scroll-mt-24">
           <InviteSection uid={uid} />
         </div>
@@ -87,7 +89,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
       <Group title="Credits" description="What the agents do is paid in credits: an application, a programme or scholarship check, a funding request.">
         <div id="plan" className="scroll-mt-24">
-          <PlanCard model={bill.pricing.model} label={bill.pricing.label} credits={bill.credits} held={bill.held} expiring={bill.expiring} bonus={bill.bonus} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
+          <PlanCard model={bill.pricing.model} label={bill.pricing.label} credits={bill.credits} held={bill.held} expiring={bill.expiring} bonus={bill.bonus} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} back="settings" />
+          <Link href="/credits" className="mt-3 inline-block text-sm font-medium underline underline-offset-4">
+            See what your credits were used on
+          </Link>
         </div>
       </Group>
 

@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
   }
   // which ask they tapped (the dashboard card's angle), so the operator console can see what works
   if (parsed.data.from) await logEvent({ userId: auth.user.id, actor: "user", action: "nudge.clicked", context: { angle: parsed.data.from, kind } }).catch(() => {});
-  const Back = z.enum(["onboarding", "settings"]).optional().safeParse(parsed.data.back).data;
-  const back = messageId ? `${appUrl()}/messages?m=${messageId}` : applicationId ? `${appUrl()}/applications/${applicationId}` : Back === "onboarding" ? `${appUrl()}/onboarding?step=6` : `${appUrl()}/settings#plan`;
+  const Back = z.enum(["onboarding", "settings", "credits"]).optional().safeParse(parsed.data.back).data;
+  const back = messageId ? `${appUrl()}/messages?m=${messageId}` : applicationId ? `${appUrl()}/applications/${applicationId}` : Back === "onboarding" ? `${appUrl()}/onboarding?step=6` : Back === "settings" ? `${appUrl()}/settings#plan` : `${appUrl()}/credits`;
   try {
     const url = await checkout(auth.user.id, auth.user.email ?? "", kind, back, kind === "request" ? undefined : applicationId, kind === "request" ? messageId : undefined);
     return NextResponse.json({ url });

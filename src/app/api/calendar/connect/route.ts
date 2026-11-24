@@ -26,6 +26,6 @@ export async function GET(req: NextRequest) {
     return res;
   } catch (e) {
     console.error("calendar connect failed", e);
-    return NextResponse.redirect(`${appUrl()}/settings?calendar=error`);
+    return NextResponse.redirect(`${appUrl()}${then.split("#")[0]}${then.includes("?") ? "&" : "?"}calendar=error`);
   }
 }

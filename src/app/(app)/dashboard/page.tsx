@@ -45,8 +45,6 @@ import { dashboardNudge } from "@/lib/nudge";
 import { NudgeCard } from "@/components/billing/nudge-card";
 import { UpgradeLink } from "@/components/billing/pay";
 import { billingState } from "@/lib/billing";
-import { walletState } from "@/lib/wallet";
-import { CREDITS } from "@/lib/credit-prices";
 import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
 import { TodayCard } from "@/components/home/today-card";
 import { loadToday } from "@/lib/today-data";
@@ -262,8 +260,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const payNudge = await dashboardNudge(user.id, snooze).catch(() => null);
   // "Upgrade" on the limit notice opens the payment page itself: a pack where packs are sold, Pro elsewhere
   const payKind: "pack" | "pro" = parked && plan.id === "free" ? ((await billingState(user.id).catch(() => null))?.pricing.model === "pack" ? "pack" : "pro") : "pro";
-  // the credit wallet (lib/wallet): shown once there's anything in it
-  const wallet = await walletState(user.id).catch(() => null);
 
   return (
     <Stagger className="relative space-y-6">
@@ -300,14 +296,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               ? `${(next.programs as unknown as Prog).schools.name.split(",")[0]} closes ${nextDays === 0 ? "today" : `in ${nextDays} day${nextDays === 1 ? "" : "s"}`}.`
               : "No deadlines coming up yet."}
           </p>
-          {wallet && (wallet.balance || wallet.held) ? (
-            <p className="mt-2 text-[14px] text-muted">
-              <Link href="/settings#plan" className="font-medium text-foreground underline-offset-4 hover:underline">
-                {wallet.balance} credit{wallet.balance === 1 ? "" : "s"}
-              </Link>{" "}
-              to use{wallet.held ? `, ${wallet.held} set aside for applications in progress` : ""}. An application uses {CREDITS.application}.
-            </p>
-          ) : null}
           <div className="mt-8 text-left">
             <AskBox />
           </div>

@@ -14,6 +14,6 @@ export async function POST() {
   const b = await billingState(uid);
   if (b.pricing.model !== "pack" || b.credits > 0) return NextResponse.json({ ok: true });
   await admin().from("profiles").update({ pack_offer_seen_at: new Date().toISOString() }).eq("id", uid);
-  await notify({ userId: uid, key: "pack:offer", kind: "info", title: `Credits: ${b.pricing.label}`, body: "An application the agents prepare and submit uses 10 credits; checking a programme uses 1. Buy a pack when you're ready, or invite a friend: when they finish setup, you both get 10.", href: "/settings#plan", actionLabel: "Buy a pack" }).catch(() => null);
+  await notify({ userId: uid, key: "pack:offer", kind: "info", title: `Credits: ${b.pricing.label}`, body: "An application the agents prepare and submit uses 10 credits; checking a programme uses 1. Buy a pack when you're ready, or invite a friend: when they finish setup, you both get 10.", href: "/credits", actionLabel: "Buy a pack" }).catch(() => null);
   return NextResponse.json({ ok: true });
 }

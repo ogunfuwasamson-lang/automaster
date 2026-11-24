@@ -42,7 +42,7 @@ export function NudgeCard({ angle, headline, body, cta, kind, href }: { angle: s
             {cta}
           </Button>
         )}
-        <Link href="/settings#plan" className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">
+        <Link href="/credits" className="text-[13.5px] text-muted underline decoration-current/30 underline-offset-4 hover:text-foreground">
           What&apos;s included
         </Link>
         <button

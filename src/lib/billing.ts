@@ -157,7 +157,9 @@ export async function checkout(userId: string, email: string, kind: "pack" | "su
   if (kind === "pack" && b.pricing.model !== "pack") throw new Error("packs are for applicants in Africa");
   const ref = `ivw_${kind}_${(messageId ?? applicationId ?? userId).slice(0, 8)}_${Date.now().toString(36)}`;
   const metadata = { user_id: userId, kind, ...(applicationId ? { application_id: applicationId } : {}), ...(messageId ? { message_id: messageId } : {}) };
-  const success = `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}paid=${ref}`;
+  // the reference goes in the query, before any #section: after the # the browser keeps it and the page never sees it
+  const [path, hash] = returnUrl.split("#");
+  const success = `${path}${path.includes("?") ? "&" : "?"}paid=${ref}${hash ? `#${hash}` : ""}`;
   const body =
     kind !== "pro"
       ? (() => {

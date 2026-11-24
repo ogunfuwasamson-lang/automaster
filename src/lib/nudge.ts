@@ -95,7 +95,7 @@ export async function sendPayNudges(limit = 200): Promise<number> {
       if (step == null) continue;
       const n = emailNudge(await nudgeContext(p.id), step, policy.nudges.angles);
       if (!n) continue;
-      await notify({ userId: p.id, key: `paynudge:email:${step}`, kind: "info", title: n.headline, body: n.body, href: "/settings#plan", actionLabel: n.cta, email: true });
+      await notify({ userId: p.id, key: `paynudge:email:${step}`, kind: "info", title: n.headline, body: n.body, href: "/credits", actionLabel: n.cta, email: true });
       await logEvent({ userId: p.id, actor: "system", action: "nudge.emailed", context: { step, angle: n.angle } }).catch(() => {});
       sent++;
     }

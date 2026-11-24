@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       kind: "info",
       title: `You've got ${b.amount} credits from the Ivyward team`,
       body: `${expires ? `They last until ${expires.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}. ` : ""}An application uses 10 credits; checking a programme or sending a funding request uses 1.`,
-      href: "/settings#plan",
+      href: "/credits",
       actionLabel: "See your credits",
     }).catch(() => {});
   return NextResponse.json({ ok: true, balance });

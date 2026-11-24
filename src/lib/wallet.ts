@@ -69,7 +69,7 @@ export async function holdApplication(userId: string, applicationId: string): Pr
   const r = await spend(userId, "application", applicationId, CREDITS.application, true);
   if (r !== "none") return null;
   const left = await balance(userId);
-  return `starting an application uses ${CREDITS.application} credits and you have ${left}. Buy a pack, or invite a friend: when they finish setup you both get ${CREDITS.invite}. tryivyward.com/unlock`;
+  return `starting an application uses ${CREDITS.application} credits and you have ${left}. Buy a pack, or invite a friend: when they finish setup you both get ${CREDITS.invite}. tryivyward.com/credits`;
 }
 
 // the application went in: spend what was set aside, or charge it now if nothing was
@@ -107,7 +107,83 @@ export async function lowCreditNotice(userId: string) {
     kind: "info",
     title: left ? `${left} credit${left === 1 ? "" : "s"} left` : "Your credits are used",
     body: `An application uses ${CREDITS.application} credits. Buy a pack, or invite a friend: when they finish setup you both get ${CREDITS.invite}.`,
-    href: "/unlock",
+    href: "/credits",
     actionLabel: "Get credits",
   }).catch(() => {});
+}
+
+// ---- the credits page: every credit in and out, newest first ----
+
+export type HistoryItem = {
+  at: string;
+  dir: "in" | "out";
+  amount: number;
+  title: string;
+  detail: string | null;
+  // added: credits in (expires/expired say when they run out); held: set aside for an application in progress;
+  // spent; returned: set aside, then given back when the application was dropped
+  status: "added" | "held" | "spent" | "returned";
+  expires?: string | null;
+  left?: number;
+  href?: string;
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Prog = { name: string; schools: { name: string } | null } | null;
+const school = (p: Prog) => (p?.schools?.name ?? "").split(",")[0] || null;
+
+export function grantTitle(source: string, reference: string | null): string {
+  if (source === "pack") return "Bought a pack";
+  if (source === "pro") return "Pro: this month's credits";
+  if (source === "invite") return reference?.endsWith(":joined") ? "You joined through a friend's invite" : "A friend you invited finished setup";
+  if (source === "group") return "Study group bonus";
+  if (source === "converted") return "Carried over from your earlier pack";
+  if (source === "grant") return "From the Ivyward team";
+  return "Credits added";
+}
+
+export async function creditHistory(userId: string, limit = 150): Promise<HistoryItem[]> {
+  const db = admin();
+  const [{ data: grants }, { data: uses }] = await Promise.all([
+    db.from("credit_grants").select("source, amount, remaining, expires_at, reference, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit),
+    db.from("credit_uses").select("kind, ref, amount, status, created_at, settled_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit * 2),
+  ]);
+  const ids = (k: string) => [...new Set((uses ?? []).filter((u) => u.kind === k && UUID.test(u.ref as string)).map((u) => u.ref as string))];
+  const [appIds, jobIds, msgIds] = [ids("application"), ids("check"), ids("request")];
+  const [{ data: apps }, { data: jobs }, { data: msgs }] = await Promise.all([
+    appIds.length ? db.from("applications").select("id, programs(name, schools(name))").in("id", appIds) : Promise.resolve({ data: [] }),
+    jobIds.length ? db.from("jobs").select("id, task, payload").in("id", jobIds) : Promise.resolve({ data: [] }),
+    msgIds.length ? db.from("messages").select("id, subject, purpose, threads(application_id, applications(programs(name, schools(name))))").in("id", msgIds) : Promise.resolve({ data: [] }),
+  ]);
+  const app = new Map((apps ?? []).map((a) => [a.id as string, a.programs as unknown as Prog]));
+  const job = new Map((jobs ?? []).map((j) => [j.id as string, (j.payload ?? {}) as { school?: string; program?: string }]));
+  const msg = new Map(
+    (msgs ?? []).map((m) => {
+      const t = m.threads as unknown as { application_id: string | null; applications: { programs: Prog } | null } | null;
+      return [m.id as string, { subject: m.subject as string | null, purpose: m.purpose as string | null, appId: t?.application_id ?? null, prog: t?.applications?.programs ?? null }];
+    }),
+  );
+
+  const out: HistoryItem[] = [];
+  for (const g of grants ?? []) {
+    out.push({ at: g.created_at as string, dir: "in", amount: Number(g.amount), title: grantTitle(g.source as string, g.reference as string | null), detail: null, status: "added", expires: (g.expires_at as string | null) ?? null, left: Number(g.remaining) });
+  }
+  const REQUEST: Record<string, string> = { fee_waiver: "Fee waiver request", aid_reconsideration: "Aid reconsideration request", assistantship_inquiry: "Assistantship enquiry", scholarship_inquiry: "Scholarship enquiry" };
+  for (const u of uses ?? []) {
+    const status = u.status === "held" ? "held" : u.status === "released" ? "returned" : "spent";
+    const at = (status === "spent" && u.kind === "application" ? (u.settled_at ?? u.created_at) : u.created_at) as string;
+    const n = Number(u.amount);
+    if (u.kind === "application") {
+      const p = app.get(u.ref as string) ?? null;
+      out.push({ at, dir: "out", amount: n, title: p ? `Application: ${school(p) ?? p.name}` : "An application", detail: p?.name ?? null, status, href: UUID.test(u.ref as string) ? `/applications/${u.ref}` : undefined });
+    } else if (u.kind === "check") {
+      const p = job.get(u.ref as string);
+      out.push({ at, dir: "out", amount: n, title: p?.school ? `Checked ${p.school.split(",")[0]}` : "Checked a programme", detail: p?.program ?? null, status });
+    } else {
+      const m = msg.get(u.ref as string);
+      const where = m?.prog ? school(m.prog) : null;
+      out.push({ at, dir: "out", amount: n, title: `${REQUEST[m?.purpose ?? ""] ?? "Funding request"}${where ? ` to ${where}` : ""}`, detail: m?.subject ?? null, status, href: m?.appId ? `/applications/${m.appId}` : `/messages?m=${u.ref}` });
+    }
+  }
+  return out.sort((a, b) => b.at.localeCompare(a.at));
 }

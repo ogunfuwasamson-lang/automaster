@@ -3,10 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Sparkles } from "lucide-react";
+import { Check, FileUp, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Sparkles, Mail, CalendarDays, CircleCheck } from "lucide-react";
 import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Wordmark } from "@/components/wordmark";
 import { chipClass, Tag } from "@/components/ui/chip";
@@ -22,13 +22,34 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-// three screens, then the agents start: what, where, and the first matches (with the CV ask, now that there's a
-// reason to give it). the rest (passport name, gmail, the profile chapters) is asked for when a form needs it
-// (lib/kickoff): six screens of asks before anything to look at lost most people (nov 2026)
-const STEPS = ["What you're applying for", "Where to study", "Your first matches"];
-const STEP_ICON = [GraduationCap, Globe2, Sparkles];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your CV"];
+// four screens, then the agents start: what, where, the first matches (with the CV ask, now that there's a reason
+// to give it), and gmail and the calendar, so the agents can act for you. the rest (passport name, the profile
+// chapters) is asked for when a form needs it (lib/kickoff): six screens of asks before anything to look at lost
+// most people (nov 2026). gmail and the calendar come last, after the matches, and either can be skipped: without
+// gmail an application waits whenever a portal emails a code (founder's call, 24 nov 2026: ask for both in setup)
+const STEPS = ["What you're applying for", "Where to study", "Your first matches", "Gmail and calendar"];
+const STEP_ICON = [GraduationCap, Globe2, Sparkles, Mail];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your CV", "So the agents can act for you"];
+const MATCHES = 3;
+const CONNECT = 4;
 const LAST = STEPS.length;
+
+const MAIL_NOTICE: Record<string, [string, boolean]> = {
+  connected: ["Gmail connected.", true],
+  declined: ["You cancelled on Google's screen, so nothing was connected.", false],
+  scope: ["Google didn't grant the Gmail permissions. Try again and leave each one ticked.", false],
+  expired: ["That link expired. Try again.", false],
+  error: ["Couldn't connect Gmail. Try again.", false],
+  unavailable: ["Connecting Gmail isn't switched on yet. You can do it later in Settings.", false],
+  down: ["Connecting Gmail isn't working on our side right now. We've been alerted; try again later in Settings.", false],
+};
+const CAL_NOTICE: Record<string, [string, boolean]> = {
+  connected: ["Google Calendar connected. Your deadlines are going on it now.", true],
+  declined: ["You cancelled on Google's screen, so nothing was connected.", false],
+  expired: ["That link expired. Try again.", false],
+  error: ["Couldn't connect Google Calendar. Try again.", false],
+  unavailable: ["Connecting a calendar isn't switched on yet. School events come as email invites instead.", false],
+};
 
 type Match = {
   programId: string;
@@ -70,6 +91,8 @@ export function Onboarding(props: {
   maxRegions: number;
   docCount: number;
   hasCv: boolean;
+  gmail: { available: boolean; email: string | null; active: boolean; composio: boolean; notice: string | null };
+  calendar: { available: boolean; connected: boolean; notice: string | null };
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
@@ -101,7 +124,7 @@ export function Onboarding(props: {
 
   // the matches screen asks the library as soon as it opens (the regions were saved on the way in)
   useEffect(() => {
-    if (step !== LAST) return;
+    if (step !== MATCHES) return;
     let live = true;
     setMatches(null);
     // someone who came from the public matcher skipped the first screen: their time zone is saved here instead
@@ -327,7 +350,7 @@ export function Onboarding(props: {
               </div>
             )}
 
-            {step === LAST && (
+            {step === MATCHES && (
               <div className="space-y-7">
                 <div>
                   <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">{matches && !matches.length ? "Your agents are ready to search" : "Your first matches"}</h1>
@@ -396,18 +419,112 @@ export function Onboarding(props: {
                 <WhatsAppChannel variant="compact" />
 
                 <div className="flex flex-wrap gap-3">
-                  <Button size="lg" disabled={busy || !!uploading} onClick={start}>
-                    {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
-                    {busy ? "Starting your agents…" : hasCv ? "Start my agents" : "Continue without a CV"}
+                  <Button
+                    size="lg"
+                    disabled={busy || !!uploading}
+                    onClick={() => {
+                      // the agents start on the shortlist now, while gmail and the calendar are connected (safe to call again)
+                      void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
+                      setStep(CONNECT);
+                    }}
+                  >
+                    {hasCv ? "Continue" : "Continue without a CV"}
                   </Button>
                   <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
                 </div>
               </div>
             )}
+
+            {step === CONNECT && (
+              <Connect gmail={props.gmail} calendar={props.calendar} busy={busy} onStart={start} onBack={() => setStep(MATCHES)} />
+            )}
           </motion.section>
         </AnimatePresence>
         </div>
       </main>
+    </div>
+  );
+}
+
+// the last screen: gmail (portal codes, sending as you, replies) and google calendar (deadlines and school events).
+// both go through google's own screen and come back here (api/mail/callback, api/calendar/callback)
+function Connect({ gmail, calendar, busy, onStart, onBack }: { gmail: { available: boolean; email: string | null; active: boolean; composio: boolean; notice: string | null }; calendar: { available: boolean; connected: boolean; notice: string | null }; busy: boolean; onStart: () => void; onBack: () => void }) {
+  const mailDone = gmail.active || !gmail.available;
+  const calDone = calendar.connected || !calendar.available;
+  const done = mailDone && calDone;
+  const mn = gmail.notice ? MAIL_NOTICE[gmail.notice] : null;
+  const cn = calendar.notice ? CAL_NOTICE[calendar.notice] : null;
+  const note = (n: [string, boolean] | null) => (n ? <p role="status" className={`rounded-xl border px-3.5 py-2.5 text-sm ${n[1] ? "border-go/40 bg-go/8" : "border-stop/40 bg-stop/8"}`}>{n[0]}</p> : null);
+  return (
+    <div className="space-y-7">
+      <div>
+        <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Connect Gmail and your calendar</h1>
+        <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">So your agents can act for you. About a minute on Google&apos;s screens, and you can disconnect either one in Settings.</p>
+      </div>
+
+      <section className={`rounded-2xl border p-5 ${gmail.active ? "border-go/30 bg-go/[0.04]" : "border-accent/30 bg-accent/[0.04]"}`} aria-label="Gmail">
+        <div className="flex items-start gap-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${gmail.active ? "bg-go/10 text-go" : "bg-hero-gradient text-white"}`}>{gmail.active ? <CircleCheck className="size-5" aria-hidden /> : <Mail className="size-5" aria-hidden />}</span>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <p className="text-[17px] font-bold tracking-[-0.02em]">{gmail.active ? `Gmail connected${gmail.email ? `: ${gmail.email}` : ""}` : "Gmail"}</p>
+              <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
+                School portals email a code or a link when the agents create your accounts. With Gmail connected the agents read those and carry on, send the emails you approve from your own address, and show you replies from your schools. They never delete or change anything in your inbox.
+              </p>
+            </div>
+            {note(mn)}
+            {!gmail.available ? (
+              <p className="text-[13px] text-muted">Connecting Gmail isn&apos;t switched on yet. Until it is, drafts open in your own email app.</p>
+            ) : !gmail.active ? (
+              <>
+                {gmail.email ? <p className="text-[13px] text-stop">{gmail.email} needs reconnecting.</p> : null}
+                {gmail.composio ? (
+                  <p className="text-[13px] leading-relaxed text-muted">
+                    Google will ask you to allow <span className="font-medium text-foreground">Composio</span>, the service Ivyward uses to connect to Gmail securely. Leave every permission ticked.
+                  </p>
+                ) : null}
+                {/* a plain link, not next's <Link>: a prefetch would start a connection (api/mail/connect) */}
+                <a href="/api/mail/connect?next=/onboarding" className={buttonClass("primary", "lg")}>
+                  <Mail className="size-4" aria-hidden /> Connect Gmail
+                </a>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className={`rounded-2xl border p-5 ${calendar.connected ? "border-go/30 bg-go/[0.04]" : "border-line bg-surface"}`} aria-label="Google Calendar">
+        <div className="flex items-start gap-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${calendar.connected ? "bg-go/10 text-go" : "bg-neutral-100 text-muted dark:bg-neutral-800"}`}>{calendar.connected ? <CircleCheck className="size-5" aria-hidden /> : <CalendarDays className="size-5" aria-hidden />}</span>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <p className="text-[17px] font-bold tracking-[-0.02em]">{calendar.connected ? "Google Calendar connected" : "Google Calendar"}</p>
+              <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
+                Every application deadline on your list, and the webinars, open days and interviews your schools email you about, go on your calendar with reminders a week, two days and a day before. Ivyward only changes events it added.
+              </p>
+            </div>
+            {note(cn)}
+            {!calendar.available ? (
+              <p className="text-[13px] text-muted">Connecting a calendar isn&apos;t switched on yet, so school events come as email invites.</p>
+            ) : !calendar.connected ? (
+              <a href={`/api/calendar/connect?then=${encodeURIComponent("/onboarding?step=4")}`} className={buttonClass("secondary", "lg")}>
+                <CalendarDays className="size-4" aria-hidden /> Connect Google Calendar
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" variant={done ? "primary" : "ghost"} disabled={busy} onClick={onStart}>
+            {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
+            {busy ? "Starting your agents…" : done ? "Start my agents" : "Skip for now"}
+          </Button>
+          <Button size="lg" variant="ghost" onClick={onBack}>Back</Button>
+        </div>
+        {!mailDone ? <p className="max-w-xl text-[13px] text-muted">Without Gmail, an application stops each time a portal emails a code, until you paste that email into Messages.</p> : null}
+      </div>
     </div>
   );
 }
