@@ -8,7 +8,7 @@ type Overrides = Partial<Record<Angle, AngleSetting>>;
 
 export interface NudgeCtx {
   model: "pack" | "subscription";
-  price: string; // in-app only: "₦10,000 for 5 submissions", "$20 a month"
+  price: string; // in-app only: "₦10,000 for 60 credits", "$20 a month"
   programs: number; // programmes on their list
   essays: number; // essays the agents have drafted
   ready: number; // applications written and waiting to go in
@@ -44,7 +44,7 @@ function applicable(c: NudgeCtx): Angle[] {
 const unlock = (c: NudgeCtx) => (c.model === "pack" ? "Get a pack" : "Go Pro");
 
 function builtIn(angle: Angle, c: NudgeCtx, opts: { prices: boolean }): Nudge {
-  const what = c.model === "pack" ? "a pack of submissions" : "Pro";
+  const what = c.model === "pack" ? "a pack of credits" : "Pro";
   const price = opts.prices ? ` (${c.price})` : "";
   switch (angle) {
     case "deadline": {
@@ -54,21 +54,21 @@ function builtIn(angle: Angle, c: NudgeCtx, opts: { prices: boolean }): Nudge {
         angle,
         headline: `${short(n.school)} closes ${when}`,
         body: `Portals slow down on deadline day. With ${what}${price} in place, the agents fill every page and submit the moment your application is signed, so it's in well before the rush.`,
-        cta: c.model === "pack" ? "Unlock submissions" : "Go Pro and submit",
+        cta: c.model === "pack" ? "Get credits" : "Go Pro and submit",
       };
     }
     case "ready":
       return {
         angle,
         headline: `${plural(c.ready, "application")} ${c.ready === 1 ? "is" : "are"} written and waiting`,
-        body: `The essays are drafted and checked. The last step is the portal: the agents fill it in for you and submit once you sign off. ${c.model === "pack" ? `One pack${price} covers five.` : `Pro${price} covers up to 10 a month.`}`,
+        body: `The essays are drafted and checked. The last step is the portal: the agents fill it in for you and submit once you sign off. ${c.model === "pack" ? `One pack${price} covers five, with credits to spare.` : `Pro${price} covers up to 16 a month.`}`,
         cta: c.ready === 1 ? "Send it in" : "Send them in",
       };
     case "progress":
       return {
         angle,
         headline: c.essays ? `${plural(c.programs, "programme")} found, ${plural(c.essays, "essay")} drafted` : `Your agents found ${plural(c.programs, "programme")} that fit you`,
-        body: `That's the research most applicants never finish. Unlock submissions${price} and the agents carry each application through to the end: forms, documents, essays and the submit button.`,
+        body: `That's the research most applicants never finish. Get credits${price} and the agents carry each application through to the end: forms, documents, essays and the submit button.`,
         cta: unlock(c),
       };
     case "handsoff":
@@ -82,24 +82,24 @@ function builtIn(angle: Angle, c: NudgeCtx, opts: { prices: boolean }): Nudge {
       return {
         angle,
         headline: "Ask the schools for money, too",
-        body: `Fee waivers, scholarship forms and funding emails to schools are submissions as well. The agents find them and draft each one. ${c.model === "pack" ? `A pack${price} lets them send five of anything.` : `Pro${price} lets them send them all month.`}`,
+        body: `Fee waivers, scholarship forms and funding emails to schools are submissions as well. The agents find them and draft each one. Each one uses a single credit. ${c.model === "pack" ? `A pack${price} gives you 60.` : `Pro${price} gives you 160 a month.`}`,
         cta: c.model === "pack" ? "Get a pack" : "Go Pro",
       };
     case "freeleft":
       return {
         angle,
         headline: c.freeLeft ? "One free application left" : "Your free applications are used",
-        body: `Pro${price} takes you to 10 submissions a month: applications, scholarship forms and funding requests. Cancel any time.`,
+        body: `Pro${price} gives you 160 credits a month: an application uses 10, a funding request 1. Cancel any time.`,
         cta: "Go Pro",
       };
     case "value":
       return {
         angle,
-        headline: c.model === "pack" ? "Five submissions, no subscription" : "Up to 10 submissions a month",
+        headline: c.model === "pack" ? "60 credits, no subscription" : "160 credits a month",
         body:
           c.model === "pack"
-            ? `A pack${price} covers five of anything: applications, scholarship forms or funding requests. Credits don't expire, and preparing stays free.`
-            : `Pro${price} covers up to 10 submissions a month, and preparing stays free. Cancel any time from Settings.`,
+            ? `A pack${price} gives you 60 credits for 30 days: 5 applications and 10 programme checks, or funding requests at 1 each.`
+            : `Pro${price} gives you 160 credits a month: an application uses 10. Cancel any time from Settings.`,
         cta: c.model === "pack" ? "Get a pack" : "Go Pro",
       };
   }

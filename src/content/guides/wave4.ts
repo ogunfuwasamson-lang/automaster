@@ -136,7 +136,7 @@ Banks set limits for international card spending, and they change. Check your ba
 
 ## Let the agents do the rest
 
-[Ivyward](/) asks for fee waivers for you, fills in every page, and stops at the fee so you pay on the school's own page. In Nigeria, Ivyward costs ₦10,000 for 5 submissions; see [pricing](/pricing).
+[Ivyward](/) asks for fee waivers for you, fills in every page, and stops at the fee so you pay on the school's own page. In Nigeria, ₦10,000 buys 60 credits, and an application uses 10; see [pricing](/pricing).
 `,
   faq: [
     ["Why was my card declined on the application portal?", "Usually your bank's international spending limit or the card type (some portals refuse prepaid or virtual cards). Try a domiciliary card or the school's payment partner."],

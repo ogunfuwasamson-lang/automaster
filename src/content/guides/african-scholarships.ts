@@ -49,13 +49,13 @@ Other destinations changed too:
 
 ## How Ivyward helps
 
-Ivyward is priced for African applicants: in Africa, preparing applications is free and ₦10,000 (or the local equivalent) covers 5 submissions. The agents shortlist programs and scholarships you're eligible for, factor in current visa rules, draft and fact-check your essays, ask for fee waivers and fill in each portal. You review and sign everything.
+Ivyward is priced for African applicants: in Africa, the checked shortlist is free and ₦10,000 (or the local equivalent) buys 60 credits: an application uses 10. The agents shortlist programs and scholarships you're eligible for, factor in current visa rules, draft and fact-check your essays, ask for fee waivers and fill in each portal. You review and sign everything.
 `,
   faq: [
     ["Can Nigerians still study in the US in 2027?", "New US student visas for Nigerian nationals have been partially suspended since 1 January 2026, though students already holding valid F-1 or J-1 visas are not affected. Check the US Mission in Nigeria's current guidance before applying."],
     ["What is the best fully funded scholarship for Nigerians?", "It depends on your profile. Chevening suits professionals with leadership experience, Commonwealth Master's suits applicants focused on development, and Erasmus Mundus suits those who want a multi-country program. Many applicants apply to several."],
     ["Do I need IELTS to study in the UK from Nigeria?", "Not always. Many UK universities accept an English credit in WAEC or NECO, or a degree taught in English. Check each university and scholarship."],
-    ["How much does Ivyward cost in Nigeria?", "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. Each application the agents prepare and submit uses one credit. Submissions come in packs: ₦10,000 covers 5 applications, scholarship forms or funding requests, with no subscription. Invite a friend and you both get one free."],
+    ["How much does Ivyward cost in Nigeria?", "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents' work is paid in credits: ₦10,000 buys 60 that last 30 days; an application uses 10, checking a programme or scholarship uses 1, and a funding request 1. Invite a friend and you both get 10."],
   ],
   sources: [
     ["Nairametrics: US says Nigerian students with valid F-1 and J-1 visas unaffected (Feb 2026)", "https://nairametrics.com/2026/02/24/visa-restrictions-us-says-nigerian-students-with-valid-f1-j1-visas-unaffected/"],

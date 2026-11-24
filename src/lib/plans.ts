@@ -1,8 +1,8 @@
 // plans and their limits. every applicant gets the whole product; what differs is how they pay (lib/geo-pricing).
 // the agents work for an account once it has a submission credit, bought or earned through an invite
 // (lib/credit-rules); aiBudgetUsd is only a monthly backstop against a fault, not an allowance anyone is sold.
-//   free: in africa each submission is paid for (a pack of 5); elsewhere the first 3 applications are free.
-//   pro:  $20 a month (outside africa): up to 10 submissions a month. counts only while paid up.
+//   free: pays in credits (lib/credit-prices): in africa a pack of 60.
+//   pro:  $20 a month (outside africa): 160 credits a month. counts only while paid up.
 
 export type PlanId = "free" | "pro";
 

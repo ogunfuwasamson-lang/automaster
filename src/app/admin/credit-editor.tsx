@@ -19,7 +19,7 @@ const ANGLE_LABEL: Record<Angle, [string, string]> = {
 };
 
 const SAMPLE: Record<"pack" | "subscription", NudgeCtx> = {
-  pack: { model: "pack", price: "₦10,000 for 5 submissions", programs: 12, essays: 4, ready: 2, nearest: { school: "University of Leeds", days: 9 }, freeLeft: null },
+  pack: { model: "pack", price: "₦10,000 for 60 credits", programs: 12, essays: 4, ready: 2, nearest: { school: "University of Leeds", days: 9 }, freeLeft: null },
   subscription: { model: "subscription", price: "$20 a month", programs: 12, essays: 4, ready: 2, nearest: { school: "University of Leeds", days: 9 }, freeLeft: 1 },
 };
 

@@ -4,16 +4,18 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { notify } from "@/lib/notify";
 import { SITE } from "@/lib/site";
+import { CREDITS } from "@/lib/credit-prices";
+import { grant } from "@/lib/wallet";
 
-// invite links (rules approved by the founder, 21 nov 2026; the credit model, 24 nov 2026):
-//   - when a friend who signed up through your link finishes setup, you both get a free submission credit: one
-//     application the agents prepare and submit. a credit earned this way switches the agents on (lib/credit-rules)
-//   - GROUP_SIZE - 1 (4) friends who finish setup make a study group of 5: you and each of them get GROUP_REQUESTS
-//     free funding requests (fee waiver, scholarship and assistantship emails)
+// invite links (rules approved by the founder, 21 nov 2026; the credit wallet, 24 nov 2026):
+//   - when a friend who signed up through your link finishes setup, you both get CREDITS.invite credits, enough for
+//     one application, and they don't expire. credits switch the agents on (lib/credit-rules)
+//   - GROUP_SIZE - 1 (4) friends who finish setup make a study group of 5: you and each of them get CREDITS.group
+//     more (a funding request each)
 // rewards wait for setup, not signup, so an empty account earns nothing; capped so it can't be farmed.
 export const REFERRAL_CAP = 25;
 export const GROUP_SIZE = 5;
-export const GROUP_REQUESTS = 3;
+export const GROUP_REQUESTS = CREDITS.group;
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
 function newCode() {
@@ -38,16 +40,18 @@ export async function referralCode(userId: string): Promise<string | null> {
 
 export const inviteUrl = (code: string) => `${SITE.url}/?ref=${code}`;
 
+// bonus: credits earned through invites and study groups (lib/wallet); requests: free funding requests from a study
+// group before the wallet, if unused
 export async function referralStats(userId: string) {
   const db = admin();
-  const [{ data: me }, { count: joined }, { count: finished }] = await Promise.all([
-    db.from("profiles").select("bonus_submissions").eq("id", userId).maybeSingle(),
+  const [{ data: earned }, { count: joined }, { count: finished }, { data: req }] = await Promise.all([
+    db.from("credit_grants").select("amount").eq("user_id", userId).in("source", ["invite", "group"]),
     db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", userId),
     db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", userId).not("referral_rewarded_at", "is", null),
+    db.from("profiles").select("bonus_requests").eq("id", userId).maybeSingle(),
   ]);
-  // free funding requests arrive with the migration that adds the column: read it separately so stats still load before
-  const { data: req } = await db.from("profiles").select("bonus_requests").eq("id", userId).maybeSingle();
-  return { bonus: me?.bonus_submissions ?? 0, joined: joined ?? 0, finished: finished ?? 0, requests: Number((req as { bonus_requests?: number } | null)?.bonus_requests ?? 0) };
+  const bonus = (earned ?? []).reduce((a, g) => a + Number(g.amount || 0), 0);
+  return { bonus, joined: joined ?? 0, finished: finished ?? 0, requests: Number((req as { bonus_requests?: number } | null)?.bonus_requests ?? 0) };
 }
 
 type Source = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; landing?: string; referrer?: string; at?: string };
@@ -80,22 +84,20 @@ export async function rewardOnIntake(userId: string) {
   const { data: claimed } = await db.from("profiles").update({ referral_rewarded_at: new Date().toISOString() }).eq("id", userId).is("referral_rewarded_at", null).select("id");
   if (!claimed?.length) return;
   const inviterId = me.referred_by as string;
-  await addBonus(userId, "bonus_submissions", 1);
-  const { forgetTier } = await import("@/lib/credit");
-  forgetTier(userId);
-  await notify({ userId, key: "referral:joined", kind: "info", title: "You've got a free application", body: "You joined through a friend's invite and finished setup, so you both get one application prepared and submitted free. The agents are checking your fit for each programme on your shortlist.", href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
+  await grant(userId, CREDITS.invite, "invite", null, `${userId}:joined`);
+  await notify({ userId, key: "referral:joined", kind: "info", title: `You've got ${CREDITS.invite} free credits`, body: `You joined through a friend's invite and finished setup, so you both get ${CREDITS.invite} credits: enough for one application, prepared and submitted. The agents are checking your fit for each programme on your shortlist.`, href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
   const { data: inviter } = await db.from("profiles").select("referral_cap, group_rewarded_at").eq("id", inviterId).maybeSingle();
   const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", inviterId).not("referral_rewarded_at", "is", null);
   const done = count ?? 0;
   await logEvent({ userId: inviterId, actor: "system", action: "referral.intake_done", context: { friend: userId, done } }).catch(() => {});
   if (done > (inviter?.referral_cap ?? REFERRAL_CAP)) return;
-  await addBonus(inviterId, "bonus_submissions", 1);
+  await grant(inviterId, CREDITS.invite, "invite", null, `${userId}:inviter`);
   await notify({
     userId: inviterId,
     key: `referral:${userId}`,
     kind: "info",
-    title: "A friend finished setup: you've got a free application",
-    body: "Someone you invited finished setup on Ivyward, so you both get one application prepared and submitted free. Invite more friends for more.",
+    title: `A friend finished setup: you've got ${CREDITS.invite} free credits`,
+    body: `Someone you invited finished setup on Ivyward, so you both get ${CREDITS.invite} credits: enough for one application, prepared and submitted. Invite more friends for more.`,
     href: "/unlock",
     actionLabel: "Invite more",
   }).catch(() => {});
@@ -104,26 +106,16 @@ export async function rewardOnIntake(userId: string) {
   if (done >= GROUP_SIZE - 1 && !inviter?.group_rewarded_at) await rewardGroup(inviterId).catch(() => {});
 }
 
-// a study group of five: the inviter and the first four friends who finished setup each get GROUP_REQUESTS free
-// funding requests. once per inviter.
+// a study group of five: the inviter and the first four friends who finished setup each get GROUP_REQUESTS more
+// credits. once per inviter.
 async function rewardGroup(inviterId: string) {
   const db = admin();
   const { data: claimed, error } = await db.from("profiles").update({ group_rewarded_at: new Date().toISOString() }).eq("id", inviterId).is("group_rewarded_at", null).select("id");
   if (error || !claimed?.length) return;
   const { data: friends } = await db.from("profiles").select("id").eq("referred_by", inviterId).not("referral_rewarded_at", "is", null).order("referral_rewarded_at", { ascending: true }).limit(GROUP_SIZE - 1);
   for (const id of [inviterId, ...(friends ?? []).map((f) => f.id as string)]) {
-    await addBonus(id, "bonus_requests", GROUP_REQUESTS);
-    await notify({ userId: id, key: `group:${inviterId}`, kind: "info", title: `Study group of ${GROUP_SIZE}: ${GROUP_REQUESTS} free funding requests`, body: `${GROUP_SIZE} of you joined Ivyward together, so you each get ${GROUP_REQUESTS} free funding requests: fee waiver, scholarship and assistantship emails the agents send for you.`, href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
+    await grant(id, GROUP_REQUESTS, "group", null, `${inviterId}:${id}`).catch(() => -1);
+    await notify({ userId: id, key: `group:${inviterId}`, kind: "info", title: `Study group of ${GROUP_SIZE}: ${GROUP_REQUESTS} more credits`, body: `${GROUP_SIZE} of you joined Ivyward together, so you each get ${GROUP_REQUESTS} more credits: enough for ${GROUP_REQUESTS} funding requests, the fee waiver, scholarship and assistantship emails the agents send for you.`, href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
   }
   await logEvent({ userId: inviterId, actor: "system", action: "referral.group_rewarded", context: { members: 1 + (friends?.length ?? 0) } }).catch(() => {});
-}
-
-async function addBonus(userId: string, column: "bonus_submissions" | "bonus_requests", n: number) {
-  const db = admin();
-  const { error } = await db.rpc("add_bonus", { uid: userId, col: column, n });
-  if (!error) return;
-  // before the migration: read and write (a rare race costs at most one bonus)
-  const { data } = await db.from("profiles").select(column).eq("id", userId).maybeSingle();
-  const cur = Number((data as Record<string, number> | null)?.[column] ?? 0);
-  await db.from("profiles").update({ [column]: cur + n }).eq("id", userId);
 }

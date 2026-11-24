@@ -12,6 +12,7 @@ import { drain } from "@/lib/jobs";
 import { canTransition, type AppStatus } from "@/lib/app-state";
 import { ATTESTATION } from "@/lib/attest";
 import { queueRunner } from "@/agents/runner";
+import { settleHold } from "@/lib/wallet";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (b.action === "mark_submitted") {
       if (status !== "packet_approved") return NextResponse.json({ error: "approve the packet first" }, { status: 400 });
       await move("submitted");
+      // the agents prepared it: the credits set aside for it are spent (lib/wallet)
+      await settleHold(uid, id).catch(() => {});
       await logEvent({ userId: uid, actor: "user", action: "application.submitted", applicationId: id, programId: app.program_id, channel: "portal" });
       await recordOutcome({ userId: uid, applicationId: id, kind: "proxy", label: "submitted", source: "user" });
       await afterSubmitted(uid, id, { byAgents: false }).catch(() => null);

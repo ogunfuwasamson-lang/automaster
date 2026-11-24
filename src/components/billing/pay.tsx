@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { CREDITS, PRICE_LINE } from "@/lib/credit-prices";
 
 async function go(body: Record<string, unknown>) {
   const r = await fetch("/api/billing/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -12,7 +13,7 @@ async function go(body: Record<string, unknown>) {
   window.location.assign(j.url);
 }
 
-// buy a pack of submissions (africa). from an application or request it goes in straight after paying.
+// buy a pack of credits (africa). from an application or request it goes in straight after paying.
 export function BuyPack({ label, applicationId, messageId, back, size = "md", variant = "primary", children }: { label: string; applicationId?: string; messageId?: string; back?: "onboarding" | "settings"; size?: "sm" | "md" | "lg"; variant?: "primary" | "secondary" | "accent"; children?: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -43,7 +44,7 @@ export function PayToSubmit({ applicationId, kind, label, school, highlight, not
     return (
       <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
         <p className="font-serif text-[20px] leading-snug">Ready: this one goes in on the 1st</p>
-        <p className="mt-1 text-[14px] text-muted">{note ?? `Pro covers 10 submissions a month and this month's are used. The agents submit ${school} as soon as the new month starts.`}</p>
+        <p className="mt-1 text-[14px] text-muted">{note ?? `This month's credits are used. The agents submit ${school} as soon as the new month's arrive.`}</p>
       </section>
     );
   if (kind === "pack")
@@ -51,7 +52,7 @@ export function PayToSubmit({ applicationId, kind, label, school, highlight, not
       <section className={`flex flex-wrap items-center gap-4 rounded-2xl border bg-surface p-5 shadow-card ${highlight ? "border-brand ring-4 ring-brand/10" : "border-brand/30"}`}>
         <div className="min-w-0 flex-1">
           <p className="font-serif text-[20px] leading-snug">Ready to submit</p>
-          <p className="mt-1 text-[14px] text-muted">The agents filled every page of your {school} application. Buy a pack of submissions ({label}) and it goes in straight away; the rest are there for your next applications.</p>
+          <p className="mt-1 text-[14px] text-muted">The agents filled every page of your {school} application. Submitting uses {CREDITS.application} credits: buy {label} and it goes in straight away; the rest are there for your next applications and checks.</p>
         </div>
         <BuyPack label={label} applicationId={applicationId}>Buy a pack</BuyPack>
       </section>
@@ -85,8 +86,8 @@ export function PayToSubmit({ applicationId, kind, label, school, highlight, not
   );
 }
 
-// settings: how this applicant pays, and the monthly plan's controls
-export function PlanCard(p: { model: "pack" | "subscription"; label: string; each?: string; size?: number; credits?: number; bonus?: number; free: number; used: number; paidThisMonth: number; pro: boolean; until: string | null; cancelled: boolean; ready: boolean }) {
+// settings: the credit wallet (lib/wallet): what's left, what's set aside, what expires next, and how to get more
+export function PlanCard(p: { model: "pack" | "subscription"; label: string; credits: number; held: number; expiring: { credits: number; at: string } | null; bonus?: number; pro: boolean; until: string | null; cancelled: boolean; ready: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   async function manage(action: "portal" | "cancel") {
@@ -99,36 +100,33 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; eac
     toast.success("Pro won't renew. It keeps working until the end of the month you paid for.");
     router.refresh();
   }
-  const until = p.until ? new Date(p.until).toLocaleDateString(undefined, { day: "numeric", month: "long" }) : null;
-  if (p.model === "pack") {
-    const left = (p.credits ?? 0) + (p.bonus ?? 0);
-    return (
-      <div className="space-y-3 text-sm">
-        <p>
-          <span className="font-serif text-[28px] leading-none tabular">{left}</span> <span className="font-medium">submission{left === 1 ? "" : "s"} left</span>
-          {p.bonus ? <span className="text-muted"> ({p.bonus} free)</span> : null}
-        </p>
-        <p className="text-muted">
-          Each application the agents prepare and submit uses one: {p.label} ({p.each} each), and scholarship forms and funding requests use one each too. No subscription, and they don&apos;t expire. Invite a friend and you both get one free.
-        </p>
-        <BuyPack label={p.label} back="settings" size="sm" variant={left ? "secondary" : "primary"}>{left ? "Buy another pack" : `Buy ${p.label}`}</BuyPack>
-        {!p.ready && <p className="text-xs text-muted">Payments open shortly.</p>}
-      </div>
-    );
-  }
+  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long" });
+  const how =
+    p.model === "pack"
+      ? `${p.label}, lasting ${CREDITS.packDays} days.`
+      : p.pro
+        ? `Pro gives you ${CREDITS.pro} a month. ${p.cancelled ? `It ends on ${p.until ? day(p.until) : "the end of the month"}.` : `Renews on ${p.until ? day(p.until) : "the 1st"}.`}`
+        : `Pro is ${p.label} for ${CREDITS.pro} credits a month.`;
   return (
     <div className="space-y-3 text-sm">
-      {p.pro ? (
-        <p>
-          You&apos;re on <span className="font-medium">Pro</span>: up to 10 submissions a month. {p.cancelled ? `It ends on ${until}.` : `Renews on ${until}.`}
+      <p>
+        <span className="font-serif text-[28px] leading-none tabular">{p.credits}</span> <span className="font-medium">credit{p.credits === 1 ? "" : "s"} to use</span>
+        {p.held ? <span className="text-muted"> · {p.held} set aside for applications in progress</span> : null}
+      </p>
+      {p.expiring ? (
+        <p className="text-muted">
+          {p.expiring.credits} expire on {day(p.expiring.at)}.
         </p>
-      ) : (
-        <p>
-          Free: <span className="font-medium tabular">{Math.min(p.used, p.free)} of {p.free}</span> free applications used. Pro is {p.label} for up to 10 submissions a month.
-        </p>
-      )}
+      ) : null}
+      <p className="text-muted">
+        {PRICE_LINE} {how} Invite a friend and you both get {CREDITS.invite}, which don&apos;t expire.
+      </p>
+      {p.bonus ? <p className="text-muted">You also have a free submission from before credits: it pays for an application you&apos;ve already signed.</p> : null}
       <div className="flex flex-wrap gap-2">
-        {!p.pro && (
+        {p.model === "pack" ? (
+          <BuyPack label={p.label} back="settings" size="sm" variant={p.credits >= CREDITS.application ? "secondary" : "primary"}>{`Buy ${p.label}`}</BuyPack>
+        ) : null}
+        {p.model === "subscription" && !p.pro && (
           <Button
             size="sm"
             disabled={!!busy || !p.ready}

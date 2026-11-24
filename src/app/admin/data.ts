@@ -55,8 +55,9 @@ export interface AdminUser {
   deactivated: boolean; // staff turned the account off: no sign-in, agents stopped
   gmail: { email: string; status: string } | null;
   budget: number; // this month's AI allowance
-  credits: number; // bought submission credits left
-  bonus: number; // free submission credits left (the welcome one, invites)
+  credits: number; // credits in the wallet to use now (lib/wallet)
+  held: number; // credits set aside for applications in progress
+  bonus: number; // the free submission accounts got from 14 to 24 nov, if unused
   payments: Payment[];
 }
 
@@ -144,7 +145,8 @@ export async function loadAdmin() {
   const db = admin();
   const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const month = monthStartUTC();
-  const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
+  const now = new Date().toISOString();
+  const [team, profiles, apps, steps, activity, signin, mail, docs, pays, grants, held] = await Promise.all([
     teamIds(),
     every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, submission_credits, bonus_submissions, signup_source, referred_by, referral_rewarded_at, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
@@ -155,7 +157,14 @@ export async function loadAdmin() {
     every<{ user_id: string; email: string; status: string }>((a, b) => db.from("mail_accounts").select("user_id, email, status").range(a, b)),
     every<{ user_id: string; kind: string }>((a, b) => db.from("documents").select("user_id, kind").range(a, b)),
     every<{ user_id: string; kind: string; amount: number | null; currency: string | null; created_at: string }>((a, b) => db.from("billing_events").select("user_id, kind, amount, currency, created_at").order("created_at", { ascending: false }).range(a, b)),
+    // the credit wallet (lib/wallet): unexpired credits, and credits set aside for applications in progress
+    every<{ user_id: string; remaining: number }>((a, b) => db.from("credit_grants").select("user_id, remaining").gt("remaining", 0).or(`expires_at.is.null,expires_at.gt.${now}`).range(a, b)).catch(() => []),
+    every<{ user_id: string; amount: number }>((a, b) => db.from("credit_uses").select("user_id, amount").eq("status", "held").range(a, b)).catch(() => []),
   ]);
+  const walletOf = new Map<string, number>();
+  for (const g of grants) walletOf.set(g.user_id, (walletOf.get(g.user_id) ?? 0) + Number(g.remaining || 0));
+  const heldOf = new Map<string, number>();
+  for (const h of held) heldOf.set(h.user_id, (heldOf.get(h.user_id) ?? 0) + Number(h.amount || 0));
 
   const policy = await creditPolicy().catch(() => DEFAULT_POLICY);
   const logins = signin.out;
@@ -196,9 +205,6 @@ export async function loadAdmin() {
   const appsOf = new Map<string, AdminApp[]>();
   for (const a of allApps) appsOf.set(a.userId, [...(appsOf.get(a.userId) ?? []), a]);
 
-  // friends each account invited who finished setup: each one earned the account a free application
-  const friendsDone = new Map<string, number>();
-  for (const p of profiles) if (p.referred_by && p.referral_rewarded_at) friendsDone.set(p.referred_by, (friendsDone.get(p.referred_by) ?? 0) + 1);
   const users: AdminUser[] = profiles.map((p) => {
     const j = trips.get(p.id)!;
     const reached = [...MILESTONES].reverse().find((m) => j.at[m.key]);
@@ -244,8 +250,7 @@ export async function loadAdmin() {
               tierOf({
                 staff: false,
                 paid: paid.length > 0 || p.plan === "pro",
-                credits: p.submission_credits ?? 0,
-                earned: p.referral_rewarded_at || (friendsDone.get(p.id) ?? 0) > 0 ? (p.bonus_submissions ?? 0) : 0,
+                credits: (walletOf.get(p.id) ?? 0) + (heldOf.get(p.id) ?? 0),
                 signedWithFree: mine.some((a) => a.status === "packet_approved") && (p.bonus_submissions ?? 0) > 0,
               }),
               planned,
@@ -257,7 +262,8 @@ export async function loadAdmin() {
           policy.staffMonthlyUsd,
         ),
       ),
-      credits: p.submission_credits ?? 0,
+      credits: walletOf.get(p.id) ?? 0,
+      held: heldOf.get(p.id) ?? 0,
       bonus: p.bonus_submissions ?? 0,
       payments: paid,
     };

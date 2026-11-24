@@ -7,16 +7,16 @@ const spend = (research = 0, writing = 0, core = 0): Spend => ({ total: research
 
 describe("who the agents work for: one credit, one application", () => {
   const s = { paid: false, staff: false };
-  it("a free account is locked until it has a credit, bought or earned through an invite", () => {
+  it("a free account is locked until it has credits, bought or earned through an invite", () => {
     expect(tierOf(s)).toBe("locked");
     expect(tierOf({ ...s, credits: 5 })).toBe("paid");
-    expect(tierOf({ ...s, earned: 1 })).toBe("paid");
+    expect(tierOf({ ...s, credits: 10 })).toBe("paid");
     expect(tierOf({ ...s, paid: true })).toBe("paid");
     expect(tierOf({ ...s, paid: true, credits: 0 })).toBe("paid");
     expect(tierOf({ ...s, staff: true })).toBe("staff");
   });
   it("the welcome submission alone doesn't start the agents, unless it pays for an application already signed", () => {
-    expect(tierOf({ ...s, earned: 0 })).toBe("locked");
+    expect(tierOf({ ...s, credits: 0 })).toBe("locked");
     expect(tierOf({ ...s, signedWithFree: true })).toBe("paid");
   });
 });
@@ -81,3 +81,19 @@ describe("policy", () => {
   });
 });
 
+
+describe("the credit price list", () => {
+  it("a pack is 5 applications and 10 checks; an invite covers one application", async () => {
+    const { CREDITS, applicationsFor, searchSize } = await import("@/lib/credit-prices");
+    expect(CREDITS.pack).toBe(60);
+    expect(CREDITS.packDays).toBe(30);
+    expect(CREDITS.pro).toBe(160);
+    expect(applicationsFor(CREDITS.pack - 10 * CREDITS.check)).toBe(5);
+    expect(applicationsFor(CREDITS.invite)).toBe(1);
+    expect(applicationsFor(9)).toBe(0);
+    // a search never checks more than the wallet pays for, or more than ten a run
+    expect(searchSize(20, 60)).toBe(10);
+    expect(searchSize(20, 4)).toBe(4);
+    expect(searchSize(20, 0)).toBe(0);
+  });
+});

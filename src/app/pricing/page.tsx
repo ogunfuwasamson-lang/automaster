@@ -11,7 +11,7 @@ import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Start free with a shortlist of programmes Ivyward has already checked. Each application the agents prepare and submit uses one credit: ₦10,000 buys 5 in Africa, Pro is $20 a month for up to 10 elsewhere. Invite a friend and you both get one free.",
+  description: "Start free with a shortlist of programmes Ivyward has already checked. The agents' work is paid in credits: an application uses 10, checking a programme uses 1. ₦10,000 buys 60 in Africa; Pro is $20 a month for 160 elsewhere. Invite a friend and you both get 10.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -21,7 +21,7 @@ const FREE = [
   "Deadlines, fees and funding for each",
 ];
 
-// what a credit (one application) buys
+// what credits buy (lib/credit-prices)
 const AGENTS = [
   "Essays drafted and fact-checked",
   "Portals filled in and submitted",
@@ -67,26 +67,26 @@ export default async function Pricing() {
       <main className="relative z-10 mx-auto max-w-6xl px-5 pb-24 pt-16 text-center">
         {p.model === "pack" ? (
           <>
-            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. {p.label.replace(/ for \d+ submissions$/, "")} for {p.size} applications.</h1>
+            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. {p.label.replace(/ for \d+ credits$/, "")} for {p.size} credits.</h1>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Free" price="Free" per="" note="Invite a friend and you both get one application free." items={FREE} cta="Start free" />
+              <Card title="Free" price="Free" per="" note="Invite a friend and you both get 10 credits, enough for one application." items={FREE} cta="Start free" />
               <Card
                 featured
-                title={`${p.size} applications`}
-                price={p.label.replace(/ for \d+ submissions$/, "")}
-                per={`${p.each} each`}
-                note="Prepared and submitted by the agents. No subscription."
-                items={[...AGENTS, "No expiry"]}
+                title={`${p.size} credits`}
+                price={p.label.replace(/ for \d+ credits$/, "")}
+                per="for 30 days"
+                note="An application uses 10, checking a programme or scholarship uses 1. No subscription."
+                items={[...AGENTS, "5 applications and 10 checks"]}
                 cta="Start free"
               />
             </div>
           </>
         ) : (
           <>
-            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. Pro for up to 10 applications a month.</h1>
+            <h1 className="text-[44px] leading-[1.04] sm:text-[64px]">Start free. Pro for 160 credits a month.</h1>
             <div className="mx-auto mt-14 grid max-w-4xl items-stretch gap-5 md:grid-cols-2">
-              <Card title="Free" price="$0" per="" note="Invite a friend and you both get one application free." items={FREE} cta="Start free" />
-              <Card featured title="Pro" price="$20" per="a month" note="Prepared and submitted by the agents. Cancel any time." items={[...AGENTS, "Up to 10 applications a month"]} cta="Start free, upgrade later" />
+              <Card title="Free" price="$0" per="" note="Invite a friend and you both get 10 credits, enough for one application." items={FREE} cta="Start free" />
+              <Card featured title="Pro" price="$20" per="a month" note="An application uses 10, checking a programme or scholarship uses 1. Cancel any time." items={[...AGENTS, "160 credits a month"]} cta="Start free, upgrade later" />
             </div>
           </>
         )}

@@ -59,7 +59,7 @@ export async function unlockNotice(userId: string, placed?: number) {
     kind: "setup",
     urgent: true,
     title: "Get your first application done",
-    body: `${have}For the agents to prepare and submit an application, buy a pack of 5, or invite a friend: when they finish setup, you both get one application free.`,
+    body: `${have}For the agents to prepare and submit an application, buy credits, or invite a friend: when they finish setup, you both get 10, enough for one application.`,
     href: "/unlock",
     actionLabel: "See how",
   }).catch(() => {});

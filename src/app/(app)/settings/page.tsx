@@ -38,11 +38,6 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   // back from a Bachs checkout: confirm it now rather than waiting for the webhook
   if (paid) await confirmReturn(uid, paid).catch(() => null);
   const bill = await billingState(uid);
-  const SENT = "(submitted,under_review,interview,waitlisted,admitted,accepted,declined,rejected)";
-  const [{ count: used }, { count: paidThisMonth }] = await Promise.all([
-    db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", uid).or(`status.in.${SENT},paid_at.not.is.null`),
-    db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", uid).eq("kind", "submission").gte("created_at", new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString()),
-  ]);
   const [{ data: grants }, { data: prof }, { data: acct }, { data: tokens }] = await Promise.all([
     auth.sb.from("grants").select("capability, mode, undo_seconds"),
     db.from("profiles").select("fee_envelope_cents, digest_enabled, plan").eq("id", uid).single(),
@@ -90,9 +85,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         </div>
       </Group>
 
-      <Group title="Plan" description={bill.pricing.model === "pack" ? "Each application the agents prepare and submit uses one submission." : "Free to start; Pro covers up to 10 applications a month."}>
+      <Group title="Credits" description="What the agents do is paid in credits: an application, a programme or scholarship check, a funding request.">
         <div id="plan" className="scroll-mt-24">
-          <PlanCard model={bill.pricing.model} label={bill.pricing.label} each={bill.pricing.model === "pack" ? bill.pricing.each : undefined} credits={bill.credits} bonus={bill.bonus} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
+          <PlanCard model={bill.pricing.model} label={bill.pricing.label} credits={bill.credits} held={bill.held} expiring={bill.expiring} bonus={bill.bonus} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
         </div>
       </Group>
 

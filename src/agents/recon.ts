@@ -14,6 +14,10 @@ import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
 import { creditPolicy, tierFor } from "@/lib/credit";
+import { balance, chargeCheck, exempt as walletExempt } from "@/lib/wallet";
+import { searchSize } from "@/lib/credit-prices";
+import { BudgetExceeded } from "@/lib/budget";
+import { NO_CREDITS_REASON } from "@/lib/credit-rules";
 import { daySlot, researchAt } from "@/lib/drop";
 import { screen, targetDeadline } from "@/lib/fit";
 import { canTransition, type AppStatus } from "@/lib/app-state";
@@ -280,7 +284,13 @@ export const recon: Record<string, Handler> = {
     const [{ tier }, policy] = await Promise.all([tierFor(job.user_id), creditPolicy()]);
     // and half that for someone who said they're just exploring
     const sized = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
-    const total = profile.goals.applying === "exploring" && tier !== "paid" && tier !== "staff" ? Math.max(3, Math.ceil(sized / 2)) : sized;
+    const want = profile.goals.applying === "exploring" && tier !== "paid" && tier !== "staff" ? Math.max(3, Math.ceil(sized / 2)) : sized;
+    // each programme it checks costs a credit (lib/credit-prices): a run checks no more than the wallet pays for
+    const total = (await walletExempt(job.user_id)) ? want : searchSize(want, await balance(job.user_id));
+    if (!total) {
+      await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.no_credits", context: { wanted: want } });
+      return { regions: 0, skipped: "no credits" };
+    }
     const { count: runs } = await admin().from("jobs").select("id", { count: "exact", head: true }).eq("user_id", job.user_id).eq("agent", "recon").eq("task", "discover").eq("status", "done");
     const { regions, perRegion } = regionPlan(wanted, total, runs ?? 0);
     // a first shortlist (nothing found for this applicant yet) stays at the front of the queue all the way down
@@ -399,6 +409,9 @@ finish with honest strategy notes for this region: which of their constraints co
       country?: string; region?: string; ranking_note?: string; library_id?: string;
       fresh?: boolean; // a re-check: read the official pages again instead of reusing facts stored in the last 30 days
     };
+    // checking a programme costs a credit, once per job (a retry isn't charged again); programmes from the checked
+    // library (the free shortlist's fit checks) cost nothing (lib/credit-prices)
+    if (!p.library_id && (await chargeCheck(job.user_id, job.id)) === "none") throw new BudgetExceeded(NO_CREDITS_REASON, "research");
     const profile = await getProfile(job.user_id);
     const db = admin();
     const { data: row } = await db.from("profiles").select("target_term").eq("id", job.user_id).single();

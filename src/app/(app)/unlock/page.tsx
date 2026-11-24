@@ -35,11 +35,11 @@ export default async function Unlock() {
   const pack = bill.pricing.model === "pack";
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader title="Get your first application done" description="Each application the agents prepare and submit uses one credit. Buy a pack, or invite a friend and you both get one free." />
+      <PageHeader title="Get your first application done" description="The agents' work is paid in credits: an application uses 10, checking a programme uses 1. Buy a pack, or invite a friend and you both get 10." />
       <div className="grid gap-5 md:grid-cols-2">
         <section className="rounded-3xl border border-line bg-surface px-5 py-5 shadow-card">
           <h2 className="font-semibold">{pack ? "Buy a pack" : "Go Pro"}</h2>
-          <p className="mt-1 text-sm text-muted">{pack ? `${bill.pricing.label}. The agents start straight away.` : "$20 a month for up to 10 applications. The agents start straight away."}</p>
+          <p className="mt-1 text-sm text-muted">{pack ? `${bill.pricing.label}, lasting 30 days. The agents start straight away.` : "$20 a month for 160 credits a month. The agents start straight away."}</p>
           <div className="mt-4">
             {!bachsReady() ? <p className="text-sm text-muted">Payments open shortly.</p> : pack ? <BuyPack label={bill.pricing.label} back="settings">{`Buy ${bill.pricing.label}`}</BuyPack> : <UpgradeLink kind="pro">Go Pro</UpgradeLink>}
           </div>

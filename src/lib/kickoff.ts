@@ -11,7 +11,7 @@ import { canReadMail } from "@/lib/gmail";
 import { queueInstantMatches } from "@/lib/matches";
 import { isLocked, placeLibraryShortlist } from "@/lib/free-tier";
 import { searchesForUser } from "@/lib/credit";
-import { planOf } from "@/lib/plans";
+import { holdApplication, lowCreditNotice, releaseApplication } from "@/lib/wallet";
 import { rewardOnIntake } from "@/lib/referrals";
 
 // a new applicant's first shortlist goes to the front of the queue (jobs run oldest first), so they see programmes
@@ -120,8 +120,8 @@ export async function shortlistFinished(userId: string): Promise<void> {
 }
 
 // the shortlist's nearest deadlines go straight into preparation, so nobody waits on a click to start. at most 3 in
-// progress at once (preparing or approved), never more than the submission credits the account holds (each credit is
-// one application), and never past the plan's application limit
+// progress at once (preparing or approved), each one's credits set aside as it starts (lib/wallet), and never past
+// the plan's application limit
 export async function autoPrepare(userId: string): Promise<number> {
   const db = admin();
   // someone just exploring gets a shortlist, not essays: drafting starts when they pick a programme themselves
@@ -129,7 +129,7 @@ export async function autoPrepare(userId: string): Promise<number> {
   // the free tier drafts nothing until the agents are unlocked
   if (await isLocked(userId)) return 0;
   const { count: active } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]);
-  const room = Math.min(3, await creditsToPrepare(userId)) - (active ?? 0);
+  const room = 3 - (active ?? 0);
   if (room <= 0) return 0;
   const { data: picks } = await db
     .from("applications")
@@ -141,8 +141,16 @@ export async function autoPrepare(userId: string): Promise<number> {
   let n = 0;
   for (const a of picks ?? []) {
     if (await checkLimit(userId, "application")) break;
+    // its credits are set aside first: no credits, no start (the applicant hears once, lib/wallet)
+    if (await holdApplication(userId, a.id)) {
+      await lowCreditNotice(userId).catch(() => {});
+      break;
+    }
     const { error } = await db.from("applications").update({ status: "preparing" }).eq("id", a.id).eq("status", "shortlisted");
-    if (error) continue;
+    if (error) {
+      await releaseApplication(userId, a.id).catch(() => 0);
+      continue;
+    }
     await enqueue({ userId, agent: "strategist", task: "plan", payload: { applicationId: a.id }, idempotencyKey: `auto-prepare:${a.id}` });
     await logEvent({ userId, actor: "system", action: "application.prepare_requested", applicationId: a.id, programId: a.program_id, context: { auto: true } });
     n++;
@@ -152,16 +160,6 @@ export async function autoPrepare(userId: string): Promise<number> {
     await notify({ userId, key: "setup:gmail", kind: "setup", urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on; without it, each one waits for you.", href: "/settings", actionLabel: "Connect Gmail" }).catch(() => {});
   }
   return n;
-}
-
-// how many applications the account's credits cover at once: bought and free credits (a credit is spent when its
-// application is submitted, so the ones in progress already hold one). pro and staff aren't counted in credits
-async function creditsToPrepare(userId: string): Promise<number> {
-  const { data: p } = await admin().from("profiles").select("plan, plan_until, is_admin, submission_credits, bonus_submissions").eq("id", userId).maybeSingle();
-  if (!p) return 0;
-  const { tierFor } = await import("@/lib/credit");
-  if ((await tierFor(userId)).tier === "staff" || planOf(p.plan, p.plan_until ?? null).id === "pro") return 3;
-  return Number(p.submission_credits ?? 0) + Number(p.bonus_submissions ?? 0);
 }
 
 const dayKey = () => new Date().toISOString().slice(0, 10);

@@ -5,6 +5,7 @@ import { enqueue } from "@/lib/queue";
 import { drain } from "@/lib/jobs";
 import { logEvent } from "@/lib/events";
 import { checkLimit } from "@/lib/limits";
+import { holdApplication, releaseApplication } from "@/lib/wallet";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -32,8 +33,14 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   if (app.status === "shortlisted") {
     const blocked = await checkLimit(auth.user.id, "application");
     if (blocked) return NextResponse.json({ error: blocked }, { status: 402 });
+    // an application's credits are set aside as it starts (lib/wallet)
+    const short = await holdApplication(auth.user.id, id);
+    if (short) return NextResponse.json({ error: short }, { status: 402 });
     const { error } = await db.from("applications").update({ status: "preparing" }).eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      await releaseApplication(auth.user.id, id).catch(() => 0);
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
   }
   await enqueue({ userId: auth.user.id, agent: "strategist", task: "plan", payload: { applicationId: id } });
   await logEvent({ userId: auth.user.id, actor: "user", action: "application.prepare_requested", applicationId: id, programId: app.program_id });

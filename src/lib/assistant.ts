@@ -3,6 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { checkLimit } from "@/lib/limits";
+import { holdApplication } from "@/lib/wallet";
 import { sendInvite } from "@/lib/calendar";
 import { createFollowup } from "@/lib/followups";
 import { queueRunner } from "@/agents/runner";
@@ -72,6 +73,12 @@ export async function runActions(userId: string, actions: Action[]): Promise<Act
           const blocked = await checkLimit(userId, "application");
           if (blocked) {
             out.push({ type: a.type, ok: false, note: blocked });
+            continue;
+          }
+          // its credits are set aside as it starts (lib/wallet)
+          const short = await holdApplication(userId, app.id);
+          if (short) {
+            out.push({ type: a.type, ok: false, note: short });
             continue;
           }
           await db.from("applications").update({ status: "preparing" }).eq("id", app.id);

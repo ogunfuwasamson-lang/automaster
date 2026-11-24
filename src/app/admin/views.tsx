@@ -1446,15 +1446,8 @@ async function lessonData() {
 
 const TIER_LABEL: Record<Tier, string> = { paid: "Agents working (paid or holding a credit)", staff: "Staff and team", locked: "Free (no credit yet)" };
 
-function tierOfUser(u: AdminUser, friendsDone = 0): Tier {
-  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", credits: u.credits, earned: u.setupRewardedAt || friendsDone > 0 ? u.bonus : 0, signedWithFree: (u.apps.packet_approved ?? 0) > 0 && u.bonus > 0 });
-}
-
-// friends each account invited who finished setup (lib/referrals)
-function friendsDoneBy(users: AdminUser[]): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const u of users) if (u.referredBy && u.setupRewardedAt) m.set(u.referredBy, (m.get(u.referredBy) ?? 0) + 1);
-  return m;
+function tierOfUser(u: AdminUser): Tier {
+  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", credits: u.credits + u.held, signedWithFree: (u.apps.packet_approved ?? 0) > 0 && u.bonus > 0 });
 }
 
 export async function CreditView({ range: r, everyone }: { range: Range; everyone: boolean }) {
@@ -1470,8 +1463,7 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
     ),
   ]);
   const { users } = scope(d, true);
-  const friends = friendsDoneBy(d.users);
-  const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u, friends.get(u.id) ?? 0)]));
+  const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u)]));
   const spentToday = today.reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
   const limit = policy.dailyLimitUsd;
   const state = !limit ? "No daily alert" : spentToday >= limit ? "Alert sent" : "Under the alert";

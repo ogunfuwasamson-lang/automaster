@@ -6,6 +6,7 @@ import { runsSince } from "@/lib/runs";
 import { teamIds } from "@/lib/team";
 import { APPLICATION_CEILING_USD, dayStartUTC, gate, overCeiling, tierOf, type Gate, type Signals, type Tier } from "@/lib/credit-rules";
 import { parsePolicy, type CreditPolicy } from "@/lib/credit-policy";
+import { walletState } from "@/lib/wallet";
 import type { Category, Spend } from "@/lib/pricing";
 
 // the server side of lib/credit-rules: who each account is, what the platform has spent today, and the limits the
@@ -44,22 +45,18 @@ export async function todaySpendUsd(fresh = false): Promise<number> {
 export async function signalsFor(userId: string): Promise<Signals> {
   const db = admin();
   const head = { count: "exact" as const, head: true };
-  const [{ data: p }, team, { count: paidEvents }, { count: friends }, { count: signed }] = await Promise.all([
-    db.from("profiles").select("plan, plan_until, is_admin, submission_credits, bonus_submissions, referral_rewarded_at").eq("id", userId).maybeSingle(),
+  const [{ data: p }, team, { count: paidEvents }, { count: signed }, wallet] = await Promise.all([
+    db.from("profiles").select("plan, plan_until, is_admin, bonus_submissions").eq("id", userId).maybeSingle(),
     teamIds().catch(() => new Set<string>()),
     db.from("billing_events").select("reference", head).eq("user_id", userId),
-    // friends this account invited who finished setup (lib/referrals stamps referral_rewarded_at then)
-    db.from("profiles").select("id", head).eq("referred_by", userId).not("referral_rewarded_at", "is", null),
     db.from("applications").select("id", head).eq("user_id", userId).eq("status", "packet_approved"),
+    walletState(userId).catch(() => ({ balance: 0, held: 0 })),
   ]);
-  // free credits count as earned once an invite is involved: they joined through one and finished setup, or brought a
-  // friend who did. the free submission every account got from 14 nov alone doesn't unlock the agents
-  const invited = !!p?.referral_rewarded_at || (friends ?? 0) > 0;
   return {
     staff: !!p?.is_admin || team.has(userId),
     paid: planOf(p?.plan, p?.plan_until ?? null).id === "pro" || (paidEvents ?? 0) > 0,
-    credits: Number(p?.submission_credits ?? 0),
-    earned: invited ? Number(p?.bonus_submissions ?? 0) : 0,
+    credits: wallet.balance + wallet.held,
+    // the free submission from 14 to 24 nov alone doesn't start the agents (lib/credit-rules)
     signedWithFree: (signed ?? 0) > 0 && Number(p?.bonus_submissions ?? 0) > 0,
   };
 }
@@ -79,11 +76,11 @@ export async function tierFor(userId: string, fresh = false): Promise<{ tier: Ti
   return v;
 }
 
-// the agents search for programmes of their own (a full shortlist run) for accounts that paid; a credit earned through
-// an invite gets the fit check on the free shortlist and its application, not a search
+// the agents search for programmes of their own (a full shortlist run) for accounts that paid; credits earned through
+// an invite get the fit check on the free shortlist and its application, not a search
 export async function searchesForUser(userId: string): Promise<boolean> {
   const s = await signalsFor(userId);
-  return s.staff || s.paid || (s.credits ?? 0) > 0;
+  return s.staff || s.paid;
 }
 
 // background work (queued jobs), as opposed to something the applicant clicked and is waiting for
@@ -154,12 +151,12 @@ async function alertDailyLimit(today: number, limit: number) {
   });
 }
 
-// an account just got a credit (paid, or earned one through an invite): work that waited for it goes now
+// an account just got credits (paid, or earned through an invite): work that waited for them goes now
 export async function releaseHeld(userId: string) {
   tierCache.delete(userId);
   const db = admin();
   const now = new Date().toISOString();
-  for (const waiting of ["budget: the agents start%", "budget: the agents unlock%", "budget: starter%", "budget: this month's free allowance%", "hold:%"])
+  for (const waiting of ["budget: the agents start%", "budget: the agents unlock%", "budget: you're out of credits%", "budget: starter%", "budget: this month's free allowance%", "hold:%"])
     await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", waiting);
 }
 
