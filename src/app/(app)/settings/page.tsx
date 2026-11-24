@@ -13,7 +13,6 @@ import { MyLessons } from "@/components/learning/lessons-admin";
 import { InviteCard } from "@/components/growth/invite-card";
 import { GROUP_SIZE, inviteUrl, referralCode, referralStats } from "@/lib/referrals";
 import { isLocked } from "@/lib/free-tier";
-import { UNLOCK_FRIENDS } from "@/lib/credit-rules";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -85,13 +84,13 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <RunnerCard tokens={tokens ?? []} />
       </section>
 
-      <Group title="Invite friends" description="When a friend finishes setup, you both get a free submission.">
+      <Group title="Invite friends" description="When a friend finishes setup, you both get one application free.">
         <div id="invite" className="scroll-mt-24">
           <InviteSection uid={uid} />
         </div>
       </Group>
 
-      <Group title="Plan" description={bill.pricing.model === "pack" ? "A pack unlocks the agents and pays for your submissions." : "Free to start; Pro unlocks the agents straight away."}>
+      <Group title="Plan" description={bill.pricing.model === "pack" ? "Each application the agents prepare and submit uses one submission." : "Free to start; Pro covers up to 10 applications a month."}>
         <div id="plan" className="scroll-mt-24">
           <PlanCard model={bill.pricing.model} label={bill.pricing.label} each={bill.pricing.model === "pack" ? bill.pricing.each : undefined} credits={bill.credits} bonus={bill.bonus} free={bill.pricing.model === "subscription" ? bill.pricing.free : 0} used={used ?? 0} paidThisMonth={paidThisMonth ?? 0} pro={bill.pro} until={bill.planUntil} cancelled={bill.cancelled} ready={bachsReady()} />
         </div>
@@ -110,5 +109,5 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
 async function InviteSection({ uid }: { uid: string }) {
   const [code, stats, locked] = await Promise.all([referralCode(uid).catch(() => null), referralStats(uid).catch(() => ({ bonus: 0, joined: 0, finished: 0, requests: 0 })), isLocked(uid).catch(() => false)]);
-  return <InviteCard url={code ? inviteUrl(code) : null} joined={stats.joined} finished={stats.finished} bonus={stats.bonus} requests={stats.requests} locked={locked} unlockAt={UNLOCK_FRIENDS} groupAt={GROUP_SIZE - 1} />;
+  return <InviteCard url={code ? inviteUrl(code) : null} joined={stats.joined} finished={stats.finished} bonus={stats.bonus} requests={stats.requests} locked={locked} groupAt={GROUP_SIZE - 1} />;
 }

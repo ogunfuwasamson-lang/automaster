@@ -14,6 +14,6 @@ export async function POST() {
   const b = await billingState(uid);
   if (b.pricing.model !== "pack" || b.credits > 0) return NextResponse.json({ ok: true });
   await admin().from("profiles").update({ pack_offer_seen_at: new Date().toISOString() }).eq("id", uid);
-  await notify({ userId: uid, key: "pack:offer", kind: "info", title: `Your submission pack: ${b.pricing.label}`, body: "A pack unlocks the agents and covers your next submissions. Buy one when you're ready, or invite 2 friends who finish setup to unlock the agents free.", href: "/settings#plan", actionLabel: "Buy a pack" }).catch(() => null);
+  await notify({ userId: uid, key: "pack:offer", kind: "info", title: `Your submission pack: ${b.pricing.label}`, body: "Each application the agents prepare and submit uses one credit from a pack. Buy one when you're ready, or invite a friend: when they finish setup, you both get one free.", href: "/settings#plan", actionLabel: "Buy a pack" }).catch(() => null);
   return NextResponse.json({ ok: true });
 }

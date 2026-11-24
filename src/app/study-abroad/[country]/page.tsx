@@ -100,14 +100,14 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
           : [`Do ${o.demonym} students need a visa to study in Europe?`, `Yes, a student residence permit for a full degree, and most EU countries charge non-EU tuition. Germany's public universities charge no tuition for most programmes, even for non-EU students.`],
         [`Do ${o.demonym} students need IELTS to study abroad?`, english],
         ...(o.iso !== "US" ? [[`Can ${o.demonym} students study in the USA in 2027?`, usLine(o)] as [string, string]] : []),
-        [`How much does Ivyward cost in ${inText(o)}?`, `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents unlock when you pay or when 2 friends you invite finish setup. Pro is $20 a month for up to ten submissions, and unlocking through friends makes your first three submissions free.`],
+        [`How much does Ivyward cost in ${inText(o)}?`, `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. Each application the agents prepare and submit uses one credit. Pro is $20 a month for up to ten. Invite a friend and you both get one free.`],
       ]
     : [
         [`What fully funded scholarships can ${o.demonym} students apply for?`, `${open.map((f) => f.name).join("; ")}.${o.local?.length ? ` Home-country options include ${o.local.join("; ")}.` : ""} Always confirm eligibility on the official page.`],
         [`Can ${o.demonym} students study in the USA in 2027?`, usLine(o)],
         [`Is ${inText(o)} eligible for Commonwealth scholarships?`, cw ? `Yes. ${atStart(o)} is on the 2027/28 eligible list for Commonwealth Master's Scholarships; apply through your national nominating agency.` : `No. ${atStart(o)} is not on the 2027/28 eligible list for Commonwealth Master's Scholarships.`],
         [`Do ${o.demonym} students need IELTS to study abroad?`, english],
-        [`How much does Ivyward cost in ${inText(o)}?`, africa ? `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents unlock when you pay or when 2 friends you invite finish setup. Submissions come in packs: ₦10,000 (or the local equivalent) covers 5 applications, scholarship forms or funding requests, with no subscription.` : `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents unlock when you pay or when 2 friends you invite finish setup. Pro is $20 a month for up to ten submissions, and unlocking through friends makes your first three submissions free.`],
+        [`How much does Ivyward cost in ${inText(o)}?`, africa ? `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. Each application the agents prepare and submit uses one credit. Submissions come in packs: ₦10,000 (or the local equivalent) covers 5 applications, scholarship forms or funding requests, with no subscription. Invite a friend and you both get one free.` : `Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. Each application the agents prepare and submit uses one credit. Pro is $20 a month for up to ten. Invite a friend and you both get one free.`],
       ];
   const dedicated = o.guide ? guide(o.guide) : undefined;
   const near = ORIGINS.filter((x) => x.slug !== o.slug && x.region === o.region).slice(0, 4);
@@ -255,7 +255,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
 
         <Cta
           title={`Applying from ${inText(o)}? Let the agents do the work`}
-          body={`Ivyward checks every scholarship against your ${o.demonym} citizenship, builds a shortlist you can get into, drafts and fact-checks your essays, asks for fee waivers and fills in every university portal. You review and sign. ${africa ? "In Africa, the shortlist is free and ₦10,000 (or the local equivalent) covers 5 submissions and unlocks the agents." : "The shortlist is free; the agents unlock with Pro or when 2 friends you invite finish setup."}`}
+          body={`Ivyward checks every scholarship against your ${o.demonym} citizenship, builds a shortlist you can get into, drafts and fact-checks your essays, asks for fee waivers and fills in every university portal. You review and sign. ${africa ? "In Africa, the shortlist is free and ₦10,000 (or the local equivalent) covers 5 applications. Invite a friend and you both get one free." : "The shortlist is free; Pro covers up to 10 applications a month. Invite a friend and you both get one free."}`}
         />
         <Faq items={faq} />
         <AlertSignup source={`country:${o.slug}`} />

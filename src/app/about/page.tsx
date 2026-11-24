@@ -93,7 +93,7 @@ export default function About() {
         </section>
 
         <Faq items={FAQ} />
-        <Cta title="Start with your profile" body="Tell Ivyward about yourself once. Your shortlist is free; the agents unlock when you pay or invite 2 friends." />
+        <Cta title="Start with your profile" body="Tell Ivyward about yourself once. Your shortlist is free; invite a friend and you both get one application done free." />
       </div>
     </LibraryShell>
   );

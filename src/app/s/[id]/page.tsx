@@ -34,7 +34,7 @@ export default async function SharedProgramme({ params }: P) {
   const p = await loadShareProgram(id);
   if (!p) notFound();
   const f = shareFacts(p, new Date().toISOString().slice(0, 10));
-  // came through a friend's link (middleware keeps the code): their first submission is free
+  // came through a friend's link (middleware keeps the code): you both get one application free
   const invited = !!(await cookies()).get("iv_ref")?.value;
   const path = `/s/${id}`;
   return (
@@ -85,7 +85,7 @@ export default async function SharedProgramme({ params }: P) {
 
         <Cta
           title="Ivyward AI can apply for you"
-          body={`Ivyward's agents find programmes that fit you, draft and fact-check your essays, ask schools to waive the fee and fill in each portal. You review and sign before anything is sent.${invited ? " You came from a friend's link: finish setup and you both get a free submission." : ""}`}
+          body={`Ivyward's agents find programmes that fit you, draft and fact-check your essays, ask schools to waive the fee and fill in each portal. You review and sign before anything is sent.${invited ? " You came from a friend's link: finish setup and you both get one application free." : ""}`}
           href="/login?mode=signup"
           label="Start free"
         />

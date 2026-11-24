@@ -5,7 +5,8 @@ import { HANDLERS } from "@/agents";
 import { nextMonthStartUTC } from "@/lib/pricing";
 import { shortlistFinished } from "@/lib/kickoff";
 import { alert } from "@/lib/alerts";
-import { inBackground, starterHeld } from "@/lib/credit";
+import { applicationOverCeiling, inBackground } from "@/lib/credit";
+import { CEILING_REASON } from "@/lib/credit-rules";
 
 export { enqueue } from "@/lib/queue";
 export type { Job } from "@/lib/queue";
@@ -23,6 +24,9 @@ export async function drain(worker: string, max = 5, onlyAgent: "runner" | null 
   return Promise.all(((jobs ?? []) as Job[]).map((job) => runOne(job)));
 }
 
+// the agents that work on one application (planning, essays, reviews, fee waivers, the portal)
+const APPLICATION_AGENTS = new Set(["strategist", "writer", "redteam", "closer", "runner"]);
+
 async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: string }> {
   const db = admin();
   const handler = HANDLERS[`${job.agent}.${job.task}`];
@@ -36,7 +40,15 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         return { id: job.id, ok: false, error: "paused" };
       }
     }
-    // background work: the credit rules may hold it for a busy day or an absent applicant (lib/credit)
+    // one application's AI has a ceiling (lib/credit-rules): past it, its work waits for the operator to look
+    const appId = (job.payload as { applicationId?: string } | null)?.applicationId;
+    if (appId && APPLICATION_AGENTS.has(job.agent) && (await applicationOverCeiling(job.user_id, appId).catch(() => false))) {
+      await db
+        .from("jobs")
+        .update({ status: "queued", attempts: Math.max(0, job.attempts - 1), last_error: `budget: ${CEILING_REASON}`, run_at: new Date(Date.now() + 30 * 86_400_000).toISOString(), locked_at: null, locked_by: null })
+        .eq("id", job.id);
+      return { id: job.id, ok: false, error: "application ceiling" };
+    }
     const result = await inBackground(() => handler(job));
     await db
       .from("jobs")
@@ -48,7 +60,6 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
     const msg = e instanceof Error ? e.message : String(e);
     // the user's monthly ai budget is used up: park until the month resets (or their plan changes)
     if (msg.startsWith("budget:")) {
-      if (msg.startsWith("budget: starter")) await starterHeld(job.user_id).catch(() => {});
       await db
         .from("jobs")
         .update({

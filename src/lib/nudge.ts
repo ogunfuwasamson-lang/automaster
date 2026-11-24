@@ -7,9 +7,9 @@ import { notify } from "@/lib/notify";
 import { logEvent } from "@/lib/events";
 import { dueStep, emailNudge, pickNudge, seedOf, type Nudge, type NudgeCtx } from "@/lib/nudge-rules";
 
-// asking engaged applicants to pay (lib/nudge-rules has the angles and words; the Credit tab in the operator console
-// turns each on or off and edits the wording). only accounts that uploaded a document, connected gmail or signed,
-// and haven't paid: never starters, staff or paying accounts.
+// asking applicants to pay (lib/nudge-rules has the angles and words; the Credit tab in the operator console turns
+// each on or off and edits the wording). only free accounts (no credit yet), and the emails only once they've uploaded
+// a document or connected gmail: never staff or accounts the agents already work for.
 
 const SENT = ["submitted", "under_review", "interview", "waitlisted", "admitted", "accepted", "declined", "rejected"];
 const OPEN = ["shortlisted", "preparing", "ready_for_review", "packet_approved"];
@@ -45,7 +45,7 @@ export async function dashboardNudge(userId: string, snoozedAt: number | null): 
   if (!policy.nudges.inApp) return null;
   if (snoozedAt && Date.now() - snoozedAt < policy.nudges.snoozeDays * DAY) return null;
   const { tier } = await tierFor(userId);
-  if (tier !== "engaged") return null;
+  if (tier !== "locked") return null;
   const c = await nudgeContext(userId);
   // a free submission in hand (everyone's first, or one from an invite): don't ask for money, point at the signature
   const bill = await billingState(userId);
@@ -84,7 +84,7 @@ export async function sendPayNudges(limit = 200): Promise<number> {
     for (const p of profs ?? []) {
       if (sent >= limit) break;
       if (p.digest_enabled === false || localHour(p.timezone || "Africa/Lagos") !== 10) continue;
-      if ((await tierFor(p.id, true)).tier !== "engaged") continue;
+      if ((await tierFor(p.id, true)).tier !== "locked") continue;
       if ((await billingState(p.id)).bonus > 0) continue; // their next submission is free: nothing to sell yet
       const since = await engagedAt(p.id);
       if (!since) continue;

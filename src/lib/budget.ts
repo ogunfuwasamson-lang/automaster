@@ -4,7 +4,7 @@ import { budgetCheck, categoryOf, monthStartUTC, type Category, type Spend } fro
 import { BUDGET_PER_SUBMISSION_USD, planOf, type Plan } from "@/lib/plans";
 import { PACK_SIZE } from "@/lib/geo-pricing";
 import { runsSince } from "@/lib/runs";
-import { creditGate, creditPolicy, CreditHeld, holdUntil } from "@/lib/credit";
+import { creditGate, creditPolicy } from "@/lib/credit";
 import { DEFAULT_POLICY } from "@/lib/credit-policy";
 
 // staff and the nightly learning pass run under admin accounts: capped like everyone, so testing can't drain the
@@ -26,8 +26,8 @@ export function budgetFor(p: BudgetProfile | null, singles: number, packs: numbe
   if (p?.monthly_budget_usd != null) return Number(p.monthly_budget_usd);
   // staff accounts (and the learning jobs that run under them) aren't capped by a plan
   if (p?.is_admin) return staffUsd;
-  // the plan's month ($10 from 23 nov 2026; paid submissions no longer add to it). free and invited accounts are held to
-  // less by the credit gate (lib/credit-rules)
+  // the plan's month: a backstop nobody reaches in normal use (the heaviest account so far, 50 programmes checked and 3
+  // applications prepared, used $7.60). free accounts are held to far less by the credit gate (lib/credit-rules)
   return planOf(p?.plan, p?.plan_until ?? null).aiBudgetUsd + (singles + packs * PACK_SIZE) * BUDGET_PER_SUBMISSION_USD;
 }
 
@@ -68,9 +68,7 @@ export async function assertBudget(userId: string, agent: string) {
   const [spend, monthly] = await Promise.all([monthSpend(userId), monthlyBudget(userId)]);
   const check = budgetCheck(spend, monthly, category);
   if (!check.ok) throw new BudgetExceeded(check.reason, category);
-  // who goes first when credit is short (lib/credit-rules)
+  // free accounts wait for a credit; research stops for the month at its ceiling (lib/credit-rules)
   const g = await creditGate(userId, category, spend);
-  if (g.ok) return;
-  if (g.kind === "starter" || g.kind === "locked") throw new BudgetExceeded(g.reason, category);
-  throw new CreditHeld(g.kind, g.reason, holdUntil());
+  if (!g.ok) throw new BudgetExceeded(g.reason, category);
 }

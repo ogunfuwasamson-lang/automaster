@@ -10,6 +10,8 @@ import { checkLimit } from "@/lib/limits";
 import { canReadMail } from "@/lib/gmail";
 import { queueInstantMatches } from "@/lib/matches";
 import { isLocked, placeLibraryShortlist } from "@/lib/free-tier";
+import { searchesForUser } from "@/lib/credit";
+import { planOf } from "@/lib/plans";
 import { rewardOnIntake } from "@/lib/referrals";
 
 // a new applicant's first shortlist goes to the front of the queue (jobs run oldest first), so they see programmes
@@ -66,9 +68,11 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
 
   // the shortlist: once, as soon as the agents know what and where
   let shortlist = false;
-  // the free tier: a shortlist from the checked library, no model call (lib/free-tier)
-  if (profile.goals.study_level && regions.length && !apps && !runs && (await isLocked(userId))) {
+  // free, or a credit earned through an invite: a shortlist from the checked library (no model call, lib/free-tier),
+  // and with the credit the agents check it against the applicant's record
+  if (profile.goals.study_level && regions.length && !apps && !runs && !(await searchesForUser(userId))) {
     shortlist = (await placeLibraryShortlist(userId, source)) > 0;
+    if (shortlist && !(await isLocked(userId))) await queueInstantMatches(userId).catch(() => 0);
   } else if (profile.goals.study_level && regions.length && !apps && !runs) {
     await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
     const instant = await queueInstantMatches(userId).catch(() => 0);
@@ -87,7 +91,14 @@ export async function shortlistFinished(userId: string): Promise<void> {
   const { count: left } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").neq("task", "scholarships").in("status", ["queued", "running"]).lte("run_at", soon);
   if (left) return;
   const { data: run } = await db.from("jobs").select("id").eq("user_id", userId).eq("agent", "recon").eq("task", "discover").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!run) return;
+  if (!run) {
+    // no search of their own (a credit earned through an invite): the fit checks on the free shortlist are done, so
+    // the best match goes into preparation
+    const started = await autoPrepare(userId).catch(() => 0);
+    if (started)
+      await notify({ userId, key: `prepare-started:${dayKey()}`, kind: "shortlist", title: "Your free application has started", body: `The agents checked your shortlist against your record and started preparing ${started === 1 ? "the programme with the nearest deadline" : `the ${started} with the nearest deadlines`}. Drop it if you'd rather they work on another.`, href: "/shortlist", actionLabel: "Open shortlist", email: true }).catch(() => {});
+    return;
+  }
   const { count } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "shortlisted");
   const { count: later } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "research_program").eq("status", "queued").gt("run_at", soon);
   const more = later ? ` ${later} more arrive over the next few mornings.` : "";
@@ -109,7 +120,8 @@ export async function shortlistFinished(userId: string): Promise<void> {
 }
 
 // the shortlist's nearest deadlines go straight into preparation, so nobody waits on a click to start. at most 3 in
-// progress at once (preparing or approved), and never past the plan's application limit
+// progress at once (preparing or approved), never more than the submission credits the account holds (each credit is
+// one application), and never past the plan's application limit
 export async function autoPrepare(userId: string): Promise<number> {
   const db = admin();
   // someone just exploring gets a shortlist, not essays: drafting starts when they pick a programme themselves
@@ -117,7 +129,7 @@ export async function autoPrepare(userId: string): Promise<number> {
   // the free tier drafts nothing until the agents are unlocked
   if (await isLocked(userId)) return 0;
   const { count: active } = await db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]);
-  const room = 3 - (active ?? 0);
+  const room = Math.min(3, await creditsToPrepare(userId)) - (active ?? 0);
   if (room <= 0) return 0;
   const { data: picks } = await db
     .from("applications")
@@ -142,6 +154,18 @@ export async function autoPrepare(userId: string): Promise<number> {
   return n;
 }
 
+// how many applications the account's credits cover at once: bought and free credits (a credit is spent when its
+// application is submitted, so the ones in progress already hold one). pro and staff aren't counted in credits
+async function creditsToPrepare(userId: string): Promise<number> {
+  const { data: p } = await admin().from("profiles").select("plan, plan_until, is_admin, submission_credits, bonus_submissions").eq("id", userId).maybeSingle();
+  if (!p) return 0;
+  const { tierFor } = await import("@/lib/credit");
+  if ((await tierFor(userId)).tier === "staff" || planOf(p.plan, p.plan_until ?? null).id === "pro") return 3;
+  return Number(p.submission_credits ?? 0) + Number(p.bonus_submissions ?? 0);
+}
+
+const dayKey = () => new Date().toISOString().slice(0, 10);
+
 // the shortlist as early as the agents can search well: a level, at least one region, and either fields the
 // applicant named or a document the agents have read. it used to wait for the last step of setup, and most people
 // who told us what and where to study left before that and never saw a single program.
@@ -161,8 +185,13 @@ export async function startShortlist(userId: string, source: string): Promise<bo
     db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover").in("status", ["queued", "running", "done"]),
   ]);
   if (apps || runs) return false;
-  // the free tier: a shortlist from the checked library, no model call (lib/free-tier)
-  if (await isLocked(userId)) return (await placeLibraryShortlist(userId, source)) > 0;
+  // free, or a credit earned through an invite: the checked library's shortlist (lib/free-tier), checked against the
+  // applicant when they hold the credit
+  if (!(await searchesForUser(userId))) {
+    const placed = (await placeLibraryShortlist(userId, source)) > 0;
+    if (placed && !(await isLocked(userId))) await queueInstantMatches(userId).catch(() => 0);
+    return placed;
+  }
   await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
   // programmes already on file that fit, checked against this applicant in minutes (lib/matches)
   const instant = await queueInstantMatches(userId).catch(() => 0);

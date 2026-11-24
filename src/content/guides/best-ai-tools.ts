@@ -47,7 +47,7 @@ Ivyward is built for the parts other tools leave to you. After you tell it about
 - ask for fee waivers before you pay and follow up on funding after admission;
 - ask you when a portal needs something your profile doesn't cover, and remember the answer for the next school.
 
-You read and sign each application packet before it's submitted. Starting is free with a checked shortlist; the agents unlock when you pay (in Africa ₦10,000, or the local equivalent, covers 5 submissions; elsewhere Pro is $20 a month for up to ten) or when 2 friends you invite finish setup. Application fees go to schools directly.
+You read and sign each application packet before it's submitted. Starting is free with a checked shortlist. Each application the agents prepare and submit uses a credit: in Africa ₦10,000 (or the local equivalent) buys 5; elsewhere Pro is $20 a month for up to ten. Invite a friend and you both get one free. Application fees go to schools directly.
 
 **Where Ivyward isn't the right tool:** if a school bans AI help with essays, write those essays yourself. If you want a human to coach you through interviews, a mentor or advisor is better.
 

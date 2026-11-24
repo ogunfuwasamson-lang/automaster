@@ -55,6 +55,8 @@ export interface AdminUser {
   deactivated: boolean; // staff turned the account off: no sign-in, agents stopped
   gmail: { email: string; status: string } | null;
   budget: number; // this month's AI allowance
+  credits: number; // bought submission credits left
+  bonus: number; // free submission credits left (the welcome one, invites)
   payments: Payment[];
 }
 
@@ -135,7 +137,7 @@ async function signIns(): Promise<{ out: Map<string, string>; banned: Set<string
 
 const later = (a: string | null | undefined, b: string | null | undefined) => (!a ? (b ?? null) : !b ? a : a > b ? a : b);
 
-type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; signup_source: unknown; referred_by: string | null; referral_rewarded_at: string | null; applying: string | null; need: string | null; budget: string | null };
+type ProfileRow = { id: string; email: string; full_name: string | null; billing_country: string | null; identity: unknown; first: string | null; last: string | null; preferred: string | null; created_at: string; plan: string | null; plan_until: string | null; monthly_budget_usd: number | null; is_admin: boolean | null; submission_credits: number | null; bonus_submissions: number | null; signup_source: unknown; referred_by: string | null; referral_rewarded_at: string | null; applying: string | null; need: string | null; budget: string | null };
 type AppRow = { id: string; user_id: string; status: string; runner_status: string | null; runner_note: string | null; runner_state: unknown; runner_updated_at: string | null; portal_url: string | null; submitted_at: string | null; programs: unknown };
 
 export async function loadAdmin() {
@@ -144,7 +146,7 @@ export async function loadAdmin() {
   const month = monthStartUTC();
   const [team, profiles, apps, steps, activity, signin, mail, docs, pays] = await Promise.all([
     teamIds(),
-    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, signup_source, referred_by, referral_rewarded_at, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
+    every<ProfileRow>((a, b) => db.from("profiles").select("id, email, full_name, billing_country, identity:profile->identity, first:portal_details->>legal_first_name, last:portal_details->>legal_last_name, preferred:portal_details->>preferred_name, created_at, plan, plan_until, monthly_budget_usd, is_admin, submission_credits, bonus_submissions, signup_source, referred_by, referral_rewarded_at, applying:profile->goals->>applying, need:profile->funding->>need, budget:profile->funding->>annual_budget_usd").order("created_at").range(a, b)),
     every<AppRow>((a, b) => db.from("applications").select("id, user_id, status, runner_status, runner_note, runner_state, runner_updated_at, portal_url, submitted_at, programs(name, schools(name))").order("id").range(a, b)),
     every<{ user_id: string; action: string; created_at: string }>((a, b) => db.from("events").select("user_id, action, created_at").in("action", MILESTONE_ACTIONS).order("created_at", { ascending: true }).range(a, b)),
     // what the user did: their own actions, plus each message they sent the interviewer
@@ -194,7 +196,7 @@ export async function loadAdmin() {
   const appsOf = new Map<string, AdminApp[]>();
   for (const a of allApps) appsOf.set(a.userId, [...(appsOf.get(a.userId) ?? []), a]);
 
-  // friends each account invited who finished setup: unpaid accounts unlock with UNLOCK_FRIENDS of them
+  // friends each account invited who finished setup: each one earned the account a free application
   const friendsDone = new Map<string, number>();
   for (const p of profiles) if (p.referred_by && p.referral_rewarded_at) friendsDone.set(p.referred_by, (friendsDone.get(p.referred_by) ?? 0) + 1);
   const users: AdminUser[] = profiles.map((p) => {
@@ -242,10 +244,9 @@ export async function loadAdmin() {
               tierOf({
                 staff: false,
                 paid: paid.length > 0 || p.plan === "pro",
-                documents: docCount.get(p.id) ?? 0,
-                gmail: !!gmail.get(p.id),
-                signed: mine.some((a) => a.status === "packet_approved" || SUBMITTED.has(a.status)),
-                friendsDone: friendsDone.get(p.id) ?? 0,
+                credits: p.submission_credits ?? 0,
+                earned: p.referral_rewarded_at || (friendsDone.get(p.id) ?? 0) > 0 ? (p.bonus_submissions ?? 0) : 0,
+                signedWithFree: mine.some((a) => a.status === "packet_approved") && (p.bonus_submissions ?? 0) > 0,
               }),
               planned,
             ))(
@@ -256,6 +257,8 @@ export async function loadAdmin() {
           policy.staffMonthlyUsd,
         ),
       ),
+      credits: p.submission_credits ?? 0,
+      bonus: p.bonus_submissions ?? 0,
       payments: paid,
     };
   });

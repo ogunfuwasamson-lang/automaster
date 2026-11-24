@@ -82,7 +82,6 @@ export function CreditEditor({ initial, defaults }: { initial: CreditPolicy; def
     router.refresh();
   }
 
-  const limit = Number.isFinite(p.dailyLimitUsd) ? p.dailyLimitUsd : 0;
 
   return (
     <form
@@ -93,24 +92,19 @@ export function CreditEditor({ initial, defaults }: { initial: CreditPolicy; def
       }}
     >
       <section className="rounded-2xl border border-line bg-surface p-4 shadow-card">
-        <h2 className="text-[14.5px] font-semibold">Who gets AI credit first</h2>
+        <h2 className="text-[14.5px] font-semibold">AI spend</h2>
         <p className="text-[12.5px] text-muted">
-          Interview, document reading and profile work always run. These limits apply to research (finding and checking programmes) and writing.
+          The agents work for an account once it has a submission credit, bought or earned through an invite. Free accounts get CV reading and the interview up to $0.50 a month. Each paying account&apos;s research stops for the month at $3, and an application pauses for you to check at $3.
         </p>
         <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          <Num name="Daily limit for the whole platform" value={p.dailyLimitUsd} onChange={(n) => set("dailyLimitUsd", n)} suffix="USD a day" hint="Total AI spend in a UTC day before starters' work waits for tomorrow. 0 switches it off. You get one email the first time each day it's reached." />
-          <Num name="Starter allowance" value={p.starterUsd} onChange={(n) => set("starterUsd", n)} suffix="USD a month" hint="Research and writing for an account with no document, no Gmail and nothing signed. Past it, their work waits until they upload or connect. A full first shortlist has cost $1 to $2.30." />
+          <Num name="Daily spend alert" value={p.dailyLimitUsd} onChange={(n) => set("dailyLimitUsd", n)} suffix="USD a day" hint="You get one email the first time each UTC day the platform's AI spend passes this. Nothing is held: free accounts can't spend more than their small monthly amount, and each paying account's research and each application have their own ceilings. 0 switches the alert off." />
           <Num name="Admin accounts" value={p.staffMonthlyUsd} onChange={(n) => set("staffMonthlyUsd", n)} suffix="USD a month each" hint="Each admin account, including the nightly learning pass that runs under one. Team accounts keep the normal allowance but are never held. A budget override set by hand on an account still wins." />
-          <Num name="Starters wait from" value={Math.round(p.starterShareOfDay * 100)} step="5" max={100} onChange={(n) => set("starterShareOfDay", n / 100)} suffix={`% of the limit ($${(limit * p.starterShareOfDay).toFixed(2)})`} hint="So engaged and paying accounts go first on a busy day." />
-          <Num name="Everyone unpaid waits from" value={p.runawayMultiple} step="0.5" min={1} onChange={(n) => set("runawayMultiple", n)} suffix={`× the limit ($${(limit * p.runawayMultiple).toFixed(2)})`} hint="A runaway day. Past it only paying and staff accounts run." />
-          <Num name="Pause research after" value={p.inactiveDays} step="1" onChange={(n) => set("inactiveDays", n)} suffix="days away" hint="Unpaid accounts nobody has used in this long get no new research until they're back. 0 switches it off." />
-          <Num name="Shortlist size before paying" value={p.freeProgramsPerRun} step="1" min={3} max={20} onChange={(n) => set("freeProgramsPerRun", n)} suffix="programmes a run" hint="How many programmes one shortlist run researches for an account that hasn't paid. Paying accounts get 20. Each programme costs about 3 to 4 cents to research." />
         </div>
       </section>
 
       <section className="rounded-2xl border border-line bg-surface p-4 shadow-card">
-        <h2 className="text-[14.5px] font-semibold">Asking engaged applicants to pay</h2>
-        <p className="text-[12.5px] text-muted">Only accounts that uploaded a document, connected Gmail or signed, and haven&apos;t paid. They stop the moment someone pays.</p>
+        <h2 className="text-[14.5px] font-semibold">Asking free accounts to pay</h2>
+        <p className="text-[12.5px] text-muted">Only accounts without a credit. The emails go only to those who uploaded a document or connected Gmail. They stop the moment someone pays or earns a credit.</p>
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
           <Toggle on={p.nudges.inApp} onChange={(b) => setN("inApp", b)}>
             Card on their dashboard (a different angle each day)

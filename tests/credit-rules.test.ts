@@ -1,85 +1,54 @@
 import { describe, expect, it } from "vitest";
-import { FREE_MONTHLY_USD, INVITED_MONTHLY_USD, gate, monthlyCapFor, nextDayUTC, tierOf } from "@/lib/credit-rules";
+import { APPLICATION_CEILING_USD, FREE_MONTHLY_USD, RESEARCH_MONTHLY_USD, gate, monthlyCapFor, nextDayUTC, overCeiling, tierOf } from "@/lib/credit-rules";
 import { DEFAULT_POLICY, parsePolicy, fill } from "@/lib/credit-policy";
-const INACTIVE_DAYS = DEFAULT_POLICY.inactiveDays;
 import type { Spend } from "@/lib/pricing";
 
 const spend = (research = 0, writing = 0, core = 0): Spend => ({ total: research + writing + core, byCategory: { research, writing, core } });
-const base = { spend: spend(), todayUsd: 0, lastActiveMs: Date.now(), now: Date.now() };
 
-describe("tierOf", () => {
-  const s = { paid: false, staff: false, documents: 0, gmail: false, signed: false };
-  it("starter until a document, gmail or a signature", () => {
-    const ok = { ...s, friendsDone: 2 };
-    expect(tierOf(ok)).toBe("starter");
-    expect(tierOf({ ...ok, documents: 1 })).toBe("engaged");
-    expect(tierOf({ ...ok, gmail: true })).toBe("engaged");
-    expect(tierOf({ ...ok, signed: true })).toBe("engaged");
+describe("who the agents work for: one credit, one application", () => {
+  const s = { paid: false, staff: false };
+  it("a free account is locked until it has a credit, bought or earned through an invite", () => {
+    expect(tierOf(s)).toBe("locked");
+    expect(tierOf({ ...s, credits: 5 })).toBe("paid");
+    expect(tierOf({ ...s, earned: 1 })).toBe("paid");
+    expect(tierOf({ ...s, paid: true })).toBe("paid");
+    expect(tierOf({ ...s, paid: true, credits: 0 })).toBe("paid");
+    expect(tierOf({ ...s, staff: true })).toBe("staff");
   });
-  it("paying and staff accounts outrank engagement", () => {
-    expect(tierOf({ ...s, documents: 3, paid: true })).toBe("paid");
-    expect(tierOf({ ...s, paid: true, staff: true })).toBe("staff");
+  it("the welcome submission alone doesn't start the agents, unless it pays for an application already signed", () => {
+    expect(tierOf({ ...s, earned: 0 })).toBe("locked");
+    expect(tierOf({ ...s, signedWithFree: true })).toBe("paid");
   });
 });
 
 describe("gate", () => {
-  it("never holds core work (interview, document reading) for a busy day", () => {
-    expect(gate({ ...base, tier: "starter", category: "core", spend: spend(0.2, 0.2), todayUsd: 999 }).ok).toBe(true);
-    expect(gate({ ...base, tier: "paid", category: "core", spend: spend(5, 4), todayUsd: 999 }).ok).toBe(true);
-  });
-  it("a free account gets $0.50 a month, core work only", () => {
+  it("a free account gets $0.50 a month, CV reading and the interview only", () => {
     expect(FREE_MONTHLY_USD).toBe(0.5);
-    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.45) }).ok).toBe(true);
-    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.5) })).toMatchObject({ ok: false, kind: "locked" });
-    expect(gate({ ...base, tier: "locked", category: "research", spend: spend() })).toMatchObject({ ok: false, kind: "locked" });
+    expect(gate({ tier: "locked", category: "core", spend: spend(0, 0, 0.45) }).ok).toBe(true);
+    expect(gate({ tier: "locked", category: "core", spend: spend(0, 0, 0.5) })).toMatchObject({ ok: false, kind: "locked" });
+    expect(gate({ tier: "locked", category: "research", spend: spend() })).toMatchObject({ ok: false, kind: "locked" });
+    expect(gate({ tier: "locked", category: "writing", spend: spend() })).toMatchObject({ ok: false, kind: "locked" });
   });
-  it("an account unlocked by invites gets $2 a month for everything, then waits for a payment", () => {
-    expect(INVITED_MONTHLY_USD).toBe(2);
-    expect(gate({ ...base, tier: "engaged", category: "writing", spend: spend(0.9, 1) }).ok).toBe(true);
-    for (const category of ["research", "writing", "core"] as const)
-      expect(gate({ ...base, tier: "engaged", category, spend: spend(1, 0.8, 0.2) })).toMatchObject({ ok: false, kind: "locked" });
-    expect(gate({ ...base, tier: "starter", category: "core", spend: spend(0, 0, 2) })).toMatchObject({ ok: false, kind: "locked" });
+  it("an account with a credit has no monthly allowance, only the research ceiling", () => {
+    expect(gate({ tier: "paid", category: "writing", spend: spend(2, 9, 4) }).ok).toBe(true);
+    expect(gate({ tier: "paid", category: "core", spend: spend(5, 9, 4) }).ok).toBe(true);
+    expect(gate({ tier: "paid", category: "research", spend: spend(RESEARCH_MONTHLY_USD - 0.01) }).ok).toBe(true);
+    expect(gate({ tier: "paid", category: "research", spend: spend(RESEARCH_MONTHLY_USD) })).toMatchObject({ ok: false, kind: "research" });
   });
-  it("paid accounts aren't held by the free amounts", () => {
-    expect(gate({ ...base, tier: "paid", category: "writing", spend: spend(3, 4, 1) }).ok).toBe(true);
+  it("staff aren't held", () => {
+    expect(gate({ tier: "staff", category: "research", spend: spend(40) }).ok).toBe(true);
   });
-  it("the operator console shows each tier's month", () => {
-    expect(monthlyCapFor("locked", 10)).toBe(0.5);
-    expect(monthlyCapFor("engaged", 10)).toBe(2);
-    expect(monthlyCapFor("starter", 10)).toBe(2);
-    expect(monthlyCapFor("paid", 10)).toBe(10);
+  it("one application pauses for a look past its ceiling", () => {
+    expect(overCeiling(APPLICATION_CEILING_USD - 0.01)).toBe(false);
+    expect(overCeiling(APPLICATION_CEILING_USD)).toBe(true);
+  });
+  it("the operator console shows a free account's small month", () => {
+    expect(monthlyCapFor("locked", 25)).toBe(0.5);
+    expect(monthlyCapFor("paid", 25)).toBe(25);
     expect(monthlyCapFor("staff", 50)).toBe(50);
   });
-  it("a starter gets the allowance for research and writing together, then waits for a document or gmail", () => {
-    expect(gate({ ...base, tier: "starter", category: "research", spend: spend(0.3, 0.1) }).ok).toBe(true);
-    const g = gate({ ...base, tier: "starter", category: "writing", spend: spend(0.3, 0.2) });
-    expect(g).toMatchObject({ ok: false, kind: "starter" });
-  });
-  it("the starter allowance doesn't apply once engaged", () => {
-    expect(gate({ ...base, tier: "engaged", category: "research", spend: spend(1, 0.5) }).ok).toBe(true);
-  });
-  it("starters wait from 60% of the daily limit; engaged keep going until twice the limit", () => {
-    expect(gate({ ...base, tier: "starter", category: "research", todayUsd: 5.9 }).ok).toBe(true);
-    expect(gate({ ...base, tier: "starter", category: "research", todayUsd: 6 })).toMatchObject({ ok: false, kind: "day" });
-    expect(gate({ ...base, tier: "engaged", category: "research", todayUsd: 12 }).ok).toBe(true);
-    expect(gate({ ...base, tier: "engaged", category: "writing", todayUsd: 20 })).toMatchObject({ ok: false, kind: "day" });
-  });
-  it("paid and staff are never held by the day", () => {
-    expect(gate({ ...base, tier: "paid", category: "research", todayUsd: 100 }).ok).toBe(true);
-    expect(gate({ ...base, tier: "staff", category: "writing", todayUsd: 100 }).ok).toBe(true);
-  });
-  it("a limit of 0 switches the daily limit off", () => {
-    expect(gate({ ...base, tier: "starter", category: "research", todayUsd: 100, policy: { dailyLimitUsd: 0 } }).ok).toBe(true);
-  });
-  it("research waits for applicants who've been away, writing doesn't", () => {
-    const away = Date.now() - (INACTIVE_DAYS + 1) * 86_400_000;
-    expect(gate({ ...base, tier: "engaged", category: "research", lastActiveMs: away })).toMatchObject({ ok: false, kind: "inactive" });
-    expect(gate({ ...base, tier: "engaged", category: "writing", lastActiveMs: away }).ok).toBe(true);
-    expect(gate({ ...base, tier: "paid", category: "research", lastActiveMs: away }).ok).toBe(true);
-  });
   it("reasons carry no amounts", () => {
-    const g = gate({ ...base, tier: "starter", category: "research", spend: spend(1) });
-    expect(g.ok ? "" : g.reason).not.toMatch(/\$|\d/);
+    for (const g of [gate({ tier: "locked", category: "research", spend: spend() }), gate({ tier: "paid", category: "research", spend: spend(9) })]) expect(g.ok ? "" : g.reason).not.toMatch(/\$|\d/);
   });
 });
 
@@ -89,12 +58,6 @@ it("holds run again at the next UTC midnight", () => {
 });
 
 describe("policy", () => {
-  it("the operator's numbers change the gate", () => {
-    expect(gate({ ...base, tier: "starter", category: "research", spend: spend(0.6), policy: { starterUsd: 1 } }).ok).toBe(true);
-    expect(gate({ ...base, tier: "engaged", category: "research", todayUsd: 3, policy: { dailyLimitUsd: 1, runawayMultiple: 2 } })).toMatchObject({ ok: false, kind: "day" });
-    const away = Date.now() - 400 * 86_400_000;
-    expect(gate({ ...base, tier: "engaged", category: "research", lastActiveMs: away, policy: { inactiveDays: 0 } }).ok).toBe(true);
-  });
   it("parsing falls back to safe values for junk and clamps the rest", () => {
     expect(parsePolicy("not json")).toEqual(DEFAULT_POLICY);
     const p = parsePolicy({ dailyLimitUsd: "-5", starterShareOfDay: 3, runawayMultiple: 0, nudges: { emailDays: [7, "3", 3, -1, 999], angles: { ready: { on: false, headline: "Hi {school}" } } } });
@@ -118,26 +81,3 @@ describe("policy", () => {
   });
 });
 
-describe("the free tier (locked)", () => {
-  const s = { paid: false, staff: false, documents: 0, gmail: false, signed: false };
-  const after = "2026-11-23T10:00:00Z";
-  const before = "2026-11-20T10:00:00Z";
-  it("locks a new account until it pays or two friends finish setup", () => {
-    expect(tierOf({ ...s, createdAt: after })).toBe("locked");
-    expect(tierOf({ ...s, documents: 2, gmail: true, createdAt: after })).toBe("locked");
-    expect(tierOf({ ...s, createdAt: after, friendsDone: 1 })).toBe("locked");
-    expect(tierOf({ ...s, createdAt: after, friendsDone: 2 })).toBe("starter");
-    expect(tierOf({ ...s, documents: 1, createdAt: after, friendsDone: 2 })).toBe("engaged");
-    expect(tierOf({ ...s, paid: true, createdAt: after })).toBe("paid");
-    expect(tierOf({ ...s, staff: true, createdAt: after })).toBe("staff");
-  });
-  it("applies to accounts made before the free tier too", () => {
-    expect(tierOf({ ...s, createdAt: before })).toBe("locked");
-  });
-  it("blocks research and writing, and core work past the small allowance", () => {
-    expect(gate({ ...base, tier: "locked", category: "research" })).toMatchObject({ ok: false, kind: "locked" });
-    expect(gate({ ...base, tier: "locked", category: "writing" })).toMatchObject({ ok: false, kind: "locked" });
-    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.3) }).ok).toBe(true);
-    expect(gate({ ...base, tier: "locked", category: "core", spend: spend(0, 0, 0.6) })).toMatchObject({ ok: false, kind: "locked" });
-  });
-});

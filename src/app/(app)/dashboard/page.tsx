@@ -180,10 +180,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // the name they asked to be called on forms wins; otherwise the first word of their name
   const first = ((prof?.portal_details as { preferred_name?: string } | null)?.preferred_name || p.identity.full_name?.split(" ")[0] || "").trim();
   const paused = !!cords?.length;
-  // work waiting on credit: the month's budget, the starter allowance (until a document or gmail), or a hold
+  // work waiting: for a submission credit (free accounts), for next month's research, for a check by the team (one
+  // application past its ceiling), or on the monthly backstop (lib/credit-rules)
   const waitingErr = (waitingJobs ?? []).map((j) => String(j.last_error ?? ""));
-  const starterWait = waitingErr.filter((e) => e.startsWith("budget: starter")).length;
-  const parked = waitingErr.filter((e) => e.startsWith("budget:") && !e.startsWith("budget: starter")).length;
+  const forCredit = (e: string) => /^budget: (the agents|starter|this month's free allowance)/.test(e);
+  const lockedWait = waitingErr.filter(forCredit).length;
+  const researchWait = waitingErr.filter((e) => e.startsWith("budget: this month's programme research")).length;
+  const ceilingWait = waitingErr.filter((e) => e.startsWith("budget: this application is waiting")).length;
+  const parked = waitingErr.filter((e) => e.startsWith("budget:") && !forCredit(e) && !e.startsWith("budget: this month's programme research") && !e.startsWith("budget: this application is waiting")).length;
   const heldToday = waitingErr.filter((e) => e.startsWith("hold: busy")).length;
   const list = apps ?? [];
   const isAdmin = !!(prof as { is_admin?: boolean } | null)?.is_admin;
@@ -329,7 +333,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </Rise>
       )}
 
-      {(paused || !!parked || !!starterWait || !!heldToday || !!billing?.length) && (
+      {(paused || !!parked || !!lockedWait || !!researchWait || !!ceilingWait || !!heldToday || !!billing?.length) && (
         <Rise className="space-y-2">
           {paused && <Notice tone="stop">Agents are paused. Nothing runs, sends or submits until you resume. Emails you approved yourself still go out.</Notice>}
           {parked ? (
@@ -344,19 +348,17 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               ) : null}
             </Notice>
           ) : null}
-          {starterWait ? (
+          {lockedWait ? (
             <Notice>
-              Your agents have researched your first programmes. To research the other {starterWait} and start writing, give them something to work from:{" "}
-              <Link href="/documents" className="font-semibold underline underline-offset-4">
-                upload your CV or transcript
+              Your free shortlist is ready. For the agents to prepare and submit an application, you need a submission credit:{" "}
+              <Link href="/unlock" className="font-semibold underline underline-offset-4">
+                buy a pack, or invite a friend
               </Link>{" "}
-              or{" "}
-              <a href="/api/mail/connect" className="font-semibold underline underline-offset-4">
-                connect Gmail
-              </a>
-              . They pick up straight away.
+              and you both get one free.
             </Notice>
           ) : null}
+          {researchWait ? <Notice tone="plain">This month&apos;s programme research is done. {researchWait} more programme{researchWait > 1 ? "s are" : " is"} checked next month; your applications carry on.</Notice> : null}
+          {ceilingWait ? <Notice tone="plain">One of your applications is waiting for a quick check by the Ivyward team. Nothing is lost; it carries on after.</Notice> : null}
           {heldToday ? <Notice tone="plain">The agents are busy today. {heldToday} task{heldToday > 1 ? "s" : ""} pick up again tomorrow; nothing is lost.</Notice> : null}
           {billing?.length ? <Notice tone="plain">Agents are briefly paused on our side. Your queued work is saved and resumes on its own.</Notice> : null}
         </Rise>

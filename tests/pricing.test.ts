@@ -47,7 +47,7 @@ describe("budgets", () => {
 });
 
 describe("plans", () => {
-  it("pro's budget leaves margin inside $20, and a paid submission covers its agent work", () => {
+  it("pro's backstop stays inside $20, and a paid submission covers its agent work", () => {
     expect(PLANS.pro.aiBudgetUsd / 20).toBeLessThanOrEqual(0.75);
     expect(BUDGET_PER_SUBMISSION_USD).toBeLessThan(1.9);
   });

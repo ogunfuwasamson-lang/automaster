@@ -1,20 +1,20 @@
 import "server-only";
 import { admin } from "@/lib/supabase/admin";
-import { tierFor, forgetTier } from "@/lib/credit";
+import { tierFor, forgetTier, searchesForUser } from "@/lib/credit";
 import { instantMatches, queueInstantMatches } from "@/lib/matches";
 import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { notify, resolve } from "@/lib/notify";
-import { UNLOCK_FRIENDS } from "@/lib/credit-rules";
 import { getProfile } from "@/lib/profile-store";
 
 // the free tier (lib/credit-rules, "locked"): a new account gets real value with no model call, and the agents
-// unlock when it pays or when UNLOCK_FRIENDS friends it invited finish setup.
+// start when it has a submission credit: bought, or earned when a friend joins through its invite and finishes setup.
 //   free:     a shortlist from the checked library (programmes the agents have already verified on official pages),
 //             each with its deadline, tuition, funding and fee data; scholarship matches; deadline alerts; CV reading
 //             and the interview up to a small allowance.
-//   unlocked: the agents check fit against the applicant's own record, research more programmes, draft and
-//             fact-check statements, ask for fee waivers and fill in the portals.
+//   credit:   the agents check fit against the applicant's own record, draft and fact-check statements, ask for fee
+//             waivers and fill in the portals, one application per credit. a paid account's agents also search for
+//             more programmes; a credit earned through an invite works on the free shortlist.
 
 const LIBRARY_SHORTLIST = 8;
 
@@ -34,7 +34,7 @@ export async function placeLibraryShortlist(userId: string, source: string): Pro
     const why = [
       "From Ivyward's checked library: it matches the level, field and region you chose, and the agents have already read its official pages.",
       m.funding === "fully funded option" ? "A fully funded option is on file for it." : m.funding === "funding possible" ? "Funding is possible here." : "",
-      "Unlock the agents for a fit check against your own record, a drafted statement and the portal filled in for you.",
+      "With a submission credit the agents check your fit against your own record, draft your statement and fill in the portal for you.",
     ]
       .filter(Boolean)
       .join(" ");
@@ -44,59 +44,59 @@ export async function placeLibraryShortlist(userId: string, source: string): Pro
   }
   await logEvent({ userId, actor: "system", action: "free.library_shortlist", context: { source, placed } }).catch(() => {});
   if (placed) await logEvent({ userId, actor: "system", action: "application.shortlisted", context: { library: true, placed } }).catch(() => {});
-  await unlockNotice(userId, placed);
+  // still locked: show what they have and how to get a credit. a friend's invite already earned them one: the fit
+  // checks on these programmes start instead (lib/kickoff)
+  if (await isLocked(userId)) await unlockNotice(userId, placed);
   return placed;
 }
 
-// what a locked applicant sees on their dashboard: what they already have, and the two ways to unlock the rest
+// what a locked applicant sees on their dashboard: what they already have, and the two ways to get a credit
 export async function unlockNotice(userId: string, placed?: number) {
-  const db = admin();
-  const { count: friends } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", userId).not("referral_rewarded_at", "is", null);
-  const left = Math.max(0, UNLOCK_FRIENDS - (friends ?? 0));
   const have = placed ? `Your free shortlist has ${placed} checked programme${placed === 1 ? "" : "s"}, with deadlines, fees and funding. ` : "";
   await notify({
     userId,
     key: "unlock:agents",
     kind: "setup",
     urgent: true,
-    title: "Unlock your agents to apply",
-    body: `${have}To have the agents check your fit, draft your statements, ask for fee waivers and fill in the portals, buy your first submission or invite ${left} more friend${left === 1 ? "" : "s"} who finish${left === 1 ? "es" : ""} setup.`,
+    title: "Get your first application done",
+    body: `${have}For the agents to prepare and submit an application, buy a pack of 5, or invite a friend: when they finish setup, you both get one application free.`,
     href: "/unlock",
-    actionLabel: "Unlock the agents",
+    actionLabel: "See how",
   }).catch(() => {});
 }
 
-// paid, or the second friend finished setup: the agents start on the applicant's list for real. safe to call more
-// than once (idempotency keys), and a no-op for accounts that aren't locked out any more.
-export async function unlockAgents(userId: string, why: "paid" | "friends"): Promise<boolean> {
+// paid, or earned a credit through an invite: the agents start on the applicant's list for real. safe to call more
+// than once (idempotency keys), and a no-op for accounts that are still locked.
+//   paid:   a full search for more programmes (if it hasn't run) and the fit check on the list
+//   earned: the fit check on the free shortlist; preparation starts when those checks finish (lib/kickoff)
+export async function unlockAgents(userId: string, why: "paid" | "earned"): Promise<boolean> {
   forgetTier(userId);
   const { tier } = await tierFor(userId, true);
   if (tier === "locked") return false;
-  // unlocked: the card asking them to pay or invite goes, even when the agents had already started (an account
-  // from before the free tier that then paid kept seeing "Unlock your agents" after paying)
+  // the card asking them to pay or invite goes, even when the agents had already started
   await resolve(userId, "unlock:agents").catch(() => {});
-  const db = admin();
-  const { count: runs } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover");
-  if (runs) return false; // the agents were already working for this account
   const profile = await getProfile(userId);
-  if (!profile.goals.study_level || !(profile.preferences.regions ?? []).length) {
-    await resolve(userId, "unlock:agents").catch(() => {});
-    return false; // setup isn't finished: kickoff starts the shortlist when it is
+  if (!profile.goals.study_level || !(profile.preferences.regions ?? []).length) return false; // kickoff starts it when setup is done
+  const db = admin();
+  const search = why === "paid" && (await searchesForUser(userId));
+  if (search) {
+    const { count: runs } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover");
+    if (!runs) await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: new Date("2000-01-01T00:00:00Z") });
   }
-  await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: new Date("2000-01-01T00:00:00Z") });
-  // the library programmes already on their list get the fit check they skipped
+  // the library programmes on their list get the fit check they skipped
   await queueInstantMatches(userId).catch(() => 0);
-  await resolve(userId, "unlock:agents").catch(() => {});
+  const { releaseHeld } = await import("@/lib/credit");
+  await releaseHeld(userId).catch(() => {});
   await notify({
     userId,
-    key: "unlock:done",
+    key: `unlock:done:${why}`,
     kind: "info",
-    title: "Your agents are unlocked",
-    body: why === "paid" ? "Thanks for your payment. The agents are checking your fit for each programme and searching for more." : `${UNLOCK_FRIENDS} friends you invited finished setup. The agents are checking your fit for each programme and searching for more.`,
+    title: "Your agents are working",
+    body: why === "paid" ? "Thanks for your payment. The agents are checking your fit for each programme and searching for more." : "You have a free application. The agents are checking your fit for each programme on your shortlist, then they start preparing the best one.",
     href: "/shortlist",
     actionLabel: "Open shortlist",
     email: true,
   }).catch(() => {});
-  await logEvent({ userId, actor: "system", action: "free.unlocked", context: { why } }).catch(() => {});
+  await logEvent({ userId, actor: "system", action: "free.unlocked", context: { why, search } }).catch(() => {});
   return true;
 }

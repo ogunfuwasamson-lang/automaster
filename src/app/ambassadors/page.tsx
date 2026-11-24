@@ -4,7 +4,7 @@ import { AmbassadorForm } from "./form";
 
 export const metadata: Metadata = {
   title: "Become an Ivyward ambassador",
-  description: "Help students in your university, school or community apply abroad with Ivyward. When someone joins through your link and finishes setup, you both get a free submission.",
+  description: "Help students in your university, school or community apply abroad with Ivyward. When someone joins through your link and finishes setup, you both get one application free.",
   alternates: { canonical: "/ambassadors" },
 };
 
@@ -21,7 +21,7 @@ export default function Ambassadors() {
       <div className="mx-auto max-w-[820px] px-5 pb-20 pt-12 sm:pt-16">
         <h1 className="text-[42px] leading-[1.05] sm:text-[58px]">Bring your people with you.</h1>
         <p className="mt-5 max-w-2xl text-[18px] leading-relaxed text-muted">
-          Ivyward ambassadors help students in their university, school or community apply abroad. When someone joins through your link and finishes setup, you both get a free submission, and their agents unlock sooner too.
+          Ivyward ambassadors help students in their university, school or community apply abroad. When someone joins through your link and finishes setup, you both get one application prepared and submitted free.
         </p>
         <section className="mt-12">
           <h2 className="font-serif text-[28px]">Who it&apos;s for</h2>
@@ -37,7 +37,7 @@ export default function Ambassadors() {
         <section className="mt-12">
           <h2 className="font-serif text-[28px]">What you get</h2>
           <ul className="prose-iv mt-3">
-            <li>Your own invite link, with a much higher limit on the free submissions you can earn than regular members</li>
+            <li>Your own invite link, with a much higher limit on the free applications you can earn than regular members</li>
             <li>Ready-to-post material: guides, the scholarship finder and the monthly deadline list</li>
             <li>A free embed of the scholarship finder for your group&apos;s website or blog</li>
             <li>Early access to new features, and a direct line to the team for your community&apos;s questions</li>

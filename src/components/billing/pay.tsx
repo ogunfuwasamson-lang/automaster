@@ -106,10 +106,10 @@ export function PlanCard(p: { model: "pack" | "subscription"; label: string; eac
       <div className="space-y-3 text-sm">
         <p>
           <span className="font-serif text-[28px] leading-none tabular">{left}</span> <span className="font-medium">submission{left === 1 ? "" : "s"} left</span>
-          {p.bonus ? <span className="text-muted"> ({p.bonus} free from invites)</span> : null}
+          {p.bonus ? <span className="text-muted"> ({p.bonus} free)</span> : null}
         </p>
         <p className="text-muted">
-          A pack unlocks the agents and covers your submissions: {p.label} ({p.each} each), used one at a time as applications, scholarship forms and funding requests go in. No subscription, and they don&apos;t expire. Or invite 2 friends who finish setup to unlock the agents free.
+          Each application the agents prepare and submit uses one: {p.label} ({p.each} each), and scholarship forms and funding requests use one each too. No subscription, and they don&apos;t expire. Invite a friend and you both get one free.
         </p>
         <BuyPack label={p.label} back="settings" size="sm" variant={left ? "secondary" : "primary"}>{left ? "Buy another pack" : `Buy ${p.label}`}</BuyPack>
         {!p.ready && <p className="text-xs text-muted">Payments open shortly.</p>}

@@ -4,11 +4,10 @@ import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { notify } from "@/lib/notify";
 import { SITE } from "@/lib/site";
-import { UNLOCK_FRIENDS } from "@/lib/credit-rules";
 
-// invite links (rules approved by the founder, 21 nov 2026):
-//   - when a friend who signed up through your link finishes setup, you both get a free submission
-//   - UNLOCK_FRIENDS (2) friends who finish setup unlock your agents on the free tier (lib/free-tier)
+// invite links (rules approved by the founder, 21 nov 2026; the credit model, 24 nov 2026):
+//   - when a friend who signed up through your link finishes setup, you both get a free submission credit: one
+//     application the agents prepare and submit. a credit earned this way switches the agents on (lib/credit-rules)
 //   - GROUP_SIZE - 1 (4) friends who finish setup make a study group of 5: you and each of them get GROUP_REQUESTS
 //     free funding requests (fee waiver, scholarship and assistantship emails)
 // rewards wait for setup, not signup, so an empty account earns nothing; capped so it can't be farmed.
@@ -70,9 +69,10 @@ export async function recordSignup(userId: string, createdAt: string | undefined
   await db.from("profiles").update(patch).eq("id", userId);
 }
 
-// a friend who joined through an invite link finished setup: they and their inviter each get a free submission,
-// the second such friend unlocks the inviter's agents, and the fourth makes a study group of five. once per friend
-// (referral_rewarded_at is claimed atomically). called from setup (lib/kickoff) and WhatsApp sign-up.
+// a friend who joined through an invite link finished setup: they and their inviter each get a free application
+// (a submission credit, which starts the agents), and the fourth such friend makes a study group of five. once per
+// friend (referral_rewarded_at is claimed atomically). called from setup (lib/kickoff), which then starts the friend's
+// fit checks itself.
 export async function rewardOnIntake(userId: string) {
   const db = admin();
   const { data: me } = await db.from("profiles").select("referred_by, referral_rewarded_at").eq("id", userId).maybeSingle();
@@ -81,27 +81,26 @@ export async function rewardOnIntake(userId: string) {
   if (!claimed?.length) return;
   const inviterId = me.referred_by as string;
   await addBonus(userId, "bonus_submissions", 1);
-  await notify({ userId, key: "referral:joined", kind: "info", title: "You've got a free submission", body: "You joined through a friend's invite and finished setup, so your next submission is on us.", href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
+  const { forgetTier } = await import("@/lib/credit");
+  forgetTier(userId);
+  await notify({ userId, key: "referral:joined", kind: "info", title: "You've got a free application", body: "You joined through a friend's invite and finished setup, so you both get one application prepared and submitted free. The agents are checking your fit for each programme on your shortlist.", href: "/shortlist", actionLabel: "Open shortlist" }).catch(() => {});
   const { data: inviter } = await db.from("profiles").select("referral_cap, group_rewarded_at").eq("id", inviterId).maybeSingle();
   const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("referred_by", inviterId).not("referral_rewarded_at", "is", null);
   const done = count ?? 0;
   await logEvent({ userId: inviterId, actor: "system", action: "referral.intake_done", context: { friend: userId, done } }).catch(() => {});
   if (done > (inviter?.referral_cap ?? REFERRAL_CAP)) return;
   await addBonus(inviterId, "bonus_submissions", 1);
-  const toUnlock = Math.max(0, UNLOCK_FRIENDS - done);
   await notify({
     userId: inviterId,
     key: `referral:${userId}`,
     kind: "info",
-    title: "A friend finished setup: you've got a free submission",
-    body: toUnlock ? `Someone you invited finished setup on Ivyward. Your next submission is on us. ${toUnlock} more friend${toUnlock === 1 ? "" : "s"} and your agents unlock.` : "Someone you invited finished setup on Ivyward. Your next submission is on us.",
-    href: "/settings#invite",
+    title: "A friend finished setup: you've got a free application",
+    body: "Someone you invited finished setup on Ivyward, so you both get one application prepared and submitted free. Invite more friends for more.",
+    href: "/unlock",
     actionLabel: "Invite more",
   }).catch(() => {});
-  if (done === UNLOCK_FRIENDS) {
-    const { unlockAgents } = await import("@/lib/free-tier");
-    await unlockAgents(inviterId, "friends").catch(() => false);
-  }
+  const { unlockAgents } = await import("@/lib/free-tier");
+  await unlockAgents(inviterId, "earned").catch(() => false);
   if (done >= GROUP_SIZE - 1 && !inviter?.group_rewarded_at) await rewardGroup(inviterId).catch(() => {});
 }
 

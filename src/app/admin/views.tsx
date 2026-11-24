@@ -21,7 +21,7 @@ import { CreditEditor } from "./credit-editor";
 import { creditPolicy } from "@/lib/credit";
 import { paymentAttempts } from "@/lib/billing";
 import { DEFAULT_POLICY } from "@/lib/credit-policy";
-import { dayStartUTC, tierOf, type Tier } from "@/lib/credit-rules";
+import { APPLICATION_CEILING_USD, RESEARCH_MONTHLY_USD, dayStartUTC, tierOf, type Tier } from "@/lib/credit-rules";
 
 // the operator console's views. each loads its own data, so switching views stays quick. every number follows the
 // period in the range bar (and says so), and leaves out team and test accounts unless the operator asks for everyone.
@@ -1444,11 +1444,10 @@ async function lessonData() {
 
 // ---- credit: who gets AI first, and the asks to pay ----
 
-const TIER_LABEL: Record<Tier, string> = { paid: "Paying", staff: "Staff and team", engaged: "Engaged (docs, Gmail or signed)", starter: "Starters", locked: "Free tier (agents locked)" };
+const TIER_LABEL: Record<Tier, string> = { paid: "Agents working (paid or holding a credit)", staff: "Staff and team", locked: "Free (no credit yet)" };
 
 function tierOfUser(u: AdminUser, friendsDone = 0): Tier {
-  const signed = Object.entries(u.apps).some(([s, n]) => n > 0 && (s === "packet_approved" || SUBMITTED.has(s)));
-  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", documents: u.docs, gmail: !!u.gmail, signed, createdAt: u.joined, friendsDone });
+  return tierOf({ staff: u.admin || u.team, paid: u.payments.length > 0 || u.plan === "pro", credits: u.credits, earned: u.setupRewardedAt || friendsDone > 0 ? u.bonus : 0, signedWithFree: (u.apps.packet_approved ?? 0) > 0 && u.bonus > 0 });
 }
 
 // friends each account invited who finished setup (lib/referrals)
@@ -1465,7 +1464,7 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
     creditPolicy(true),
     runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", dayStartUTC()),
     runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r),
-    every<{ user_id: string; last_error: string | null }>((a, b) => db.from("jobs").select("user_id, last_error").eq("status", "queued").or('last_error.like."budget: starter%",last_error.like."hold:%"').range(a, b)),
+    every<{ user_id: string; last_error: string | null }>((a, b) => db.from("jobs").select("user_id, last_error").eq("status", "queued").like("last_error", "budget:%").range(a, b)),
     every<{ user_id: string; action: string; context: { angle?: string } | null; created_at: string }>((a, b) =>
       db.from("events").select("user_id, action, context, created_at").in("action", ["nudge.clicked", "nudge.emailed"]).gte("created_at", r.from).lte("created_at", r.to).range(a, b),
     ),
@@ -1475,11 +1474,11 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
   const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u, friends.get(u.id) ?? 0)]));
   const spentToday = today.reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
   const limit = policy.dailyLimitUsd;
-  const state = !limit ? "No daily limit" : spentToday >= limit * policy.runawayMultiple ? "Only paying and staff run" : spentToday >= limit ? "Limit reached" : spentToday >= limit * policy.starterShareOfDay ? "Starters waiting" : "Everyone runs";
-  const tone: Tone = !limit ? undefined : spentToday >= limit ? "stop" : spentToday >= limit * policy.starterShareOfDay ? "signal" : "go";
+  const state = !limit ? "No daily alert" : spentToday >= limit ? "Alert sent" : "Under the alert";
+  const tone: Tone = !limit ? undefined : spentToday >= limit ? "signal" : "go";
 
   const shown = (id: string) => everyone || !d.team.has(id);
-  const tiers: Tier[] = ["paid", "engaged", "starter", "locked", "staff"];
+  const tiers: Tier[] = ["paid", "locked", "staff"];
   const rows = tiers.map((t) => {
     const ids = users.filter((u) => tierBy.get(u.id) === t && shown(u.id)).map((u) => u.id);
     const set = new Set(ids);
@@ -1488,10 +1487,10 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
   });
   const totalRange = rows.reduce((a, x) => a + x.range, 0);
 
-  const starterWait = waiting.filter((j) => j.last_error?.startsWith("budget: starter")).length;
-  const busy = waiting.filter((j) => j.last_error?.startsWith("hold: busy")).length;
-  const away = waiting.filter((j) => j.last_error?.startsWith("hold: paused")).length;
-  const engagedUnpaid = rows.find((x) => x.t === "engaged")?.n ?? 0;
+  const lockedWait = waiting.filter((j) => j.last_error?.startsWith("budget: the agents")).length;
+  const ceilingWait = waiting.filter((j) => j.last_error?.startsWith("budget: this application is waiting")).length;
+  const researchWait = waiting.filter((j) => j.last_error?.startsWith("budget: this month's programme research")).length;
+  const freeAccounts = rows.find((x) => x.t === "locked")?.n ?? 0;
 
   const byAngle = new Map<string, { emailed: number; clicked: number }>();
   for (const e of nudgeEvents) {
@@ -1508,11 +1507,11 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
   return (
     <div className="space-y-4">
       <Kpis>
-        <Stat label="AI spend today (UTC)" value={$(spentToday)} sub={limit ? `of ${$(limit)} · ${state}` : state} tone={tone} />
-        <Stat label="Starter work waiting" value={String(starterWait)} sub="until they upload or connect Gmail" />
-        <Stat label="Held until tomorrow" value={String(busy)} sub="busy day" />
-        <Stat label="Paused, applicant away" value={String(away)} sub={policy.inactiveDays ? `no visit in ${policy.inactiveDays} days` : "switched off"} />
-        <Stat label="Engaged, not paying" value={String(engagedUnpaid)} sub="who the asks to pay go to" />
+        <Stat label="AI spend today (UTC)" value={$(spentToday)} sub={limit ? `alert at ${$(limit)} · ${state}` : state} tone={tone} />
+        <Stat label="Work waiting for a credit" value={String(lockedWait)} sub="free accounts" />
+        <Stat label="Applications paused at the ceiling" value={String(ceilingWait)} sub={`over ${$(APPLICATION_CEILING_USD)} each, for you to check`} tone={ceilingWait ? "signal" : undefined} />
+        <Stat label="Research stopped for the month" value={String(researchWait)} sub={`accounts past ${$(RESEARCH_MONTHLY_USD)}`} />
+        <Stat label="Free accounts" value={String(freeAccounts)} sub="who the asks to pay go to" />
         <Stat label="Paid after an ask" value={String(paidAfter)} sub={`tapped one, then paid · ${r.label}`} tone={paidAfter ? "go" : undefined} />
       </Kpis>
 

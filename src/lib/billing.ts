@@ -251,7 +251,7 @@ export async function applyCheckout(c: Checkout): Promise<{ applied: boolean; ki
   const { releaseHeld } = await import("@/lib/credit");
   await releaseHeld(userId).catch(() => {});
   await resolve(userId, /^paynudge:/).catch(() => {});
-  // they've paid: the "buy a pack" and "unlock your agents" cards are done with
+  // they've paid: the "buy a pack" and "get your first application done" cards are done with
   await resolve(userId, "pack:offer").catch(() => {});
   // the free tier: paying unlocks the agents (lib/free-tier). after the credits land, so the tier reads as paid
   const unlock = async () => {

@@ -4,14 +4,13 @@ import { admin } from "@/lib/supabase/admin";
 import { planOf } from "@/lib/plans";
 import { runsSince } from "@/lib/runs";
 import { teamIds } from "@/lib/team";
-import { dayStartUTC, gate, nextDayUTC, tierOf, type Gate, type Signals, type Tier } from "@/lib/credit-rules";
+import { APPLICATION_CEILING_USD, dayStartUTC, gate, overCeiling, tierOf, type Gate, type Signals, type Tier } from "@/lib/credit-rules";
 import { parsePolicy, type CreditPolicy } from "@/lib/credit-policy";
 import type { Category, Spend } from "@/lib/pricing";
 
 // the server side of lib/credit-rules: who each account is, what the platform has spent today, and the limits the
 // operator set (billing_settings, so no schema change). everything is cached briefly: this runs before every call.
 
-const SIGNED = ["packet_approved", "submitted", "under_review", "interview", "waitlisted", "admitted", "accepted", "declined", "rejected"];
 const KEY = "credit_policy";
 const ALERTED = "ai_daily_limit_alerted";
 
@@ -42,81 +41,98 @@ export async function todaySpendUsd(fresh = false): Promise<number> {
   return usd;
 }
 
-export async function signalsFor(userId: string): Promise<Signals & { createdAt: string | null }> {
+export async function signalsFor(userId: string): Promise<Signals> {
   const db = admin();
   const head = { count: "exact" as const, head: true };
-  const [{ data: p }, team, { count: docs }, { count: mail }, { count: signed }, { count: paidEvents }, { count: friends }] = await Promise.all([
-    db.from("profiles").select("plan, plan_until, is_admin, submission_credits, created_at").eq("id", userId).maybeSingle(),
+  const [{ data: p }, team, { count: paidEvents }, { count: friends }, { count: signed }] = await Promise.all([
+    db.from("profiles").select("plan, plan_until, is_admin, submission_credits, bonus_submissions, referral_rewarded_at").eq("id", userId).maybeSingle(),
     teamIds().catch(() => new Set<string>()),
-    db.from("documents").select("id", head).eq("user_id", userId),
-    db.from("mail_accounts").select("user_id", head).eq("user_id", userId),
-    db.from("applications").select("id", head).eq("user_id", userId).in("status", SIGNED),
     db.from("billing_events").select("reference", head).eq("user_id", userId),
     // friends this account invited who finished setup (lib/referrals stamps referral_rewarded_at then)
     db.from("profiles").select("id", head).eq("referred_by", userId).not("referral_rewarded_at", "is", null),
+    db.from("applications").select("id", head).eq("user_id", userId).eq("status", "packet_approved"),
   ]);
+  // free credits count as earned once an invite is involved: they joined through one and finished setup, or brought a
+  // friend who did. the free submission every account got from 14 nov alone doesn't unlock the agents
+  const invited = !!p?.referral_rewarded_at || (friends ?? 0) > 0;
   return {
     staff: !!p?.is_admin || team.has(userId),
-    paid: planOf(p?.plan, p?.plan_until ?? null).id === "pro" || (p?.submission_credits ?? 0) > 0 || (paidEvents ?? 0) > 0,
-    documents: docs ?? 0,
-    gmail: (mail ?? 0) > 0,
-    signed: (signed ?? 0) > 0,
-    createdAt: (p?.created_at as string | undefined) ?? null,
-    friendsDone: friends ?? 0,
+    paid: planOf(p?.plan, p?.plan_until ?? null).id === "pro" || (paidEvents ?? 0) > 0,
+    credits: Number(p?.submission_credits ?? 0),
+    earned: invited ? Number(p?.bonus_submissions ?? 0) : 0,
+    signedWithFree: (signed ?? 0) > 0 && Number(p?.bonus_submissions ?? 0) > 0,
   };
 }
 
-const tierCache = new Map<string, { tier: Tier; lastActive: number | null; at: number }>();
+const tierCache = new Map<string, { tier: Tier; at: number }>();
 // after a payment or a friend finishing setup: the next call looks again instead of using the cached tier
 export function forgetTier(userId: string) {
   tierCache.delete(userId);
 }
-export async function tierFor(userId: string, fresh = false): Promise<{ tier: Tier; lastActive: number | null }> {
+export async function tierFor(userId: string, fresh = false): Promise<{ tier: Tier }> {
   const hit = tierCache.get(userId);
   if (!fresh && hit && Date.now() - hit.at < 5 * 60_000) return hit;
-  const s = await signalsFor(userId);
-  const tier = tierOf(s);
-  let lastActive: number | null = null;
-  if (tier === "engaged" || tier === "starter") {
-    // the applicant's own actions (and interview messages); a new account counts from when it was made
-    const { data: e } = await admin().from("events").select("created_at").eq("user_id", userId).or("actor.eq.user,action.eq.interview.turn").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    lastActive = Math.max(e?.created_at ? Date.parse(e.created_at) : 0, s.createdAt ? Date.parse(s.createdAt) : 0) || null;
-  }
-  const v = { tier, lastActive, at: Date.now() };
+  const tier = tierOf(await signalsFor(userId));
+  const v = { tier, at: Date.now() };
   if (tierCache.size > 5000) tierCache.clear();
   tierCache.set(userId, v);
   return v;
 }
 
-// held: not the job's fault and not the month's budget. the job waits (without spending an attempt) until `until`
-export class CreditHeld extends Error {
-  constructor(public kind: "day" | "inactive", reason: string, public until: string) {
-    super(`hold: ${reason}`);
-    this.name = "CreditHeld";
-  }
+// the agents search for programmes of their own (a full shortlist run) for accounts that paid; a credit earned through
+// an invite gets the fit check on the free shortlist and its application, not a search
+export async function searchesForUser(userId: string): Promise<boolean> {
+  const s = await signalsFor(userId);
+  return s.staff || s.paid || (s.credits ?? 0) > 0;
 }
 
-// holds for a busy day or an absence are for background work (queued jobs). something the applicant clicked and is
-// waiting for (a tailored CV, an email draft) only answers to their budget and the starter allowance
+// background work (queued jobs), as opposed to something the applicant clicked and is waiting for
 const background = new AsyncLocalStorage<true>();
 export const inBackground = <T>(fn: () => Promise<T>): Promise<T> => background.run(true, fn);
 
-// the check before every model call (lib/budget calls it after the monthly budget). returns the gate's verdict:
-// a starter over their allowance is a budget stop (parked until they engage or the month turns); a busy day or a
-// long absence is a hold.
+// the check before every model call (lib/budget calls it after the monthly backstop): a free account past its small
+// allowance, or any work but CV reading and the interview, waits for a credit; an account past the month's research
+// stops researching until the 1st (and the operator hears about it once)
 export async function creditGate(userId: string, category: Category, spend: Spend): Promise<Gate> {
-  const [{ tier, lastActive }, policy, today] = await Promise.all([tierFor(userId), creditPolicy(), todaySpendUsd()]);
-  if (category === "core" && tier !== "locked") return { ok: true };
-  const g = gate({ tier, category, spend, todayUsd: today, lastActiveMs: lastActive, now: Date.now(), policy });
+  const [{ tier }, policy, today] = await Promise.all([tierFor(userId), creditPolicy(), todaySpendUsd()]);
   if (today >= policy.dailyLimitUsd && policy.dailyLimitUsd > 0) await alertDailyLimit(today, policy.dailyLimitUsd).catch(() => {});
-  if (!g.ok && g.kind !== "starter" && g.kind !== "locked" && !background.getStore()) return { ok: true };
+  const g = gate({ tier, category, spend });
+  if (!g.ok && g.kind === "research") await alertOnce(`research-ceiling:${userId}:${dayStartUTC().slice(0, 7)}`, "An account reached this month's research ceiling", { user: userId, research_usd: Math.round(spend.byCategory.research * 100) / 100 }).catch(() => {});
   return g;
 }
 
-// a held job looks again tomorrow, spread over the first half hour so they don't all start at once (for an absent
-// applicant the look costs nothing: no model call until they're back)
-export function holdUntil(): string {
-  return nextDayUTC(new Date(), Math.floor(Math.random() * 30 * 60_000));
+// what one application has cost in AI so far: its own jobs (planning, essays, reviews, fee waivers, the portal)
+export async function applicationSpendUsd(applicationId: string): Promise<number> {
+  const db = admin();
+  const { data: jobs } = await db.from("jobs").select("id").eq("payload->>applicationId", applicationId).limit(5000);
+  const ids = (jobs ?? []).map((j) => j.id as string);
+  let usd = 0;
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await db.from("agent_runs").select("cost_usd").in("job_id", ids.slice(i, i + 200)).limit(10000);
+    for (const r of data ?? []) usd += Number(r.cost_usd) || 0;
+  }
+  return usd;
+}
+
+// the per-application ceiling (lib/credit-rules): past it, work on that application waits for the operator, who
+// hears about it once. staff accounts aren't held
+export async function applicationOverCeiling(userId: string, applicationId: string): Promise<boolean> {
+  if ((await tierFor(userId)).tier === "staff") return false;
+  const usd = await applicationSpendUsd(applicationId);
+  if (!overCeiling(usd)) return false;
+  await alertOnce(`app-ceiling:${applicationId}`, "An application reached its AI ceiling and is paused", {
+    user: userId,
+    application: applicationId,
+    spent_usd: Math.round(usd * 100) / 100,
+    ceiling_usd: APPLICATION_CEILING_USD,
+    to_continue: "set run_at to now on its queued jobs (last_error starts with 'budget: this application is waiting')",
+  }).catch(() => {});
+  return true;
+}
+
+async function alertOnce(key: string, title: string, fields: Record<string, unknown>) {
+  const { alert } = await import("@/lib/alerts");
+  await alert(key, title, fields);
 }
 
 // the operator hears once a UTC day that the limit was reached, and what's still running
@@ -133,39 +149,18 @@ async function alertDailyLimit(today: number, limit: number) {
   await alert(`ai-daily-limit:${day}`, "Ivyward reached today's AI spend limit", {
     spent_today_usd: Math.round(today * 100) / 100,
     daily_limit_usd: limit,
-    what_runs_now: "Paid, staff and engaged accounts (documents or Gmail). Starter accounts' research and writing wait until tomorrow (UTC).",
+    what_runs_now: "Everything keeps running: this is an alert only. Free accounts can't use more than their small monthly amount, and each paying account's research and each application have their own ceilings.",
     change_it: "Operator console: Credit tab",
   });
 }
 
-// an account just became serious (uploaded a document, connected gmail, signed, paid): work that was waiting on
-// the starter allowance or the day's limit goes now
+// an account just got a credit (paid, or earned one through an invite): work that waited for it goes now
 export async function releaseHeld(userId: string) {
   tierCache.delete(userId);
-  const { resolve } = await import("@/lib/notify");
-  await resolve(userId, STARTER_NOTICE).catch(() => {});
   const db = admin();
   const now = new Date().toISOString();
-  await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", "budget: starter%");
-  await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", "hold:%");
-}
-
-// a starter's research stopped at the allowance: their shortlist never "finishes", so tell them once what they have
-// and what lets the agents carry on (an email too, once)
-const STARTER_NOTICE = "setup:starter-allowance";
-export async function starterHeld(userId: string) {
-  const { notify } = await import("@/lib/notify");
-  await notify({
-    userId,
-    key: STARTER_NOTICE,
-    kind: "setup",
-    title: "Your first programmes are ready",
-    body: "Your agents researched your first programmes. Upload your CV or transcript, or connect Gmail, and they'll research the rest and start on your applications.",
-    href: "/documents",
-    actionLabel: "Upload a document",
-    urgent: true,
-    email: true,
-  });
+  for (const waiting of ["budget: the agents start%", "budget: the agents unlock%", "budget: starter%", "budget: this month's free allowance%", "hold:%"])
+    await db.from("jobs").update({ run_at: now }).eq("user_id", userId).eq("status", "queued").like("last_error", waiting);
 }
 
 // ---- running low: a warning before the provider credit hits zero ----

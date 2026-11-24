@@ -36,7 +36,7 @@ describe("an address an agent may email", () => {
 });
 
 // startShortlist: mocked store
-const state = { profile: {} as Record<string, unknown>, docs: 0, apps: 0, runs: 0, enqueued: [] as unknown[], locked: false, library: 0, rewarded: 0 };
+const state = { profile: {} as Record<string, unknown>, docs: 0, apps: 0, runs: 0, enqueued: [] as unknown[], locked: false, search: true, library: 0, rewarded: 0 };
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/profile-store", () => ({ getProfile: async () => state.profile }));
 vi.mock("@/lib/queue", () => ({ enqueue: async (j: unknown) => state.enqueued.push(j) }));
@@ -46,6 +46,7 @@ vi.mock("@/lib/limits", () => ({ checkLimit: async () => null }));
 vi.mock("@/lib/gmail", () => ({ canReadMail: async () => true }));
 vi.mock("@/lib/free-tier", () => ({ isLocked: async () => state.locked, placeLibraryShortlist: async () => (state.library = 6) }));
 vi.mock("@/lib/referrals", () => ({ rewardOnIntake: async () => void state.rewarded++ }));
+vi.mock("@/lib/credit", () => ({ searchesForUser: async () => state.search, tierFor: async () => ({ tier: state.locked ? "locked" : "paid" }) }));
 vi.mock("@/lib/supabase/admin", () => ({
   admin: () => ({
     from: (t: string) => {
@@ -59,7 +60,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 describe("the shortlist starts as soon as the agents can search well", () => {
   const p = (fields: string[] | null, level: string | null = "masters", regions = ["uk"]) => ({ goals: { study_level: level, fields }, preferences: { regions } });
-  beforeEach(() => Object.assign(state, { docs: 0, apps: 0, runs: 0, enqueued: [], locked: false, library: 0, rewarded: 0 }));
+  beforeEach(() => Object.assign(state, { docs: 0, apps: 0, runs: 0, enqueued: [], locked: false, search: true, library: 0, rewarded: 0 }));
   const start = async () => (await import("@/lib/kickoff")).startShortlist("u1", "preferences");
   it("with a level, a region and fields: at step 2 of setup, not the last step", async () => {
     state.profile = p(["Data Science"]);
@@ -69,9 +70,18 @@ describe("the shortlist starts as soon as the agents can search well", () => {
   it("on the free tier: a shortlist from the checked library, with no agent jobs", async () => {
     state.profile = p(["Data Science"]);
     state.locked = true;
+    state.search = false;
     expect(await start()).toBe(true);
     expect(state.library).toBe(6);
     expect(state.enqueued).toHaveLength(0);
+  });
+  it("a credit earned through an invite: the checked library's shortlist, then the fit checks on it, no search", async () => {
+    state.profile = p(["Data Science"]);
+    state.locked = false;
+    state.search = false;
+    expect(await start()).toBe(true);
+    expect(state.library).toBe(6);
+    expect(state.enqueued.some((j) => (j as { task?: string }).task === "discover")).toBe(false);
   });
   it("finishing setup rewards the friend who invited them", async () => {
     state.profile = p(["Data Science"]);

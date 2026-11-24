@@ -37,7 +37,7 @@ Fixes from real submissions: the agents choose the intake your programme actuall
 Each application lists the documents that school needs, so you know what to upload and by when.
 
 ### Share a school with a friend
-Tap Share on any school on your list to send its deadline, fees and requirements on WhatsApp, with a link to apply. If your friend joins through it, their first submission is free, and you get one when they submit.
+Tap Share on any school on your list to send its deadline, fees and requirements on WhatsApp, with a link to apply. If your friend joins through it and finishes setup, you both get one application free.
 
 [[Open Ivyward]](/dashboard)
 
