@@ -175,6 +175,8 @@ export async function creditHistory(userId: string, limit = 150): Promise<Histor
     const n = Number(u.amount);
     if (u.kind === "application") {
       const p = app.get(u.ref as string) ?? null;
+      // set aside and given back for an application that no longer exists: nothing changed, nothing to show
+      if (!p && status === "returned") continue;
       out.push({ at, dir: "out", amount: n, title: p ? `Application: ${school(p) ?? p.name}` : "An application", detail: p?.name ?? null, status, href: UUID.test(u.ref as string) ? `/applications/${u.ref}` : undefined });
     } else if (u.kind === "check") {
       const p = job.get(u.ref as string);
