@@ -263,7 +263,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // "Upgrade" on the limit notice opens the payment page itself: a pack where packs are sold, Pro elsewhere
   const payKind: "pack" | "pro" = parked && plan.id === "free" ? ((await billingState(user.id).catch(() => null))?.pricing.model === "pack" ? "pack" : "pro") : "pro";
   // the credit wallet (lib/wallet): shown once there's anything in it
-  const wallet = isAdmin ? null : await walletState(user.id).catch(() => null);
+  const wallet = await walletState(user.id).catch(() => null);
 
   return (
     <Stagger className="relative space-y-6">

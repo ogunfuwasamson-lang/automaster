@@ -6,7 +6,7 @@ import { notify, resolve } from "@/lib/notify";
 import { bachs, type CheckoutSession } from "@/lib/bachs";
 import { LEGACY_PACK_SIZE, PACK_PRICE, PRO_MONTHLY, pricingFor, type Pricing } from "@/lib/geo-pricing";
 import { CREDITS, applicationsFor } from "@/lib/credit-prices";
-import { chargeRequest, exempt as walletExempt, grant, lowCreditNotice, settleApplication, walletState } from "@/lib/wallet";
+import { chargeRequest, grant, lowCreditNotice, settleApplication, walletState } from "@/lib/wallet";
 import { planOf } from "@/lib/plans";
 import { submissionAmounts } from "@/lib/fx";
 
@@ -20,7 +20,7 @@ export interface BillingState {
   planUntil: string | null;
   cancelled: boolean;
   customer: string | null;
-  exempt: boolean; // staff accounts
+  exempt: boolean; // nobody since the wallet (24 nov 2026): admin and team accounts pay credits too
   credits: number; // credits to use now (lib/wallet)
   held: number; // credits set aside for applications in progress
   expiring: { credits: number; at: string } | null; // the next credits to expire
@@ -41,7 +41,7 @@ export async function billingState(userId: string): Promise<BillingState> {
     planUntil: data.plan_until,
     cancelled: !!data.plan_cancelled_at,
     customer: data.bachs_customer,
-    exempt: !!data.is_admin,
+    exempt: false,
     credits: wallet.balance,
     held: wallet.held,
     expiring: wallet.expiring,
@@ -96,7 +96,7 @@ export async function settleBeforeSubmit(userId: string, applicationId: string):
   const db = admin();
   const { data: app } = await db.from("applications").select("paid_at").eq("id", applicationId).eq("user_id", userId).maybeSingle();
   if (!app) return null;
-  if (app.paid_at || (await walletExempt(userId))) return null;
+  if (app.paid_at) return null;
   const r = await settleApplication(userId, applicationId);
   if (r === "ok" || r === "already") {
     await db.from("applications").update({ paid_at: new Date().toISOString() }).eq("id", applicationId).is("paid_at", null);

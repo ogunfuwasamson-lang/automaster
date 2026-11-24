@@ -2,22 +2,15 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
 import { notify } from "@/lib/notify";
-import { teamIds } from "@/lib/team";
 import { CREDITS } from "@/lib/credit-prices";
 
 // the credit wallet (lib/credit-prices has the price list; supabase/migrations/0034 the ledger). every charge is
 // tied to one thing (an application, a check's job, a message), so a retry or a second runner can't charge twice.
-// staff accounts aren't charged.
+// everyone pays, admin and team accounts included (founder's call, 24 nov 2026); staff top up from the console.
 
 export type Kind = "application" | "check" | "request";
 export type Source = "pack" | "pro" | "invite" | "group" | "grant" | "submission";
 export type UseResult = "ok" | "already" | "none";
-
-export async function exempt(userId: string): Promise<boolean> {
-  const { data } = await admin().from("profiles").select("is_admin").eq("id", userId).maybeSingle();
-  if (data?.is_admin) return true;
-  return (await teamIds().catch(() => new Set<string>())).has(userId);
-}
 
 export async function balance(userId: string): Promise<number> {
   const { data, error } = await admin().rpc("credit_balance", { uid: userId });
@@ -57,7 +50,6 @@ export async function grant(userId: string, n: number, source: Source, expiresAt
 }
 
 async function spend(userId: string, kind: Kind, ref: string, n: number, hold: boolean): Promise<UseResult> {
-  if (await exempt(userId)) return "ok";
   const { data, error } = await admin().rpc("use_credits", { uid: userId, k: kind, r: ref, n, hold });
   if (error) {
     await logEvent({ userId, actor: "system", action: "credits.error", context: { kind, ref, error: error.message } }).catch(() => {});
@@ -82,7 +74,6 @@ export async function holdApplication(userId: string, applicationId: string): Pr
 
 // the application went in: spend what was set aside, or charge it now if nothing was
 export async function settleApplication(userId: string, applicationId: string): Promise<UseResult> {
-  if (await exempt(userId)) return "ok";
   const { data, error } = await admin().rpc("settle_credits", { uid: userId, k: "application", r: applicationId });
   if (error) return "none";
   if (data === "ok" || data === "already") return data as UseResult;

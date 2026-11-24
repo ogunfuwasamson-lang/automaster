@@ -94,7 +94,7 @@ export function CreditEditor({ initial, defaults }: { initial: CreditPolicy; def
       <section className="rounded-2xl border border-line bg-surface p-4 shadow-card">
         <h2 className="text-[14.5px] font-semibold">AI spend</h2>
         <p className="text-[12.5px] text-muted">
-          The agents work for an account once it has a submission credit, bought or earned through an invite. Free accounts get CV reading and the interview up to $0.50 a month. Each paying account&apos;s research stops for the month at $3, and an application pauses for you to check at $3.
+          Everything the agents do is paid in credits, by every account, admin included (give credits from a user&apos;s page). Free accounts get CV reading and the interview up to $0.50 a month. Our own backstops: an account&apos;s research stops for the month at $10 of AI, and an application pauses for you to check at $3.
         </p>
         <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           <Num name="Daily spend alert" value={p.dailyLimitUsd} onChange={(n) => set("dailyLimitUsd", n)} suffix="USD a day" hint="You get one email the first time each UTC day the platform's AI spend passes this. Nothing is held: free accounts can't spend more than their small monthly amount, and each paying account's research and each application have their own ceilings. 0 switches the alert off." />

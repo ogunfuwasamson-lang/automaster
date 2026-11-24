@@ -14,7 +14,7 @@ import { logEvent } from "@/lib/events";
 import { enqueue } from "@/lib/queue";
 import { userPlan } from "@/lib/budget";
 import { creditPolicy, tierFor } from "@/lib/credit";
-import { balance, chargeCheck, exempt as walletExempt } from "@/lib/wallet";
+import { balance, chargeCheck } from "@/lib/wallet";
 import { searchSize } from "@/lib/credit-prices";
 import { BudgetExceeded } from "@/lib/budget";
 import { NO_CREDITS_REASON } from "@/lib/credit-rules";
@@ -286,7 +286,7 @@ export const recon: Record<string, Handler> = {
     const sized = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
     const want = profile.goals.applying === "exploring" && tier !== "paid" && tier !== "staff" ? Math.max(3, Math.ceil(sized / 2)) : sized;
     // each programme it checks costs a credit (lib/credit-prices): a run checks no more than the wallet pays for
-    const total = (await walletExempt(job.user_id)) ? want : searchSize(want, await balance(job.user_id));
+    const total = searchSize(want, await balance(job.user_id));
     if (!total) {
       await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.no_credits", context: { wanted: want } });
       return { regions: 0, skipped: "no credits" };

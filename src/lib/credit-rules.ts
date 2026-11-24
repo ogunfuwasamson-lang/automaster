@@ -4,7 +4,8 @@
 // the agents do (an application, a check, a funding request). credits come from a pack, Pro, or an invite. AI spend
 // stays our cost: what an action costs in credits doesn't depend on what it cost us.
 //
-//   staff:   admins and team accounts: their own monthly cap (lib/budget), never charged credits.
+//   staff:   admins and team accounts: their own monthly backstop (lib/budget). they pay credits like everyone
+//            (founder's call, 24 nov 2026) and top up from the console.
 //   paid:    has paid for anything, or holds credits (to use or set aside for an application in progress): the agents
 //            work, and each action is charged as it happens (lib/wallet). our own guards, never shown: research stops
 //            for the month at RESEARCH_MONTHLY_USD, and an application that passes APPLICATION_CEILING_USD pauses for

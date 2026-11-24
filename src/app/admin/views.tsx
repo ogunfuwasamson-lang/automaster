@@ -13,6 +13,7 @@ import { sampleSheet } from "@/evals/sample";
 import { MILESTONES, duration, summarize } from "@/lib/first-submission";
 import { STAGES, SUBMITTED, every, loadAdmin, scope, type AdminApp, type AdminUser, type Payment } from "./data";
 import { TeamToggle } from "./team-toggle";
+import { GrantCredits } from "./grant-credits";
 import { AccountActions } from "./account-actions";
 import { MessageUser } from "./message-user";
 import { DOC_KINDS } from "@/lib/doc-kinds";
@@ -635,7 +636,7 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
         note={`${r.allTime ? "Every account" : `Joined or active in ${r.label}`}, newest first. AI spend is for the same period. Mark your own and test accounts as team so the numbers show real applicants.`}
         scroll="xl"
       >
-        <Table head={["User", "Counted as", "Joined", "Source", "Last active", "Furthest step", "Apps", "Submitted", "Stopped", "Documents", "Gmail", "AI spend"]} min="82rem">
+        <Table head={["User", "Counted as", "Joined", "Source", "Last active", "Furthest step", "Apps", "Submitted", "Stopped", "Documents", "Gmail", "Credits", "AI spend"]} min="86rem">
           {shown.length ? (
             shown.map((u) => (
               <tr key={u.id}>
@@ -661,19 +662,27 @@ export async function UsersView({ range: r, everyone, q }: { range: Range; every
                 </td>
                 <td className="px-4 py-2.5">{u.gmail?.status === "active" ? <Pill tone="go">Connected</Pill> : dash}</td>
                 <td className={td}>
+                  {u.credits || u.held ? u.credits : dash}
+                  {u.held ? <span className="block text-[12px] text-muted">{u.held} set aside</span> : null}
+                </td>
+                <td className={td}>
                   {$(spend.get(u.id) ?? 0)}
                   <Bar share={(spend.get(u.id) ?? 0) / Math.max(0.01, u.budget)} tone={(spend.get(u.id) ?? 0) > u.budget * 0.9 ? "stop" : undefined} />
                 </td>
               </tr>
             ))
           ) : (
-            <Empty cols={12}>{needle ? `No user matches "${q}" in ${r.label}.` : `Nobody joined or was active in ${r.label}.`}</Empty>
+            <Empty cols={13}>{needle ? `No user matches "${q}" in ${r.label}.` : `Nobody joined or was active in ${r.label}.`}</Empty>
           )}
         </Table>
       </Panel>
     </div>
   );
 }
+
+// the credit wallet's words for the console (lib/wallet)
+const CREDIT_SOURCE: Record<string, string> = { pack: "Bought a pack", pro: "Pro month", invite: "Invite reward", group: "Study group reward", converted: "Converted from an old pack", grant: "Given by the team", submission: "Old one-off submission" };
+const CREDIT_USE: Record<string, string> = { application: "An application", check: "A programme check", request: "A funding request" };
 
 // ---- one user ----
 
@@ -682,12 +691,14 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
   const d = await loadAdmin();
   const u = d.users.find((x) => x.id === id);
   if (!u) return <p className="text-muted">No account with that id. It may have been deleted.</p>;
-  const [runs, { data: events }, { data: errors }, { data: jobs }, { data: docs }] = await Promise.all([
+  const [runs, { data: events }, { data: errors }, { data: jobs }, { data: docs }, { data: grants }, { data: uses }] = await Promise.all([
     runsIn<{ agent: string; cost_usd: number | null; status: string; started_at: string }>("agent, cost_usd, status, started_at", r, id),
     db.from("events").select("user_id, actor, action, application_id, created_at").eq("user_id", id).not("action", "in", `(${NOISE.join(",")})`).gte("created_at", r.from).lte("created_at", r.to).order("created_at", { ascending: false }).limit(150),
     db.from("agent_runs").select("agent, error, started_at").eq("user_id", id).eq("status", "failed").not("error", "is", null).gte("started_at", r.from).lte("started_at", r.to).order("started_at", { ascending: false }).limit(200),
     db.from("jobs").select("agent, task, status, last_error, attempts, run_at, finished_at").eq("user_id", id).in("status", ["queued", "running", "failed"]).order("created_at", { ascending: false }).limit(50),
     db.from("documents").select("id, kind, filename, status, created_at").eq("user_id", id).order("created_at", { ascending: false }).limit(200),
+    db.from("credit_grants").select("source, amount, remaining, expires_at, created_at").eq("user_id", id).order("created_at", { ascending: false }).limit(50),
+    db.from("credit_uses").select("kind, ref, amount, status, created_at").eq("user_id", id).neq("status", "released").order("created_at", { ascending: false }).limit(50),
   ]);
   const mine = d.apps.filter((a) => a.userId === id).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
   const appMap = new Map(d.apps.map((a) => [a.id, a]));
@@ -726,7 +737,8 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
         <Stat label="Stopped" value={`${u.waiting}`} sub="waiting on them or failed" tone={u.waiting ? "signal" : undefined} />
         <Stat label="Documents" value={`${u.docs}`} sub={Object.keys(u.docKinds).map((kk) => DOC_SHORT[kk] ?? docLabel(kk)).join(", ") || "none uploaded"} />
         <Stat label="Gmail" value={u.gmail?.status === "active" ? "On" : "Off"} sub={u.gmail ? `${u.gmail.email}${u.gmail.status !== "active" ? `, ${u.gmail.status}` : ""}` : "not connected"} />
-        <Stat label={`AI, ${r.label}`} value={$(spent)} sub={`Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}. Monthly budget ${$(u.budget)}`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
+        <Stat label="Credits" value={`${u.credits}`} sub={u.held ? `${u.held} set aside for applications in progress` : "to use now"} tone={u.credits || u.held ? undefined : "signal"} />
+        <Stat label={`AI, ${r.label}`} value={$(spent)} sub={`Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}. Our backstop ${$(u.budget)} a month`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
         <Stat label="Paid, all time" value={u.payments.length ? money(u.payments) : "0"} sub={`${u.payments.length} payment${u.payments.length === 1 ? "" : "s"}`} />
       </Kpis>
 
@@ -762,6 +774,25 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
           <Activity rows={(events ?? []) as Ev[]} apps={appMap} users={new Map([[u.id, u]])} r={r} everyone={everyone} showUser={false} />
         </Panel>
         <div className="grid content-start gap-4">
+          <Panel title="Give credits" note="A refund, a goodwill top-up, a partner or ambassador reward, or your own testing. Logged with your reason.">
+            <GrantCredits userId={u.id} />
+          </Panel>
+          <Panel title="Credits in and out" note="Where their credits came from and what they were used for, newest first." scroll="sm">
+            <Table head={["When", "What", "Credits", "Left or state"]} min="30rem">
+              {[...(grants ?? []).map((g) => ({ at: g.created_at as string, what: CREDIT_SOURCE[g.source as string] ?? (g.source as string), n: `+${g.amount}`, state: `${g.remaining} left${g.expires_at ? `, until ${date(g.expires_at as string)}` : ""}` })), ...(uses ?? []).map((x) => ({ at: x.created_at as string, what: CREDIT_USE[x.kind as string] ?? (x.kind as string), n: `-${x.amount}`, state: x.status === "held" ? "set aside" : "spent" }))]
+                .sort((a, b) => b.at.localeCompare(a.at))
+                .slice(0, 60)
+                .map((row, i) => (
+                  <tr key={i}>
+                    <td className="whitespace-nowrap px-4 py-2 text-muted">{date(row.at)}</td>
+                    <td className="px-4 py-2">{row.what}</td>
+                    <td className={`${td} ${row.n.startsWith("+") ? "text-go" : ""}`}>{row.n}</td>
+                    <td className="px-4 py-2 text-muted">{row.state}</td>
+                  </tr>
+                ))}
+              {!(grants ?? []).length && !(uses ?? []).length ? <Empty cols={4}>No credits yet.</Empty> : null}
+            </Table>
+          </Panel>
           <Panel title="Send a message" note="Lands in their Ivyward notifications, marked important, and by email if ticked. Sent messages show in History.">
             <MessageUser userId={u.id} firstName={(u.name ?? "").split(/\s+/)[0] || null} apps={mine.slice(0, 60).map((a) => ({ id: a.id, label: `${a.school}${a.program ? `: ${a.program}` : ""}` }))} />
           </Panel>
@@ -1452,7 +1483,7 @@ function tierOfUser(u: AdminUser): Tier {
 
 export async function CreditView({ range: r, everyone }: { range: Range; everyone: boolean }) {
   const db = admin();
-  const [d, policy, today, spendIn, waiting, nudgeEvents] = await Promise.all([
+  const [d, policy, today, spendIn, waiting, nudgeEvents, grantsIn, usesIn, expiringSoon] = await Promise.all([
     loadAdmin(),
     creditPolicy(true),
     runsSince<{ user_id: string; cost_usd: number | null }>("user_id, cost_usd", dayStartUTC()),
@@ -1461,9 +1492,24 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
     every<{ user_id: string; action: string; context: { angle?: string } | null; created_at: string }>((a, b) =>
       db.from("events").select("user_id, action, context, created_at").in("action", ["nudge.clicked", "nudge.emailed"]).gte("created_at", r.from).lte("created_at", r.to).range(a, b),
     ),
+    // the credit wallet in the period: credits in by where they came from, credits used by what for
+    every<{ user_id: string; source: string; amount: number }>((a, b) => db.from("credit_grants").select("user_id, source, amount").gte("created_at", r.from).lte("created_at", r.to).range(a, b)).catch(() => []),
+    every<{ user_id: string; kind: string; amount: number; status: string }>((a, b) => db.from("credit_uses").select("user_id, kind, amount, status").neq("status", "released").gte("created_at", r.from).lte("created_at", r.to).range(a, b)).catch(() => []),
+    every<{ user_id: string; remaining: number }>((a, b) => db.from("credit_grants").select("user_id, remaining").gt("remaining", 0).gt("expires_at", new Date().toISOString()).lte("expires_at", new Date(Date.now() + 7 * 86_400_000).toISOString()).range(a, b)).catch(() => []),
   ]);
   const { users } = scope(d, true);
   const tierBy = new Map(users.map((u) => [u.id, tierOfUser(u)]));
+  const counted = (id: string) => everyone || !d.team.has(id);
+  const creditsIn = new Map<string, number>();
+  for (const g of grantsIn) if (counted(g.user_id)) creditsIn.set(g.source, (creditsIn.get(g.source) ?? 0) + Number(g.amount || 0));
+  const creditsUsed = new Map<string, number>();
+  for (const x of usesIn) if (counted(x.user_id)) creditsUsed.set(x.kind, (creditsUsed.get(x.kind) ?? 0) + Number(x.amount || 0));
+  const sold = (creditsIn.get("pack") ?? 0) + (creditsIn.get("pro") ?? 0);
+  const given = [...creditsIn.entries()].filter(([k]) => k !== "pack" && k !== "pro").reduce((a, [, n]) => a + n, 0);
+  const usedTotal = [...creditsUsed.values()].reduce((a, n) => a + n, 0);
+  const heldNow = users.filter((u) => counted(u.id)).reduce((a, u) => a + u.held, 0);
+  const toUseNow = users.filter((u) => counted(u.id)).reduce((a, u) => a + u.credits, 0);
+  const expiring = expiringSoon.filter((g) => counted(g.user_id)).reduce((a, g) => a + Number(g.remaining || 0), 0);
   const spentToday = today.reduce((a, x) => a + (Number(x.cost_usd) || 0), 0);
   const limit = policy.dailyLimitUsd;
   const state = !limit ? "No daily alert" : spentToday >= limit ? "Alert sent" : "Under the alert";
@@ -1505,6 +1551,14 @@ export async function CreditView({ range: r, everyone }: { range: Range; everyon
         <Stat label="Research stopped for the month" value={String(researchWait)} sub={`accounts past ${$(RESEARCH_MONTHLY_USD)}`} />
         <Stat label="Free accounts" value={String(freeAccounts)} sub="who the asks to pay go to" />
         <Stat label="Paid after an ask" value={String(paidAfter)} sub={`tapped one, then paid · ${r.label}`} tone={paidAfter ? "go" : undefined} />
+      </Kpis>
+
+      <Kpis>
+        <Stat label={`Credits sold, ${r.label}`} value={String(sold)} sub={`packs ${creditsIn.get("pack") ?? 0}, Pro ${creditsIn.get("pro") ?? 0}`} />
+        <Stat label={`Credits given, ${r.label}`} value={String(given)} sub={`invites ${creditsIn.get("invite") ?? 0}, groups ${creditsIn.get("group") ?? 0}, by the team ${creditsIn.get("grant") ?? 0}`} />
+        <Stat label={`Credits used, ${r.label}`} value={String(usedTotal)} sub={`applications ${creditsUsed.get("application") ?? 0}, checks ${creditsUsed.get("check") ?? 0}, requests ${creditsUsed.get("request") ?? 0}`} />
+        <Stat label="Credits to use now" value={String(toUseNow)} sub={`${heldNow} more set aside for applications in progress`} />
+        <Stat label="Expiring in 7 days" value={String(expiring)} sub="unused credits from packs and Pro" tone={expiring ? "signal" : undefined} />
       </Kpis>
 
       <div className="grid gap-4 lg:grid-cols-2">
