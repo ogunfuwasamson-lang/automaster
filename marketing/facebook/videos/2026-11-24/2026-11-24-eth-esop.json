@@ -1,0 +1,35 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "ETH Zurich master's: the window closes 30 November.",
+   "sub": "For international bachelor's holders.",
+   "say": "Planning a master's at E T H Zurich? The window closes on the thirtieth of November."
+  },
+  {
+   "kind": "point",
+   "title": "One window, 1 to 30 November 2026",
+   "body": "Everyone with a non-Swiss bachelor's applies for Autumn 2027 in this window.",
+   "say": "If your bachelor's is not from a Swiss university, you apply for autumn twenty twenty-seven between the first and the thirtieth of November."
+  },
+  {
+   "kind": "point",
+   "title": "ESOP is in the same window",
+   "body": "Want the Excellence Scholarship & Opportunity Programme? Apply in this window too.",
+   "say": "If you want the Excellence Scholarship and Opportunity Programme, you must apply in this same window."
+  },
+  {
+   "kind": "point",
+   "title": "Deadline: 30 Nov, 11:59 CET",
+   "body": "Late or incomplete applications can't be processed.",
+   "note": "Source: ethz.ch",
+   "say": "The deadline is Monday the thirtieth of November, at eleven fifty-nine in the morning, Central European Time. Late or incomplete applications can't be processed."
+  },
+  {
+   "kind": "cta",
+   "title": "Applying this cycle?",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Ivyward's agents help you shortlist, prepare and submit. Start for free at tryivyward dot com."
+  }
+ ]
+}

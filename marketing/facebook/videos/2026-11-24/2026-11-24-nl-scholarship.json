@@ -1,0 +1,40 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "The NL Scholarship is open for 2027-28.",
+   "sub": "For non-EEA students in the Netherlands.",
+   "say": "The N L Scholarship, once called the Holland Scholarship, is open for twenty twenty-seven to twenty-eight."
+  },
+  {
+   "kind": "stat",
+   "prefix": "\u20ac",
+   "value": 5000,
+   "title": "paid in your first year",
+   "body": "It's not a full-tuition scholarship.",
+   "say": "It is five thousand euros, paid in your first year. It is not a full-tuition scholarship."
+  },
+  {
+   "kind": "list",
+   "title": "Who can apply",
+   "items": [
+    "Non-EEA nationality",
+    "Full-time bachelor's or master's",
+    "No previous degree from a Dutch institution"
+   ],
+   "say": "You need a non E E A nationality, a full-time bachelor's or master's place, and no previous degree from a Dutch institution."
+  },
+  {
+   "kind": "point",
+   "title": "Apply through the university",
+   "body": "Each university sets its own NL Scholarship deadlines.",
+   "note": "Source: studyinnl.org",
+   "say": "You apply through the participating university, and each one sets its own deadlines. Check your university's page."
+  },
+  {
+   "kind": "cta",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Ivyward's agents can shortlist programmes and funding for you. Start for free at tryivyward dot com."
+  }
+ ]
+}

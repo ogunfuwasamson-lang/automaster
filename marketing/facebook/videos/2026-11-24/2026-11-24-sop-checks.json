@@ -1,0 +1,43 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "Before you submit your statement of purpose\u2026",
+   "sub": "4 quick checks.",
+   "say": "Before you submit your statement of purpose, run four quick checks."
+  },
+  {
+   "kind": "card",
+   "step": "Check 1 of 4",
+   "title": "Did you answer their prompt?",
+   "body": "Each programme asks something slightly different.",
+   "say": "One: did you answer this programme's prompt? Each one asks something slightly different."
+  },
+  {
+   "kind": "card",
+   "step": "Check 2 of 4",
+   "title": "Name the right school",
+   "body": "Copy-paste errors are common and costly.",
+   "say": "Two: is the right university named everywhere? Copy and paste errors are common."
+  },
+  {
+   "kind": "card",
+   "step": "Check 3 of 4",
+   "title": "Can you back up every claim?",
+   "body": "Keep to what your transcript, CV and referees support.",
+   "say": "Three: can you back up every claim with your transcript, C V or referees?"
+  },
+  {
+   "kind": "card",
+   "step": "Check 4 of 4",
+   "title": "Within the word limit",
+   "body": "Portals often cut off or reject long text.",
+   "say": "Four: are you within the word limit? Portals often cut off long text."
+  },
+  {
+   "kind": "cta",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Ivyward drafts from your own documents and flags claims you can't back up. Start for free at tryivyward dot com."
+  }
+ ]
+}

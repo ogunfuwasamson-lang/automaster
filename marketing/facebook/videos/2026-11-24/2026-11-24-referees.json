@@ -1,0 +1,50 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "Your referees need more time than you think.",
+   "sub": "5 tips for reference letters.",
+   "say": "Your referees need more time than you think. Here are five tips for reference letters."
+  },
+  {
+   "kind": "card",
+   "step": "Tip 1 of 5",
+   "title": "Ask at least a month early",
+   "body": "Lecturers get many requests near deadlines.",
+   "say": "Ask at least a month before the deadline. Lecturers get many requests at once."
+  },
+  {
+   "kind": "card",
+   "step": "Tip 2 of 5",
+   "title": "Pick people who know your work",
+   "body": "A detailed letter beats a famous name.",
+   "say": "Pick people who know your work well. A detailed letter beats a famous name."
+  },
+  {
+   "kind": "card",
+   "step": "Tip 3 of 5",
+   "title": "Send a one-page brief",
+   "body": "Programme, deadline, your CV and what you'd like them to mention.",
+   "say": "Send them a one-page brief: the programme, the deadline, your C V, and what you'd like them to mention."
+  },
+  {
+   "kind": "card",
+   "step": "Tip 4 of 5",
+   "title": "Check their email works",
+   "body": "Portals send the request link to the address you enter.",
+   "say": "Double-check their email address. Portals send the upload link to whatever you type."
+  },
+  {
+   "kind": "card",
+   "step": "Tip 5 of 5",
+   "title": "Remind them kindly",
+   "body": "A week before the deadline, check the portal shows it received.",
+   "say": "A week before the deadline, check the portal, and send a kind reminder if it's still missing."
+  },
+  {
+   "kind": "cta",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Ivyward's agents fill in the portals while you stay in control. Start for free at tryivyward dot com."
+  }
+ ]
+}

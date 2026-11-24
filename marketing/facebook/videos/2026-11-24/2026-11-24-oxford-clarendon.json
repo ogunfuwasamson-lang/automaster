@@ -1,0 +1,39 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "There is no Clarendon application form.",
+   "sub": "Oxford's biggest graduate scholarship.",
+   "say": "There is no separate application form for Oxford's Clarendon Scholarship."
+  },
+  {
+   "kind": "point",
+   "title": "Apply to your course on time",
+   "body": "Apply by your course's December or January funding deadline and you're considered.",
+   "say": "Apply to your graduate course by its December or January funding deadline, and you are considered automatically."
+  },
+  {
+   "kind": "list",
+   "title": "What Oxford says it covers",
+   "items": [
+    "Course fees in full",
+    "A living grant for full-time scholars",
+    "Open to every nationality"
+   ],
+   "say": "Oxford says Clarendon covers course fees in full, with a living grant for full-time scholars, and there are no restrictions by nationality."
+  },
+  {
+   "kind": "point",
+   "title": "Most offers by end of April",
+   "body": "No news by mid-June usually means no award.",
+   "note": "Source: ox.ac.uk/clarendon",
+   "say": "Most offers go out by the end of April. If you haven't heard by mid-June, Oxford says to assume you weren't awarded."
+  },
+  {
+   "kind": "cta",
+   "title": "Check your course's deadline today",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Check your course's deadline today. Start for free at tryivyward dot com."
+  }
+ ]
+}

@@ -1,0 +1,47 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "Stipendium Hungaricum has two selection points.",
+   "sub": "Many applicants prepare for only one.",
+   "say": "Stipendium Hungaricum has two selection points, and many applicants only prepare for one."
+  },
+  {
+   "kind": "point",
+   "step": "Step 1 of 2",
+   "title": "Your Sending Partner nominates you",
+   "body": "No nomination, no scholarship.",
+   "say": "First, your country's Sending Partner must nominate you. Without that nomination, your application isn't considered."
+  },
+  {
+   "kind": "point",
+   "step": "Step 2 of 2",
+   "title": "The university admits you",
+   "body": "Often an entrance exam or an interview.",
+   "say": "Second, the Hungarian university runs its own admission, often with an entrance exam or an interview."
+  },
+  {
+   "kind": "list",
+   "title": "In the 2026/27 call",
+   "items": [
+    "Up to two programmes, ranked",
+    "Tuition covered",
+    "Monthly stipend and housing support",
+    "Medical insurance"
+   ],
+   "say": "In the twenty twenty-six to twenty-seven call, you could apply for up to two programmes, and it covered tuition, a monthly stipend, housing support and medical insurance."
+  },
+  {
+   "kind": "point",
+   "title": "2027/28 call: not out yet",
+   "body": "Get your transcripts and passport ready now.",
+   "note": "Source: stipendiumhungaricum.hu",
+   "say": "The next call isn't out yet. Get your transcripts and passport ready now."
+  },
+  {
+   "kind": "cta",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Start for free at tryivyward dot com."
+  }
+ ]
+}

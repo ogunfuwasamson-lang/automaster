@@ -1,0 +1,46 @@
+{
+ "scenes": [
+  {
+   "kind": "hook",
+   "title": "Too old for a scholarship?",
+   "sub": "Check the official rules first.",
+   "say": "Think you're too old for a scholarship? Check the official rules first."
+  },
+  {
+   "kind": "point",
+   "title": "Chevening: no upper age limit",
+   "body": "Official eligibility rules, not blogs.",
+   "say": "Chevening has no upper age limit."
+  },
+  {
+   "kind": "stat",
+   "value": 2800,
+   "suffix": " hours",
+   "title": "of work experience",
+   "body": "At least two years. Compulsory degree work doesn't count.",
+   "say": "What it asks for is at least two years of work experience, or two thousand eight hundred hours."
+  },
+  {
+   "kind": "list",
+   "title": "T\u00fcrkiye Burslar\u0131 age caps",
+   "items": [
+    "Bachelor's: under 21",
+    "Master's: under 30",
+    "PhD: under 35"
+   ],
+   "say": "T\u00fcrkiye Burslari is different. Bachelor's applicants must be under twenty-one, master's under thirty, and P H D under thirty-five."
+  },
+  {
+   "kind": "point",
+   "title": "Read the eligibility page yourself",
+   "body": "Unofficial blogs often get these rules wrong.",
+   "note": "Sources: chevening.org, turkiyeburslari.gov.tr",
+   "say": "Read each scheme's own eligibility page. Unofficial blogs often get these rules wrong."
+  },
+  {
+   "kind": "cta",
+   "sub": "Start for free at tryivyward.com",
+   "say": "Start for free at tryivyward dot com."
+  }
+ ]
+}
