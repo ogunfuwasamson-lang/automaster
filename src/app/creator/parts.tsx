@@ -30,24 +30,30 @@ export function Stat({ label, value, sub, tone }: { label: string; value: string
   );
 }
 
-// qualified sign-ups this month against the target, with the bonus steps marked past it
+// qualified sign-ups this month: where pay starts, the target, and the bonus steps past it
 export function TargetMeter({ qualified }: { qualified: number }) {
   const top = Math.max(TERMS.target + 3 * TERMS.bonusStep, Math.ceil((qualified + 1) / TERMS.bonusStep) * TERMS.bonusStep);
   const share = Math.min(1, qualified / top);
-  const marks = [TERMS.target, ...Array.from({ length: Math.floor((top - TERMS.target) / TERMS.bonusStep) }, (_, i) => TERMS.target + (i + 1) * TERMS.bonusStep)];
+  const steps = Array.from({ length: Math.floor((top - TERMS.target) / TERMS.bonusStep) }, (_, i) => TERMS.target + (i + 1) * TERMS.bonusStep);
   const nb = nextBonus(qualified);
+  const toPay = TERMS.payFrom - qualified;
   const left = TERMS.target - qualified;
+  const at = (n: number) => `${(n / top) * 100}%`;
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <p>
           <span className="font-serif text-[56px] leading-none tabular-nums tracking-[-0.02em] sm:text-[64px]">{qualified.toLocaleString()}</span>
-          <span className="ml-2 text-[15px] text-muted">of {TERMS.target} qualified sign-ups</span>
+          <span className="ml-2 text-[15px] text-muted">of {TERMS.target.toLocaleString()} qualified sign-ups</span>
         </p>
         <p className="text-[14px] text-muted">
-          {left > 0 ? (
+          {toPay > 0 ? (
             <>
-              <span className="font-medium text-foreground">{left.toLocaleString()} to go</span> to this month&apos;s target
+              <span className="font-medium text-foreground">{toPay.toLocaleString()} more</span> and this month starts paying
+            </>
+          ) : left > 0 ? (
+            <>
+              This month is paying. <span className="font-medium text-foreground">{left.toLocaleString()} to go</span> to the target
             </>
           ) : (
             <>
@@ -56,29 +62,28 @@ export function TargetMeter({ qualified }: { qualified: number }) {
           )}
         </p>
       </div>
-      <div className="relative mt-5" role="img" aria-label={`${qualified} of ${TERMS.target} qualified sign-ups this month`}>
+      <div className="relative mt-5" role="img" aria-label={`${qualified} qualified sign-ups this month. Pay starts at ${TERMS.payFrom}; the target is ${TERMS.target}.`}>
         <div className="h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-          <div className="h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${share * 100}%` }} />
+          <div className={`h-full rounded-full transition-[width] duration-700 ${toPay > 0 ? "bg-brand/55" : "bg-brand"}`} style={{ width: `${share * 100}%` }} />
         </div>
-        {marks.map((m) => (
-          <span key={m} className="absolute top-0 h-3 w-0.5 -translate-x-1/2 bg-surface" style={{ left: `${(m / top) * 100}%` }} aria-hidden />
+        {[TERMS.payFrom, TERMS.target, ...steps].map((m) => (
+          <span key={m} className="absolute top-0 h-3 w-0.5 -translate-x-1/2 bg-surface" style={{ left: at(m) }} aria-hidden />
         ))}
         <div className="relative mt-2 h-4 text-[11.5px] tabular-nums text-muted" aria-hidden>
           <span className="absolute left-0">0</span>
-          {marks.map((m) =>
-            m === top ? (
-              <span key={m} className="absolute right-0">
-                {m}
-              </span>
-            ) : (
-              <span key={m} className={`absolute -translate-x-1/2 ${m === TERMS.target ? "font-semibold text-foreground" : ""}`} style={{ left: `${(m / top) * 100}%` }}>
-                {m}
-              </span>
-            ),
-          )}
+          <span className={`absolute -translate-x-1/2 whitespace-nowrap ${toPay > 0 ? "font-semibold text-foreground" : ""}`} style={{ left: at(TERMS.payFrom) }}>
+            {TERMS.payFrom} pay starts
+          </span>
+          <span className={`absolute -translate-x-1/2 whitespace-nowrap ${toPay <= 0 && left > 0 ? "font-semibold text-foreground" : ""}`} style={{ left: at(TERMS.target) }}>
+            {TERMS.target.toLocaleString()}
+            <span className="hidden sm:inline"> target</span>
+          </span>
+          <span className="absolute right-0">{top.toLocaleString()}</span>
         </div>
       </div>
-      <p className="mt-3 text-[12.5px] text-muted">Each mark past {TERMS.target} adds {naira(TERMS.bonusPerStep)} to this month&apos;s bonus.</p>
+      <p className="mt-3 text-[12.5px] text-muted">
+        A month pays once it reaches {TERMS.payFrom} qualified sign-ups: then {naira(TERMS.rate)} for every one of them. Each mark past {TERMS.target.toLocaleString()} adds {naira(TERMS.bonusPerStep)} to the month&apos;s bonus.
+      </p>
     </div>
   );
 }
@@ -110,9 +115,11 @@ export function Funnel({ steps }: { steps: [string, number, string][] }) {
   );
 }
 
-// what this month pays at each step: the target, then a bonus for every hundred past it
+// what a month pays at each step: nothing below the pay floor, then every qualified sign-up, then a bonus for every
+// hundred past the target
 export function PayLadder({ qualified, rate }: { qualified: number; rate: number }) {
-  const rows = [100, 300, TERMS.target, 600, 700, 800, 1000];
+  const rows = [TERMS.payFrom - 1, TERMS.payFrom, 600, 1000, TERMS.target, 1600, 1700, 2000];
+  const pay = (q: number) => (q >= TERMS.payFrom ? q * rate : 0);
   return (
     <table className="w-full text-[14px]">
       <thead>
@@ -125,17 +132,18 @@ export function PayLadder({ qualified, rate }: { qualified: number; rate: number
       </thead>
       <tbody className="tabular-nums">
         {rows.map((q, i) => {
-          const here = qualified >= q && (i === rows.length - 1 || qualified < rows[i + 1]);
+          const here = i === 0 ? qualified < TERMS.payFrom : qualified >= q && (i === rows.length - 1 || qualified < rows[i + 1]);
           return (
             <tr key={q} className={`border-t border-line ${here ? "bg-brand/[0.06] font-medium" : ""}`}>
               <td className="py-2 pl-2">
-                {q.toLocaleString()}
+                {i === 0 ? `Under ${TERMS.payFrom}` : q.toLocaleString()}
+                {q === TERMS.payFrom ? <span className="ml-1.5 text-[12px] text-muted">pay starts</span> : null}
                 {q === TERMS.target ? <span className="ml-1.5 text-[12px] text-muted">target</span> : null}
                 {here ? <span className="ml-1.5 text-[12px] text-brand">you&apos;re here</span> : null}
               </td>
-              <td className="py-2 text-right">{naira(q * rate)}</td>
+              <td className="py-2 text-right">{naira(pay(q))}</td>
               <td className="py-2 text-right text-muted">{bonusFor(q) ? naira(bonusFor(q)) : "·"}</td>
-              <td className="py-2 pr-2 text-right">{naira(q * rate + bonusFor(q))}</td>
+              <td className="py-2 pr-2 text-right">{naira(pay(q) + bonusFor(q))}</td>
             </tr>
           );
         })}

@@ -10,11 +10,11 @@ import { Box, Funnel, PayLadder, Stat, StatusPill, TargetMeter, WeekDots, shortD
 
 function Terms() {
   const rows: [string, string][] = [
-    ["Pay", `${naira(TERMS.rate)} for every qualified sign-up`],
-    ["Monthly target", `${TERMS.target} qualified sign-ups`],
-    ["Bonus", `${naira(TERMS.bonusPerStep)} for every extra ${TERMS.bonusStep} above ${TERMS.target}, each month`],
+    ["Pay", `${naira(TERMS.rate)} for every qualified sign-up, once you reach ${TERMS.payFrom} in a month`],
+    ["Monthly target", `${TERMS.target.toLocaleString()} qualified sign-ups`],
+    ["Bonus", `${naira(TERMS.bonusPerStep)} for every extra ${TERMS.bonusStep} above ${TERMS.target.toLocaleString()}, each month`],
     ["Videos", `At least ${TERMS.videosPerMonth} a month, one a week, 30 to 90 seconds, vertical`],
-    ["Payouts", `To your bank account, within ${TERMS.payoutHours} hours of asking`],
+    ["Payouts", `To your bank or mobile money, in your currency, within ${TERMS.payoutHours} hours of asking`],
   ];
   return (
     <dl className="divide-y divide-line">
@@ -141,7 +141,7 @@ export function Overview({ c, o, today }: { c: Creator; o: OverviewData; today: 
             {hello()}, {c.name.split(/\s+/)[0]}
           </h1>
           <p className="mt-1 text-[14.5px] text-muted">
-            {monthLabel(o.month)}: {daysLeft === 0 ? "the last day of the month" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}. Earning {naira(c.rate_ngn)} a qualified sign-up.
+            {monthLabel(o.month)}: {daysLeft === 0 ? "the last day of the month" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}. {naira(c.rate_ngn)} a qualified sign-up once the month reaches {TERMS.payFrom}.
           </p>
         </div>
       </header>
@@ -151,7 +151,12 @@ export function Overview({ c, o, today }: { c: Creator; o: OverviewData; today: 
       </Box>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Earned this month" value={naira(mo.base)} sub={mo.bonus ? `Plus a ${naira(mo.bonus)} bonus when the month closes` : `${mo.qualified.toLocaleString()} × ${naira(c.rate_ngn)}`} />
+        <Stat
+          label="Earned this month"
+          value={naira(mo.base)}
+          tone={mo.unlocked ? undefined : "signal"}
+          sub={!mo.unlocked ? `Pays once you reach ${TERMS.payFrom}: ${(TERMS.payFrom - mo.qualified).toLocaleString()} to go` : mo.bonus ? `Plus a ${naira(mo.bonus)} bonus when the month closes` : `${mo.qualified.toLocaleString()} × ${naira(c.rate_ngn)}`}
+        />
         <Stat label="Ready to withdraw" value={naira(o.money.available)} tone={o.money.available >= TERMS.minWithdrawal ? "go" : undefined} sub={<Link href="/creator/payouts" className="underline underline-offset-4 hover:text-foreground">{o.money.pending ? `${naira(o.money.pending)} on its way` : "Request a payout"}</Link>} />
         <Stat label="Visits this month" value={o.funnel.visits.toLocaleString()} sub={`${o.funnel.signups.toLocaleString()} made an account`} />
         <Stat label="Videos this month" value={`${posts} of ${TERMS.videosPerMonth}`} tone={posts >= TERMS.videosPerMonth ? "go" : undefined} sub={<Link href="/creator/videos" className="underline underline-offset-4 hover:text-foreground">Add a video</Link>} />
@@ -251,7 +256,7 @@ export function Overview({ c, o, today }: { c: Creator; o: OverviewData; today: 
             <p className="mt-4 text-[13.5px] text-muted">No videos added for {monthLabel(o.month)} yet. Post one, then paste its link on the Videos page.</p>
           )}
         </Box>
-        <Box title="What this month pays" note={`At ${naira(c.rate_ngn)} a qualified sign-up. Base pay is yours as soon as a sign-up qualifies; the bonus once the month closes.`}>
+        <Box title="What a month pays" note={`At ${naira(c.rate_ngn)} a qualified sign-up. Nothing until the month reaches ${TERMS.payFrom}; from then every qualified sign-up is yours to withdraw, and the bonus once the month closes.`}>
           <PayLadder qualified={mo.qualified} rate={c.rate_ngn} />
         </Box>
       </div>

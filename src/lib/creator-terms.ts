@@ -1,15 +1,18 @@
-// the creator partnership's terms (the campaign guide, 24 nov 2026). pure, so the dashboard, the operator console,
-// the payout check and the tests read the same numbers.
-//   pay:     RATE naira per qualified sign-up, and a bonus of BONUS_PER_STEP for every full BONUS_STEP qualified
-//            sign-ups above the monthly TARGET (cumulative). a month's bonus is paid once the month is over.
+// the creator partnership's terms (the campaign guide, 24 nov 2026; target and pay floor changed the same day). pure,
+// so the dashboard, the operator console, the payout check and the tests read the same numbers.
+//   pay:     a month pays once it reaches PAY_FROM qualified sign-ups: then RATE naira for every one of them. a month
+//            that ends below PAY_FROM pays nothing. on top, a bonus of BONUS_PER_STEP for every full BONUS_STEP
+//            qualified sign-ups above the monthly TARGET (cumulative), paid once the month is over.
 //   counts:  someone who came through the creator's link, made an account, uploaded a CV and finished the basic
 //            profile in setup (level and regions). duplicates (the same device as an earlier sign-up) don't count.
 //   content: VIDEOS_PER_MONTH original videos a month, at least one a week.
-// months run on Lagos time.
+// months run on Lagos time. earnings are counted in naira; a creator paid in another currency gets it converted at
+// the day's rate when it's sent.
 
 export const TERMS = {
   rate: 350,
-  target: 500,
+  payFrom: 300,
+  target: 1500,
   bonusStep: 100,
   bonusPerStep: 20_000,
   videosPerMonth: 4,
@@ -50,16 +53,21 @@ export const monthLabel = (key: string) => new Date(`${key}-01T12:00:00Z`).toLoc
 // the first moment of a Lagos month, as an ISO string (Lagos is UTC+1 all year)
 export const monthStart = (key: string) => new Date(`${key}-01T00:00:00+01:00`).toISOString();
 
-export type Month = { key: string; qualified: number; base: number; bonus: number; closed: boolean };
+// unlocked: the month has reached the pay floor, so its base pay counts
+export type Month = { key: string; qualified: number; base: number; bonus: number; closed: boolean; unlocked: boolean };
 
 // what a creator has earned, month by month, from their qualified sign-ups per month (and what those earned at the
-// creator's rate). base pay counts as soon as a sign-up qualifies; a month's bonus once the month is over.
-export function earnings(rows: { month: string; qualified: number; base: number }[], now = new Date()): { months: Month[]; earned: number; pendingBonus: number } {
+// creator's rate). a month's base pay counts as soon as it reaches the pay floor; its bonus once the month is over.
+export function earnings(rows: { month: string; qualified: number; base: number }[], now = new Date()): { months: Month[]; earned: number; pendingBonus: number; lockedBase: number } {
   const cur = monthKey(now);
-  const months = [...rows].sort((a, b) => b.month.localeCompare(a.month)).map((m) => ({ key: m.month, qualified: m.qualified, base: m.base, bonus: bonusFor(m.qualified), closed: m.month < cur }));
-  const earned = months.reduce((a, m) => a + m.base + (m.closed ? m.bonus : 0), 0);
+  const months = [...rows]
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .map((m) => ({ key: m.month, qualified: m.qualified, base: m.base, bonus: bonusFor(m.qualified), closed: m.month < cur, unlocked: m.qualified >= TERMS.payFrom }));
+  const earned = months.reduce((a, m) => a + (m.unlocked ? m.base + (m.closed ? m.bonus : 0) : 0), 0);
   const pendingBonus = months.filter((m) => !m.closed).reduce((a, m) => a + m.bonus, 0);
-  return { months, earned, pendingBonus };
+  // this month's pay that's still below the floor (it counts once the month reaches it)
+  const lockedBase = months.filter((m) => !m.closed && !m.unlocked).reduce((a, m) => a + m.base, 0);
+  return { months, earned, pendingBonus, lockedBase };
 }
 
 // the weeks of a month (monday to sunday, as far as they fall in it), for the one-video-a-week check
@@ -115,45 +123,6 @@ export const cleanCode = (s: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 24);
 
-// a Nigerian bank account number (NUBAN) is 10 digits
-export const NUBAN = /^\d{10}$/;
-
-// banks and wallets creators get paid into most; anything else can be typed in
-export const BANKS = [
-  "Access Bank",
-  "Citibank",
-  "Ecobank",
-  "Fidelity Bank",
-  "First Bank",
-  "First City Monument Bank (FCMB)",
-  "Globus Bank",
-  "Guaranty Trust Bank (GTBank)",
-  "Jaiz Bank",
-  "Keystone Bank",
-  "Kuda",
-  "Lotus Bank",
-  "Moniepoint",
-  "OPay",
-  "Optimus Bank",
-  "PalmPay",
-  "Parallex Bank",
-  "Polaris Bank",
-  "Premium Trust Bank",
-  "Providus Bank",
-  "Signature Bank",
-  "Stanbic IBTC",
-  "Standard Chartered",
-  "Sterling Bank",
-  "SunTrust Bank",
-  "Taj Bank",
-  "Titan Trust Bank",
-  "Union Bank",
-  "United Bank for Africa (UBA)",
-  "Unity Bank",
-  "VFD Microfinance Bank",
-  "Wema Bank (ALAT)",
-  "Zenith Bank",
-] as const;
 
 // link previews and crawlers aren't visitors
 export const isBot = (ua: string | null) => !ua || /bot|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|embedly|vkshare|pinterest|headless|curl|wget|python|okhttp/i.test(ua);

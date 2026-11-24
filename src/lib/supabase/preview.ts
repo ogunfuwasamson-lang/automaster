@@ -240,10 +240,10 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     { id: "p2", creator_id: "c1", url: "https://www.tiktok.com/@tolu.abroad/video/7300000000000000002", platform: "TikTok", title: "Uploading my CV and what it found", posted_on: day(-13), status: "approved", note: null, created_at: ago(60 * 24 * 13) },
     { id: "p3", creator_id: "c1", url: "https://www.instagram.com/reel/Cx0000000/", platform: "Instagram", title: "My UK shortlist", posted_on: day(-3), status: "submitted", note: null, created_at: ago(60 * 24 * 3) },
   ],
-  creator_banks: [{ creator_id: "c1", bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821", updated_at: ago(60 * 24 * 15) }],
+  creator_banks: [{ creator_id: "c1", currency: "NGN", method: "bank", account_name: "Toluwani Adeyemi", label: "Guaranty Trust Bank (GTBank), ending 4821", updated_at: ago(60 * 24 * 15) }],
   creator_withdrawals: [
-    { id: "w2", creator_id: "c1", amount_ngn: 10000, status: "pending", reference: null, note: null, requested_at: ago(180), processed_at: null, bank: { bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821" } },
-    { id: "w1", creator_id: "c1", amount_ngn: 35000, status: "paid", reference: "GTB-000231884", note: null, requested_at: ago(60 * 24 * 8), processed_at: ago(60 * 24 * 8 - 300), bank: { bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821" } },
+    { id: "w2", creator_id: "c1", amount_ngn: 10000, status: "pending", reference: null, note: null, requested_at: ago(180), processed_at: null, bank: { currency: "NGN", method: "bank", account_name: "Toluwani Adeyemi", label: "Guaranty Trust Bank (GTBank), ending 4821" } },
+    { id: "w1", creator_id: "c1", amount_ngn: 35000, status: "paid", reference: "GTB-000231884", note: null, requested_at: ago(60 * 24 * 8), processed_at: ago(60 * 24 * 8 - 300), bank: { currency: "NGN", method: "bank", account_name: "Toluwani Adeyemi", label: "Guaranty Trust Bank (GTBank), ending 4821" } },
   ],
 };
 
@@ -252,18 +252,18 @@ const lagosDay = (n: number) => new Date(Date.now() + 3600_000 + n * 86_400_000)
 const RPC: Record<string, () => unknown> = {
   creator_qualify: () => 0,
   creator_link_stats: () => [
-    { link_id: "l1", visits: 2310, visits_since: 1290, signups: 236, qualified: 141, qualified_since: 118 },
-    { link_id: "l2", visits: 402, visits_since: 402, signups: 41, qualified: 23, qualified_since: 23 },
+    { link_id: "l1", visits: 6310, visits_since: 3890, signups: 731, qualified: 641, qualified_since: 344 },
+    { link_id: "l2", visits: 902, visits_since: 902, signups: 121, qualified: 111, qualified_since: 68 },
   ],
-  creator_funnel: () => [{ signups: 214, with_cv: 168, with_profile: 151, qualified: 141, duplicates: 6 }],
+  creator_funnel: () => [{ signups: 498, with_cv: 451, with_profile: 433, qualified: 412, duplicates: 9 }],
   creator_daily: () =>
     Array.from({ length: 30 }, (_, i) => {
       const w = Math.sin(i / 3) * 0.4 + 1 + i / 30;
-      return { day: lagosDay(i - 29), visits: Math.round(40 * w + (i % 7 === 2 ? 60 : 0)), signups: Math.round(7 * w), qualified: Math.round(4.5 * w + (i % 7 === 2 ? 5 : 0)) };
+      return { day: lagosDay(i - 29), visits: Math.round(120 * w + (i % 7 === 2 ? 160 : 0)), signups: Math.round(17 * w), qualified: Math.round(13 * w + (i % 7 === 2 ? 12 : 0)) };
     }),
   creator_months: () => [
-    { creator_id: "c1", month: lagosDay(0).slice(0, 7), qualified: 141, base: 141 * 350 },
-    { creator_id: "c1", month: lagosDay(-31).slice(0, 7), qualified: 23, base: 23 * 350 },
+    { creator_id: "c1", month: lagosDay(0).slice(0, 7), qualified: 412, base: 412 * 350 },
+    { creator_id: "c1", month: lagosDay(-31).slice(0, 7), qualified: 340, base: 340 * 350 },
   ],
   creator_referral_list: () =>
     Array.from({ length: 14 }, (_, i) => ({
@@ -281,7 +281,7 @@ const RPC: Record<string, () => unknown> = {
       initial: "ABCDEFGHIJKLMN"[i],
       email: null,
     })),
-  creator_overview: () => [{ creator_id: "c1", visits_since: 1692, signups_since: 214, qualified_since: 141, signups_all: 277, qualified_all: 164, paid: 35000, pending: 10000, posts_since: 3, last_post: day(-3) }],
+  creator_overview: () => [{ creator_id: "c1", visits_since: 4792, signups_since: 498, qualified_since: 412, signups_all: 852, qualified_all: 752, paid: 35000, pending: 10000, posts_since: 3, last_post: day(-3) }],
 };
 
 type Row = Record<string, unknown>;

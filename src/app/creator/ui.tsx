@@ -5,8 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Copy, LoaderCircle, LogOut, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/field";
-import { BANKS, TERMS, naira } from "@/lib/creator-terms";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { TERMS, naira } from "@/lib/creator-terms";
+import { CURRENCIES } from "@/lib/payout-methods";
 
 // the creator studio's interactive parts (app/creator): the tabs, copying links, and the forms
 
@@ -295,18 +296,27 @@ export function RemoveVideo({ id }: { id: string }) {
   );
 }
 
-export function BankForm({ bank }: { bank: { bank_name: string; account_name: string; account_last4: string } | null }) {
+// where payouts go: the currency first, then how (bank, mobile money or an international transfer), then the details
+// that currency's banks ask for (lib/payout-methods). the server checks them again and stores them encrypted.
+export function BankForm({ bank }: { bank: { currency: string; method: string; account_name: string; label: string } | null }) {
   const router = useRouter();
   const [edit, setEdit] = useState(!bank);
-  const [f, setF] = useState({ bank_name: bank?.bank_name ?? "", account_number: "", account_name: bank?.account_name ?? "" });
+  const known = bank && CURRENCIES.some((c) => c.code === bank.currency) ? bank.currency : bank ? "OTHER" : "";
+  const [code, setCode] = useState(known);
+  const cur = CURRENCIES.find((c) => c.code === code) ?? null;
+  const [method, setMethod] = useState<string>(bank && known !== "OTHER" ? bank.method : (cur?.ways[0]?.method ?? ""));
+  const way = cur?.ways.find((w) => w.method === method) ?? cur?.ways[0] ?? null;
+  const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  if (!edit && bank)
+  if (!edit && bank) {
+    const c = CURRENCIES.find((x) => x.code === bank.currency);
     return (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium">{bank.bank_name}</p>
+          <p className="font-medium">{bank.label}</p>
           <p className="text-sm text-muted">
-            {bank.account_name} · ending {bank.account_last4}
+            {bank.account_name} · paid in {bank.currency}
+            {c ? ` (${c.name})` : ""}
           </p>
         </div>
         <Button type="button" variant="secondary" size="sm" onClick={() => setEdit(true)}>
@@ -314,17 +324,19 @@ export function BankForm({ bank }: { bank: { bank_name: string; account_name: st
         </Button>
       </div>
     );
+  }
   return (
     <form
       className="space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!cur || !way) return;
         setBusy(true);
         try {
-          await send("/api/creator/bank", "PUT", { ...f, account_number: f.account_number.replace(/\s/g, "") });
-          toast.success("Bank details saved");
+          await send("/api/creator/bank", "PUT", { currency: cur.code, method: way.method, fields: vals });
+          toast.success("Payout details saved");
           setEdit(false);
-          setF({ ...f, account_number: "" });
+          setVals({});
           router.refresh();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Couldn't save them.");
@@ -332,27 +344,88 @@ export function BankForm({ bank }: { bank: { bank_name: string; account_name: st
         setBusy(false);
       }}
     >
-      <Field label="Bank">
-        <Input value={f.bank_name} onChange={(e) => setF({ ...f, bank_name: e.target.value })} list="creator-banks" required maxLength={80} placeholder="Start typing your bank" />
-        <datalist id="creator-banks">
-          {BANKS.map((b) => (
-            <option key={b} value={b} />
+      <Field label="Currency you want to be paid in" hint={cur ? `For ${cur.where}.` : "Pick it first: the details below depend on it."}>
+        <Select
+          value={code}
+          required
+          onChange={(e) => {
+            const next = CURRENCIES.find((c) => c.code === e.target.value);
+            setCode(e.target.value);
+            setMethod(next?.ways[0]?.method ?? "");
+            setVals({});
+          }}
+        >
+          <option value="" disabled>
+            Pick a currency
+          </option>
+          {CURRENCIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code === "OTHER" ? "Another currency (international transfer)" : `${c.code} · ${c.name}`}
+            </option>
           ))}
-        </datalist>
+        </Select>
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Account number" hint="10 digits.">
-          <Input value={f.account_number} onChange={(e) => setF({ ...f, account_number: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })} required inputMode="numeric" autoComplete="off" pattern="\d{10}" placeholder="0123456789" />
-        </Field>
-        <Field label="Name on the account" hint="As your bank shows it.">
-          <Input value={f.account_name} onChange={(e) => setF({ ...f, account_name: e.target.value })} required maxLength={120} autoComplete="name" />
-        </Field>
-      </div>
-      <p className="text-xs text-muted">Payouts go only to this account. The account number is stored encrypted, and this page only ever shows its last four digits.</p>
+      {cur && cur.ways.length > 1 ? (
+        <fieldset>
+          <legend className="text-[13px] font-medium">How you want to receive it</legend>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {cur.ways.map((w) => (
+              <label key={w.method} className={`cursor-pointer rounded-xl border px-3.5 py-2 text-sm transition-colors ${way?.method === w.method ? "border-foreground bg-foreground/[0.04] font-medium" : "border-line hover:border-foreground/30"}`}>
+                <input type="radio" name="payout-method" value={w.method} checked={way?.method === w.method} onChange={() => { setMethod(w.method); setVals({}); }} className="sr-only" />
+                {w.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+      {way ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {way.fields.map((f) => (
+            <Field key={`${code}-${way.method}-${f.key}`} label={f.optional ? `${f.label} (optional)` : f.label} hint={f.hint} className={f.key === "holder_address" || f.key === "bank_address" ? "sm:col-span-2" : ""}>
+              {f.options ? (
+                <Select value={vals[f.key] ?? ""} required={!f.optional} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}>
+                  <option value="" disabled>
+                    Pick one
+                  </option>
+                  {f.options.map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </Select>
+              ) : (
+                <>
+                  <Input
+                    value={vals[f.key] ?? ""}
+                    onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}
+                    required={!f.optional}
+                    maxLength={200}
+                    placeholder={f.placeholder}
+                    inputMode={f.numeric ? "numeric" : undefined}
+                    autoComplete={f.key === "account_name" ? "name" : "off"}
+                    list={f.suggest ? `payout-${f.key}` : undefined}
+                  />
+                  {f.suggest ? (
+                    <datalist id={`payout-${f.key}`}>
+                      {f.suggest.map((o) => (
+                        <option key={o} value={o} />
+                      ))}
+                    </datalist>
+                  ) : null}
+                </>
+              )}
+            </Field>
+          ))}
+        </div>
+      ) : null}
+      {cur ? (
+        <p className="text-xs text-muted">
+          {cur.code === "NGN" ? "" : "Your earnings are counted in naira and converted at the day's rate when we send them; the payout reference shows what was sent. "}
+          Payouts go only to these details. They&apos;re stored encrypted, and this page only shows the last four digits.
+        </p>
+      ) : null}
       <div className="flex gap-2">
-        <Button type="submit" disabled={busy || f.account_number.length !== 10}>
+        <Button type="submit" disabled={busy || !way}>
           {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
-          Save bank details
+          Save payout details
         </Button>
         {bank ? (
           <Button type="button" variant="ghost" onClick={() => setEdit(false)}>
@@ -374,7 +447,7 @@ export function WithdrawForm({ available, hasBank, waiting, active }: { availabl
     : waiting
       ? "Your last request is on its way. You can ask again once it's paid."
       : !hasBank
-        ? "Add your bank details below first."
+        ? "Add your payout details below first."
         : available < TERMS.minWithdrawal
           ? `You can withdraw once you have ${naira(TERMS.minWithdrawal)} or more.`
           : null;

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { payoutAccount, reviewPost, setCreatorStatus, setRate, setReferral, settleWithdrawal } from "@/lib/creators";
+import { payoutDetails, reviewPost, setCreatorStatus, setRate, setReferral, settleWithdrawal } from "@/lib/creators";
 
 // the operator's creator actions (admin console, Creators): approve or pause a creator, change their rate, pay or
 // reject a payout, review a video, and take a sign-up out of their count (or put it back)
@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
       break;
     }
     case "account": {
-      // the full account number, shown to the operator only when they ask, to make the transfer
-      const n = await payoutAccount(b.id);
-      return n ? NextResponse.json({ number: n }) : NextResponse.json({ error: "Couldn't read the account number." }, { status: 500 });
+      // the full payout details, shown to the operator only when they ask, to make the transfer
+      const d = await payoutDetails(b.id);
+      return d ? NextResponse.json(d) : NextResponse.json({ error: "Couldn't read the payout details." }, { status: 500 });
     }
     case "post":
       await reviewPost(b.id, b.status, b.note || null);

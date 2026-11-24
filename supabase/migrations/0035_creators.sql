@@ -6,7 +6,7 @@
 --   creator_clicks        visits through a link: one per visitor per link per day, bots left out
 --   creator_referrals     accounts made through a link, and whether (and when) each qualified
 --   creator_posts         the videos they posted, with the operator's review
---   creator_banks         where payouts go; the account number is encrypted (lib/crypto)
+--   creator_banks         where payouts go, in the creator's currency; the details are encrypted (lib/crypto)
 --   creator_withdrawals   payout requests, paid by hand within 24 hours
 -- additive: drop the function and these tables to reverse it. the server reads and writes them (rls on, no policies).
 
@@ -81,12 +81,16 @@ create table if not exists public.creator_posts (
 alter table public.creator_posts enable row level security;
 create index if not exists creator_posts_creator on public.creator_posts(creator_id, posted_on);
 
+-- creators are paid in their own currency: which one, how (a bank account, mobile money or an international
+-- transfer), and that method's details (lib/payout-methods), encrypted together. label is what the dashboard and the
+-- console show: the bank or network and the last four digits.
 create table if not exists public.creator_banks (
   creator_id uuid primary key references public.creators(id) on delete cascade,
-  bank_name text not null,
+  currency text not null check (currency ~ '^[A-Z]{3}$'),
+  method text not null check (method in ('bank', 'mobile_money', 'swift')),
   account_name text not null,
-  account_number_enc text not null,
-  account_last4 text not null,
+  label text not null,
+  details_enc text not null,
   updated_at timestamptz not null default now()
 );
 alter table public.creator_banks enable row level security;
@@ -95,7 +99,7 @@ create table if not exists public.creator_withdrawals (
   id uuid primary key default gen_random_uuid(),
   creator_id uuid not null references public.creators(id) on delete cascade,
   amount_ngn int not null check (amount_ngn > 0),
-  -- the bank details at the time of the request: {bank_name, account_name, account_last4, account_number_enc}
+  -- where it goes, as it was at the request: {currency, method, account_name, label, details_enc}
   bank jsonb not null,
   status text not null default 'pending' check (status in ('pending', 'paid', 'rejected')),
   reference text, -- the transfer reference, when paid

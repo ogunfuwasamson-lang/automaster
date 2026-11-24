@@ -9,7 +9,7 @@ import { Check, Copy, LoaderCircle } from "lucide-react";
 
 async function act(body: Record<string, unknown>) {
   const r = await fetch("/api/admin/creators", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  const j = (await r.json().catch(() => ({}))) as { error?: string; number?: string };
+  const j = (await r.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;
   if (!r.ok) throw new Error(j.error ?? "That didn't work.");
   return j;
 }
@@ -108,41 +108,57 @@ export function RateEditor({ id, rate }: { id: string; rate: number }) {
 
 // a payout: see the full account number to make the transfer, then mark it paid with the transfer reference, or
 // reject it (the amount goes back to their balance)
+// a payout: see the full payout details to make the transfer, then mark it paid with the transfer reference (and,
+// for another currency, what was sent), or reject it (the amount goes back to their balance)
 export function PayoutActions({ id }: { id: string }) {
   const { busy, run } = useAct();
-  const [num, setNum] = useState<string | null>(null);
+  const [rows, setRows] = useState<[string, string][] | null>(null);
+  const [cur, setCur] = useState("NGN");
   const [ref, setRef] = useState("");
   const [why, setWhy] = useState("");
   const [rejecting, setRejecting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (k: string, v: string) => {
+    await navigator.clipboard.writeText(v).catch(() => {});
+    setCopied(k);
+    setTimeout(() => setCopied(null), 1500);
+  };
   return (
     <div className="space-y-1.5">
-      {num ? (
-        <button
-          type="button"
-          className={`${btn} font-mono tabular-nums`}
-          onClick={async () => {
-            await navigator.clipboard.writeText(num).catch(() => {});
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {num} {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-        </button>
+      {rows ? (
+        <dl className="space-y-0.5 rounded-md border border-line p-2 text-[12.5px]">
+          <div className="flex justify-between gap-3 text-muted">
+            <dt>Currency</dt>
+            <dd className="font-semibold text-foreground">{cur}</dd>
+          </div>
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between gap-3">
+              <dt className="text-muted">{k}</dt>
+              <dd>
+                <button type="button" onClick={() => copy(k, v)} className="inline-flex items-center gap-1 font-medium tabular-nums hover:underline">
+                  {v} {copied === k ? <Check className="size-3" aria-hidden /> : <Copy className="size-3 text-muted" aria-hidden />}
+                </button>
+              </dd>
+            </div>
+          ))}
+        </dl>
       ) : (
         <button
           type="button"
           className={btn}
           disabled={busy}
           onClick={async () => {
-            const j = await act({ action: "account", id }).catch((e: Error) => {
+            const j = (await act({ action: "account", id }).catch((e: Error) => {
               toast.error(e.message);
               return null;
-            });
-            if (j?.number) setNum(j.number);
+            })) as { currency?: string; rows?: [string, string][] } | null;
+            if (j?.rows) {
+              setRows(j.rows);
+              setCur(j.currency ?? "NGN");
+            }
           }}
         >
-          Show account number
+          Show payout details
         </button>
       )}
       {rejecting ? (
@@ -169,7 +185,7 @@ export function PayoutActions({ id }: { id: string }) {
             void run({ action: "paid", id, reference: ref.trim() }, "Marked paid: they've been emailed");
           }}
         >
-          <input className={`${input} w-40`} value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Transfer reference" minLength={3} maxLength={120} required />
+          <input className={`${input} w-48`} value={ref} onChange={(e) => setRef(e.target.value)} placeholder={cur === "NGN" ? "Transfer reference" : `Reference, ${cur} sent`} minLength={3} maxLength={120} required />
           <button className={btn} disabled={busy || ref.trim().length < 3}>
             {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : null}
             Mark paid

@@ -7,6 +7,7 @@ import { notify } from "@/lib/notify";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { SITE } from "@/lib/site";
 import { CODE, TERMS, cleanCode, dayKey, earnings, monthKey, naira, type Month } from "@/lib/creator-terms";
+import { describe } from "@/lib/payout-methods";
 
 // the creator partnership (lib/creator-terms has the rules; supabase/migrations/0035 the tables). a creator applies,
 // the operator approves them, and from then on visits through their links are counted, accounts made through them
@@ -30,8 +31,8 @@ export type Creator = {
 export type Link = { id: string; code: string; label: string | null; created_at: string };
 export type LinkStats = { link_id: string; visits: number; visits_since: number; signups: number; qualified: number; qualified_since: number };
 export type Post = { id: string; url: string; platform: string; title: string | null; posted_on: string; status: "submitted" | "approved" | "rejected"; note: string | null; created_at: string };
-export type Withdrawal = { id: string; amount_ngn: number; status: "pending" | "paid" | "rejected"; reference: string | null; note: string | null; requested_at: string; processed_at: string | null; bank: { bank_name?: string; account_name?: string; account_last4?: string } };
-export type Bank = { bank_name: string; account_name: string; account_last4: string; updated_at: string };
+export type Withdrawal = { id: string; amount_ngn: number; status: "pending" | "paid" | "rejected"; reference: string | null; note: string | null; requested_at: string; processed_at: string | null; bank: { currency?: string; method?: string; account_name?: string; label?: string } };
+export type Bank = { currency: string; method: string; account_name: string; label: string; updated_at: string };
 export type Referral = { id: string; created_at: string; status: "pending" | "qualified" | "duplicate" | "rejected"; reason: string | null; qualified_at: string | null; earn_ngn: number; link_id: string | null; has_cv: boolean; has_profile: boolean; initial: string };
 
 export const VISITOR_COOKIE = "iv_vid";
@@ -163,7 +164,7 @@ export async function sweepCreator(creatorId: string): Promise<number> {
 export type Funnel = { visits: number; signups: number; with_cv: number; with_profile: number; qualified: number; duplicates: number };
 export type Day = { day: string; visits: number; signups: number; qualified: number };
 
-export type Money = { months: Month[]; earned: number; pendingBonus: number; paid: number; pending: number; available: number; thisMonth: Month };
+export type Money = { months: Month[]; earned: number; pendingBonus: number; lockedBase: number; paid: number; pending: number; available: number; thisMonth: Month };
 
 export async function moneyOf(creatorId: string, now = new Date()): Promise<Money> {
   const db = admin();
@@ -175,7 +176,7 @@ export async function moneyOf(creatorId: string, now = new Date()): Promise<Mone
   const paid = (ws ?? []).filter((w) => w.status === "paid").reduce((a, w) => a + Number(w.amount_ngn), 0);
   const pending = (ws ?? []).filter((w) => w.status === "pending").reduce((a, w) => a + Number(w.amount_ngn), 0);
   const cur = monthKey(now);
-  const thisMonth = e.months.find((m) => m.key === cur) ?? { key: cur, qualified: 0, base: 0, bonus: 0, closed: false };
+  const thisMonth = e.months.find((m) => m.key === cur) ?? { key: cur, qualified: 0, base: 0, bonus: 0, closed: false, unlocked: false };
   return { ...e, paid, pending, available: Math.max(0, e.earned - paid - pending), thisMonth };
 }
 
@@ -235,16 +236,18 @@ export async function removePost(creatorId: string, postId: string): Promise<boo
 // ---- payouts ----
 
 export async function bankOf(creatorId: string): Promise<Bank | null> {
-  const { data } = await admin().from("creator_banks").select("bank_name, account_name, account_last4, updated_at").eq("creator_id", creatorId).maybeSingle();
+  const { data } = await admin().from("creator_banks").select("currency, method, account_name, label, updated_at").eq("creator_id", creatorId).maybeSingle();
   return (data as Bank | null) ?? null;
 }
 
-export async function saveBank(c: Creator, b: { bank_name: string; account_name: string; account_number: string }) {
+// where payouts go, in the creator's currency (lib/payout-methods checked it): every detail encrypted together, and
+// the label (the bank or network and the last four digits) kept to show back
+export async function saveBank(c: Creator, d: { currency: string; method: string; account_name: string; label: string; details: Record<string, string> }) {
   const { error } = await admin()
     .from("creator_banks")
-    .upsert({ creator_id: c.id, bank_name: b.bank_name, account_name: b.account_name, account_number_enc: encrypt(b.account_number), account_last4: b.account_number.slice(-4), updated_at: new Date().toISOString() });
-  if (error) throw new Error("Couldn't save your bank details. Try again.");
-  await logEvent({ userId: c.user_id, actor: "user", action: "creator.bank_saved", context: { bank: b.bank_name, last4: b.account_number.slice(-4) } }).catch(() => {});
+    .upsert({ creator_id: c.id, currency: d.currency, method: d.method, account_name: d.account_name, label: d.label, details_enc: encrypt(JSON.stringify(d.details)), updated_at: new Date().toISOString() });
+  if (error) throw new Error("Couldn't save your payout details. Try again.");
+  await logEvent({ userId: c.user_id, actor: "user", action: "creator.bank_saved", context: { currency: d.currency, method: d.method, label: d.label } }).catch(() => {});
 }
 
 export async function withdrawalsOf(creatorId: string): Promise<Withdrawal[]> {
@@ -256,8 +259,8 @@ export async function requestWithdrawal(c: Creator, email: string, amount: numbe
   if (c.status !== "active") return "Payouts are paused on your account. Message the Ivyward team.";
   if (!Number.isInteger(amount) || amount < TERMS.minWithdrawal) return `The smallest payout is ${naira(TERMS.minWithdrawal)}.`;
   const db = admin();
-  const { data: bank } = await db.from("creator_banks").select("bank_name, account_name, account_last4, account_number_enc").eq("creator_id", c.id).maybeSingle();
-  if (!bank) return "Add your bank details first.";
+  const { data: bank } = await db.from("creator_banks").select("currency, method, account_name, label, details_enc").eq("creator_id", c.id).maybeSingle();
+  if (!bank) return "Add your payout details first.";
   const money = await moneyOf(c.id);
   const { data, error } = await db.rpc("creator_request_withdrawal", { cid: c.id, amt: amount, earned: money.earned, bank });
   if (error) return "Couldn't send the request. Try again.";
@@ -267,7 +270,7 @@ export async function requestWithdrawal(c: Creator, email: string, amount: numbe
   await logEvent({ userId: c.user_id, actor: "user", action: "creator.withdrawal_requested", context: { amount } }).catch(() => {});
   await alert(`creator-withdrawal:${c.id}:${Date.now()}`, `Creator payout requested: ${naira(amount)} to ${c.name}`, {
     email,
-    bank: `${bank.bank_name}, ${bank.account_name}, ending ${bank.account_last4}`,
+    to: `${bank.label} (${bank.currency}), ${bank.account_name}`,
     due: `within ${TERMS.payoutHours} hours`,
     pay: "tryivyward.com/admin?view=creators",
   });
@@ -276,12 +279,14 @@ export async function requestWithdrawal(c: Creator, email: string, amount: numbe
 
 // ---- the operator ----
 
-export async function payoutAccount(withdrawalId: string): Promise<string | null> {
+// everything the operator needs to send a payout, decrypted only when they ask: each detail's label and value
+export async function payoutDetails(withdrawalId: string): Promise<{ currency: string; rows: [string, string][] } | null> {
   const { data } = await admin().from("creator_withdrawals").select("bank").eq("id", withdrawalId).maybeSingle();
-  const enc = (data?.bank as { account_number_enc?: string } | null)?.account_number_enc;
-  if (!enc) return null;
+  const b = data?.bank as { currency?: string; method?: string; details_enc?: string } | null;
+  if (!b?.details_enc) return null;
   try {
-    return decrypt(enc);
+    const details = JSON.parse(decrypt(b.details_enc)) as Record<string, string>;
+    return { currency: b.currency ?? "NGN", rows: describe(b.currency ?? "NGN", b.method ?? "bank", details) };
   } catch {
     return null;
   }
@@ -313,7 +318,7 @@ export async function settleWithdrawal(id: string, outcome: "paid" | "rejected",
     userId: c.user_id,
     key: `creator:payout:${id}`,
     kind: "info",
-    title: outcome === "paid" ? `${naira(Number(w.amount_ngn))} is on its way to your bank` : "Your payout request wasn't paid",
+    title: outcome === "paid" ? `Your ${naira(Number(w.amount_ngn))} payout is on its way` : "Your payout request wasn't paid",
     body: outcome === "paid" ? `We've sent your creator payout${text ? ` (reference ${text})` : ""}. It can take a few minutes to show in your account.` : `${text ? `${text} ` : ""}The amount is back in your balance, so you can request it again.`,
     href: "/creator/payouts",
     actionLabel: "See payouts",

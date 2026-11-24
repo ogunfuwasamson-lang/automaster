@@ -16,22 +16,32 @@ export default async function Payouts() {
     <div className="space-y-6">
       <header>
         <h1 className="font-serif text-[34px] leading-tight">Payouts</h1>
-        <p className="mt-1 text-[14.5px] text-muted">Ask for a payout whenever you have {naira(TERMS.minWithdrawal)} or more. The team sends it to your bank account within {TERMS.payoutHours} hours.</p>
+        <p className="mt-1 text-[14.5px] text-muted">Ask for a payout whenever you have {naira(TERMS.minWithdrawal)} or more. The team sends it to your bank or mobile money, in your currency, within {TERMS.payoutHours} hours.</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Ready to withdraw" value={naira(money.available)} tone={money.available >= TERMS.minWithdrawal ? "go" : undefined} />
         <Stat label="On its way" value={naira(money.pending)} tone={money.pending ? "signal" : undefined} sub={money.pending ? `Within ${TERMS.payoutHours} hours of your request` : "Nothing waiting"} />
         <Stat label="Paid to you" value={naira(money.paid)} sub="All time" />
-        <Stat label="Bonus this month" value={naira(money.pendingBonus)} sub="Added when the month closes" />
+        <Stat
+          label="This month so far"
+          value={naira(money.thisMonth.base)}
+          tone={money.thisMonth.unlocked ? undefined : "signal"}
+          sub={money.thisMonth.unlocked ? (money.pendingBonus ? `Plus ${naira(money.pendingBonus)} bonus when the month closes` : "Already in your balance") : `Pays once you reach ${TERMS.payFrom}: ${(TERMS.payFrom - money.thisMonth.qualified).toLocaleString()} to go`}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Box title="Request a payout">
           <WithdrawForm available={money.available} hasBank={!!bank} waiting={waiting} active={creator.status === "active"} />
-          {bank ? <p className="mt-3 text-[13px] text-muted">Goes to {bank.bank_name}, {bank.account_name}, ending {bank.account_last4}.</p> : null}
+          {bank ? (
+            <p className="mt-3 text-[13px] text-muted">
+              Goes to {bank.label}, {bank.account_name}
+              {bank.currency !== "NGN" ? `, paid in ${bank.currency} at the day's rate` : ""}.
+            </p>
+          ) : null}
         </Box>
-        <Box title="Bank details" note={bank ? `Updated ${shortDay(bank.updated_at)}.` : "Where your payouts go."}>
+        <Box title="Payout details" note={bank ? `Updated ${shortDay(bank.updated_at)}.` : "Where your payouts go, in your currency."}>
           <BankForm bank={bank} />
         </Box>
       </div>
@@ -55,7 +65,8 @@ export default async function Payouts() {
                     <td className="whitespace-nowrap px-5 py-3 text-muted sm:px-6">{shortDay(w.requested_at)}</td>
                     <td className="py-3 text-right font-medium tabular-nums">{naira(w.amount_ngn)}</td>
                     <td className="py-3 pl-6 text-muted">
-                      {w.bank.bank_name ?? "Bank"} · {w.bank.account_last4 ?? ""}
+                      {w.bank.label ?? "Bank"}
+                      {w.bank.currency && w.bank.currency !== "NGN" ? ` · ${w.bank.currency}` : ""}
                     </td>
                     <td className="py-3">
                       <StatusPill status={w.status === "pending" ? "waiting" : w.status === "rejected" ? "declined" : "paid"} />
@@ -73,7 +84,7 @@ export default async function Payouts() {
         )}
       </Box>
 
-      <Box title="Earnings by month" note={`Base pay at your rate for each qualified sign-up, plus ${naira(TERMS.bonusPerStep)} for every ${TERMS.bonusStep} above ${TERMS.target} in a month.`}>
+      <Box title="Earnings by month" note={`A month pays once it reaches ${TERMS.payFrom} qualified sign-ups: then your rate for every one, plus ${naira(TERMS.bonusPerStep)} for every ${TERMS.bonusStep} above ${TERMS.target.toLocaleString()}.`}>
         {money.months.length ? (
           <div className="-mx-5 overflow-x-auto sm:-mx-6">
             <table className="w-full min-w-[34rem] text-[14px]">
@@ -92,11 +103,12 @@ export default async function Payouts() {
                     <td className="px-5 py-3 sm:px-6">
                       {monthLabel(m.key)}
                       {!m.closed ? <span className="ml-2 text-[12px] text-muted">so far</span> : null}
+                      {!m.unlocked ? <span className="ml-2 text-[12px] text-signal">{m.closed ? `ended under ${TERMS.payFrom}` : `pays from ${TERMS.payFrom}`}</span> : null}
                     </td>
                     <td className="py-3 text-right">{m.qualified.toLocaleString()}</td>
-                    <td className="py-3 text-right">{naira(m.base)}</td>
+                    <td className={`py-3 text-right ${m.unlocked ? "" : "text-muted line-through decoration-1"}`}>{naira(m.base)}</td>
                     <td className="py-3 text-right text-muted">{m.bonus ? `${naira(m.bonus)}${m.closed ? "" : " at month end"}` : "·"}</td>
-                    <td className="px-5 py-3 text-right font-medium sm:px-6">{naira(m.base + (m.closed ? m.bonus : 0))}</td>
+                    <td className="px-5 py-3 text-right font-medium sm:px-6">{naira(m.unlocked ? m.base + (m.closed ? m.bonus : 0) : 0)}</td>
                   </tr>
                 ))}
               </tbody>

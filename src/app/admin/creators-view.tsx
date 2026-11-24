@@ -67,16 +67,16 @@ export async function CreatorsView({ range: r }: { range: Range }) {
         <Stat label="Active creators" value={String(creators.filter((c) => c.status === "active").length)} sub={`${apps.length} waiting for review`} tone={apps.length ? "signal" : undefined} />
         <Stat label={`Visits, ${r.label}`} value={sum((x) => x.visits_since).toLocaleString()} sub="One per person per link per day" />
         <Stat label={`Sign-ups, ${r.label}`} value={sum((x) => x.signups_since).toLocaleString()} />
-        <Stat label={`Qualified, ${r.label}`} value={sum((x) => x.qualified_since).toLocaleString()} tone="go" sub={`${naira(sum((x) => x.qualified_since) * TERMS.rate)} at the standard rate`} />
+        <Stat label={`Qualified, ${r.label}`} value={sum((x) => x.qualified_since).toLocaleString()} tone="go" sub={`Pay starts at ${TERMS.payFrom} a month per creator`} />
         <Stat label="Payouts to send" value={naira(pendingWs.reduce((a, w) => a + Number(w.amount_ngn), 0))} tone={pendingWs.length ? "signal" : undefined} sub={`${pendingWs.length} request${pendingWs.length === 1 ? "" : "s"}, due within ${TERMS.payoutHours} h`} />
         <Stat label="Owed, not yet requested" value={naira(owed)} sub={`Paid so far: ${naira(sum((x) => x.paid))}`} />
       </Kpis>
 
-      <Panel title={`Payouts to send (${pendingWs.length})`} note={`Transfer to the account shown, then mark it paid with the reference. Due ${TERMS.payoutHours} hours after the request.`}>
+      <Panel title={`Payouts to send (${pendingWs.length})`} note={`Amounts are in naira: convert at the day's rate for other currencies and put what you sent in the reference. Due ${TERMS.payoutHours} hours after the request.`}>
         <Table head={["Creator", "Amount", "Requested", "Bank", "Their numbers", "Send"]} min="62rem">
           {pendingWs.length ? (
             pendingWs.map((w) => {
-              const b = (w.bank ?? {}) as { bank_name?: string; account_name?: string; account_last4?: string };
+              const b = (w.bank ?? {}) as { currency?: string; method?: string; account_name?: string; label?: string };
               const x = o.get(w.creator_id as string);
               const h = hoursLeft(w.requested_at as string);
               return (
@@ -91,9 +91,10 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                     <Pill tone={h < 0 ? "stop" : h < 6 ? "signal" : undefined}>{h < 0 ? `${-h} h overdue` : `${h} h left`}</Pill>
                   </td>
                   <td className={td}>
-                    <p>{b.bank_name}</p>
+                    <p>{b.label}</p>
                     <p className="text-[12px] text-muted">
-                      {b.account_name} · ending {b.account_last4}
+                      {b.account_name} · <span className={b.currency && b.currency !== "NGN" ? "font-semibold text-signal" : ""}>{b.currency ?? "NGN"}</span>
+                      {b.method === "mobile_money" ? " mobile money" : b.method === "swift" ? " international transfer" : ""}
                     </p>
                   </td>
                   <td className={`${td} text-[12.5px] text-muted`}>
@@ -140,7 +141,7 @@ export async function CreatorsView({ range: r }: { range: Range }) {
         </Panel>
       ) : null}
 
-      <Panel title={`Creators (${live.length})`} note={`Visits, sign-ups and qualified sign-ups in ${r.label}; money all time. Base pay counts when a sign-up qualifies, a month's bonus once it closes.`} scroll="lg">
+      <Panel title={`Creators (${live.length})`} note={`Visits, sign-ups and qualified sign-ups in ${r.label}; money all time. A month pays once it reaches ${TERMS.payFrom}; its bonus once it closes.`} scroll="lg">
         <Table head={["Creator", "Status", "Rate", "Visits", "Sign-ups", "Qualified", `This month (${month})`, "Earned", "Paid", "Owed", "Videos", ""]} min="78rem">
           {live.length ? (
             live.map((c) => {
@@ -173,8 +174,8 @@ export async function CreatorsView({ range: r }: { range: Range }) {
                   <td className={`${td} tabular-nums`}>{(x?.signups_since ?? 0).toLocaleString()}</td>
                   <td className={`${td} tabular-nums`}>{(x?.qualified_since ?? 0).toLocaleString()}</td>
                   <td className={`${td} tabular-nums`}>
-                    {(tm?.qualified ?? 0).toLocaleString()} of {TERMS.target}
-                    {tm?.bonus ? <p className="text-[12px] text-muted">+{naira(tm.bonus)} bonus at month end</p> : null}
+                    {(tm?.qualified ?? 0).toLocaleString()} of {TERMS.target.toLocaleString()}
+                    <p className="text-[12px] text-muted">{tm?.unlocked ? (tm.bonus ? `paying; +${naira(tm.bonus)} bonus at month end` : "paying") : `pays from ${TERMS.payFrom}`}</p>
                   </td>
                   <td className={`${td} tabular-nums`}>{naira(e.earned)}</td>
                   <td className={`${td} tabular-nums`}>{naira(x?.paid ?? 0)}</td>
