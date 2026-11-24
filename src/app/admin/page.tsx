@@ -6,6 +6,7 @@ import { CostsView, CreditView, GrowthView, LearningView, OverviewView, PortalsV
 import { href, parseRange } from "./range";
 import { RangeBar } from "./range-bar";
 import { EmailView } from "./email-view";
+import { CreatorsView } from "./creators-view";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operator", robots: { index: false, follow: false } };
@@ -18,6 +19,7 @@ const VIEWS = [
   ["costs", "AI costs"],
   ["credit", "Credit"],
   ["growth", "Growth"],
+  ["creators", "Creators"],
   ["email", "Email"],
   ["learning", "Learning"],
   ["system", "System"],
@@ -85,6 +87,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         {view === "user" && <UserView id={sp.id!} range={range} everyone={everyone} />}
         {view === "costs" && <CostsView range={range} everyone={everyone} />}
         {view === "growth" && <GrowthView range={range} everyone={everyone} />}
+        {view === "creators" && <CreatorsView range={range} />}
         {view === "learning" && <LearningView />}
         {view === "email" && <EmailView />}
         {view === "system" && <SystemView range={range} />}

@@ -38,7 +38,18 @@ function LoginForm() {
       .then((j) => setGoogle(!!j?.external?.google))
       .catch(() => {});
   }, []);
-  const backTo = () => (next.startsWith("/") && !next.startsWith("//") ? `?next=${encodeURIComponent(next)}` : "");
+  // where to go after sign-in, and whose creator link brought them here (lib/creators): the sign-in email often opens
+  // in another browser (TikTok's or Instagram's in-app one asked for it, the mail app opens Chrome), where the
+  // link's cookie isn't, so the link carries it
+  const backTo = () => {
+    const q = new URLSearchParams();
+    if (next.startsWith("/") && !next.startsWith("//")) q.set("next", next);
+    const jar = Object.fromEntries(document.cookie.split("; ").map((c) => c.split("=")));
+    if (/^[a-z0-9-]{3,24}$/.test(jar.iv_creator ?? "")) q.set("c", jar.iv_creator);
+    if (/^[\w-]{8,40}$/.test(jar.iv_vid ?? "")) q.set("v", jar.iv_vid);
+    const s = q.toString();
+    return s ? `?${s}` : "";
+  };
   async function withGoogle() {
     setLeaving(true);
     setErr("");

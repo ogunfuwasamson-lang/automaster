@@ -1,6 +1,7 @@
 import { resumeAfterProfileChange } from "@/lib/requeue";
 import { DOC_KIND_IDS } from "@/lib/doc-kinds";
 import { resolve } from "@/lib/notify";
+import { qualifyAccount } from "@/lib/creators";
 import { NextResponse, after, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
   // a new document can be exactly what a stopped submission was waiting for
   await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);
   await resolve(uid, `setup:${b.kind}`).catch(() => {});
+  // a CV can be the last step for an account a creator brought in (lib/creators)
+  if (b.kind === "cv") await qualifyAccount(uid).catch(() => false);
   after(() => drain("inline-upload", 2).catch(() => {}));
   return NextResponse.json({ ok: true });
 }

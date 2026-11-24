@@ -55,13 +55,13 @@ function money(ps: Payment[]) {
 
 // ---- building blocks ----
 
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</div>;
 }
 
 // a titled panel; `scroll` caps its height and lets the body scroll, so long lists don't stretch the page
 const SCROLL = { sm: "max-h-[16rem]", md: "max-h-[24rem]", lg: "max-h-[34rem]", xl: "max-h-[70vh]" } as const;
-function Panel({ title, note, action, scroll, className = "", children }: { title: ReactNode; note?: ReactNode; action?: ReactNode; scroll?: keyof typeof SCROLL; className?: string; children: ReactNode }) {
+export function Panel({ title, note, action, scroll, className = "", children }: { title: ReactNode; note?: ReactNode; action?: ReactNode; scroll?: keyof typeof SCROLL; className?: string; children: ReactNode }) {
   return (
     <section className={`flex min-w-0 flex-col rounded-2xl border border-line bg-surface shadow-card ${className}`}>
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
@@ -80,11 +80,11 @@ type Tone = "go" | "stop" | "signal" | undefined;
 const toneText = (t: Tone) => (t === "go" ? "text-go" : t === "stop" ? "text-stop" : t === "signal" ? "text-signal" : "");
 const dot = (t: Tone) => (t === "go" ? "bg-go" : t === "stop" ? "bg-stop" : t === "signal" ? "bg-signal" : "bg-neutral-400");
 
-function Kpis({ children }: { children: ReactNode }) {
+export function Kpis({ children }: { children: ReactNode }) {
   return <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{children}</dl>;
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: ReactNode; tone?: Tone }) {
+export function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: ReactNode; tone?: Tone }) {
   return (
     <Card className="px-3.5 py-3">
       <dt className="truncate text-[12px] text-muted">{label}</dt>
@@ -94,13 +94,13 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-function Pill({ tone, children }: { tone?: Tone; children: ReactNode }) {
+export function Pill({ tone, children }: { tone?: Tone; children: ReactNode }) {
   const cls = tone === "go" ? "border-go/30 text-go" : tone === "stop" ? "border-stop/30 text-stop" : tone === "signal" ? "border-signal/30 text-signal" : "border-line text-muted";
   return <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] ${cls}`}>{children}</span>;
 }
 
 // a table whose header stays put while the panel around it scrolls
-function Table({ head, children, min = "40rem" }: { head: string[]; children: ReactNode; min?: string }) {
+export function Table({ head, children, min = "40rem" }: { head: string[]; children: ReactNode; min?: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13.5px]" style={{ minWidth: min }}>
@@ -119,7 +119,7 @@ function Table({ head, children, min = "40rem" }: { head: string[]; children: Re
   );
 }
 
-function Empty({ cols, children }: { cols: number; children: ReactNode }) {
+export function Empty({ cols, children }: { cols: number; children: ReactNode }) {
   return (
     <tr>
       <td className="px-4 py-3 text-[13px] text-muted" colSpan={cols}>

@@ -63,6 +63,9 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
     } else await resolve(userId, `setup:${a.id}`);
   }
 
+  // an account made through a creator's link counts for them once it has a CV and the basic profile (lib/creators)
+  await import("@/lib/creators").then((m) => m.qualifyAccount(userId)).catch(() => false);
+
   // a friend who invited them earns their reward once setup is done (lib/referrals)
   if (profile.goals.study_level && regions.length && ((profile.goals.fields ?? []).length || kinds.size)) await rewardOnIntake(userId).catch(() => {});
 

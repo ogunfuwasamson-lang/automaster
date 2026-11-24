@@ -139,6 +139,9 @@ export function SiteFooter() {
           <Link href="/ambassadors" className="block text-muted hover:text-foreground">
             Become an ambassador
           </Link>
+          <Link href="/creator" prefetch={false} className="block text-muted hover:text-foreground">
+            Creator partnership
+          </Link>
           <Link href="/about" className="block text-muted hover:text-foreground">
             About Ivyward
           </Link>

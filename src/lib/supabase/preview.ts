@@ -225,6 +225,63 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
     },
   ],
   agent_runs: [],
+  // the creator studio (app/creator): AM_PREVIEW_CREATOR=none shows the application, =pending the wait
+  get creators() {
+    const st = process.env.AM_PREVIEW_CREATOR;
+    if (st === "none") return [];
+    return [{ id: "c1", user_id: "u1", name: "Tolu Adeyemi", phone: "+234 803 000 0000", handles: { tiktok: "@tolu.abroad", instagram: "@tolu.abroad" }, audience: "Study-abroad tips for Nigerian graduates, mostly final-year students and young professionals.", followers: "48,000 on TikTok", status: st === "pending" ? "pending" : "active", rate_ngn: 350, note: null, created_at: ago(60 * 24 * 20), approved_at: ago(60 * 24 * 18) }];
+  },
+  creator_links: [
+    { id: "l1", creator_id: "c1", code: "tolu-tiktok", label: "TikTok bio", created_at: ago(60 * 24 * 18) },
+    { id: "l2", creator_id: "c1", code: "tolu-ig", label: "Instagram", created_at: ago(60 * 24 * 9) },
+  ],
+  creator_posts: [
+    { id: "p1", creator_id: "c1", url: "https://www.tiktok.com/@tolu.abroad/video/7300000000000000001", platform: "TikTok", title: "I tried an AI that finds scholarships", posted_on: day(-20), status: "approved", note: null, created_at: ago(60 * 24 * 20) },
+    { id: "p2", creator_id: "c1", url: "https://www.tiktok.com/@tolu.abroad/video/7300000000000000002", platform: "TikTok", title: "Uploading my CV and what it found", posted_on: day(-13), status: "approved", note: null, created_at: ago(60 * 24 * 13) },
+    { id: "p3", creator_id: "c1", url: "https://www.instagram.com/reel/Cx0000000/", platform: "Instagram", title: "My UK shortlist", posted_on: day(-3), status: "submitted", note: null, created_at: ago(60 * 24 * 3) },
+  ],
+  creator_banks: [{ creator_id: "c1", bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821", updated_at: ago(60 * 24 * 15) }],
+  creator_withdrawals: [
+    { id: "w2", creator_id: "c1", amount_ngn: 10000, status: "pending", reference: null, note: null, requested_at: ago(180), processed_at: null, bank: { bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821" } },
+    { id: "w1", creator_id: "c1", amount_ngn: 35000, status: "paid", reference: "GTB-000231884", note: null, requested_at: ago(60 * 24 * 8), processed_at: ago(60 * 24 * 8 - 300), bank: { bank_name: "Guaranty Trust Bank (GTBank)", account_name: "Toluwani Adeyemi", account_last4: "4821" } },
+  ],
+};
+
+// the creator studio's database functions (supabase/migrations/0035), answered from made-up numbers
+const lagosDay = (n: number) => new Date(Date.now() + 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
+const RPC: Record<string, () => unknown> = {
+  creator_qualify: () => 0,
+  creator_link_stats: () => [
+    { link_id: "l1", visits: 2310, visits_since: 1290, signups: 236, qualified: 141, qualified_since: 118 },
+    { link_id: "l2", visits: 402, visits_since: 402, signups: 41, qualified: 23, qualified_since: 23 },
+  ],
+  creator_funnel: () => [{ signups: 214, with_cv: 168, with_profile: 151, qualified: 141, duplicates: 6 }],
+  creator_daily: () =>
+    Array.from({ length: 30 }, (_, i) => {
+      const w = Math.sin(i / 3) * 0.4 + 1 + i / 30;
+      return { day: lagosDay(i - 29), visits: Math.round(40 * w + (i % 7 === 2 ? 60 : 0)), signups: Math.round(7 * w), qualified: Math.round(4.5 * w + (i % 7 === 2 ? 5 : 0)) };
+    }),
+  creator_months: () => [
+    { creator_id: "c1", month: lagosDay(0).slice(0, 7), qualified: 141, base: 141 * 350 },
+    { creator_id: "c1", month: lagosDay(-31).slice(0, 7), qualified: 23, base: 23 * 350 },
+  ],
+  creator_referral_list: () =>
+    Array.from({ length: 14 }, (_, i) => ({
+      id: `r${i}`,
+      creator_id: "c1",
+      user_id: null,
+      created_at: ago(i * 190 + 20),
+      status: i === 3 ? "duplicate" : i % 4 === 1 ? "pending" : "qualified",
+      reason: i === 3 ? "Same device as an earlier sign-up" : null,
+      qualified_at: i % 4 === 1 || i === 3 ? null : ago(i * 190),
+      earn_ngn: i % 4 === 1 || i === 3 ? 0 : 350,
+      link_id: i % 3 ? "l1" : "l2",
+      has_cv: i % 4 !== 1 || i % 8 === 1,
+      has_profile: i % 4 !== 1,
+      initial: "ABCDEFGHIJKLMN"[i],
+      email: null,
+    })),
+  creator_overview: () => [{ creator_id: "c1", visits_since: 1692, signups_since: 214, qualified_since: 141, signups_all: 277, qualified_all: 164, paid: 35000, pending: 10000, posts_since: 3, last_post: day(-3) }],
 };
 
 type Row = Record<string, unknown>;
@@ -334,7 +391,7 @@ class Query implements PromiseLike<{ data: unknown; count: number | null; error:
 export function previewClient() {
   return {
     from: (t: string) => new Query(t),
-    rpc: async () => ({ data: null, error: null }),
+    rpc: async (name: string) => ({ data: RPC[name]?.() ?? null, error: null }),
     auth: { getUser: async () => ({ data: { user: PREVIEW_USER }, error: null }) },
     storage: { from: () => ({ createSignedUrl: async () => ({ data: null, error: null }) }) },
   };
