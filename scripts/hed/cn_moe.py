@@ -72,7 +72,9 @@ for _, name, code, dept, loc, level, note in recs:
         "address": None, "postal_code": None, "latitude": None, "longitude": None,
         "local_type": f"{'Private (民办)' if private else 'Public'} regular higher education institution; {'undergraduate and above (本科)' if undergrad else 'vocational, three-year diplomas (专科)'}; supervised by {"the Ministry of Education (教育部)" if dept == "教育部" else (dept or "the local government")}" + ("; Sino-foreign cooperative" if sino else "") + (f"; note: {note}" if note and not private and not sino else ""),
         "type": "university" if re.search(r"大学", name) else "college", "control": "other" if private else "public",
-        "highest_award": "Bachelor's degree" if undergrad else "Associate degree (zhuanke diploma)", "status": "active",
+        # 本科 means undergraduate level and above: the list doesn't say which award is highest (Peking University awards
+        # doctorates)
+        "highest_award": "Bachelor's degree or higher" if undergrad else "Associate degree (zhuanke diploma)", "status": "active",
         "recognition": f"On the Ministry of Education's national list of regular higher education institutions (18 June 2026), code {code}",
         "website": site, "domain": dom,
         "admissions_url": None, "financial_aid_url": None, "application_url": None, "net_price_url": None,

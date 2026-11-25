@@ -99,7 +99,7 @@ function inScope(r: Row): boolean {
   if (r.country === "US") return US_LEVELS.includes(r.highest_award ?? "") && !!r.website;
   if (r.country === "GB") return !!r.website;
   if (r.country === "CA") return CA_KEEP(r);
-  if (r.country === "CN") return r.highest_award === "Bachelor's degree";
+  if (r.country === "CN") return /^Bachelor's degree/.test(r.highest_award ?? "");
   return true; // australia (CRICOS degree providers only) and france (the ministry's list)
 }
 
