@@ -3,7 +3,7 @@ import { APPLICATION_CEILING_USD, FREE_MONTHLY_USD, RESEARCH_MONTHLY_USD, gate, 
 import { DEFAULT_POLICY, parsePolicy, fill } from "@/lib/credit-policy";
 import type { Spend } from "@/lib/pricing";
 
-const spend = (research = 0, writing = 0, core = 0): Spend => ({ total: research + writing + core, byCategory: { research, writing, core, apply: 0 } });
+const spend = (research = 0, writing = 0, core = 0): Spend => ({ total: research + writing + core, byCategory: { research, writing, core } });
 
 describe("who the agents work for: one credit, one application", () => {
   const s = { paid: false, staff: false };

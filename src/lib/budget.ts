@@ -59,7 +59,7 @@ export async function monthlyBudget(userId: string): Promise<number> {
 export async function monthSpend(userId: string): Promise<Spend> {
   // all of the month's calls, not the first 1,000: a capped read let a busy account run past its budget
   const data = await runsSince<{ agent: string; cost_usd: number | null }>("agent, cost_usd", monthStartUTC(), userId);
-  const s: Spend = { total: 0, byCategory: { research: 0, writing: 0, core: 0, apply: 0 } };
+  const s: Spend = { total: 0, byCategory: { research: 0, writing: 0, core: 0 } };
   for (const r of data) {
     const c = Number(r.cost_usd) || 0;
     s.total += c;

@@ -29,10 +29,8 @@ export const WELCOME_MONTHLY_USD = 2;
 // paid in credits now, so this is only a backstop
 export const RESEARCH_MONTHLY_USD = 10;
 // one application's AI (planning, essays, reviews, fee waivers, the portal): past this it pauses for the operator.
-// the only application submitted end to end so far cost $1.77 with its portal run on haiku and sonnet; with the
-// portal on opus (25 nov 2026) the same run comes to about $5, so the ceiling sits above that and still catches the
-// runs that go round in circles (one went past $30 at opus prices)
-export const APPLICATION_CEILING_USD = 8;
+// the only application submitted end to end so far cost $1.77 with its portal run; the top tenth cost under $1
+export const APPLICATION_CEILING_USD = 3;
 
 export interface Signals {
   paid: boolean; // pro, a pack, a one-off payment

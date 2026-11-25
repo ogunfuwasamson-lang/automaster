@@ -45,21 +45,16 @@ export function costOf(model: string, u: Usage): number {
 // ---------------------------------------------------------------------------
 // budgets: each user gets a monthly allowance, split so one feature can't starve the rest
 // ---------------------------------------------------------------------------
-export type Category = "research" | "writing" | "core" | "apply";
+export type Category = "research" | "writing" | "core";
 
 export const CATEGORY_SHARE: Record<Category, number> = {
   // measured oct 2026: a 20-program recon run ~$1.20 on haiku; one application (plan + 2 essays x 2 rounds + fee waiver) ~$0.70
   research: 0.35, // recon, scholarships
   writing: 0.45, // strategist, writer, red team, closer
   core: 0.2, // interview, document reading, profile cleanup
-  // finding the application site and filling it in, on opus since 25 nov 2026 (a full application's form run, like
-  // stirling's 1,240 steps, about $5). its own share so a long form doesn't use up the interview's. the shares add up
-  // to more than the month: the month's total is still the cap
-  apply: 0.4,
 };
 
 export function categoryOf(agent: string): Category {
-  if (agent === "runner") return "apply";
   if (agent === "recon") return "research";
   if (agent === "strategist" || agent === "writer" || agent === "redteam" || agent === "closer") return "writing";
   return "core";

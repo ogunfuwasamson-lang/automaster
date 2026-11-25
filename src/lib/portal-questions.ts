@@ -129,7 +129,7 @@ async function fromProfile(userId: string, applicationId: string, profile: Await
   const brief = profileBrief(profile);
   const details = detailsBrief((prof?.portal_details ?? {}) as PortalDetails, "all");
   const school = p ? `${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}${p.schools.country ? `, ${p.schools.country}` : ""}` : "a university";
-  const { output } = await runStructured({ userId, agent: "runner", tier: "apply", promptVersion: "profile-answers-v2", system: INFER_SYSTEM, prompt: inferPrompt(brief, details, school, questions), schema: Inferred, maxTokens: 1500, lessons: false });
+  const { output } = await runStructured({ userId, agent: "runner", tier: "cheap", promptVersion: "profile-answers-v1", system: INFER_SYSTEM, prompt: inferPrompt(brief, details, school, questions), schema: Inferred, maxTokens: 1500, lessons: false });
   return acceptInferred(output, questions, `${brief}\n${details}\n${school}`);
 }
 
