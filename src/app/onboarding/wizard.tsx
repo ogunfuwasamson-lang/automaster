@@ -22,14 +22,16 @@ const LEVELS: [string, string, string][] = [
 ];
 const LEVEL_ICON: Record<string, typeof BookOpen> = { undergraduate: BookOpen, masters: GraduationCap, phd: FlaskConical };
 const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
-// four screens, then the agents start: what, where, the first matches (with the CV ask, now that there's a reason
-// to give it), and gmail and the calendar, so the agents can act for you. the rest (passport name, the profile
+// four screens, then the agents start: what, where, the first matches (with the documents ask: CV, transcript and
+// certificate, now that there's a reason to give them), and gmail and the calendar, so the agents can act for you.
+// the transcript and certificate are asked for here because asked for later most people never added them (25 nov
+// 2026: 12 of 20 applicants with a CV had no transcript, 11 neither). the rest (passport name, the profile
 // chapters) is asked for when a form needs it (lib/kickoff): six screens of asks before anything to look at lost
 // most people (nov 2026). gmail and the calendar come last, after the matches, and either can be skipped: without
 // gmail an application waits whenever a portal emails a code (founder's call, 24 nov 2026: ask for both in setup)
 const STEPS = ["What you're applying for", "Where to study", "Your first matches", "Gmail and calendar"];
 const STEP_ICON = [GraduationCap, Globe2, Sparkles, Mail];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your CV", "So the agents can act for you"];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your documents", "So the agents can act for you"];
 const MATCHES = 3;
 const CONNECT = 4;
 const LAST = STEPS.length;
@@ -91,6 +93,8 @@ export function Onboarding(props: {
   maxRegions: number;
   docCount: number;
   hasCv: boolean;
+  hasTranscript: boolean;
+  hasCertificate: boolean;
   gmail: { available: boolean; email: string | null; active: boolean; composio: boolean; notice: string | null };
   calendar: { available: boolean; connected: boolean; notice: string | null };
 }) {
@@ -113,7 +117,17 @@ export function Onboarding(props: {
     kindFor.current = k;
     file.current?.click();
   };
-  const hasCv = props.hasCv || uploaded.some((u) => u.kind === "cv");
+  const has = (k: string) => (k === "cv" ? props.hasCv : k === "transcript" ? props.hasTranscript : k === "degree_certificate" ? props.hasCertificate : false) || uploaded.some((u) => u.kind === k);
+  const hasCv = has("cv");
+  // the three every application asks for, worded for the degree they're applying for (as lib/doc-checklist words them)
+  const docSlots: { kind: string; label: string; why: string; alt: string }[] = [
+    { kind: "cv", label: "CV", why: "Most of every form fills from it, and your fit is scored on it.", alt: "No CV yet? Upload what you have: a LinkedIn PDF works." },
+    { kind: "transcript", label: level === "undergraduate" ? "School results or transcript" : "Transcript", why: level === "undergraduate" ? "Your grades and subjects. Your agents check them against each school's entry requirements." : "Your grades and courses. Your agents convert your GPA for each country and check entry requirements.", alt: "Not issued yet? Your statement of results works for now." },
+    level === "undergraduate"
+      ? { kind: "degree_certificate", label: "School-leaving certificate", why: "WAEC, NECO, A-levels or your national exam results.", alt: "Results not out yet? Your predicted grades from your school work for now." }
+      : { kind: "degree_certificate", label: "Degree certificate", why: "Proof you finished. Some forms won't accept the application without it.", alt: "Still studying, or waiting for it? A letter from your university with your expected finish date works for now." },
+  ];
+  const missingDocs = docSlots.filter((d) => !has(d.kind));
 
   // re-asked after each "sharpen" answer, which re-ranks them
   const refresh = () =>
@@ -383,36 +397,71 @@ export function Onboarding(props: {
 
                 <SharpenCard onAnswered={refresh} />
 
-                <section className="rounded-2xl border border-accent/30 bg-accent/[0.04] p-5" aria-label="Your CV">
-                  <p className="text-[17px] font-bold tracking-[-0.02em]">{hasCv ? "Your CV is in" : "Add your CV to get your fit score on each one"}</p>
+                <section className="rounded-2xl border border-accent/30 bg-accent/[0.04] p-5" aria-label="Your documents">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <p className="text-[17px] font-bold tracking-[-0.02em]">{missingDocs.length ? "Add your documents" : "Your documents are in"}</p>
+                    <p className="text-[13px] font-semibold tabular-nums text-muted">{docSlots.length - missingDocs.length} of {docSlots.length}</p>
+                  </div>
                   <p className="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
-                    {hasCv
-                      ? "Your agents read it now, score how well you fit each programme, and look for scholarships you qualify for."
-                      : "Your agents read it, score how well you fit each programme, and look for scholarships you qualify for. PDF, Word or a photo. Only you and your agents can see it."}
+                    Your agents read them, score how well you fit each programme, check entry requirements and fill the education section of every form. PDF, Word or a clear photo of each page. Only you and your agents can see them.
                   </p>
-                  {uploaded.length ? (
-                    <ul className="mt-3 space-y-1">
-                      {uploaded.map((u) => (
-                        <li key={u.name} className="flex items-center gap-2 text-[14px]"><Check className="size-4 text-go" aria-hidden /><span className="truncate">{u.name}</span></li>
-                      ))}
+                  <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+                    {docSlots.map((d) => {
+                      const done = has(d.kind);
+                      const files = uploaded.filter((u) => u.kind === d.kind);
+                      const busyHere = uploading?.kind === d.kind;
+                      return (
+                        <li
+                          key={d.kind}
+                          className="flex flex-wrap items-center gap-x-4 gap-y-2.5 p-4"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            onFiles(e.dataTransfer.files, d.kind);
+                          }}
+                        >
+                          <span className={`grid size-8 shrink-0 place-items-center rounded-full ${done ? "bg-go/12 text-go" : "border border-line text-muted"}`} aria-hidden>
+                            {done ? <Check className="size-4" /> : <FileUp className="size-4" />}
+                          </span>
+                          <div className="min-w-0 flex-1 basis-56">
+                            <p className="text-[15px] font-semibold">
+                              {d.label}
+                              {done ? <span className="sr-only"> (added)</span> : null}
+                            </p>
+                            <p className="text-[13px] leading-snug text-muted">{d.why}</p>
+                            {files.length ? (
+                              <ul className="mt-1.5 space-y-0.5">
+                                {files.map((u, i) => (
+                                  <li key={`${u.name}-${i}`} className="truncate text-[13px] text-go">{u.name}</li>
+                                ))}
+                              </ul>
+                            ) : !done ? (
+                              <p className="mt-1 text-[12.5px] text-muted">{d.alt}</p>
+                            ) : null}
+                          </div>
+                          <Button size="sm" variant={done ? "ghost" : "secondary"} disabled={!!uploading} onClick={() => pick(d.kind)}>
+                            {busyHere ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
+                            {busyHere ? "Uploading…" : done ? "Add a page" : "Upload"}
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <button type="button" disabled={!!uploading} onClick={() => pick(null)} className="mt-3 text-[13px] font-medium text-muted underline underline-offset-4 hover:text-foreground disabled:opacity-50">
+                    Add something else: test scores, awards, a reference letter
+                  </button>
+                  {uploaded.some((u) => !docSlots.some((d) => d.kind === u.kind)) ? (
+                    <ul className="mt-2 space-y-0.5">
+                      {uploaded
+                        .filter((u) => !docSlots.some((d) => d.kind === u.kind))
+                        .map((u, i) => (
+                          <li key={`${u.name}-${i}`} className="flex items-center gap-2 text-[13px]">
+                            <Check className="size-3.5 text-go" aria-hidden />
+                            <span className="truncate">{u.name}</span>
+                          </li>
+                        ))}
                     </ul>
                   ) : null}
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button
-                      variant={hasCv ? "secondary" : "primary"}
-                      disabled={!!uploading}
-                      onClick={() => pick(hasCv ? null : "cv")}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        onFiles(e.dataTransfer.files, hasCv ? null : "cv");
-                      }}
-                    >
-                      {uploading ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileUp className="size-4" aria-hidden />}
-                      {uploading ? `Uploading ${uploading.name}…` : hasCv ? "Add another document" : "Upload your CV"}
-                    </Button>
-                    {!hasCv && <span className="text-[13px] text-muted">Transcripts and the rest can come later.</span>}
-                  </div>
                   <input ref={file} type="file" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => onFiles(e.target.files, kindFor.current)} />
                 </section>
 
@@ -421,6 +470,7 @@ export function Onboarding(props: {
                 <div className="flex flex-wrap gap-3">
                   <Button
                     size="lg"
+                    variant={missingDocs.length ? "secondary" : "primary"}
                     disabled={busy || !!uploading}
                     onClick={() => {
                       // the agents start on the shortlist now, while gmail and the calendar are connected (safe to call again)
@@ -428,10 +478,15 @@ export function Onboarding(props: {
                       setStep(CONNECT);
                     }}
                   >
-                    {hasCv ? "Continue" : "Continue without a CV"}
+                    {missingDocs.length ? "Skip for now" : "Continue"}
                   </Button>
                   <Button size="lg" variant="ghost" onClick={() => setStep(2)}>Back</Button>
                 </div>
+                {missingDocs.length ? (
+                  <p className="-mt-3 max-w-xl text-[13px] text-muted">
+                    Without your {missingDocs.map((d) => d.label.toLowerCase().replace(/^cv$/, "CV")).join(missingDocs.length === 2 ? " and " : ", ")}, your agents can&apos;t check entry requirements or fill the education section of a form, so applications stop there until you add {missingDocs.length === 1 ? "it" : "them"}.
+                  </p>
+                ) : null}
               </div>
             )}
 

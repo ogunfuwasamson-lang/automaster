@@ -51,6 +51,14 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
     { id: "cv", need: !kinds.has("cv"), ask: { title: "Add your CV", body: "One upload: the agents build most of your profile and your forms from it, so there's less to type.", href: "/documents", actionLabel: "Upload CV" } },
     { id: "details", need: blank.length > 0, ask: { urgent: true, title: "Fill in your form details", body: `Every portal asks for these: ${blank.map((f) => f.label).join(", ")}.`, href: "/profile?tab=details&setup=1", actionLabel: "Fill in details" } },
     { id: "transcript", need: !kinds.has("transcript"), ask: { title: "Add your transcript", body: "Almost every application asks for it, and agents read your grades and courses from it.", href: "/documents", actionLabel: "Upload transcript" } },
+    {
+      id: "degree_certificate",
+      need: !kinds.has("degree_certificate") && !kinds.has("degree_cert"),
+      ask:
+        profile.goals.study_level === "undergraduate"
+          ? { title: "Add your school-leaving certificate", body: "WAEC, NECO, A-levels or your national exam results: schools check them against their entry requirements. Predicted grades work until results are out.", href: "/documents", actionLabel: "Upload certificate" }
+          : { title: "Add your degree certificate", body: "Some forms won't accept the application without proof you finished. Still studying? A letter from your university with your expected finish date works for now.", href: "/documents", actionLabel: "Upload certificate" },
+    },
     { id: "gmail", need: mail?.status !== "active" && !!inProgress, ask: { urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on. No Gmail? Paste a school's email in Messages and they'll do the same.", href: "/settings", actionLabel: "Connect Gmail" } },
     { id: "interview", need: gaps > 0, ask: { title: `${gaps} question${gaps === 1 ? "" : "s"} left for Ivyward AI`, body: "A few answers your documents didn't cover. It takes a couple of minutes.", href: "/dashboard?chat=open", actionLabel: "Answer them" } },
   ];

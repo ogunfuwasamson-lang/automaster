@@ -65,6 +65,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       maxRegions={plan.maxRegions}
       docCount={docs?.length ?? 0}
       hasCv={(docs ?? []).some((d) => d.kind === "cv")}
+      hasTranscript={(docs ?? []).some((d) => d.kind === "transcript")}
+      hasCertificate={(docs ?? []).some((d) => d.kind === "degree_certificate" || d.kind === "degree_cert")}
       gmail={{ available: gmailConfigured(), email: mail?.email ?? null, active: mail?.status === "active", composio: composioMail(), notice: sp.mail ?? null }}
       calendar={{ available: gcalReady(), connected: !!cal, notice: sp.calendar ?? null }}
     />
