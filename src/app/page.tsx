@@ -6,7 +6,7 @@ import { CampusInk } from "@/components/landing/campus-ink";
 import { ProductTabs } from "@/components/landing/product-tabs";
 import { SiteFooter, SiteHeader } from "@/components/landing/site-chrome";
 import { SiteJsonLd } from "@/components/seo/json-ld";
-import { CompareSection, SectionHead, WhoSection } from "@/components/landing/sections";
+import { CompareSection, ConnectSection, SectionHead, WhoSection } from "@/components/landing/sections";
 import { SeasonSteps } from "@/components/landing/season-steps";
 import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
@@ -96,6 +96,8 @@ export default async function Home() {
           <SectionHead id="how-h" one="A whole application season," two="run for you." sub="Five stages, from your first upload to the funding conversation after an admit." />
           <SeasonSteps />
         </section>
+
+        <ConnectSection />
 
         <WhoSection />
 

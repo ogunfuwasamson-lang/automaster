@@ -1,5 +1,6 @@
 import { Ban, Check, Clock, Globe2, GraduationCap, HandCoins, Landmark, Minus, Moon, ScrollText, X } from "lucide-react";
 import { Mark } from "@/components/wordmark";
+import { ConnectCards } from "@/components/landing/connect-demos";
 
 // three landing sections in one card language: a centered two-line heading, then cards with a small illustrated
 // mock-up on top and the words below. every school and person in the mock-ups is invented.
@@ -122,6 +123,22 @@ function FundingArt() {
         </div>
       </div>
     </div>
+  );
+}
+
+// where Ivyward shows up outside its own pages: the inbox, the calendar and the browser (cards and demos in
+// connect-demos.tsx)
+export function ConnectSection() {
+  return (
+    <section className="mx-auto max-w-6xl px-5 pb-24" aria-labelledby="connect-h">
+      <SectionHead
+        id="connect-h"
+        one="In your inbox, your calendar"
+        two="and your browser."
+        sub="Connect Gmail and Google Calendar when you sign up. Add the Ivyward extension when a portal needs your own Chrome."
+      />
+      <ConnectCards />
+    </section>
   );
 }
 

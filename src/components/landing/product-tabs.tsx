@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
 import { Check, CircleDot, FileText, Mail, Search } from "lucide-react";
 import { StatusPill } from "@/components/ui/status";
 import { Mark } from "@/components/wordmark";
@@ -11,13 +12,13 @@ type Tab = (typeof TABS)[number];
 
 function Frame({ path, children }: { path: string; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-lift">
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-lift">
       <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-[12px] text-muted">
         <Mark className="size-4" />
         <span className="text-neutral-300 dark:text-neutral-600">/</span>
         <span className="truncate">{path}</span>
       </div>
-      <div className="min-h-[300px] p-4 sm:p-6">{children}</div>
+      <div className="min-h-[300px] flex-1 p-4 sm:p-6">{children}</div>
     </div>
   );
 }
@@ -147,26 +148,75 @@ function Body({ tab }: { tab: Tab }) {
   );
 }
 
+// the tabs move on by themselves while they're on screen (a bar fills under the open one), pause while the pointer
+// is over them, and stop for good once someone picks a tab. no auto-advance for people who turn motion off.
 export function ProductTabs() {
   const [tab, setTab] = useState<Tab>(TABS[0]);
+  const [auto, setAuto] = useState(false);
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { amount: 0.5 });
+  useEffect(() => {
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setAuto(true);
+  }, []);
+  const list = useRef<HTMLDivElement>(null);
+  const next = () => setTab((t) => TABS[(TABS.indexOf(t) + 1) % TABS.length]);
+  // phones: the tab row scrolls sideways, so keep the open tab in sight (the row only, never the page)
+  useEffect(() => {
+    const row = list.current;
+    const btn = row?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!row || !btn || row.scrollWidth <= row.clientWidth) return;
+    row.scrollTo({ left: Math.max(0, btn.offsetLeft - (row.clientWidth - btn.offsetWidth) / 2), behavior: reduce ? "auto" : "smooth" });
+  }, [tab, reduce]);
   return (
-    <div>
-      <div role="tablist" aria-label="What the agents do" className="flex gap-1 overflow-x-auto border-b border-line">
+    <div ref={ref} className="auto-tabs" data-paused={inView ? undefined : ""}>
+      <div ref={list} role="tablist" aria-label="What the agents do" className="relative flex gap-1 overflow-x-auto border-b border-line">
         {TABS.map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              setAuto(false);
+              setTab(t);
+            }}
             className={`relative shrink-0 px-4 py-3 text-sm transition-colors sm:flex-1 ${tab === t ? "text-foreground" : "text-muted hover:text-foreground"}`}
           >
             {t}
-            {tab === t && <span className="absolute inset-x-4 -bottom-px h-[2px] bg-ink" aria-hidden />}
+            {tab === t && (
+              <motion.span
+                layoutId="product-tab-ink"
+                transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 42 }}
+                className={`absolute inset-x-4 -bottom-px h-[2px] overflow-hidden ${auto ? "bg-line" : "bg-ink"}`}
+                aria-hidden
+              >
+                {auto ? <span className="tab-fill block h-full bg-ink" onAnimationEnd={next} /> : null}
+              </motion.span>
+            )}
           </button>
         ))}
       </div>
-      <div className="mt-6" role="tabpanel">
-        <Body tab={tab} />
+      {/* every panel sits in the same grid cell, so the area is as tall as the tallest one and switching tabs never
+          moves the page below */}
+      <div className="mt-6 grid grid-cols-1">
+        {TABS.map((t) => {
+          const on = t === tab;
+          return (
+            <motion.div
+              key={t}
+              role="tabpanel"
+              aria-label={t}
+              aria-hidden={!on}
+              inert={!on}
+              initial={false}
+              animate={{ opacity: on ? 1 : 0, y: on ? 0 : 8 }}
+              transition={{ duration: reduce ? 0 : 0.3, ease: [0.16, 1, 0.3, 1], delay: on && !reduce ? 0.06 : 0 }}
+              className={`min-w-0 [grid-area:1/1] ${on ? "z-[1]" : "pointer-events-none"}`}
+            >
+              <Body tab={t} />
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

@@ -213,6 +213,21 @@ select:focus-visible {
   from { opacity: 0.001; transform: translateY(14px); }
 }
 
+/* the landing page's product tabs: a bar fills under the open tab, then the next one opens (product-tabs.tsx).
+   paused while the pointer is over the tabs or they're off screen */
+.tab-fill {
+  transform-origin: left;
+  animation: tab-fill 7s linear both;
+}
+.auto-tabs:hover .tab-fill,
+.auto-tabs[data-paused] .tab-fill {
+  animation-play-state: paused;
+}
+@keyframes tab-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 /* menus and popovers: a quick scale-and-fade from where they open */
 .menu-pop {
   transform-origin: var(--radix-dropdown-menu-content-transform-origin, top right);
