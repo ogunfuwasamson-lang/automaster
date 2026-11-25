@@ -56,10 +56,11 @@ for i in rows("Institutions"):
     name = trading or re.sub(r"\s*\([^)]*\)\s*$", "", inst) or inst
     aliases = [a for a in dict.fromkeys([inst, re.sub(r"\s*\([^)]*\)\s*$", "", inst)]) if a and a != name]
     gov = i["Institution Type"] == "Government"
-    # the town most of its teaching locations are in, and that town's state (the postal address can be a head office
-    # in another state: AAPoly's is in Victoria, its campus in Sydney)
-    town = towns[code].most_common(1)[0][0] if towns[code] else (i["Postal Address City"].title() or None, i["Postal Address State"])
-    state = town[1] if town and town[1] in STATE else (i["Postal Address State"] if i["Postal Address State"] in STATE else None)
+    # town and state both from the provider's own address, so they agree (a location count picks delivery partners:
+    # the University of the Sunshine Coast came out in Adelaide); its teaching locations only when it has no address
+    postal = (i["Postal Address City"].title() or None, i["Postal Address State"])
+    town = postal if postal[0] and postal[1] in STATE else (towns[code].most_common(1)[0][0] if towns[code] else postal)
+    state = town[1] if town and town[1] in STATE else None
     web = site(i["Website"])
     dom = re.sub(r"^www\.", "", re.sub(r"^https?://", "", web).split("/")[0].lower()) if web else None
     uni = bool(re.search(r"\buniversity\b", name, re.I))
