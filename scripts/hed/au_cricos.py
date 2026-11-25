@@ -59,6 +59,11 @@ for i in rows("Institutions"):
     # town and state both from the provider's own address, so they agree (a location count picks delivery partners:
     # the University of the Sunshine Coast came out in Adelaide); its teaching locations only when it has no address
     postal = (i["Postal Address City"].title() or None, i["Postal Address State"])
+    # a postal "town" that is a campus name ("The University Of Sydney", "Wallumattagal Campus"): its busiest
+    # teaching location in the same state instead
+    if postal[0] and re.search(r"universit|campus|\bpo box\b", postal[0], re.I):
+        same = [t for t, _ in towns[code].most_common() if t[1] == postal[1]]
+        postal = same[0] if same else (None, postal[1])
     town = postal if postal[0] and postal[1] in STATE else (towns[code].most_common(1)[0][0] if towns[code] else postal)
     state = town[1] if town and town[1] in STATE else None
     web = site(i["Website"])
