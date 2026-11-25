@@ -34,6 +34,10 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
 // the groups a reader scans by: research universities first
 function group(s: DirSchool) {
   if (s.country === "GB") return /university/i.test(s.name) ? "Universities" : "Colleges and other providers";
+  if (s.country === "CA") return /universit/i.test(s.name) || s.kind?.includes("graduate programs: yes") ? "Universities and institutions with graduate programs" : "Colleges, CEGEPs and polytechnics";
+  if (s.country === "AU") return /universit/i.test(s.name) ? "Universities" : "Other higher education providers";
+  if (s.country === "FR") return /^University/.test(s.kind ?? "") ? "Universities" : /^Grand établissement/.test(s.kind ?? "") ? "Grands établissements" : "Écoles and other institutions";
+  if (s.country === "CN") return /University/i.test(s.name) || /大学/.test(s.nameLocal ?? "") ? "Universities" : "Colleges and institutes";
   if (s.highest === "Doctor's degree") return "Universities awarding doctorates";
   if (s.highest === "Master's degree" || s.highest === "Post-master's certificate") return "Universities and colleges awarding master's degrees";
   return "Colleges awarding bachelor's degrees";
@@ -67,7 +71,10 @@ export default async function RegionPage({ params }: P) {
                   .map((s) => (
                     <li key={s.id}>
                       <Link href={schoolPath(s)} className="group flex items-baseline justify-between gap-3 border-b border-line py-3">
-                        <span className="text-[16px] group-hover:text-brand">{s.name}</span>
+                        <span className="text-[16px] group-hover:text-brand">
+                          {s.name}
+                          {s.nameLocal && s.nameLocal !== s.name ? <span lang="zh-Hans" className="ml-1.5 text-[13px] text-muted">{s.nameLocal}</span> : null}
+                        </span>
                         <span className="shrink-0 text-[12.5px] text-muted">{[s.city, controlLabel(s.control)?.split(",")[0]].filter(Boolean).join(" · ")}</span>
                       </Link>
                     </li>

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { COUNTRY_NOTES, UNIVERSITIES } from "@/content/universities";
+import { UNIVERSITIES } from "@/content/universities";
 import { ArticleJsonLd, Script } from "@/components/seo/json-ld";
 import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 import { COUNTRY_NAME, COUNTRY_SLUG, SLUG_COUNTRY, controlLabel, findSchool, inRegion, regionLabel, registryName, schoolPath, worthIndexing, type DirSchool } from "@/lib/directory";
+import { schoolCopy } from "@/lib/directory-copy";
 import { SITE } from "@/lib/site";
 
 // one page per degree-granting institution in the official registries: the facts we hold, the official links,
@@ -26,6 +27,7 @@ async function get(params: P["params"]) {
 }
 
 const title = (s: DirSchool) => `How to apply to ${s.name}`;
+const VISA_NAME: Record<DirSchool["country"], string> = { US: "F-1", GB: "UK Student", CA: "Canadian study permit", AU: "Student (subclass 500)", FR: "French student", CN: "Chinese X1 student" };
 
 function place(s: DirSchool) {
   return [s.city, regionLabel(s.country, s.region), COUNTRY_NAME[s.country]].filter(Boolean).join(", ");
@@ -34,9 +36,9 @@ function place(s: DirSchool) {
 export async function generateMetadata({ params }: P): Promise<Metadata> {
   const s = await get(params);
   if (!s) return {};
-  const description = `How to apply to ${s.name} (${place(s)}) from abroad: the official admissions and application links, what to prepare, fees and fee waivers, and the ${s.country === "US" ? "F-1" : "UK Student"} visa steps.`;
+  const description = `How to apply to ${s.name}${s.nameLocal && s.nameLocal !== s.name ? ` (${s.nameLocal})` : ""} in ${place(s)} from abroad: the official links, what to prepare, and the ${VISA_NAME[s.country]} visa steps.`;
   return {
-    title: `How to apply to ${s.name}: admissions, international applicants`,
+    title: s.nameLocal && s.nameLocal !== s.name ? `How to apply to ${s.name} (${s.nameLocal})` : `How to apply to ${s.name}: admissions, international applicants`,
     description,
     alternates: { canonical: schoolPath(s) },
     openGraph: { type: "article", title: title(s), description, url: schoolPath(s) },
@@ -67,22 +69,18 @@ export default async function SchoolPage({ params }: P) {
   const path = schoolPath(s);
   const us = s.country === "US";
   const where = place(s);
-  const control = controlLabel(s.control);
   const guide = UNIVERSITIES.find((u) => u.name.toLowerCase() === s.name.toLowerCase());
-  const cn = COUNTRY_NOTES[COUNTRY_NAME[s.country]];
-  const official = s.apply ?? s.admissions ?? s.website;
   const regionPath = `/schools/${COUNTRY_SLUG[s.country]}/${s.regionSlug}`;
-
-  const answer = us
-    ? `${s.name} is a ${control ? control.toLowerCase() + " " : ""}institution in ${where}${s.highest ? ` whose highest award is a ${s.highest.toLowerCase()}` : ""}. International students apply online through the school's own application${s.apply ? "" : " (linked from its admissions site)"}; after admission the school issues an I-20 for the F-1 student visa, provided it is certified by SEVP to enrol international students.`
-    : `${s.name} is a higher education provider in ${where}. Undergraduates apply through UCAS; postgraduate applicants usually apply directly to the university online. After an unconditional offer the university issues a CAS for the UK Student visa, if it holds a student sponsor licence.`;
+  const copy = schoolCopy(s, where);
+  const answer = copy.answer;
+  const control = controlLabel(s.control);
+  // a value the register doesn't hold (a website, an english name) says where it came from
+  const borrowed = s.issues.filter((i) => /from (wikidata|the hipo)/i.test(i));
 
   const faq: [string, string][] = [
-    [`How do I apply to ${s.name}?`, us ? `Start from ${s.name}'s official admissions site${official ? ` (${official.replace(/^https?:\/\//, "")})` : ""}. Graduate programs use the school's own online application; for undergraduate study, check whether it accepts the Common App or its own form.` : `Undergraduate courses: apply through UCAS. Postgraduate courses: apply on ${s.name}'s own website, course by course.`],
+    [`How do I apply to ${s.name}?`, copy.how],
     [`Is ${s.name} officially recognised?`, `${s.name} is listed by the ${registryName(s.registry)}${s.recognition ? `: ${s.recognition}` : ""}.`],
-    us
-      ? [`Can ${s.name} sponsor an F-1 student visa?`, `Only schools certified by the Student and Exchange Visitor Program (SEVP) can issue an I-20. Check ${s.name} on the SEVP school search (studyinthestates.dhs.gov) or ask its international admissions office before you apply.`]
-      : [`Can ${s.name} sponsor a UK Student visa?`, `Only licensed student sponsors can issue a CAS. Check ${s.name} on the UK government's register of student sponsors before you apply.`],
+    copy.visaQ,
     [`Can Ivyward apply to ${s.name} for me?`, `Yes. Ivyward's agents find the right ${s.name} application, create your account, fill in every page from your profile, upload your documents and ask for an application fee waiver where one is available. You review and sign before anything is submitted.`],
   ];
 
@@ -109,6 +107,7 @@ export default async function SchoolPage({ params }: P) {
         <Crumbs items={[["Schools", "/schools"], [COUNTRY_NAME[s.country], `/schools/${COUNTRY_SLUG[s.country]}`], [regionLabel(s.country, s.region), regionPath]]} />
         <h1 className="mt-5 text-[36px] leading-[1.08] sm:text-[48px]">{title(s)}</h1>
         <p className="mt-4 text-[13.5px] text-muted">
+          {s.nameLocal && s.nameLocal !== s.name ? <span lang="zh-Hans">{s.nameLocal}. </span> : null}
           {where}. From the {registryName(s.registry)}, checked on {longDate(s.checked)}
         </p>
         <ShortAnswer>{answer}</ShortAnswer>
@@ -171,35 +170,28 @@ export default async function SchoolPage({ params }: P) {
 
         <div className="prose-iv mt-10">
           <h2 id="apply">Applying from abroad</h2>
-          {us ? (
-            <>
-              <p>Graduate programs at {s.name} take applications through the school&apos;s own online application, usually run by the graduate school or the department. For undergraduate study, check whether {s.name} accepts the Common App or uses its own form.</p>
-              <p>Most applications ask for:</p>
-              <ul>
-                <li>Transcripts and degree certificates, sometimes with a credential evaluation (WES or ECE)</li>
-                <li>English test scores (TOEFL, IELTS or Duolingo) unless you qualify for a waiver</li>
-                <li>A statement of purpose and a CV for graduate programs (see our <Link href="/guides/statement-of-purpose-guide">statement of purpose guide</Link>)</li>
-                <li>Two or three recommendation letters</li>
-                <li>Proof of funds for the I-20, and a passport copy</li>
-              </ul>
-              <p>Application fees in the US are usually $50 to $150. Many schools waive them for event attendees, financial hardship or partner programs: our <Link href="/guides/how-to-get-application-fee-waivers">fee waiver guide</Link> has a request template.</p>
-            </>
-          ) : (
-            <>
-              <p>Undergraduate courses at {s.name} are applied for through UCAS. For a master&apos;s or PhD you apply on the university&apos;s own website, course by course, and many UK universities charge no application fee for postgraduate courses.</p>
-              <p>Most postgraduate applications ask for:</p>
-              <ul>
-                <li>Transcripts and degree certificate</li>
-                <li>A personal statement (see our <Link href="/guides/statement-of-purpose-guide">statement guide</Link>) and a CV</li>
-                <li>One or two references</li>
-                <li>English test scores (often IELTS Academic) or an accepted exemption</li>
-                <li>A passport copy; some subjects also need an ATAS certificate</li>
-              </ul>
-            </>
-          )}
+          {copy.apply.map((p) => (
+            <p key={p.slice(0, 40)}>{p}</p>
+          ))}
+          <p>{copy.lead}</p>
+          <ul>
+            {copy.needs.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+          <p>
+            Our <Link href="/guides/statement-of-purpose-guide">statement of purpose guide</Link> covers the statement most of these ask for
+            {us ? (
+              <>
+                , and the <Link href="/guides/how-to-get-application-fee-waivers">fee waiver guide</Link> has a request template
+              </>
+            ) : null}
+            .
+          </p>
+          {copy.after && <p>{copy.after}</p>}
           <h2 id="visa">Visa</h2>
           <p>
-            {cn.visa} More in our <Link href={cn.guide}>{us ? "US" : "UK"} application guide</Link>.
+            {copy.visa} More in our <Link href={copy.guide.href}>{copy.guide.label}</Link>.
           </p>
           {guide && (
             <p>
@@ -215,7 +207,8 @@ export default async function SchoolPage({ params }: P) {
         <Faq items={faq} />
         <ShareRow path={path} title={title(s)} />
         <p className="mt-10 text-[13.5px] leading-relaxed text-muted">
-          Facts come from the {registryName(s.registry)}. Deadlines, fees and requirements differ by program and change each cycle: confirm on {s.name}&apos;s official pages. Ivyward is not affiliated with {s.name}.
+          Facts come from the {registryName(s.registry)}
+          {borrowed.length ? ` (${borrowed.map((b) => b.replace(/ \(not in [^)]*\)/, "")).join("; ")})` : ""}. Deadlines, fees and requirements differ by program and change each cycle: confirm on {s.name}&apos;s official pages. Ivyward is not affiliated with {s.name}.
         </p>
         <Related items={nearby} />
         <p className="mt-8 text-[14.5px]">

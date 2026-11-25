@@ -9,7 +9,8 @@ import csv, json, os, re, sys
 from collections import Counter
 
 rows = list(csv.DictReader(open(os.path.join(sys.argv[1], "fr-esr-etablissements.csv"), encoding="utf-8-sig"), delimiter=";"))
-KIND = {"Université": "university", "Grand établissement": "grand_etablissement", "École": "school", "Autre établissement": "other"}
+# hed_institutions.type: grands établissements (Dauphine, Sciences Po, EHESS...) award degrees like universities
+KIND = {"Université": "university", "Grand établissement": "university", "École": "specialised", "Autre établissement": "other"}
 LABEL = {"Université": "University", "Grand établissement": "Grand établissement (public institution with special status)", "École": "École (school)", "Autre établissement": "Other institution"}
 
 def site(u):

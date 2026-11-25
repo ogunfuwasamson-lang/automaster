@@ -16,12 +16,27 @@ PROV = {"北京市": "Beijing", "天津市": "Tianjin", "河北省": "Hebei", "�
         "重庆市": "Chongqing", "四川省": "Sichuan", "贵州省": "Guizhou", "云南省": "Yunnan", "西藏自治区": "Tibet", "陕西省": "Shaanxi", "甘肃省": "Gansu",
         "青海省": "Qinghai", "宁夏回族自治区": "Ningxia", "新疆维吾尔自治区": "Xinjiang"}
 
-raw = open(os.path.join(sys.argv[1], "cn-moe-pages.html"), encoding="utf-8", errors="ignore").read()
-recs = []
-for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", raw, re.S):
-    cells = [html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
-    if len(cells) >= 7 and re.fullmatch(r"\d{10}", cells[2]):
-        recs.append(cells[:7])
+# GB/T 2260 province codes: digits 3-4 of the institution code (4111010001: 11, Beijing)
+BY_CODE = {"11": "Beijing", "12": "Tianjin", "13": "Hebei", "14": "Shanxi", "15": "Inner Mongolia", "21": "Liaoning", "22": "Jilin", "23": "Heilongjiang",
+           "31": "Shanghai", "32": "Jiangsu", "33": "Zhejiang", "34": "Anhui", "35": "Fujian", "36": "Jiangxi", "37": "Shandong", "41": "Henan", "42": "Hubei",
+           "43": "Hunan", "44": "Guangdong", "45": "Guangxi", "46": "Hainan", "50": "Chongqing", "51": "Sichuan", "52": "Guizhou", "53": "Yunnan", "54": "Tibet",
+           "61": "Shaanxi", "62": "Gansu", "63": "Qinghai", "64": "Ningxia", "65": "Xinjiang"}
+
+recs = []  # [index, name, code, supervising authority, location, level, note]
+pages = os.path.join(sys.argv[1], "cn-moe-pages.html")
+snap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cn-moe-2026-06-18-undergrad.json")
+raw = open(pages, encoding="utf-8", errors="ignore").read() if os.path.exists(pages) else ""
+if "<td" in raw:
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", raw, re.S):
+        cells = [html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        if len(cells) >= 7 and re.fullmatch(r"\d{10}", cells[2]):
+            recs.append(cells[:7])
+else:
+    # the lookup refuses cloud servers: the undergraduate-level part of the list, read in a browser on 25 nov 2026 and
+    # kept in the repository (code -> [name, authority: "M" Ministry of Education, "" the local government, else as
+    # written; flag: "p" private, "s" Sino-foreign cooperative])
+    for code, (name, dept, flag) in json.load(open(snap, encoding="utf-8")).items():
+        recs.append(["", name, code, "教育部" if dept == "M" else dept, "", "本科", "民办" if flag == "p" else "中外合作办学" if flag == "s" else ""])
 
 wd = defaultdict(dict)
 for r in csv.DictReader(open(os.path.join(sys.argv[1], "cn-wikidata.csv"), encoding="utf-8")):
@@ -52,11 +67,11 @@ for _, name, code, dept, loc, level, note in recs:
     undergrad = level.startswith("本科")
     dom = re.sub(r"^www\.", "", re.sub(r"^https?://", "", site).split("/")[0].lower()) if site else None
     out.append({
-        "country": "CN", "registry": "moe_cn", "registry_id": code, "name": en or name, "aliases": [name] if en else [],
-        "region": PROV.get(loc, loc) or None, "city": None,
+        "country": "CN", "registry": "moe_cn", "registry_id": code, "name": en or name, "local_name": name, "aliases": [name] if en else [],
+        "region": BY_CODE.get(code[2:4]) or PROV.get(loc) or None, "city": None,
         "address": None, "postal_code": None, "latitude": None, "longitude": None,
-        "local_type": f"{'Private (民办)' if private else 'Public'} regular higher education institution; {'undergraduate and above (本科)' if undergrad else 'vocational, three-year diplomas (专科)'}; supervised by {dept}" + ("; Sino-foreign cooperative" if sino else "") + (f"; note: {note}" if note and not private and not sino else ""),
-        "type": "university" if re.search(r"大学", name) else "college" if undergrad else "vocational", "control": "other" if private else "public",
+        "local_type": f"{'Private (民办)' if private else 'Public'} regular higher education institution; {'undergraduate and above (本科)' if undergrad else 'vocational, three-year diplomas (专科)'}; supervised by {"the Ministry of Education (教育部)" if dept == "教育部" else (dept or "the local government")}" + ("; Sino-foreign cooperative" if sino else "") + (f"; note: {note}" if note and not private and not sino else ""),
+        "type": "university" if re.search(r"大学", name) else "college", "control": "other" if private else "public",
         "highest_award": "Bachelor's degree" if undergrad else "Associate degree (zhuanke diploma)", "status": "active",
         "recognition": f"On the Ministry of Education's national list of regular higher education institutions (18 June 2026), code {code}",
         "website": site, "domain": dom,

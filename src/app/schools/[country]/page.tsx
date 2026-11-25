@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Crumbs, Cta, LibraryShell } from "@/components/library/library";
-import { COUNTRY_NAME, COUNTRY_SLUG, SLUG_COUNTRY, regionLabel, regions } from "@/lib/directory";
+import { COUNTRY_IN, COUNTRY_NAME, COUNTRY_SLUG, REGION_WORD, SLUG_COUNTRY, regionLabel, regions } from "@/lib/directory";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
@@ -16,8 +16,8 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   const c = SLUG_COUNTRY[(await params).country];
   if (!c) return {};
   return {
-    title: `Universities in the ${c === "US" ? "United States" : "United Kingdom"} by ${c === "US" ? "state" : "nation and region"}`,
-    description: `Every degree-granting university and college in the ${COUNTRY_NAME[c]} from the official register, with admissions and application links and how international students apply.`,
+    title: `Universities in ${COUNTRY_IN[c]} by ${REGION_WORD[c]}`,
+    description: `Every degree-granting university and college in ${COUNTRY_IN[c]} from the official register, with official links and how international students apply.`,
     alternates: { canonical: `/schools/${COUNTRY_SLUG[c]}` },
   };
 }
@@ -33,9 +33,9 @@ export default async function CountryPage({ params }: P) {
       <div className="mx-auto max-w-6xl px-5 pb-20 pt-10 sm:pt-14">
         <Crumbs items={[["Schools", "/schools"], [COUNTRY_NAME[c], path]]} />
         <header className="mt-5 max-w-3xl">
-          <h1 className="text-[38px] leading-[1.06] sm:text-[52px]">Universities in the {COUNTRY_NAME[c]}</h1>
+          <h1 className="text-[38px] leading-[1.06] sm:text-[52px]">Universities in {COUNTRY_IN[c]}</h1>
           <p className="mt-4 text-[17px] leading-relaxed text-muted">
-            {total.toLocaleString("en")} degree-granting schools, by {c === "US" ? "state" : "nation and region"}. Pick one to see its schools and how to apply to each.
+            {total.toLocaleString("en")} degree-granting schools, by {REGION_WORD[c]}. Pick one to see its schools and how to apply to each.
           </p>
         </header>
         <ul className="mt-10 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">

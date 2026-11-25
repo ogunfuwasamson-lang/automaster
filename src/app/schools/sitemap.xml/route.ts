@@ -1,18 +1,16 @@
 import { SITE } from "@/lib/site";
-import { COUNTRY_SLUG, directory, regions, schoolPath, worthIndexing } from "@/lib/directory";
+import { COUNTRIES, COUNTRY_SLUG, directory, regions, schoolPath, worthIndexing } from "@/lib/directory";
 
 // the school directory's own sitemap (thousands of pages, read from the database), listed in robots.txt
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const all = await directory();
-  const [us, uk] = await Promise.all([regions("US"), regions("GB")]);
+  const byCountry = await Promise.all(COUNTRIES.map(async (c) => ({ c, list: await regions(c) })));
   const urls: [string, string][] = [
     ["/schools", ""],
-    ["/schools/us", ""],
-    ["/schools/uk", ""],
-    ...us.map((r) => [`/schools/${COUNTRY_SLUG.US}/${r.slug}`, ""] as [string, string]),
-    ...uk.map((r) => [`/schools/${COUNTRY_SLUG.GB}/${r.slug}`, ""] as [string, string]),
+    ...byCountry.filter((x) => x.list.length).map(({ c }) => [`/schools/${COUNTRY_SLUG[c]}`, ""] as [string, string]),
+    ...byCountry.flatMap(({ c, list }) => list.map((r) => [`/schools/${COUNTRY_SLUG[c]}/${r.slug}`, ""] as [string, string])),
     ...all.filter(worthIndexing).map((s) => [schoolPath(s), s.checked] as [string, string]),
   ];
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
