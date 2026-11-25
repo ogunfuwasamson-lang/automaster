@@ -6,6 +6,7 @@ import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS } from "@/content/countries";
 import { DESTINATIONS } from "@/lib/programme-pages";
 import { LOCAL, guideUrl } from "@/content/i18n";
+import { FEATURES } from "@/lib/features";
 
 // /llms.txt: a plain summary of Ivyward for AI assistants and answer engines (the llmstxt.org format), built from
 // the same facts as the site so it never drifts.
@@ -50,6 +51,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Home](${SITE.url}/): what Ivyward does, how a season runs, and how it compares with applying alone or with a consultant
 - [Pricing](${SITE.url}/pricing): free checked shortlist; everything else is paid in credits: an application uses 10, a programme or scholarship check 1, a funding request 1. A pack in Africa is ₦10,000 for 60 credits lasting 30 days; Pro elsewhere is $20 a month for 160; a friend who joins through your invite and finishes setup earns you both 10
 - [About](${SITE.url}/about): who Ivyward is for, what the agents do and don't do, and how it compares with consultants and chatbots
+- [Features](${SITE.url}/features): what the agents do, one page each: ${FEATURES.map((f) => `[${f.nav}](${SITE.url}/features/${f.slug})`).join(", ")}
 - [Ivyward runner for Chrome](${CHROME_STORE_URL}): free extension that finishes application forms in your own browser when a school's site blocks cloud browsers
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students
@@ -65,10 +67,14 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Scholarship finder](${SITE.url}/tools/scholarship-finder): screen the major fully funded scholarships by citizenship, level, work experience and age
 - [Glossary](${SITE.url}/glossary): admissions and funding terms defined
 - [Full library as plain text](${SITE.url}/llms-full.txt)
-- Every guide, scholarship and university page is also available as markdown at ${SITE.url}/md/<section>/<slug>
+- Every guide, scholarship, university, study-abroad and feature page is also available as markdown at ${SITE.url}/md/<section>/<slug>, or at its own address with \`Accept: text/markdown\`
 - [Privacy](${SITE.url}/privacy): what Ivyward keeps, how Gmail is connected, and your controls
 - [Terms](${SITE.url}/terms)
 - [Sign up](${SITE.url}/login?mode=signup)
+
+## What the agents do
+
+${FEATURES.map((f) => `- [${f.nav}](${SITE.url}/features/${f.slug}): ${f.description}`).join("\n")}
 
 ## Guides
 

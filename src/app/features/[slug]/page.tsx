@@ -21,7 +21,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const f = featureBySlug((await params).slug);
   if (!f) return {};
-  return { title: f.metaTitle, description: f.description, alternates: { canonical: `/features/${f.slug}` }, openGraph: { title: f.metaTitle, description: f.description, url: `/features/${f.slug}` } };
+  return { title: f.metaTitle, description: f.description, alternates: { canonical: `/features/${f.slug}`, types: { "text/markdown": `/md/features/${f.slug}` } }, openGraph: { title: f.metaTitle, description: f.description, url: `/features/${f.slug}` } };
 }
 
 export default async function FeaturePage({ params }: { params: Promise<{ slug: string }> }) {

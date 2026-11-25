@@ -31,6 +31,7 @@ const PUBLIC = [
   "/guides",
   "/scholarships",
   "/about",
+  "/features", // what the agents do, one page per feature (25 nov 2026: was missing here, so visitors and crawlers got the sign-in page)
   "/universities",
   "/schools",
   "/study-abroad",
