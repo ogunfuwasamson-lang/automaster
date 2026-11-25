@@ -177,6 +177,11 @@ read the starting url first, then the fees, funding and how-to-apply pages it li
       maxTokens: 6000,
     });
     if (!facts.program_name || !facts.school_name) return { skipped: "nothing usable found" };
+    // the checked list promises dates and costs: a programme whose official pages couldn't be read (KU Leuven's and
+    // ETH's refused the reader on the first night) stays off it rather than going on with nothing but its name
+    const dated = facts.deadlines.some((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date.trim()));
+    const costed = /\d/.test(facts.tuition_usd_total);
+    if (!dated && !costed) return { skipped: "official pages gave no dates or fees", school: facts.school_name, program: facts.program_name };
     // one school, one record: the registry's school on file wins over the name the notes used
     if (inst?.school_id) {
       const { data: known } = await admin().from("schools").select("name").eq("id", inst.school_id).maybeSingle();
