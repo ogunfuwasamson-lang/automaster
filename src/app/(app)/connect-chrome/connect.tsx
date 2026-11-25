@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Copy, Download, LoaderCircle, PlugZap } from "lucide-react";
@@ -8,7 +8,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { askExtension, useExtension } from "@/components/runner/use-extension";
 import { EXTENSION_VERSION, olderThan } from "@/lib/extension";
 
-// one-time setup: install the runner extension, then connect it to this account with one click
+// one-time setup: add the extension from the Chrome Web Store, and it connects to this account by itself as soon as
+// this page sees it (the applicant came here to connect it; the button stays as a fallback)
 export function ConnectChrome({ then, store = null }: { then: { id: string; school: string } | null; store?: string | null }) {
   const { ext, checked, refresh } = useExtension(2500);
   const [busy, setBusy] = useState(false);
@@ -38,6 +39,15 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
     }
     setBusy(false);
   }
+
+  // added it in the store's tab and came back: connect without a second click, once per visit
+  const auto = useRef(false);
+  useEffect(() => {
+    if (!checked || !ext.installed || ext.paired || busy || auto.current) return;
+    auto.current = true;
+    void connect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checked, ext.installed, ext.paired, busy]);
 
   const step = (n: number, done: boolean, title: string, body: React.ReactNode) => (
     <li className="flex gap-4 rounded-3xl border border-line bg-surface p-5 shadow-card">
@@ -75,7 +85,7 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
         Runs in Chrome need Chrome open on your computer. Closed, nothing is lost: the work waits, and when an application is waiting for Chrome we email you.
       </p>
       <p className="text-sm leading-relaxed text-muted">
-        Some portals refuse any browser running in the cloud. Connect your Chrome once and, whenever that happens, the agents carry on in a background tab on this computer: same answers, same documents, your own
+        Some schools&apos; application sites refuse any browser running in the cloud. Add Ivyward to your Chrome once and, whenever that happens, the agents carry on in a background tab on this computer: same answers, same documents, your own
         connection. The Ivyward side panel shows every answer as it goes in and asks you before anything is submitted. Bot checks
         and payment wait there for you; the agents never solve those themselves.
         {then ? <span className="mt-2 block font-medium text-foreground">Next up: {then.school}.</span> : null}
@@ -94,10 +104,10 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
         {step(
           1,
           ext.installed,
-          "Add the Ivyward runner to Chrome",
+          "Add Ivyward to Chrome",
           store ? (
             <>
-              <p className="text-muted">One click from the Chrome Web Store. Works in Chrome, Edge and Brave on a computer.</p>
+              <p className="text-muted">Free on the Chrome Web Store, where it&apos;s listed as Ivyward runner. Works in Chrome, Edge and Brave on a computer. Come back to this tab once it&apos;s added.</p>
               <div className="flex flex-wrap gap-2">
                 <ButtonLink href={store} external size="sm" variant={ext.installed ? "secondary" : "primary"}>
                   <Download className="size-3.5" aria-hidden /> Add to Chrome
@@ -128,7 +138,7 @@ export function ConnectChrome({ then, store = null }: { then: { id: string; scho
             <p className="text-muted">Connected{ext.version ? ` (version ${ext.version})` : ""}. Keep Chrome open while applications are going in; it works in the background.{ext.running ? ` Working on ${ext.running.school} now: ${ext.running.phase}.` : ""}</p>
           ) : (
             <>
-              <p className="text-muted">One click. This browser gets its own key, which you can remove in Settings at any time.</p>
+              <p className="text-muted">{ext.installed ? "Connecting by itself. If nothing happens, press the button." : "Happens by itself once the extension is added."} This browser gets its own key, which you can remove in Settings at any time.</p>
               <Button size="sm" disabled={!ext.installed || busy} onClick={connect}>
                 {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <PlugZap className="size-3.5" aria-hidden />} Connect Chrome
               </Button>

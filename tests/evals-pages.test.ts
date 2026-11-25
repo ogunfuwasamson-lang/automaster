@@ -11,6 +11,7 @@ import { mapByRules, resolve, type Fill, type PageField } from "@/lib/runner-map
 import { keyForLabel } from "@/lib/fillsheet";
 import { cleanLabel } from "@/lib/labels";
 import { sampleSheet } from "@/evals/sample";
+import { buildPassword, DEFAULT_POLICY, type PasswordPolicy } from "@/lib/password-policy";
 import baseline from "../evals/baseline.json";
 
 const req = createRequire(import.meta.url);
@@ -41,8 +42,14 @@ function deps(): EngineDeps & { logins: Login[] } {
     file: async () => ({ name: "x.pdf", mime: "application/pdf", buffer: new Uint8Array() }),
     canSubmit: async () => ({ allowed: true, reason: "ok" }),
     existingLogin: async () => logins.at(-1) ?? null,
+    // as the vault did before it read a site's rules: a password with a symbol, whatever the page says
     createLogin: async (email) => {
       const l = { login_email: email, password: "Eval-pass-9Q!" };
+      logins.push(l);
+      return l;
+    },
+    rotatePassword: async (policy?: PasswordPolicy) => {
+      const l = { login_email: logins.at(-1)?.login_email ?? "ada@example.com", password: buildPassword(policy ?? DEFAULT_POLICY, (n) => Math.floor(Math.random() * n)), status: "created" };
       logins.push(l);
       return l;
     },
@@ -180,7 +187,8 @@ const CASES: Case[] = [
       });
       const dp = { ...deps(), reviewSubmit: async (p: { body: string }) => (/Spring 2026/.test(p.body) ? { ok: false, problems: ["the term is Spring 2026, your packet says fall 2027"] } : { ok: true, problems: [] }) };
       await page.goto("https://portal.test/review");
-      const r1 = await runEngine(fromPlaywright(page), dp, { steps: 0 } as EngineState, 20_000).catch(() => null);
+      // a real run reaches the review page signed in (a "Submit" before that is someone else's: info-page-submit)
+      const r1 = await runEngine(fromPlaywright(page), dp, { steps: 0, signedIn: true } as EngineState, 20_000).catch(() => null);
       const held = r1?.outcome.kind === "needs_you" && r1.outcome.reason === "review" && submitted === 0;
       await page.goto("https://portal.test/review");
       await runEngine(fromPlaywright(page), dp, r1!.state, 20_000).catch(() => null);
@@ -206,6 +214,74 @@ const CASES: Case[] = [
       await runEngine(fromPlaywright(page), dp, { steps: 0, submitClicked: true } as EngineState, 12_000).catch(() => null);
       await page.close();
       return stoppedFirst && reached === 1;
+    },
+  },
+  {
+    id: "hkust-password-rules",
+    why: "a sign-up whose password rule is letters and numbers only, 12-20 characters (hkust): the saved password had a symbol and was refused four times",
+    run: async (b) => {
+      const page = await b.newPage();
+      let ok = false;
+      const form = (err = "") => `${err ? `<p class="error">${err}</p>` : ""}<form action="/created"><h1>Create your account</h1>
+        <label for="e">Email address *</label><input id="e" name="email" type="email" required>
+        <label for="f">First name *</label><input id="f" name="first" required><label for="l">Last name *</label><input id="l" name="last" required>
+        <p>Password: 12-20 characters, letters and numbers only, with at least one upper case letter, one lower case letter and one number.</p>
+        <label for="p1">Password *</label><input id="p1" type="password" name="pw" required><label for="p2">Confirm password *</label><input id="p2" type="password" name="pw2" required>
+        <button type="submit">Register</button></form>`;
+      await portal(page, {
+        "/register": () => form(),
+        "/created": (q) => {
+          const pw = q.get("pw") ?? "";
+          if (!/^[A-Za-z0-9]{12,20}$/.test(pw) || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[0-9]/.test(pw) || pw !== q.get("pw2")) return form("Your password must be 12-20 characters and contain letters and numbers only.");
+          ok = q.get("email") === "ada@example.com";
+          return `<h1>Your account has been created</h1><p>Check your email to activate it.</p>`;
+        },
+      });
+      await page.goto("https://portal.test/register");
+      await runEngine(fromPlaywright(page), deps(), { steps: 0 } as EngineState, 25_000).catch(() => null);
+      await page.close();
+      return ok;
+    },
+  },
+  {
+    id: "info-page-submit",
+    why: "an information page for another degree with a newsletter 'Submit' (ku leuven): the run treated it as the last step and held a master's applicant for review",
+    run: async (b) => {
+      const page = await b.newPage();
+      let sent = 0;
+      let reviews = 0;
+      await portal(page, {
+        "/apply": () => `<h1>Application instructions for doctoral programmes</h1><p>Interested in pursuing a doctoral programme? This page goes over the steps you need to take to apply, the documents you need and the deadlines that apply.</p>
+          <a href="/phd">Apply for a PhD degree</a><form action="/news"><label for="e">Stay informed: your email</label><input id="e" name="e" type="email"><button>Submit</button></form>`,
+        "/news": () => ((sent++), `<h1>Thanks for subscribing</h1>`),
+      });
+      const dp = { ...deps(), reviewSubmit: async () => ((reviews++), { ok: true, problems: [] }) };
+      await page.goto("https://portal.test/apply");
+      await runEngine(fromPlaywright(page), dp, { steps: 0 } as EngineState, 12_000).catch(() => null);
+      await page.close();
+      return sent === 0 && reviews === 0;
+    },
+  },
+  {
+    id: "blank-then-draws",
+    why: "an application site that draws itself a few seconds after loading (liaison gradcas): the run read a blank page and gave up",
+    run: async (b) => {
+      const page = await b.newPage();
+      let reached = 0;
+      await portal(page, {
+        "/app": () => `<div id="root"></div>`,
+        "/new": () => ((reached++), `<h1>Create an account</h1><p>Thanks.</p>`),
+      });
+      await page.goto("https://portal.test/app");
+      // the site's own script draws the page five seconds in (a script file, so no script text sits in the page)
+      await page.evaluate(() => {
+        setTimeout(() => {
+          document.getElementById("root")!.innerHTML = '<h1>Applicant login</h1><form action="/in"><label for="e">Email</label><input id="e" name="e" type="email"><label for="p">Password</label><input id="p" name="p" type="password"><button>Sign in</button></form><a href="/new">Create an account</a>';
+        }, 5000);
+      });
+      await runEngine(fromPlaywright(page), deps(), { steps: 0 } as EngineState, 30_000).catch(() => null);
+      await page.close();
+      return reached > 0;
     },
   },
 ];

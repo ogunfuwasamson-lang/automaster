@@ -46,7 +46,9 @@ export function appWaiting(a: WaitApp): WaitItem | null {
       return { ...base, title: `Pay ${a.school}'s ${a.fee ? `$${a.fee} ` : ""}application fee`, body: "Everything else is filled in.", href: `${at}?pay=1#pay`, action: "Pay" };
     case "captcha":
     case "blocked":
-      return { ...base, title: `Connect Chrome to finish ${a.school}`, body: "This portal only lets your own browser in.", href: `/connect-chrome?then=${a.id}`, action: "Connect" };
+      return { ...base, title: `Add Ivyward to Chrome to finish ${a.school}`, body: "This school's application site only lets your own browser in. Free, about two minutes on a computer.", href: `/connect-chrome?then=${a.id}`, action: "Add to Chrome" };
+    case "credits":
+      return { ...base, title: `Add credits to carry on with ${a.school}`, body: "The agents stopped where they were and start again as soon as you have credits.", href: "/credits", action: "Add credits" };
     case "question":
       return { ...base, title: `Answer a question from ${a.school}'s form`, href: `${at}#questions`, action: "Answer" };
     case "missing":

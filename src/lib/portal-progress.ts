@@ -7,7 +7,7 @@ export type Stage = { key: StageKey; label: string; state: "done" | "now" | "nex
 
 // the stops where the next step is the applicant's. every other stop (stuck on a page, a run that failed, a hang,
 // a portal we couldn't find) is ours: the operator is told and the applicant isn't asked to debug it
-export const YOURS = new Set(["account", "login", "verification", "payment", "unpaid", "captcha", "blocked", "question", "missing", "documents", "closed", "review"]);
+export const YOURS = new Set(["account", "login", "verification", "payment", "unpaid", "captcha", "blocked", "question", "missing", "documents", "closed", "review", "credits"]);
 
 export type RunView = {
   portal?: { url?: string; ok?: boolean; at?: number } | null;
@@ -20,6 +20,7 @@ export type RunView = {
   reachedSubmit?: boolean;
   paymentAt?: number;
   resting?: string | null; // the day's effort cap was reached: carries on at this time (iso)
+  wait?: { until: string | null; why: string } | null; // parked by the credit rules (lib/jobs noteRunnerWait)
 };
 
 export type PortalInput = {
@@ -99,6 +100,10 @@ export function portalSentence(v: PortalInput): string {
   if (v.pausedAll) return "All agents are paused. Resume them on your dashboard and this one carries on from where it stopped.";
   if (v.paused) return "Paused. The agents kept their place; Resume carries on from the same page.";
   if (v.st?.resting && v.runnerStatus !== "needs_you") return "Resting for today after a long session on this portal. The agents carry on tomorrow by themselves.";
+  if (v.st?.wait && v.runnerStatus !== "needs_you") {
+    const day = v.st.wait.until ? new Date(v.st.wait.until).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }) : null;
+    return `Waiting${day ? ` until ${day}` : ""}: ${v.st.wait.why}. The agents carry on by themselves${day ? " then" : ""}.`;
+  }
   if (ourSide(v)) return `Ivyward is working on ${school}'s portal. Nothing for you to do; you'll hear from us if we need you.`;
   if (v.runnerStatus === "needs_you") {
     switch (v.reason) {
@@ -113,7 +118,9 @@ export function portalSentence(v: PortalInput): string {
         return `Everything is filled in. Pay the ${money(v.fee)}application fee and it's submitted.`;
       case "captcha":
       case "blocked":
-        return `${school}'s portal only lets your own browser in. Connect Chrome and the agents finish it there.`;
+        return `${school}'s application site only lets your own browser in. Add Ivyward to Chrome (free) and the agents finish it there.`;
+      case "credits":
+        return `The agents are waiting for credits to carry on with ${school}. Add credits and they start again within minutes.`;
       case "question":
         return `${school}'s form asks something your profile doesn't answer. Answer it and the agents carry on.`;
       case "missing":
@@ -146,4 +153,12 @@ export function portalSentence(v: PortalInput): string {
     }
   }
   return "Ready. Press Submit it for me and the agents take it from here.";
+}
+
+// why a portal job is parked, from the credit rules' reason, in the applicant's words (lib/jobs noteRunnerWait)
+export function runnerWaitWhy(msg: string): { credits: boolean; text: string } {
+  const reason = msg.replace(/^(budget|hold):\s*/i, "").trim();
+  if (/monthly( \w+)? limit reached/i.test(reason)) return { credits: false, text: "this month's allowance for agent work is used up" };
+  if (/unlock|out of credits|starter|free allowance|buy|credits/i.test(reason)) return { credits: true, text: reason.charAt(0).toUpperCase() + reason.slice(1) };
+  return { credits: false, text: reason || "the agents are waiting their turn" };
 }

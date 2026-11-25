@@ -168,7 +168,7 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string 
 
 const PortalOut = z.object({ portal_url: z.string(), account_needed: z.enum(["yes", "no", "unknown"]), notes: z.string() });
 
-export type RunnerState = EngineState & GuardState & { autoResumes?: { day: string; n: number }; storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean; picks?: Record<string, string>; effort?: { day: string; runs: number }; resting?: string | null; refinds?: number; alerted?: string };
+export type RunnerState = EngineState & GuardState & { autoResumes?: { day: string; n: number }; storage_enc?: string; last_url?: string; rechecks?: number; reason?: string | null; resume_at?: number; paused?: boolean; picks?: Record<string, string>; effort?: { day: string; runs: number }; resting?: string | null; refinds?: number; alerted?: string; wait?: { until: string | null; why: string } | null };
 
 // the most cloud runs one application gets in a day. most need under ten; a portal the agents can't get through
 // used to take 80 to 290 a day, burning model calls with nothing to show. past this, it rests until the next morning
@@ -247,8 +247,8 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     },
     canSubmit: () => submitDecision(c.userId, c.applicationId),
     existingLogin: () => getLogin(c.userId, c.host(), c.applicationId),
-    createLogin: async (email) => {
-      const l = await createLogin(c.userId, c.applicationId, c.host(), email);
+    createLogin: async (email, policy) => {
+      const l = await createLogin(c.userId, c.applicationId, c.host(), email, policy);
       await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.account_created", applicationId: c.applicationId, channel: "portal", context: { host: c.host(), email } });
       return l;
     },
@@ -289,6 +289,7 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     decide: (fields, page) => decideFields(c.userId, c.sheet, fields, page, c.jobId ?? undefined, { instructions: c.instructions }),
     knownStep: (k) => c.routes?.[k] ?? null,
     reviewSubmit: c.goal ? undefined : (page) => reviewSubmit(c.userId, c.sheet, page, c.jobId ?? undefined),
+    level: c.goal ? undefined : levelOf(c.sheet.fields.degree ?? null, c.sheet.program),
     sheetValue: (key) => c.sheet.fields[key] ?? null,
     hasValue: (label) => {
       const k = keyForLabel(cleanLabel(label));
@@ -320,8 +321,8 @@ export function serverDeps(c: DepsCtx): EngineDeps {
     resetLink: (since) => findResetLink(c.userId, c.host(), since),
     resumeLink: c.readMail ? () => findResumeLink(c.userId, c.host()) : undefined,
     portalUrl: c.goal ? null : normalizeUrl(c.sheet.portal_url),
-    rotatePassword: async () => {
-      const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "");
+    rotatePassword: async (policy) => {
+      const l = await rotatePassword(c.userId, c.host(), c.applicationId, c.sheet.fields.email ?? "", policy);
       await logEvent({ userId: c.userId, actor: "agent:runner", action: "runner.password_reset", applicationId: c.applicationId, channel: "portal", context: { host: c.host() } });
       return l;
     },
@@ -574,9 +575,9 @@ export const runner: Record<string, Handler> = {
         finalButton: /^(register|rsvp|sign me up|reserve|book( (it|now|this slot))?|confirm|submit|request|claim|send|complete|save)\b/i,
         // accounts only on the school's own systems (a portal sign-in to claim a waiver), never on a third-party
         // event platform
-        createLogin: async (email) => {
+        createLogin: async (email, policy) => {
           if (rootOf(host()) !== schoolRoot) throw new Error(`won't create an account on ${host()}`);
-          return base.createLogin(email);
+          return base.createLogin(email, policy);
         },
         progress: async () => {},
       };
@@ -781,6 +782,7 @@ export const runner: Record<string, Handler> = {
     }
     state.effort = { day: effort.day, runs: effort.runs + 1 };
     state.resting = null;
+    state.wait = null;
     state.sectionsOpened = [];
     state.offSite = 0;
     // per-run counters start fresh each run; the engine keeps a lifetime total as a runaway guard
@@ -809,10 +811,10 @@ export const runner: Record<string, Handler> = {
       // known to refuse cloud browsers and no Chrome connected: a cloud attempt only burns a run and ends at the
       // same wall. say so now, with the one thing that gets it through
       if (why) {
-        const note = "this school's portal only lets your own browser in. Connect Chrome on a computer (about two minutes) and the agents finish it there";
+        const note = "this school's application site only lets your own browser in. Add Ivyward to Chrome on a computer (free, about two minutes) and the agents finish it there";
         await setRunner(applicationId, { runner_status: "needs_you", runner_note: note, runner_state: { ...state, reason: "blocked" } });
         await logEvent({ userId: job.user_id, actor: "agent:runner", action: "runner.needs_you", applicationId, channel: "portal", context: { reason: "blocked", note, via: "school memory" } });
-        await notify({ userId: job.user_id, key: "chrome:connect", kind: "setup", urgent: true, email: true, title: `${sheet.school}'s portal needs your Chrome`, body: `${sheet.school}'s portal doesn't let cloud browsers in, so the agents finish it in your own Chrome. Connecting takes about two minutes on a computer.`, href: "/connect-chrome", actionLabel: "Connect Chrome" }).catch(() => {});
+        await notify({ userId: job.user_id, key: "chrome:connect", kind: "setup", urgent: true, email: true, title: `Add Ivyward to Chrome to finish ${sheet.school}`, body: `${sheet.school}'s application site doesn't let cloud browsers in, so the agents finish it in your own Chrome. The extension is free on the Chrome Web Store and takes about two minutes on a computer.`, href: `/connect-chrome?then=${applicationId}`, actionLabel: "Add to Chrome" }).catch(() => {});
         return { outcome: "needs_you", reason: "blocked" };
       }
     }
@@ -1014,7 +1016,9 @@ export const runner: Record<string, Handler> = {
       if (outcome.kind === "needs_you" && outcome.reason === "question") await recordQuestions(job.user_id, applicationId, next.questions).catch(() => 0);
       // a portal that blocks cloud browsers and no Chrome connected yet: say how to fix it once
       if (outcome.kind === "needs_you" && BLOCKED_REASONS.has(outcome.reason)) {
-        await notify({ userId: job.user_id, key: "connect-chrome", kind: "setup", urgent: true, title: "Connect Chrome so the agents can finish blocked portals", body: `${sheet.school}'s portal blocks cloud browsers. With Ivyward connected to your Chrome, the agents finish portals like this one there, on their own.`, href: "/connect-chrome", actionLabel: "Connect Chrome" }).catch(() => {});
+        // emailed too: most applicants are on their phone when this happens, and the extension needs a computer
+        if (!(await extensionPaired(job.user_id).catch(() => false)))
+          await notify({ userId: job.user_id, key: "connect-chrome", kind: "setup", urgent: true, email: true, title: `Add Ivyward to Chrome to finish ${sheet.school}`, body: `${sheet.school}'s application site blocks cloud browsers. With the free Ivyward extension in your Chrome, the agents finish sites like this one there, on their own. About two minutes on a computer.`, href: `/connect-chrome?then=${applicationId}`, actionLabel: "Add to Chrome" }).catch(() => {});
       }
 
       if (outcome.kind === "needs_you") {
@@ -1056,7 +1060,10 @@ export const runner: Record<string, Handler> = {
         // stopped on our side. never in the portal at all (no sign-in, no account, no form page) and somewhere else:
         // the link was the wrong one. the school's memory learns that, and the finder looks again once, avoiding it
         if (ourSide({ status: "packet_approved", runnerStatus: "needs_you", reason: outcome.reason, note: outcome.note })) {
-          const lost = !next.signedIn && !next.accountAt && !(next.formPages?.length ?? 0);
+          // a link already checked as a known application system (liaison, slate...) isn't the wrong link when a run
+          // stops on it: the page didn't draw, or the step was ours. looking for another one only finds worse
+          const known = !!(state.portal?.ok && state.portal?.platform);
+          const lost = !next.signedIn && !next.accountAt && !(next.formPages?.length ?? 0) && !known;
           if (lost && (state.refinds ?? 0) < 1) {
             const schoolId0 = (app.programs as unknown as { school_id: string }).school_id;
             await learn(job.user_id, schoolId0, "apply_url", app.program_id, {}, false).catch(() => {});

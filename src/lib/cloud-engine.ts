@@ -1,4 +1,6 @@
 // the cloud runner's brain: looks at a portal page and decides the next move, then does it.
+import { fitsPolicy, passwordPolicy, type PasswordPolicy } from "@/lib/password-policy";
+import { wrongAudience, type Level } from "@/lib/portal-check";
 import { accountUrls, pageKey } from "@/lib/portal-platforms";
 // no db and no network of its own: everything outside the page comes in through deps, so the same
 // engine runs on vercel against browserbase and in tests against a local chromium.
@@ -73,6 +75,7 @@ export interface EngineState {
   signupTries?: number; // times the sign-up form was sent on this run
   restarts?: number; // times this run started again from the portal after the portal ended the session
   passwordChanges?: number; // times this run changed the portal password because the portal asked
+  policyRotations?: number; // new passwords made because the site's stated rules refused the saved one
   idpBacks?: number; // times this run was sent to a third party's sign-in page and turned back
   hangs?: number;
   navClicks?: number; // clicks the navigator made this run // runs that hit a step which never returned (reset when a run finishes normally)
@@ -231,7 +234,8 @@ export interface EngineDeps {
   file(key: string, want?: { pdf?: boolean }): Promise<EngineFile>;
   canSubmit(): Promise<{ allowed: boolean; reason: string }>;
   existingLogin(): Promise<Login | null>;
-  createLogin(email: string): Promise<Login>;
+  // policy: the site's password rules, when its page states them (lib/password-policy)
+  createLogin(email: string, policy?: PasswordPolicy): Promise<Login>;
   accountEmail: string;
   // a verification code or link from the applicant's inbox that arrived after `since`; null if none yet
   verification(since: number): Promise<{ code: string | null; link: string | null } | null>;
@@ -260,10 +264,13 @@ export interface EngineDeps {
   resumeLink?(): Promise<string | null>;
   // the value behind a profile field, to tell "the profile doesn't have it" from "the portal wouldn't take it"
   hasValue?(label: string): boolean;
-  rotatePassword?(): Promise<Login>;
+  rotatePassword?(policy?: PasswordPolicy): Promise<Login>;
   // for jobs other than a whole application (a webinar registration, a waiver form): what the job is, and how
   // to tell it's finished. the button that completes it counts as "submit" (still checked with canSubmit).
   goal?: string;
+  // the degree level applied for: buttons for another level ("Apply for a PhD degree" on a master's application)
+  // are kept from the navigator
+  level?: Level;
   // the document keys that can be uploaded (for the screenshot steps)
   files?(): string[];
   isDone?(s: Snapshot): boolean;
@@ -280,7 +287,7 @@ export interface EngineDeps {
   keepThisApp?(): Promise<boolean>;
   // the last look before Submit: the page in view (usually the portal's review page) against the signed packet.
   // problems found hold the submission for the applicant; no answer (a failed call) lets it go, as before
-  reviewSubmit?(page: { url: string; title: string; body: string }): Promise<{ ok: boolean; problems: string[] } | null>;
+  reviewSubmit?(page: { url: string; title: string; body: string }): Promise<{ ok: boolean; problems: string[]; wrongPage?: string } | null>;
   // the button that moved on from this page for applicants before (by page key), when the usual ones aren't there
   knownStep?(pageKey: string): string | null;
   // what the portal's server said when it last refused a save (read from its replies, not the page)
@@ -308,6 +315,8 @@ async function reviewBeforeSubmit(page: Page, deps: EngineDeps, state: EngineSta
   const problems = [...extra];
   if (deps.reviewSubmit && !state.reviewed) {
     const r = await deps.reviewSubmit({ url: s.url, title: s.title, body: s.body.slice(0, 12000) }).catch(() => null);
+    // not this application's page: a wrong turn, ours to back out of (the runner looks for the right way in again)
+    if (r?.wrongPage) return { kind: "needs_you", reason: "stuck", note: `went the wrong way: ${r.wrongPage}. Not the application's own page, so nothing was submitted` };
     if (r) {
       state.reviewed = true;
       if (!r.ok) problems.push(...r.problems);
@@ -910,6 +919,10 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
         log(`refused "${label}"`);
         return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
       }
+      if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label)) && !deps.goal && !insideApplication(state)) {
+        state.visionHistory = [...(state.visionHistory ?? []), `passed over "${label}": not inside the application yet`].slice(-12);
+        continue;
+      }
       if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label) || (deps.finalButton?.test(label) ?? false))) {
         state.reachedSubmit = true;
         const d = await deps.canSubmit();
@@ -1128,6 +1141,16 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       await sleep(8000);
       s = await snap(page);
       if (isBlockPage(s)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
+    }
+    // an application site that draws itself in the browser (liaison's gradcas, nov 2026) can still be blank a few
+    // seconds after it loads: the run read an empty page, found no next step and gave up. wait for something to
+    // read, about 15 seconds, before deciding where it is (never reloaded: the page may be a form's answer)
+    if (isBlank(s)) {
+      for (let w = 0; w < 5 && isBlank(s); w++) {
+        await sleep(3000);
+        s = await snap(page);
+      }
+      if (!isBlank(s)) state.navHistory = [...(state.navHistory ?? []), "waited for the page to draw itself"].slice(-12);
     }
 
     // peoplesoft's "Look Up Country" search over the form (manchester, hec): search for the profile's value and pick it
@@ -1438,6 +1461,22 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         if (o) return { outcome: o, state, filled };
         continue;
       }
+      // a saved password the site's own rules say it can't have (hkust: letters and numbers only): the account was
+      // never made with it. a new password that fits, then create the account rather than sign in again
+      const rules = passwordPolicy(`${(s.errors ?? []).join(" ")} ${s.body}`);
+      if (rules && !fitsPolicy(login.password, rules) && (login.status ?? "created") === "created" && !state.signedIn && deps.rotatePassword && (state.policyRotations ?? 0) < 2) {
+        state.policyRotations = (state.policyRotations ?? 0) + 1;
+        login = await deps.rotatePassword(rules);
+        state.navHistory = [...(state.navHistory ?? []), "the saved password breaks the site's password rules, so the account was never made with it: made one that fits"].slice(-12);
+        const create = find(s, CREATE) ?? findCreate(s);
+        if (create && !state.triedCreate) {
+          state.triedCreate = true;
+          state.accountAt = Date.now();
+          await deps.progress("creating your account on the application site");
+          await click(page, create.id);
+          continue;
+        }
+      }
       const pw = s.allFields.find((f) => f.type === "password")!;
       const user = s.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s.allFields.find((f) => f.type === "email" || f.type === "text");
       // "user id" boxes get the user id we registered with (the email's local part), email boxes get the email
@@ -1559,8 +1598,16 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
         await click(page, addAddr.id);
         continue;
       }
-      const login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail));
       const said = (s.errors ?? []).join(" ").trim();
+      // the site's password rules, from the page or the error it gave last time (hkust: "letters and numbers only,
+      // 12-20 characters"). a login the agents made and never used that breaks them gets a new password that fits
+      const policy = passwordPolicy(`${said} ${s.body}`);
+      let login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail, policy ?? undefined));
+      if (policy && !fitsPolicy(login.password, policy) && (login.status ?? "created") === "created" && !state.signedIn && deps.rotatePassword && (state.policyRotations ?? 0) < 2) {
+        state.policyRotations = (state.policyRotations ?? 0) + 1;
+        login = await deps.rotatePassword(policy);
+        state.navHistory = [...(state.navHistory ?? []), `made a new password that meets the site's rules (${policy.min}-${policy.max} characters${policy.symbols === "none" ? ", letters and numbers only" : ""})`].slice(-12);
+      }
       // the portal said why it didn't create the account. a username someone else has: try it with a number
       // ("samson2.ogunfuwa" keeps calgary's ".lastname" rule). anything else, after a few tries: show the applicant
       if (state.signupTries && USERNAME_TAKEN.test(said) && (state.usernameTries ?? 0) < 3) {
@@ -1678,7 +1725,7 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
     if (state.missingDocs?.length) {
       return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
     }
-    const submit = find(now, FINAL) ?? (deps.finalButton ? find(now, deps.finalButton) : undefined);
+    const submit = deps.goal || insideApplication(state) ? (find(now, FINAL) ?? (deps.finalButton ? find(now, deps.finalButton) : undefined)) : undefined;
     if (submit) {
       state.reachedSubmit = true;
       const term = await termCheck(page, deps, state, `${now.title} ${now.body}`);
@@ -1716,7 +1763,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : undefined) ??
       find(now, START) ??
       find(now, CREATE) ??
-      (s.fields.length ? find(now, CREATE_SUBMIT) : undefined) ??
+      // "Submit" under a newsletter or search box on an information page isn't a step of the application
+      (s.fields.length && (insideApplication(state) || realFields(now) >= 2) ? find(now, CREATE_SUBMIT) : undefined) ??
       // a small sub-page (an address, a qualification) closes with OK / Done
       (s.fields.length ? find(now, /^(ok|okay|done|update)$/i) : undefined) ??
       apply;
@@ -1793,6 +1841,19 @@ export function missingNote(keys: string[]): string {
 }
 
 const EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
+// inside the application: signed in, an account made, or a page of its questions filled. before that a "Submit"
+// is something else's (a newsletter box, a search, a feedback form on an information page): ku leuven, nov 2026,
+// held a master's applicant at the doctoral instructions page as if it were the review before submitting
+export const insideApplication = (state: Pick<EngineState, "signedIn" | "accountAt" | "formPages">) => !!(state.signedIn || state.accountAt || (state.formPages?.length ?? 0) > 0);
+// boxes that belong to a form someone fills in, not a newsletter sign-up or a site search
+export const realFields = (s: Pick<Snapshot, "allFields">) => s.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && f.type !== "checkbox" && !/\b(search|newsletter|subscribe|stay (informed|in touch|updated)|updates|keep me posted)\b/i.test(f.label)).length;
+// buttons for another kind of applicant, kept from the navigator. pure, so it's tested
+export const forThisLevel = <B extends { label: string }>(buttons: B[], level?: Level) => (!level || level === "other" ? buttons : buttons.filter((b) => !wrongAudience(b.label.replace(/\s+/g, " ").trim(), level)));
+// nothing on the page yet: no words to speak of, no boxes, no buttons (a site still drawing itself)
+export const isBlank = (s: Pick<Snapshot, "body" | "allFields" | "buttons">) => {
+  const text = s.body.replace(/\s+/g, " ").trim();
+  return !s.allFields.length && !s.buttons.length && (text.length < 3 || /^(loading|please wait|one moment|just a moment)\W*$/i.test(text));
+};
 // a page of the application itself (several real questions), not a landing or "resend my link" page
 export const insideForm = (s: Pick<Snapshot, "fields">) => s.fields.filter((f) => f.type !== "search" && !/\bsearch\b/i.test(f.label)).length >= 3;
 export const NAV_BUDGET = 30; // model-driven steps per run
@@ -1804,7 +1865,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   if (!deps.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
   state.navCalls = (state.navCalls ?? 0) + 1;
   const history = state.navHistory ?? [];
-  const a = await deps.navigate({ why, snapshot: s, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!(await deps.existingLogin()) }).catch(orOutage(null));
+  const a = await deps.navigate({ why, snapshot: { ...s, buttons: forThisLevel(s.buttons, deps.level) }, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!(await deps.existingLogin()) }).catch(orOutage(null));
   if (!a) return fallback;
   const log = (t: string) => (state.navHistory = [...history, t].slice(-12));
   const root = (u: string) => {
@@ -1877,6 +1938,10 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
   if (DANGEROUS.test(label)) {
     log(`refused "${label}"`);
     return { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` };
+  }
+  if ((FINAL.test(label) || /^submit\b/i.test(label)) && !deps.goal && !insideApplication(state)) {
+    log(`passed over "${label}": not inside the application yet`);
+    return null;
   }
   if (FINAL.test(label) || /^submit\b/i.test(label)) {
     state.reachedSubmit = true;

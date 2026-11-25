@@ -28,12 +28,12 @@ export function BlockedBanner({ count }: { count: number }) {
   return (
     <div className="mb-6 flex flex-col gap-3 rounded-3xl border border-signal/30 bg-[color-mix(in_oklab,var(--signal)_6%,var(--surface))] p-4 shadow-card sm:flex-row sm:items-center sm:p-5">
       <p className="min-w-0 flex-1 text-sm">
-        <span className="font-semibold">{count === 1 ? "1 application is" : `${count} applications are`} stuck at portals that block cloud browsers.</span>{" "}
-        <span className="text-muted">Your own Chrome usually gets straight in.</span>
+        <span className="font-semibold">{count === 1 ? "1 application is" : `${count} applications are`} waiting at sites that block cloud browsers.</span>{" "}
+        <span className="text-muted">{ext.paired ? "Your own Chrome usually gets straight in." : "The free Ivyward extension finishes them in your own Chrome. About two minutes on a computer."}</span>
       </p>
       <Button variant="signal" disabled={busy} onClick={go}>
         {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Laptop className="size-4" aria-hidden />}
-        {ext.paired ? "Run them in my Chrome" : "Connect Chrome to finish them"}
+        {ext.paired ? "Run them in my Chrome" : "Add Ivyward to Chrome"}
       </Button>
     </div>
   );

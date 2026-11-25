@@ -165,7 +165,7 @@ export function RunnerPanel(props: {
       {!(inChrome && working) && (
         <Button variant={yours && (reason === "captcha" || reason === "blocked") ? "signal" : "secondary"} disabled={busy} onClick={runInChrome}>
           <Laptop className="size-4" aria-hidden />
-          {inChrome && yours ? "Try again in my Chrome" : "Run in my Chrome"}
+          {inChrome && yours ? "Try again in my Chrome" : checked && !ext.paired ? "Add Ivyward to Chrome" : "Run in my Chrome"}
         </Button>
       )}
     </div>
@@ -215,9 +215,9 @@ export function RunnerPanel(props: {
 
       {inChrome && working && checked && !ext.paired && (
         <p className="rounded-2xl border border-signal/25 bg-signal/[0.06] px-4 py-3 text-sm">
-          This one runs in your Chrome, but Chrome isn&apos;t connected on this computer.{" "}
+          This one runs in your Chrome, but the Ivyward extension isn&apos;t connected on this computer.{" "}
           <Link href={`/connect-chrome?then=${id}`} className="font-semibold underline underline-offset-4">
-            Connect Chrome
+            Add Ivyward to Chrome
           </Link>{" "}
           or open the live browser instead.
         </p>

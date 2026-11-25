@@ -3,21 +3,14 @@ import { randomInt } from "node:crypto";
 import { admin } from "@/lib/supabase/admin";
 import { decrypt, encrypt, keyedHash } from "@/lib/crypto";
 import { hostRoot } from "@/lib/verify-mail";
+import { DEFAULT_POLICY, buildPassword, type PasswordPolicy } from "@/lib/password-policy";
 
 // portal logins the agents create for the applicant. their email, a generated password, encrypted at rest.
 
-const SETS = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnpqrstuvwxyz", "23456789", "!@#$%*?-_"];
-
-// 16 chars, at least one of each class: passes the usual portal rules; no look-alike characters
-export function generatePassword(length = 16): string {
-  const all = SETS.join("");
-  const chars = SETS.map((s) => s[randomInt(s.length)]);
-  while (chars.length < length) chars.push(all[randomInt(all.length)]);
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join("");
+// 16 chars, upper, lower, digit and a symbol by default; the site's own rules when its page states them
+// (lib/password-policy). no look-alike characters
+export function generatePassword(policy: PasswordPolicy = DEFAULT_POLICY): string {
+  return buildPassword(policy, (n) => randomInt(n));
 }
 
 export interface PortalLogin {
@@ -47,10 +40,10 @@ export async function getLogin(userId: string, host: string, applicationId?: str
   return pick ? { id: pick.id, login_email: pick.login_email, password: decrypt(pick.password_enc), status: pick.status, answers: securityAnswers(pick.portal_host, pick.login_email) } : null;
 }
 
-export async function createLogin(userId: string, applicationId: string, host: string, email: string): Promise<PortalLogin> {
+export async function createLogin(userId: string, applicationId: string, host: string, email: string, policy?: PasswordPolicy): Promise<PortalLogin> {
   const existing = await getLogin(userId, host, applicationId);
   if (existing) return existing;
-  const password = generatePassword();
+  const password = generatePassword(policy);
   const { data, error } = await admin()
     .from("portal_accounts")
     .insert({ user_id: userId, application_id: applicationId, portal_host: host, login_email: email, password_enc: encrypt(password) })
@@ -77,10 +70,10 @@ export async function saveIssuedLogin(userId: string, applicationId: string, hos
 
 // a new password for a login, after the portal rejected the old one and the agents reset it. saved before it's used,
 // so a run that dies mid-reset never loses the password the portal now has.
-export async function rotatePassword(userId: string, host: string, applicationId: string, email: string): Promise<PortalLogin> {
+export async function rotatePassword(userId: string, host: string, applicationId: string, email: string, policy?: PasswordPolicy): Promise<PortalLogin> {
   const cur = await getLogin(userId, host, applicationId);
-  const password = generatePassword();
-  if (!cur) return createLogin(userId, applicationId, host, email);
+  const password = generatePassword(policy);
+  if (!cur) return createLogin(userId, applicationId, host, email, policy);
   const { error } = await admin().from("portal_accounts").update({ password_enc: encrypt(password), status: "created" }).eq("id", cur.id).eq("user_id", userId);
   if (error) throw new Error(`vault: ${error.message}`);
   return { ...cur, password, status: "created" };

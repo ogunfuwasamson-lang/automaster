@@ -11,6 +11,7 @@ import { CEILING_REASON } from "@/lib/credit-rules";
 export { enqueue } from "@/lib/queue";
 export type { Job } from "@/lib/queue";
 import type { Job } from "@/lib/queue";
+import { runnerWaitWhy } from "@/lib/portal-progress";
 
 
 // claim and run due jobs. backoff on failure: 1m, 5m, 25m.
@@ -47,6 +48,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
         .from("jobs")
         .update({ status: "queued", attempts: Math.max(0, job.attempts - 1), last_error: `budget: ${CEILING_REASON}`, run_at: new Date(Date.now() + 30 * 86_400_000).toISOString(), locked_at: null, locked_by: null })
         .eq("id", job.id);
+      await noteRunnerWait(job, CEILING_REASON, null).catch(() => {});
       return { id: job.id, ok: false, error: "application ceiling" };
     }
     const result = await inBackground(() => handler(job));
@@ -71,6 +73,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
           locked_by: null,
         })
         .eq("id", job.id);
+      await noteRunnerWait(job, msg, nextMonthStartUTC()).catch(() => {});
       return { id: job.id, ok: false, error: msg };
     }
     // held by the credit rules (a busy day, an applicant who's away): not the job's fault. wait without spending an
@@ -88,6 +91,7 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
           locked_by: null,
         })
         .eq("id", job.id);
+      await noteRunnerWait(job, msg, until && Date.parse(until) > Date.now() ? until : new Date(Date.now() + 6 * 3600_000).toISOString()).catch(() => {});
       return { id: job.id, ok: false, error: msg };
     }
     // out of api credit: not the job's fault. park it for 30 minutes without spending an attempt.
@@ -133,4 +137,24 @@ async function runOne(job: Job): Promise<{ id: string; ok: boolean; error?: stri
 
 export function isBillingError(msg: string): boolean {
   return /credit balance is too low|billing|insufficient.?credit|payment required|AI is paused until/i.test(msg);
+}
+
+// a portal job parked by the credit rules says so on its application. five applications showed "finding the
+// application portal" for days in nov 2026 while their jobs waited for credits or for the month to turn. never
+// written over a stop the applicant has to act on, or a pause
+export async function noteRunnerWait(job: Pick<Job, "agent" | "user_id" | "payload">, msg: string, until: string | null): Promise<void> {
+  if (job.agent !== "runner") return;
+  const appId = (job.payload as { applicationId?: string } | null)?.applicationId;
+  if (!appId) return;
+  const db = admin();
+  const { data: a } = await db.from("applications").select("runner_status, runner_state").eq("id", appId).eq("user_id", job.user_id).maybeSingle();
+  if (!a || !(a.runner_status == null || a.runner_status === "running" || a.runner_status === "ready")) return;
+  const st = (a.runner_state ?? {}) as Record<string, unknown>;
+  if (st.paused) return;
+  const why = runnerWaitWhy(msg);
+  if (why.credits) {
+    await db.from("applications").update({ runner_status: "needs_you", runner_note: why.text, runner_state: { ...st, reason: "credits", wait: null } }).eq("id", appId);
+    return;
+  }
+  await db.from("applications").update({ runner_status: "ready", runner_note: `waiting: ${why.text}`, runner_state: { ...st, wait: { until, why: why.text } } }).eq("id", appId);
 }

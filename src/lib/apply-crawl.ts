@@ -55,24 +55,34 @@ export function scoreLinks(html: string, base: string): ApplyLink[] {
   return out.sort((a, b) => b.score - a.score);
 }
 
-export async function fetchPage(url: string): Promise<string | null> {
+// the page's html (null when it can't be read) and the status it came with (null when there was no answer)
+export async function fetchPageWithStatus(url: string): Promise<{ html: string | null; status: number | null }> {
   try {
     // links come from school websites: never let one point the server at its own network
     const res = await safeFetch(url, {
       headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36", accept: "text/html" },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res || !res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return null;
-    return (await res.text()).slice(0, 600_000);
+    if (!res) return { html: null, status: null };
+    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return { html: null, status: res.status };
+    return { html: (await res.text()).slice(0, 600_000), status: res.status };
   } catch {
-    return null;
+    return { html: null, status: null };
   }
 }
 
+export async function fetchPage(url: string): Promise<string | null> {
+  return (await fetchPageWithStatus(url)).html;
+}
+
+// a link that isn't there: the server says so (404, 410), not a bot wall or a timeout
+export const gone = (status: number | null) => status === 404 || status === 410;
+
 // is this the start of an application? the page itself is read (lib/portal-check); a page that can't be fetched
-// counts only on an application system's own address
+// counts only on an application system's own address, and never when the server says it doesn't exist
 export async function checkPortal(url: string): Promise<{ ok: boolean; verdict: Verdict; platform: string | null }> {
-  const html = await fetchPage(url);
+  const { html, status } = await fetchPageWithStatus(url);
+  if (gone(status)) return { ok: false, verdict: "missing", platform: null };
   const v = portalVerdict(url, html);
   return { ok: ACCEPT.has(v.verdict) || (v.verdict === "unknown" && looksLikePortal(url) && !/^www\./i.test(new URL(url).hostname)), verdict: v.verdict, platform: v.platform };
 }

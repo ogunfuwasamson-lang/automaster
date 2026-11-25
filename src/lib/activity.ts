@@ -108,7 +108,7 @@ export function actorLabel(actor: string): string {
 
 // the runner's own bookkeeping (every run starting, errors, page records): the operator's, not the applicant's
 const RUNNER_PLUMBING = /^runner\.(started|error|page|corrections|status_changed|moved_to_chrome|login_revealed|failed)$/;
-const APPLICANT_STOPS = new Set(["account", "login", "verification", "payment", "unpaid", "captcha", "blocked", "question", "missing", "documents", "closed", "review"]);
+const APPLICANT_STOPS = new Set(["account", "login", "verification", "payment", "unpaid", "captcha", "blocked", "question", "missing", "documents", "closed", "review", "credits"]);
 
 export function describe(e: EventRow): string | null {
   // internal plumbing stays out of the user's feed

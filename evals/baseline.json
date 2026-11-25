@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-11",
+  "updated": "2026-11-25",
   "rules_pass": [
     "mcgill-app-type",
     "mcgill-subtype",
@@ -43,6 +43,9 @@
     "mcgill-term-list",
     "box-drops-value",
     "review-holds-wrong-term",
-    "route-memory"
+    "route-memory",
+    "hkust-password-rules",
+    "info-page-submit",
+    "blank-then-draws"
   ]
 }

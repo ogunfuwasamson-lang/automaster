@@ -4,7 +4,7 @@
 // most schools use, is a portal; a page of text and links is not. pure, so it's tested.
 import { platformOf, type Platform } from "@/lib/portal-platforms";
 
-export type Verdict = "signin" | "signup" | "application" | "platform" | "info" | "unknown";
+export type Verdict = "signin" | "signup" | "application" | "platform" | "info" | "missing" | "unknown";
 export const ACCEPT = new Set<Verdict>(["signin", "signup", "application", "platform"]);
 
 const strip = (html: string) =>
@@ -21,6 +21,9 @@ const strip = (html: string) =>
 const APP_HOSTS = /(^|\.)(myliaison\.com|liaisoncas\.com|my\.site\.com|force\.com|studielink\.nl|uni-assist\.de|dreamapply\.com|ucas\.com|applyweb\.com|embark\.com|collegenet\.com|kiratalent\.com|mobility-online\.de|ouac\.on\.ca|campusfrance\.org)$/i;
 const SIGNUP = /\b(create (an |your |a new )?account|register (now|here|for an account)?|sign ?up|new (user|applicant)s?|first[- ]time (user|applicant)s?|create (a )?(login|profile)|start (a )?new application|créer (un )?compte|inscription)\b/i;
 const SIGNIN = /\b(log ?in|sign ?in|log on|returning (user|applicant)s?|forgot (your )?password|connexion|se connecter|anmelden)\b/i;
+// a "page not found" served with a normal status (walton.uark.edu/apply/index.php, nov 2026: "Whoops! We couldn't find
+// your page"). the crawler took it for the application site because it couldn't read it as anything else
+const NOT_FOUND = /\b(page (was )?not found|404 (error|not found|page)|error 404|we (couldn'?t|could not|can'?t|cannot) find (your|that|the|this) page|(this|the) page (you('re| are) looking for |you requested )?(doesn'?t|does not|no longer) exists?|page you (requested|are looking for) (could not|cannot|can'?t) be found|nothing (was )?found (here|at this address))\b/i;
 const APPLY_FORM = /\b(start (your |an |a new )?application|continue (your |an )?application|my applications?|application (portal|form|status)|begin (your |an )?application)\b/i;
 
 export function portalVerdict(url: string, html: string | null): { verdict: Verdict; platform: Platform | null } {
@@ -34,6 +37,8 @@ export function portalVerdict(url: string, html: string | null): { verdict: Verd
   const platform = platformOf(url, text);
   if (!html) return { verdict: APP_HOSTS.test(host) ? "platform" : "unknown", platform };
   const pw = (html.match(/<input[^>]+type\s*=\s*["']?password/gi) ?? []).length;
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim();
+  if (!pw && (NOT_FOUND.test(title) || (NOT_FOUND.test(text.slice(0, 1500)) && text.length < 5000))) return { verdict: "missing", platform };
   const forms = (html.match(/<form\b/gi) ?? []).length;
   const inputs = (html.match(/<input\b(?![^>]*type\s*=\s*["']?(hidden|search|submit|button))/gi) ?? []).length;
   if (pw >= 2) return { verdict: "signup", platform };
