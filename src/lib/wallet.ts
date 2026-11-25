@@ -138,7 +138,7 @@ export function grantTitle(source: string, reference: string | null): string {
   if (source === "invite") return reference?.endsWith(":joined") ? "You joined through a friend's invite" : "A friend you invited finished setup";
   if (source === "group") return "Study group bonus";
   if (source === "converted") return "Carried over from your earlier pack";
-  if (source === "grant") return "From the Ivyward team";
+  if (source === "grant") return reference?.startsWith("signup:") ? "Welcome credits" : "From the Ivyward team";
   return "Credits added";
 }
 

@@ -71,6 +71,23 @@ export async function recordSignup(userId: string, createdAt: string | undefined
     }
   }
   await db.from("profiles").update(patch).eq("id", userId);
+  // every new account starts with a few credits of its own (founder's call, 25 nov 2026). once per account: the
+  // reference is unique
+  if (fresh) await welcomeCredits(userId).catch(() => {});
+}
+
+export async function welcomeCredits(userId: string) {
+  const bal = await grant(userId, CREDITS.welcome, "grant", null, `signup:${userId}`);
+  if (bal < 0) return;
+  await notify({
+    userId,
+    key: "credits:welcome",
+    kind: "info",
+    title: `Welcome: ${CREDITS.welcome} free credits are yours`,
+    body: `Use them to have the agents check ${CREDITS.welcome} programmes or scholarships against your record, or put them towards your first application, which uses ${CREDITS.application}. Invite a friend and you both get ${CREDITS.invite} more when they finish setup.`,
+    href: "/credits",
+    actionLabel: "See your credits",
+  }).catch(() => {});
 }
 
 // a friend who joined through an invite link finished setup: they and their inviter each get a free application

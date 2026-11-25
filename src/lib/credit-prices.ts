@@ -1,7 +1,8 @@
 // the credit wallet's price list (founder's call, 24 nov 2026). pure, so the pricing page, the app and the agents
 // read the same numbers. one currency for everything the agents do:
-//   earning: a pack gives PACK credits that last PACK_DAYS; Pro gives PRO a paid month; a friend who joins through an
-//            invite and finishes setup earns both people INVITE, which don't expire.
+//   earning: every new account gets WELCOME credits (founder's call, 25 nov 2026); a pack gives PACK credits that last
+//            PACK_DAYS; Pro gives PRO a paid month; a friend who joins through an invite and finishes setup earns both
+//            people INVITE. welcome and invite credits don't expire.
 //   using:   an application costs APPLICATION (set aside when the agents start it, spent when it's submitted, given
 //            back if it's dropped first); checking a programme or a scholarship CHECK; a funding request REQUEST.
 // checks of programmes from Ivyward's checked library (the free shortlist's fit checks) cost nothing.
@@ -11,6 +12,7 @@ export const CREDITS = {
   packDays: 30,
   pro: 160,
   invite: 10,
+  welcome: 5, // every new account, at its first sign-in
   group: 3, // each member of a study group of five
   application: 10,
   check: 1,

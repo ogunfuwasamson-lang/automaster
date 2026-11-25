@@ -6,6 +6,7 @@ import { LEGACY_PACK_SIZE } from "@/lib/geo-pricing";
 import { runsSince } from "@/lib/runs";
 import { creditGate, creditPolicy } from "@/lib/credit";
 import { DEFAULT_POLICY } from "@/lib/credit-policy";
+import { WELCOME_MONTHLY_USD } from "@/lib/credit-rules";
 
 // staff and the nightly learning pass run under admin accounts: capped like everyone, so testing can't drain the
 // credit applicants need (30 days to nov 2026: about $27, half of all spend). the operator sets it (Credit tab)
@@ -39,11 +40,16 @@ export async function userPlan(userId: string): Promise<{ plan: Plan; budget: nu
   const plan = planOf(data?.plan, data?.plan_until ?? null);
   if (data?.monthly_budget_usd != null || data?.is_admin) return { plan, budget: budgetFor(data, 0, 0, (await creditPolicy().catch(() => DEFAULT_POLICY)).staffMonthlyUsd) };
   const since = monthStartUTC();
-  const [{ count: singles }, { count: packs }] = await Promise.all([
+  const [{ count: singles }, { count: packs }, { count: paidEver }, { data: grants }] = await Promise.all([
     db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "submission").gte("created_at", since),
     db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId).eq("kind", "pack").gte("created_at", since),
+    db.from("billing_events").select("reference", { count: "exact", head: true }).eq("user_id", userId),
+    db.from("credit_grants").select("source, reference").eq("user_id", userId).limit(20),
   ]);
-  return { plan, budget: budgetFor(data, singles ?? 0, packs ?? 0) };
+  const budget = budgetFor(data, singles ?? 0, packs ?? 0);
+  // only the welcome credits: a small month (lib/credit-rules)
+  const welcomeOnly = !paidEver && (grants ?? []).length > 0 && (grants ?? []).every((g) => g.source === "grant" && String(g.reference ?? "").startsWith("signup:"));
+  return { plan, budget: welcomeOnly ? Math.min(budget, WELCOME_MONTHLY_USD) : budget };
 }
 
 export async function monthlyBudget(userId: string): Promise<number> {

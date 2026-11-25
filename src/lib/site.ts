@@ -7,7 +7,7 @@ export const SITE = {
   tagline: "Your way in.",
   title: "Ivyward: AI agents that run your university applications",
   description:
-    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Start free with a checked shortlist; the agents' work is paid in credits, and inviting a friend earns you both some.",
+    "Ivyward's AI agents run your university applications: they shortlist programs that fit you, draft and fact-check your essays, fill in and submit each school's online application, and chase fee waivers and funding. You review and sign everything. Start free with 5 credits and a checked shortlist; the agents' work is paid in credits, and inviting a friend earns you both some.",
   short: "AI agents that run your university applications, from shortlist to submission. You review and sign everything.",
 } as const;
 
@@ -30,12 +30,12 @@ export const FACTS = [
   "Application fees are paid by the applicant directly to the school. The agents ask for fee waivers first. Card details never reach Ivyward.",
   "When a school's site blocks cloud browsers, the application finishes in the applicant's own Chrome through the free Ivyward extension (Ivyward runner on the Chrome Web Store). Bot checks are always left to the applicant.",
   "After an admission, the agents look for merit reconsideration, assistantships and scholarships, and draft the emails.",
-  "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents' work is paid in credits: an application uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa, ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10.",
+  "Starting is free: every new account gets 5 credits, and a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents' work is paid in credits: an application uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa, ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10.",
   "Applicants can pause every agent at once. Passwords for schools' application sites are encrypted, and applicant data is not used to train AI models.",
 ] as const;
 
 export const PLAN_OFFERS = [
-  { name: "Free", price: "0", description: "A shortlist from checked programmes, with deadlines, fees and funding. Invite a friend and you both get one application free." },
+  { name: "Free", price: "0", description: "5 credits to start and a shortlist from checked programmes, with deadlines, fees and funding. Invite a friend and you both get 10 credits, one application." },
   { name: "Pro", price: "20", description: "160 credits a month (outside Africa); an application uses 10. Cancel any time." },
   { name: "60-credit pack (Africa)", price: "7.60", description: "₦10,000 or the local equivalent for 60 credits that last 30 days: an application uses 10, a programme or scholarship check 1. No subscription." },
 ] as const;

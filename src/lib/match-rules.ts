@@ -112,6 +112,28 @@ const OWN_STOP = new Set(["and", "the", "for", "with", "of", "in", "msc", "ms", 
 // words that say little on their own: "science" alone shouldn't match "Data Science" to "Marine Science"
 const GENERIC = new Set(["science", "sciences", "studies", "technology", "management", "engineering", "arts", "art", "applied", "advanced", "general", "international"]);
 
+// words that name a subject only next to another word: "resource" is human resources or natural resources, "public"
+// is public health or public policy. one of these on its own never makes a match (an HR applicant was shown a
+// natural resource sciences programme, 25 nov 2026)
+const AMBIGUOUS = new Set(["resource", "resources", "human", "people", "natural", "public", "social", "information", "systems", "system", "development", "planning", "policy", "global", "professional", "digital", "modern", "industrial", "relations", "organisational", "organizational", "behaviour", "behavior"]);
+
+// fields people name in two or three words, and what programmes in them are called
+const PHRASES: [RegExp, string[]][] = [
+  [/\b(human resources?|hr|hrm|people management|personnel|talent management|workforce)\b/, ["human resource", "human resources", "hrm", "people management", "personnel", "industrial relations", "labour relations", "labor relations", "employment relations", "organisational behaviour", "organizational behavior", "organisational psychology", "organizational psychology", "talent management"]],
+  [/\b(information technology|information systems|it)\b/, ["information technology", "information systems", "information management", "computing"]],
+  [/\bsupply chain|logistics|procurement\b/, ["supply chain", "logistics", "procurement", "operations management"]],
+  [/\bproject management\b/, ["project management", "programme management", "program management"]],
+  [/\bpublic health\b/, ["public health", "global health", "epidemiology", "health policy"]],
+  [/\bpublic (policy|administration)\b/, ["public policy", "public administration", "public management", "governance"]],
+  [/\b(international relations|diplomacy)\b/, ["international relations", "international affairs", "diplomacy", "global affairs"]],
+  [/\bsocial work\b/, ["social work", "social welfare"]],
+  [/\b(natural resources?|forestry)\b/, ["natural resource", "natural resources", "forestry", "environmental"]],
+];
+const phraseTerms = (field: string): string[] => {
+  const f = ` ${words(field).join(" ")} `;
+  return PHRASES.filter(([re]) => re.test(f)).flatMap(([, t]) => t);
+};
+
 // the same subject under another name: these count as the word itself
 const SAME: Record<string, string[]> = {
   business: ["mba"],
@@ -138,11 +160,13 @@ export function fieldScore(name: string, fields: string[] | null | undefined): n
   for (const f of fields ?? []) {
     const own = words(f).filter((w) => w.length >= 2 && !OWN_STOP.has(w));
     if (!own.length) continue;
-    const specific = own.filter((w) => !GENERIC.has(w));
+    const specific = own.filter((w) => !GENERIC.has(w) && !AMBIGUOUS.has(w));
     const hits = own.filter((w) => has(name, w));
     const specificHits = specific.filter((w) => has(name, w));
     let sc = 0;
     if (hits.length === own.length) sc = 100 + own.length;
+    // the field under its usual programme names ("Human Resource" in "MSc Industrial Relations")
+    else if (phraseTerms(f).some((t) => has(name, t))) sc = 90;
     else if (specificHits.length) sc = 40 + Math.round((20 * specificHits.length) / specific.length);
     else if (own.some((w) => (SYNONYMS[w] ?? []).some((t) => has(name, t)))) sc = 25;
     best = Math.max(best, sc);
@@ -209,6 +233,11 @@ export function prefScore(a: MatchPrefs, ff: string | null, tuition: number | nu
   return s;
 }
 
+// a library row whose "name" is a research note ("specific department not confirmed, ... likely under ...") isn't a
+// programme anyone can apply to by name: it never goes on a shortlist
+const GENERAL_ADMISSION = /\b(first[- ]year|general (undergraduate )?admission|undergraduate admission|freshman)\b/i;
+const NOTE_NAME = /not confirmed|unconfirmed|likely under|to be confirmed|\btb[cd]\b|department unknown|unknown department/i;
+
 // rank the library for one applicant: same level and region always; their field first; then open deadlines,
 // funding and ranking. at most two per school so the list isn't one university.
 export function rankMatches(
@@ -223,6 +252,7 @@ export function rankMatches(
     if (p.kind === "scholarship") continue;
     if (!p.school.region || !a.regions.includes(p.school.region)) continue;
     if (/\bonline\b|distance learning/i.test(p.name)) continue; // studying abroad means being there
+    if (NOTE_NAME.test(p.name)) continue;
     const lvl = levelOfDegree(p.degree, p.name);
     if (a.level && lvl !== a.level) continue;
     if (passed(p.deadlines, today)) continue;
@@ -254,7 +284,9 @@ export function rankMatches(
   }
   // when they named fields, only programmes in those fields count; nothing at all is better than a list of
   // unrelated programmes (the agents' own search starts on the same screen)
-  const pool = terms.length ? scored.filter((m) => m.fieldMatch) : scored;
+  // no field named yet: only the general admission routes (a first-year undergraduate application), never a
+  // programme in a subject they didn't choose (a fashion design applicant was given psychology, nov 2026)
+  const pool = terms.length ? scored.filter((m) => m.fieldMatch) : scored.filter((m) => GENERAL_ADMISSION.test(m.program));
   pool.sort((x, y) => y.score - x.score || (x.deadline?.date ?? "9999").localeCompare(y.deadline?.date ?? "9999") || x.school.localeCompare(y.school));
   const perSchool = new Map<string, number>();
   const out: Match[] = [];

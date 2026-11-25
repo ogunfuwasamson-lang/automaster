@@ -11,12 +11,13 @@ import { submissionAmounts } from "@/lib/fx";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Start free with a shortlist of programmes Ivyward has already checked. The agents' work is paid in credits: an application uses 10, checking a programme uses 1. ₦10,000 buys 60 in Africa; Pro is $20 a month for 160 elsewhere. Invite a friend and you both get 10.",
+  description: "Start free with 5 credits and a shortlist of programmes Ivyward has already checked. The agents' work is paid in credits: an application uses 10, checking a programme uses 1. ₦10,000 buys 60 in Africa; Pro is $20 a month for 160 elsewhere. Invite a friend and you both get 10.",
   alternates: { canonical: "/pricing" },
 };
 
 // free, with no agent work (lib/free-tier)
 const FREE = [
+  "5 credits to start, yours to keep",
   "A shortlist of checked programmes",
   "Deadlines, fees and funding for each",
 ];

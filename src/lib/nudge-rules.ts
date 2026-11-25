@@ -65,12 +65,20 @@ function builtIn(angle: Angle, c: NudgeCtx, opts: { prices: boolean }): Nudge {
         cta: c.ready === 1 ? "Send it in" : "Send them in",
       };
     case "progress":
-      return {
-        angle,
-        headline: c.essays ? `${plural(c.programs, "programme")} found, ${plural(c.essays, "essay")} drafted` : `Your agents found ${plural(c.programs, "programme")} that fit you`,
-        body: `That's the research most applicants never finish. Get credits${price} and the agents carry each application through to the end: forms, documents, essays and the submit button.`,
-        cta: unlock(c),
-      };
+      // what they have so far, then what credits add: plain, and true for one programme as much as for twenty
+      return c.essays
+        ? {
+            angle,
+            headline: `${plural(c.essays, "essay")} drafted for ${c.essays === 1 ? "your application" : "your applications"}`,
+            body: `Read ${c.essays === 1 ? "it" : "them"} when you're ready. With credits${price}, the agents then fill in each application form, upload your documents and submit once you've signed.`,
+            cta: unlock(c),
+          }
+        : {
+            angle,
+            headline: c.programs === 1 ? "Your shortlist has its first programme" : `${plural(c.programs, "programme")} on your shortlist`,
+            body: `${c.programs === 1 ? "It's" : "Each one is"} checked on the school's own pages, with deadlines, fees and funding. With credits${price}, the agents take ${c.programs === 1 ? "it" : "each one"} from start to finish: your essays, the application form and your documents, then they submit once you've signed.`,
+            cta: c.model === "pack" ? "Get credits" : "Go Pro",
+          };
     case "handsoff":
       return {
         angle,

@@ -93,9 +93,31 @@ describe("instant matches", () => {
     expect(fieldScore("Master of Science in Nursing", ["Public Health"])).toBe(25);
   });
 
+  it("doesn't match a field on one word it shares with another subject (25 nov 2026)", () => {
+    const ag = "Thesis master's, Faculty of Agricultural and Environmental Sciences (Macdonald Campus); specific department not confirmed, environmental option likely under Natural Resource Sciences or Bieler School of Environment";
+    expect(fieldScore(ag, ["Human Resource", "People Management"])).toBeLessThan(40);
+    expect(fieldScore("MSc Natural Resource Sciences", ["Human Resource"])).toBeLessThan(40);
+    expect(fieldScore("MSc Human Resource Management", ["Human Resource"])).toBeGreaterThanOrEqual(100);
+    expect(fieldScore("MA Industrial Relations", ["Human Resource"])).toBeGreaterThanOrEqual(40);
+    expect(fieldScore("MSc Organizational Behavior", ["People Management"])).toBeGreaterThanOrEqual(40);
+    expect(fieldScore("MSc Public Policy", ["Public Health"])).toBeLessThan(40);
+    expect(fieldScore("MSc Health Policy", ["Public Health"])).toBeGreaterThanOrEqual(40);
+    expect(fieldScore("MSc Information Systems", ["Information Technology"])).toBeGreaterThanOrEqual(40); // "technology" is generic, "information" ambiguous: full phrase needed
+    const lib = [prog({ name: ag, region: "canada" }), prog({ name: "MSc Human Resource Management", region: "canada", school: "Other U" })];
+    expect(rankMatches(lib, { level: "masters", fields: ["Human Resource", "People Management"], regions: ["canada"] }, "2026-11-14").map((m) => m.program)).toEqual(["MSc Human Resource Management"]);
+  });
+
+  it("never shortlists a library row whose name is a research note", () => {
+    const lib = [prog({ name: "Thesis master's in environment; specific department not confirmed", region: "uk" })];
+    expect(rankMatches(lib, { level: "masters", fields: [], regions: ["uk"] }, "2026-11-14")).toEqual([]);
+  });
+
   it("returns nothing rather than unrelated programmes", () => {
     const lib = [prog({ name: "MSc Marine Biology", region: "uk" })];
     expect(rankMatches(lib, { level: "masters", fields: ["Law"], regions: ["uk"] }, "2026-11-14")).toEqual([]);
-    expect(rankMatches(lib, { level: "masters", fields: [], regions: ["uk"] }, "2026-11-14")).toHaveLength(1);
+    // no field named: a subject they didn't choose is never placed; a general first-year admission route is
+    expect(rankMatches(lib, { level: "masters", fields: [], regions: ["uk"] }, "2026-11-14")).toEqual([]);
+    const ug = [prog({ name: "Undergraduate First-Year Admission (Fall 2027)", region: "uk", degree: "Bachelor's" }), prog({ name: "Bachelor of Nursing", region: "uk", degree: "Bachelor's", school: "B U" })];
+    expect(rankMatches(ug, { level: "undergraduate", fields: [], regions: ["uk"] }, "2026-11-14").map((m) => m.school)).toHaveLength(1);
   });
 });

@@ -22,6 +22,9 @@ export type Tier = "paid" | "staff" | "locked";
 
 // a free account's month: core work only (reading documents, the interview)
 export const FREE_MONTHLY_USD = 0.5;
+// an account whose only credits are the welcome ones: its credits start the agents, so the free allowance above no
+// longer holds it; this does (5 programme checks and the interview fit well inside)
+export const WELCOME_MONTHLY_USD = 2;
 // an account the agents work for: research (finding and checking programmes) stops for the month here. checks are
 // paid in credits now, so this is only a backstop
 export const RESEARCH_MONTHLY_USD = 10;

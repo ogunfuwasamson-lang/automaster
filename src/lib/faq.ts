@@ -8,7 +8,7 @@ export const FAQ: [string, string][] = [
   ],
   [
     "How much does Ivyward cost?",
-    "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding, and deadline alerts. The agents' work is paid in credits: an application (fit check, essays, fee waiver requests and the application form) uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10. Application fees go to schools directly, and the agents ask for fee waivers first.",
+    "Starting is free: every new account gets 5 credits, a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding, and deadline alerts. The agents' work is paid in credits: an application (fit check, essays, fee waiver requests and the application form) uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10. Application fees go to schools directly, and the agents ask for fee waivers first.",
   ],
   [
     "Which degrees and countries does it cover?",
