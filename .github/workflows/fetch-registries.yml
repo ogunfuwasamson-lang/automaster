@@ -53,15 +53,22 @@ jobs:
           # the list (published 18 june 2026) is served page by page by the ministry's own lookup, hudong.moe.gov.cn/qggxmd/
           # (20 schools a page): read every page, politely, into one file
           : > cn-moe-pages.html
+          ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 ivyward-registry-fetch"
+          # the lookup answers within the session its own page starts: open the page first, keep its cookies
+          curl -fsS -m 30 -c moe.jar -b moe.jar -A "$ua" -o /dev/null "https://hudong.moe.gov.cn/qggxmd/" || true
+          curl -fsS -m 30 -c moe.jar -b moe.jar -A "$ua" -X POST -e "https://hudong.moe.gov.cn/qggxmd/" -o /dev/null "https://hudong.moe.gov.cn/school/wcmdata/getMoDataIndex.jsp?listid=10000101" || true
           for p in $(seq 1 200); do
-            page=$(curl -fsS --retry 2 -m 30 -X POST -A "Mozilla/5.0 (ivyward-registry-fetch; +https://tryivyward.com)" -H "content-type: application/x-www-form-urlencoded; charset=UTF-8" -e "https://hudong.moe.gov.cn/qggxmd/" "https://hudong.moe.gov.cn/school/wcmdata/getDataIndex.jsp?listid=10000101&page=$p&keyword=" || true)
+            page=$(curl -fsS --retry 2 -m 30 -c moe.jar -b moe.jar -X POST -A "$ua" -H "X-Requested-With: XMLHttpRequest" -H "content-type: application/x-www-form-urlencoded; charset=UTF-8" -e "https://hudong.moe.gov.cn/qggxmd/" "https://hudong.moe.gov.cn/school/wcmdata/getDataIndex.jsp?listid=10000101&page=$p&keyword=" || true)
+            [ "$p" = 1 ] && printf 'first page: %s\n' "$(printf '%s' "$page" | head -c 300)"
             if ! printf '%s' "$page" | grep -q "<td"; then echo "MoE list: stopped at page $p"; break; fi
             printf '<!-- page %s -->\n%s\n' "$p" "$page" >> cn-moe-pages.html
             sleep 0.4
           done
+          rm -f moe.jar
           if grep -q "<td" cn-moe-pages.html; then echo "cn-moe-pages.html	https://hudong.moe.gov.cn/qggxmd/ (getDataIndex.jsp, listid 10000101)	$(date -u +%FT%TZ)	$(sha256sum cn-moe-pages.html | cut -c1-64)" >> ../SOURCES.tsv; else rm -f cn-moe-pages.html; echo "MoE list download failed"; fi
           get cn-moe-note.html "https://hudong.moe.gov.cn/school/wcmdata/getNote.jsp?listid=10000101" || true
           curl -fsSL --retry 2 -G "https://query.wikidata.org/sparql" -H "Accept: text/csv" -A "ivyward-registry-fetch (+https://tryivyward.com)" --data-urlencode "query@$GITHUB_WORKSPACE/scripts/hed/cn-wikidata.rq" -o cn-wikidata.csv && echo "cn-wikidata.csv	https://query.wikidata.org/sparql	$(date -u +%FT%TZ)	$(sha256sum cn-wikidata.csv | cut -c1-64)" >> ../SOURCES.tsv || echo "Wikidata query failed"
+          curl -fsSL --retry 2 -G "https://query.wikidata.org/sparql" -H "Accept: text/csv" -A "ivyward-registry-fetch (+https://tryivyward.com)" --data-urlencode "query@$GITHUB_WORKSPACE/scripts/hed/ca-wikidata.rq" -o ca-wikidata.csv && echo "ca-wikidata.csv	https://query.wikidata.org/sparql	$(date -u +%FT%TZ)	$(sha256sum ca-wikidata.csv | cut -c1-64)" >> ../SOURCES.tsv || echo "Wikidata query (Canada) failed"
           # websites for registers that don't list them (Canada, China): the Hipo university-domains list, marked as such
           get hipo-world.json https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json || echo "Hipo download failed"
           if [ -f ofs-register.download ]; then
@@ -84,6 +91,7 @@ jobs:
           # countries added 25 nov 2026: each normaliser runs when its file came down (their SQL is loaded separately)
           dli=$(ls out/raw/ca-dli-*.json 2>/dev/null | head -1 || true)
           if [ -n "$dli" ] && [ -f out/raw/hipo-world.json ]; then python3 -I scripts/hed/ca_dli.py "$dli" out/raw/hipo-world.json out/processed/ca-dli.json || echo "Canada normalise failed"; fi
+          if [ -f out/processed/ca-dli.json ] && [ -f out/raw/ca-wikidata.csv ]; then python3 -I scripts/hed/wd_websites.py out/processed/ca-dli.json out/raw/ca-wikidata.csv out/processed/ca-dli.json || echo "Canada websites failed"; fi
           for c in au_cricos fr_mesr cn_moe; do
             if [ -f "scripts/hed/$c.py" ]; then python3 -I "scripts/hed/$c.py" out/raw "out/processed/$c.json" || echo "$c normalise failed"; fi
           done

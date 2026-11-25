@@ -1,0 +1,6 @@
+{"url": "https://data.gov.au/data/dataset/cricos",
+ "title": "Commonwealth Register of Institutions and Courses for Overseas Students (CRICOS): providers, courses and locations", "publisher": "Australian Government Department of Education", "source_type": "registry",
+ "license": "Creative Commons Attribution 4.0", "lineage": "the newest CRICOS workbook on data.gov.au, downloaded by the Fetch institution registries workflow",
+ "notes": "in scope: CRICOS providers with at least one current bachelor's, master's or doctoral degree course",
+ "country": "AU", "region": "au", "scope": "Australia: every provider registered on CRICOS to teach overseas students at least one current bachelor's, master's or doctoral degree (universities and other higher education providers).",
+ "manifest_notes": "CRICOS has about 1,550 providers; the rest teach only vocational, English-language or school courses and are out of scope."}

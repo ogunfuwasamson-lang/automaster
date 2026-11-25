@@ -1,0 +1,10 @@
+# Canadian higher education institutions on Wikidata: English and French names and the official website. Used only
+# to give the IRCC list (no websites) a website where the Hipo list has none, matched on the institution's exact
+# name; each such value is marked as coming from Wikidata.
+SELECT ?item ?en ?fr ?site WHERE {
+  VALUES ?type { wd:Q3918 wd:Q38723 wd:Q875538 wd:Q902104 wd:Q1371037 wd:Q189004 wd:Q23002054 wd:Q15936437 }
+  ?item wdt:P31 ?type ; wdt:P17 wd:Q16 .
+  ?item wdt:P856 ?site .
+  OPTIONAL { ?item rdfs:label ?en . FILTER(LANG(?en) = "en") }
+  OPTIONAL { ?item rdfs:label ?fr . FILTER(LANG(?fr) = "fr") }
+}

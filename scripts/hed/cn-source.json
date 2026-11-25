@@ -1,0 +1,6 @@
+{"url": "https://hudong.moe.gov.cn/qggxmd/",
+ "title": "全国高等学校名单 (National list of higher education institutions), published 18 June 2026", "publisher": "Ministry of Education of the People's Republic of China", "source_type": "registry",
+ "license": "Government information made public by the Ministry of Education", "lineage": "read page by page from the ministry's lookup by the Fetch institution registries workflow; English names and websites from Wikidata on an exact Chinese-name match, marked on each record",
+ "notes": "in scope: every regular higher education institution (普通高等学校) on the list; adult HEIs and Hong Kong, Macao and Taiwan are not on it",
+ "country": "CN", "region": "cn", "scope": "China (mainland): every regular higher education institution on the Ministry of Education's national list of 18 June 2026: undergraduate-level institutions (本科) and vocational colleges (专科). The public directory shows the undergraduate-level ones.",
+ "manifest_notes": "Announcement: http://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202606/t20260618_1441074.html. The list is in Chinese and has no websites; English names and websites are from Wikidata where one item matches the exact Chinese name."}

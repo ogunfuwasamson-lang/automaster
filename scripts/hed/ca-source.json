@@ -1,0 +1,6 @@
+{"url": "https://www.canada.ca/content/dam/ircc/documents/json/dli/dli-full-list.json",
+ "title": "Designated learning institutions list (post-secondary)", "publisher": "Immigration, Refugees and Citizenship Canada", "source_type": "registry",
+ "license": "Open Government Licence - Canada", "lineage": "downloaded by the Fetch institution registries workflow; websites from the Hipo university-domains list and Wikidata where the list has none, marked on each record",
+ "notes": "in scope: every post-secondary designated learning institution (one record per DLI number)",
+ "country": "CA", "region": "ca", "scope": "Canada: every post-secondary institution on IRCC's designated learning institutions list, i.e. the institutions that may enrol international students on a study permit. The public directory shows universities, public colleges, CEGEPs, polytechnics and institutes, and private institutions with graduate programs.",
+ "manifest_notes": "The DLI list gives no websites: they come from the Hipo university-domains list or Wikidata on an exact name match, and each such record says so."}

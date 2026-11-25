@@ -1,0 +1,6 @@
+{"url": "https://data.enseignementsup-recherche.gouv.fr/explore/dataset/fr-esr-principaux-etablissements-enseignement-superieur/",
+ "title": "Principaux établissements d'enseignement supérieur", "publisher": "Ministère de l'Enseignement supérieur et de la Recherche (MESR)", "source_type": "registry",
+ "license": "Licence Ouverte / Etalab 2.0", "lineage": "CSV export downloaded by the Fetch institution registries workflow",
+ "notes": "in scope: every institution in the dataset",
+ "country": "FR", "region": "fr", "scope": "France: the ministry's list of principal higher education institutions: universities, grands établissements, public and private écoles (engineering, business, art and others) and other degree-awarding institutions.",
+ "manifest_notes": "The dataset covers the main degree-awarding institutions; specialised schools outside it (art, health and vocational schools, BTS classes in lycées) are not included."}
