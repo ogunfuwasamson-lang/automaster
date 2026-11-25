@@ -50,12 +50,17 @@ jobs:
           get fr-esr-etablissements.csv "https://data.enseignementsup-recherche.gouv.fr/api/explore/v2.1/catalog/datasets/fr-esr-principaux-etablissements-enseignement-superieur/exports/csv?delimiter=%3B" || echo "MESR download failed"
           # China: the Ministry of Education's national list of higher education institutions (as of 20 June 2025) and its
           # spreadsheets; Wikidata's English names and websites for Chinese institutions (names and websites only)
-          moe=http://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202506/t20250627_1195683.html
-          get cn-moe-list.html "$moe" || { moe=https://hudong.moe.gov.cn/jyb_xxgk/s5743/s5744/202506/t20250627_1195683.html; get cn-moe-list.html "$moe"; } || echo "MoE page download failed"
-          if [ -f cn-moe-list.html ]; then
-            n=0
-            for link in $(python3 -I "$GITHUB_WORKSPACE/scripts/hed/links.py" cn-moe-list.html "$moe"); do n=$((n+1)); get "cn-moe-$n.${link##*.}" "$link" || echo "MoE attachment failed: $link"; done
-          fi
+          # the list (published 18 june 2026) is served page by page by the ministry's own lookup, hudong.moe.gov.cn/qggxmd/
+          # (20 schools a page): read every page, politely, into one file
+          : > cn-moe-pages.html
+          for p in $(seq 1 200); do
+            page=$(curl -fsS --retry 2 -m 30 -X POST -A "Mozilla/5.0 (ivyward-registry-fetch; +https://tryivyward.com)" -H "content-type: application/x-www-form-urlencoded; charset=UTF-8" -e "https://hudong.moe.gov.cn/qggxmd/" "https://hudong.moe.gov.cn/school/wcmdata/getDataIndex.jsp?listid=10000101&page=$p&keyword=" || true)
+            if ! printf '%s' "$page" | grep -q "<td"; then echo "MoE list: stopped at page $p"; break; fi
+            printf '<!-- page %s -->\n%s\n' "$p" "$page" >> cn-moe-pages.html
+            sleep 0.4
+          done
+          if grep -q "<td" cn-moe-pages.html; then echo "cn-moe-pages.html	https://hudong.moe.gov.cn/qggxmd/ (getDataIndex.jsp, listid 10000101)	$(date -u +%FT%TZ)	$(sha256sum cn-moe-pages.html | cut -c1-64)" >> ../SOURCES.tsv; else rm -f cn-moe-pages.html; echo "MoE list download failed"; fi
+          get cn-moe-note.html "https://hudong.moe.gov.cn/school/wcmdata/getNote.jsp?listid=10000101" || true
           curl -fsSL --retry 2 -G "https://query.wikidata.org/sparql" -H "Accept: text/csv" -A "ivyward-registry-fetch (+https://tryivyward.com)" --data-urlencode "query@$GITHUB_WORKSPACE/scripts/hed/cn-wikidata.rq" -o cn-wikidata.csv && echo "cn-wikidata.csv	https://query.wikidata.org/sparql	$(date -u +%FT%TZ)	$(sha256sum cn-wikidata.csv | cut -c1-64)" >> ../SOURCES.tsv || echo "Wikidata query failed"
           # websites for registers that don't list them (Canada, China): the Hipo university-domains list, marked as such
           get hipo-world.json https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json || echo "Hipo download failed"
