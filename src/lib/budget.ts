@@ -4,7 +4,7 @@ import { budgetCheck, categoryOf, monthStartUTC, type Category, type Spend } fro
 import { BUDGET_PER_SUBMISSION_USD, planOf, type Plan } from "@/lib/plans";
 import { LEGACY_PACK_SIZE } from "@/lib/geo-pricing";
 import { runsSince } from "@/lib/runs";
-import { creditGate, creditPolicy } from "@/lib/credit";
+import { creditGate, creditPolicy, todaySpendUsd } from "@/lib/credit";
 import { DEFAULT_POLICY } from "@/lib/credit-policy";
 import { WELCOME_MONTHLY_USD } from "@/lib/credit-rules";
 
@@ -61,6 +61,8 @@ export async function monthSpend(userId: string): Promise<Spend> {
   const data = await runsSince<{ agent: string; cost_usd: number | null }>("agent, cost_usd", monthStartUTC(), userId);
   const s: Spend = { total: 0, byCategory: { research: 0, writing: 0, core: 0 } };
   for (const r of data) {
+    // growing the checked list (agents/library) runs under an admin account but has its own allowance (below)
+    if (r.agent === "library") continue;
     const c = Number(r.cost_usd) || 0;
     s.total += c;
     s.byCategory[categoryOf(r.agent)] += c;
@@ -68,8 +70,31 @@ export async function monthSpend(userId: string): Promise<Spend> {
   return s;
 }
 
+// growing the checked programme list (agents/library, founder's call 25 nov 2026: 500 programmes, ~$35): its own
+// allowance, apart from the account it runs under, and it steps aside for the day before the platform's daily limit
+export const LIBRARY_DAILY_USD = 6;
+export const LIBRARY_MONTHLY_USD = 40;
+export class Hold extends Error {
+  constructor(reason: string, public until: string) {
+    super(`hold: ${reason}`);
+  }
+}
+const tomorrowUTC = () => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 3, 0)).toISOString();
+};
+async function assertLibraryBudget() {
+  const day = new Date().toISOString().slice(0, 10);
+  const [month, policy, platform] = await Promise.all([runsSince<{ cost_usd: number | null; started_at: string }>("cost_usd, started_at", monthStartUTC(), undefined, "library"), creditPolicy(), todaySpendUsd()]);
+  const sum = (rows: typeof month) => rows.reduce((a, r) => a + (Number(r.cost_usd) || 0), 0);
+  if (sum(month) >= LIBRARY_MONTHLY_USD) throw new BudgetExceeded("the checked list's growth used this month's allowance", "research");
+  if (sum(month.filter((r) => String(r.started_at).startsWith(day))) >= LIBRARY_DAILY_USD) throw new Hold("the checked list's growth used today's allowance", tomorrowUTC());
+  if (policy.dailyLimitUsd > 0 && platform >= policy.dailyLimitUsd - 1) throw new Hold("the platform is near today's AI limit", tomorrowUTC());
+}
+
 // call before every model request
 export async function assertBudget(userId: string, agent: string) {
+  if (agent === "library") return assertLibraryBudget();
   const category = categoryOf(agent);
   const [spend, monthly] = await Promise.all([monthSpend(userId), monthlyBudget(userId)]);
   const check = budgetCheck(spend, monthly, category);

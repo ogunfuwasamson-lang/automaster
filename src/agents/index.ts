@@ -8,6 +8,7 @@ import { writer } from "./writer";
 import { closer } from "./closer";
 import { runner } from "./runner";
 import { learning } from "./learning";
+import { library } from "./library";
 
 export type Handler = (job: Job) => Promise<Record<string, unknown> | void>;
 
@@ -21,4 +22,5 @@ export const HANDLERS: Record<string, Handler> = {
   ...closer,
   ...runner,
   ...learning,
+  ...library,
 };

@@ -72,6 +72,8 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCDate() === 1 && new Date().getUTCHours() >= 8) await sendMonthlyAlerts(60).catch(() => null);
   // the nightly learning pass (02:00 UTC), run under a staff account
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
+  // the checked programme list grows by about 100 programmes a day until the founder's target (agents/library)
+  if (tick && new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 5) await scheduleLibrary().catch(() => null);
   // google calendars: each connected applicant's deadlines and school events, once an hour (a twelfth each tick).
   // no AI involved, so this keeps going while agent work is paused. runs after the response.
   if (tick) after(() => syncDueCalendars().then(() => undefined, (e) => console.error("calendar sync pass failed", e)));
@@ -156,6 +158,12 @@ async function scheduleLearning() {
   const { data: owner } = await admin().from("profiles").select("id").eq("is_admin", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (!owner) return;
   await enqueue({ userId: owner.id, agent: "learning", task: "nightly", idempotencyKey: `learn:${new Date().toISOString().slice(0, 10)}` });
+}
+
+async function scheduleLibrary() {
+  const { data: owner } = await admin().from("profiles").select("id").eq("is_admin", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (!owner) return;
+  await enqueue({ userId: owner.id, agent: "library", task: "seed_day", idempotencyKey: `library-seed:${new Date().toISOString().slice(0, 10)}` });
 }
 
 export const GET = handle;

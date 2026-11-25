@@ -55,7 +55,7 @@ export const CATEGORY_SHARE: Record<Category, number> = {
 };
 
 export function categoryOf(agent: string): Category {
-  if (agent === "recon") return "research";
+  if (agent === "recon" || agent === "library") return "research";
   if (agent === "strategist" || agent === "writer" || agent === "redteam" || agent === "closer") return "writing";
   return "core";
 }
