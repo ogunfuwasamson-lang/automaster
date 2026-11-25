@@ -82,8 +82,10 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
   // free, or a credit earned through an invite: a shortlist from the checked library (no model call, lib/free-tier),
   // and with the credit the agents check it against the applicant's record
   if (profile.goals.study_level && regions.length && !apps && !runs && !(await searchesForUser(userId))) {
-    shortlist = (await placeLibraryShortlist(userId, source)) > 0;
+    const placed = await placeLibraryShortlist(userId, source);
+    shortlist = placed > 0;
     if (shortlist && !(await isLocked(userId))) await queueInstantMatches(userId).catch(() => 0);
+    if (await welcomeSearch(userId, placed, profile.goals.fields)) shortlist = true;
   } else if (profile.goals.study_level && regions.length && !apps && !runs) {
     await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
     const instant = await queueInstantMatches(userId).catch(() => 0);
@@ -92,6 +94,20 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
   }
   await logEvent({ userId, actor: "system", action: "setup.kickoff", context: { source, missing, shortlist } });
   return { shortlist, missing };
+}
+
+// the checked library has fewer than 3 programmes in the field they named: their credits (the 5 every new account
+// gets) pay for the agents to find and check enough to make 5 with what the library placed, a credit each (founder's
+// call, 25 nov 2026). an HR applicant got nothing from the library because it had no HR programmes. what's found
+// joins the library too.
+const WELCOME_SEARCH_BELOW = 3;
+const WELCOME_SHORTLIST = 5;
+async function welcomeSearch(userId: string, placed: number, fields: string[] | null | undefined): Promise<boolean> {
+  if (placed >= WELCOME_SEARCH_BELOW || !(fields ?? []).length) return false;
+  if (await isLocked(userId)) return false; // no credits: the search waits for some
+  await enqueue({ userId, agent: "recon", task: "discover", payload: { max: WELCOME_SHORTLIST - placed }, idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
+  await logEvent({ userId, actor: "system", action: "recon.requested", context: { welcome: true, library: placed } }).catch(() => {});
+  return true;
 }
 
 // called after each recon job: when the last one finishes, the shortlist is ready
@@ -197,9 +213,9 @@ export async function startShortlist(userId: string, source: string): Promise<bo
   // free, or a credit earned through an invite: the checked library's shortlist (lib/free-tier), checked against the
   // applicant when they hold the credit
   if (!(await searchesForUser(userId))) {
-    const placed = (await placeLibraryShortlist(userId, source)) > 0;
-    if (placed && !(await isLocked(userId))) await queueInstantMatches(userId).catch(() => 0);
-    return placed;
+    const n = await placeLibraryShortlist(userId, source);
+    if (n > 0 && !(await isLocked(userId))) await queueInstantMatches(userId).catch(() => 0);
+    return (await welcomeSearch(userId, n, profile.goals.fields)) || n > 0;
   }
   await enqueue({ userId, agent: "recon", task: "discover", idempotencyKey: `kickoff-discover:${userId}`, runAt: FIRST });
   // programmes already on file that fit, checked against this applicant in minutes (lib/matches)

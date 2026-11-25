@@ -140,7 +140,7 @@ async function mergedInto(slug: string): Promise<{ id: string; slug: string; nam
   return (kept as { id: string; slug: string; name: string } | null) ?? null;
 }
 
-async function upsertProgram(f: ProgramFacts, sources: string[]) {
+export async function upsertProgram(f: ProgramFacts, sources: string[]) {
   const db = admin();
   const merged = await mergedInto(slugify(f.school_name)).catch(() => null);
   const slug = merged?.slug ?? slugify(f.school_name);
@@ -286,7 +286,9 @@ export const recon: Record<string, Handler> = {
     const sized = Math.min(MAX_PROGRAMS, tier === "paid" || tier === "staff" ? plan.programsPerRun : policy.freeProgramsPerRun);
     const want = profile.goals.applying === "exploring" && tier !== "paid" && tier !== "staff" ? Math.max(3, Math.ceil(sized / 2)) : sized;
     // each programme it checks costs a credit (lib/credit-prices): a run checks no more than the wallet pays for
-    const total = searchSize(want, await balance(job.user_id));
+    // a welcome search (lib/kickoff) tops a thin library shortlist up to a handful, no more
+    const max = Number((job.payload as { max?: number }).max) || Infinity;
+    const total = searchSize(Math.min(want, max), await balance(job.user_id));
     if (!total) {
       await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.no_credits", context: { wanted: want } });
       return { regions: 0, skipped: "no credits" };
