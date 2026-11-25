@@ -74,6 +74,7 @@ async function handle(req: NextRequest) {
   if (tick && new Date().getUTCHours() === 2 && new Date().getUTCMinutes() < 5) await scheduleLearning().catch(() => null);
   // the checked programme list grows by about 100 programmes a day until the founder's target (agents/library)
   if (tick && new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 5) await scheduleLibrary().catch(() => null);
+  if (tick && new Date().getUTCHours() === 6 && new Date().getUTCMinutes() < 5) await thousandUsersOnce().catch(() => null);
   // google calendars: each connected applicant's deadlines and school events, once an hour (a twelfth each tick).
   // no AI involved, so this keeps going while agent work is paused. runs after the response.
   if (tick) after(() => syncDueCalendars().then(() => undefined, (e) => console.error("calendar sync pass failed", e)));
@@ -158,6 +159,23 @@ async function scheduleLearning() {
   const { data: owner } = await admin().from("profiles").select("id").eq("is_admin", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (!owner) return;
   await enqueue({ userId: owner.id, agent: "learning", task: "nightly", idempotencyKey: `learn:${new Date().toISOString().slice(0, 10)}` });
+}
+
+// the founder approved a second Agent37 machine for the form-filling agent (about $5-9 a month) once Ivyward has
+// 1,000 users (25 nov 2026): the operator hears once when that happens
+async function thousandUsersOnce() {
+  const db = admin();
+  const KEY = "users-1000";
+  const { data: sent } = await db.from("ops_alerts").select("key").eq("key", KEY).maybeSingle();
+  if (sent) return;
+  const { count } = await db.from("profiles").select("id", { count: "exact", head: true });
+  if ((count ?? 0) < 1000) return;
+  const { alert } = await import("@/lib/alerts");
+  await alert(KEY, "Ivyward has 1,000 users: time for the second Agent37 machine", {
+    users: count,
+    approved: "25 nov 2026, for when Ivyward reaches 1,000 users",
+    what: "move the form-filling agent (api/runner/work) to its own Agent37 instance: 2 vCPU/4 GB about $4.76 a month, 4 vCPU/8 GB about $9.16",
+  });
 }
 
 async function scheduleLibrary() {
