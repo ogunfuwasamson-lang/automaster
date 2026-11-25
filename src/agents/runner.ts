@@ -826,6 +826,7 @@ export const runner: Record<string, Handler> = {
     state.leadBacks = 0;
     state.restarts = 0;
     state.signupTries = 0;
+    state.policyRotations = 0;
     // look for an emailed login again each run: the inbox may have been connected since the last look
     state.triedMailLogin = false;
     // buttons pressed "once" (manchester's Add Address, 'Remember to "Save Education"'): once per run. a sign-up

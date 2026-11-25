@@ -17,20 +17,30 @@ const LOWER = "abcdefghijkmnpqrstuvwxyz";
 const DIGITS = "23456789";
 const SYMBOLS = "!@#$%*?-_";
 
-// only the sentences that talk about the password
-function aboutPassword(text: string): string {
-  return text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?;])\s+|\n|•|·/)
-    .filter((s) => /pass ?word|passphrase|mot de passe|contraseña|kennwort/i.test(s) || /\b(characters?|letters?|digits?|numbers?|symbols?|special)\b/i.test(s))
-    .join(" ")
-    .slice(0, 2000);
+const PW = /pass ?word|passphrase|mot de passe|contraseña|kennwort/gi;
+// another field's rules, where the password's own text ends (hkust lists the username's "8-15 characters" just
+// before the password's "12-20 characters")
+const OTHER_FIELD = /\b(user ?name|user ?id|login (id|name)|e-?mail( address)?|family name|given names?|first name|last name|date of birth)\b/i;
+
+// the words about the password: from each mention of it to the next field's label, a couple of hundred characters
+// at most. pure, so it's tested
+export function aboutPassword(text: string): string {
+  const t = text.replace(/\s+/g, " ");
+  const parts: string[] = [];
+  for (const m of t.matchAll(PW)) {
+    const from = m.index ?? 0;
+    let piece = t.slice(from, from + 260);
+    const next = piece.slice(12).search(OTHER_FIELD);
+    if (next >= 0) piece = piece.slice(0, next + 12);
+    parts.push(piece);
+  }
+  return parts.join(" ").slice(0, 2000);
 }
 
 export function passwordPolicy(text: string | null | undefined): PasswordPolicy | null {
   if (!text) return null;
   const t = aboutPassword(text).toLowerCase();
-  if (!t || !/(character|letter|digit|number|symbol|special|alphanumeric)/.test(t)) return null;
+  if (!t || !/(character|letter|digit|number|symbol|special|alphanumeric|alphabet)/.test(t)) return null;
   let min: number | null = null;
   let max: number | null = null;
   const range = t.match(/(\d{1,2})\s*(?:-|–|—|to|and)\s*(\d{1,3})\s*(?:alphanumeric\s+)?(?:characters?|chars?|letters)/) ?? t.match(/between\s+(\d{1,2})\s+and\s+(\d{1,3})/);
@@ -44,7 +54,7 @@ export function passwordPolicy(text: string | null | undefined): PasswordPolicy 
   if (most && max == null) max = Number(most[1]);
 
   const none =
-    /\b(letters and (numbers|digits) only|only (letters|alphabets?) and (numbers|digits)|alphanumeric( characters)? only|only alphanumeric|no (special )?(characters|symbols)|(special characters|symbols) (are )?not (allowed|permitted|accepted)|must not contain (any )?(special characters|symbols)|cannot contain (special characters|symbols)|consist(ing|s)? (only )?of (letters|alphabets?) and (numbers|digits))\b/.test(t);
+    /\b(letters and (numbers|digits) only|only (letters|alphabets?) and (numbers|digits)|alphanumeric( characters)? only|only alphanumeric|(must|should|has to|needs to|shall) (be|contain only|consist of) alphanumeric|no (special )?(characters|symbols)|(special characters|symbols) (are )?not (allowed|permitted|accepted)|must not contain (any )?(special characters|symbols)|cannot contain (special characters|symbols)|consist(ing|s)? (only )?of (letters|alphabets?) and (numbers|digits))\b/.test(t);
   const required = !none && /\b(must|should|requires?d?|needs? to|at least|one or more|include)\b[^.;]{0,80}\b(special characters?|symbols?|non-?alphanumeric|punctuation)/.test(t);
   const listed = t.match(/(?:special characters?|symbols?)\s*(?:such as|like|from|:|\()\s*([!-/:-@[-`{-~ ]{2,40})/);
   const allowed = listed ? [...new Set(listed[1].replace(/\s+/g, "").split(""))].filter((c) => SYMBOLS.includes(c) || "^&+=.,".includes(c)).join("") : "";
@@ -67,10 +77,11 @@ export function fitsPolicy(pw: string, p: PasswordPolicy): boolean {
 }
 
 // a password that meets the policy: upper, lower and digits always (most sites ask for all three), a symbol only
-// when the site takes one, no look-alike characters, 16 long when the site allows it
+// when the site asks for one (a site that lists its rules without one may refuse it: hkust), no look-alike
+// characters, 16 long when the site allows it
 export function buildPassword(p: PasswordPolicy, randomInt: (n: number) => number): string {
   const length = Math.min(p.max, Math.max(p.min, 16));
-  const symbols = p.symbols === "none" ? "" : p.allowed || SYMBOLS;
+  const symbols = p.symbols === "required" ? p.allowed || SYMBOLS : "";
   const sets = [UPPER, LOWER, DIGITS, ...(symbols ? [symbols] : [])];
   const all = sets.join("");
   const chars = sets.map((s) => s[randomInt(s.length)]);

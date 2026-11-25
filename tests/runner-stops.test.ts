@@ -16,6 +16,13 @@ describe("password rules", () => {
   it("reads letters-and-numbers-only with its length", () => {
     expect(passwordPolicy(hkust)).toEqual({ min: 12, max: 20, symbols: "none" });
   });
+  it("reads hkust's real page: the username's rule first, the password's after it, then its error", () => {
+    const page = "Create an Account Name in English (same as in identity documents) Family Name/ Surname/ Last Name Given Names/ Other Names Username (8-15 characters, at least 1 alphabet (lower case only) & 1 number) Password (12-20 characters, at least 1 upper case, 1 lower case & 1 number) Retype Password Email Address";
+    const first = passwordPolicy(page)!;
+    expect(first).toMatchObject({ min: 12, max: 20, symbols: "allowed" });
+    for (let i = 0; i < 100; i++) expect(buildPassword(first, rand)).toMatch(/^[A-Za-z0-9]{12,20}$/);
+    expect(passwordPolicy(`Error: Password must be alphanumeric. ${page}`)).toMatchObject({ min: 12, max: 20, symbols: "none" });
+  });
   it("reads the rule from the site's error too", () => {
     expect(passwordPolicy("Your password must be 12-20 characters and contain letters and numbers only.")?.symbols).toBe("none");
   });
