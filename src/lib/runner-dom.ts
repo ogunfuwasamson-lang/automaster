@@ -312,7 +312,9 @@ export const DOM_HELPER = String.raw`
       title: document.title,
       body: body.slice(0, 4000),
       captcha: !!one('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"], iframe[src*="challenges.cloudflare"], .g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]'),
-      payment: !!one('input[autocomplete^="cc-"], iframe[src*="stripe"], iframe[src*="braintree"], iframe[src*="paypal"], iframe[src*="flywire"], iframe[src*="cybersource"], iframe[src*="authorize.net"]') || /\b(card number|cardholder|cvv|cvc)\b/i.test(body),
+      // "Hong Kong I.D. Card Number" on hkust's forgot-password page is not a payment card (nov 2026: it stopped a run
+      // as "pay the fee" before the account existed)
+      payment: !!one('input[autocomplete^="cc-"], iframe[src*="stripe"], iframe[src*="braintree"], iframe[src*="paypal"], iframe[src*="flywire"], iframe[src*="cybersource"], iframe[src*="authorize.net"]') || /\b(cardholder|card holder|cvv|cvc|credit card|debit card)\b/i.test(body) || /(?<!\b(?:i\.?\s?d\.?|identity|identification|student|national|hkid|id|insurance)\s)\bcard number\b/i.test(body),
       confirmation: /(application (has been |was )?(successfully )?submitted|thank you for (submitting|applying|your application)|submission (is )?complete|your application is complete|confirmation (number|code))/i.test(body),
       fingerprint: [...all("h1, h2, h3, legend, label")].slice(0, 40).map(textOf).join("|").slice(0, 2000),
       fields: fields(false),

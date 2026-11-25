@@ -73,3 +73,17 @@ describe("date of birth known only by field name", () => {
     expect(fills).toEqual(expect.arrayContaining([expect.objectContaining({ id: "d", option: "17" }), expect.objectContaining({ id: "m", option: "May" }), expect.objectContaining({ id: "y", option: "1994" })]));
   });
 });
+
+describe("a payment page", () => {
+  it("is a card form, not an ID card number (hkust's forgot-password page)", async () => {
+    const page = await browser.newPage();
+    const pay = async (html: string) => {
+      await page.setContent(`<!doctype html><body>${html}</body>`);
+      await page.evaluate(DOM_HELPER);
+      return page.evaluate(() => (window as unknown as { __am: { snapshot(): { payment: boolean } } }).__am.snapshot().payment);
+    };
+    expect(await pay(`<h1>Forgot Password or Username</h1><label for="h">Hong Kong I.D. Card Number, if any</label><input id="h">`)).toBe(false);
+    expect(await pay(`<h1>Application fee</h1><div><label for="c">Card number</label><input id="c"></div><div><label for="v">CVV</label><input id="v"></div>`)).toBe(true);
+    await page.close();
+  }, 20_000);
+});
