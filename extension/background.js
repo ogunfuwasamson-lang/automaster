@@ -7,6 +7,57 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
+  // src/lib/password-policy.ts
+  var SYMBOLS = "!@#$%*?-_";
+  var PW = /pass ?word|passphrase|mot de passe|contraseña|kennwort/gi;
+  var OTHER_FIELD = /\b(user ?name|user ?id|login (id|name)|e-?mail( address)?|family name|given names?|first name|last name|date of birth)\b/i;
+  function aboutPassword(text) {
+    const t = text.replace(/\s+/g, " ");
+    const parts = [];
+    for (const m of t.matchAll(PW)) {
+      const from = m.index ?? 0;
+      let piece = t.slice(from, from + 260);
+      const next = piece.slice(12).search(OTHER_FIELD);
+      if (next >= 0) piece = piece.slice(0, next + 12);
+      parts.push(piece);
+    }
+    return parts.join(" ").slice(0, 2e3);
+  }
+  function passwordPolicy(text) {
+    if (!text) return null;
+    const t = aboutPassword(text).toLowerCase();
+    if (!t || !/(character|letter|digit|number|symbol|special|alphanumeric|alphabet)/.test(t)) return null;
+    let min = null;
+    let max = null;
+    const range = t.match(/(\d{1,2})\s*(?:-|–|—|to|and)\s*(\d{1,3})\s*(?:alphanumeric\s+)?(?:characters?|chars?|letters)/) ?? t.match(/between\s+(\d{1,2})\s+and\s+(\d{1,3})/);
+    if (range) {
+      min = Number(range[1]);
+      max = Number(range[2]);
+    }
+    const least = t.match(/(?:at least|minimum(?: of)?|min\.?|no (?:fewer|less) than)\s+(\d{1,2})\s*(?:characters?|chars?)/) ?? t.match(/(\d{1,2})\s*(?:characters?|chars?)\s+(?:or more|minimum|at least)/);
+    if (least && min == null) min = Number(least[1]);
+    const most = t.match(/(?:at most|maximum(?: of)?|max\.?|no more than|up to|not exceed(?:ing)?)\s+(\d{1,3})\s*(?:characters?|chars?)/);
+    if (most && max == null) max = Number(most[1]);
+    const none = /\b(letters and (numbers|digits) only|only (letters|alphabets?) and (numbers|digits)|alphanumeric( characters)? only|only alphanumeric|(must|should|has to|needs to|shall) (be|contain only|consist of) alphanumeric|no (special )?(characters|symbols)|(special characters|symbols) (are )?not (allowed|permitted|accepted)|must not contain (any )?(special characters|symbols)|cannot contain (special characters|symbols)|consist(ing|s)? (only )?of (letters|alphabets?) and (numbers|digits))\b/.test(t);
+    const required2 = !none && /\b(must|should|requires?d?|needs? to|at least|one or more|include)\b[^.;]{0,80}\b(special characters?|symbols?|non-?alphanumeric|punctuation)/.test(t);
+    const listed = t.match(/(?:special characters?|symbols?)\s*(?:such as|like|from|:|\()\s*([!-/:-@[-`{-~ ]{2,40})/);
+    const allowed2 = listed ? [...new Set(listed[1].replace(/\s+/g, "").split(""))].filter((c) => SYMBOLS.includes(c) || "^&+=.,".includes(c)).join("") : "";
+    const symbols = none ? "none" : required2 ? "required" : "allowed";
+    if (min == null && max == null && symbols === "allowed") return null;
+    const lo = Math.max(8, min ?? 12);
+    const hi = Math.max(lo, Math.min(64, max ?? 64));
+    return { min: lo, max: hi, symbols, ...allowed2 ? { allowed: allowed2 } : {} };
+  }
+  function fitsPolicy(pw, p) {
+    if (pw.length < p.min || pw.length > p.max) return false;
+    if (!/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[0-9]/.test(pw)) return false;
+    const syms = pw.replace(/[A-Za-z0-9]/g, "");
+    if (p.symbols === "none" && syms) return false;
+    if (p.symbols === "required" && !syms) return false;
+    if (p.allowed && [...syms].some((c) => !p.allowed.includes(c))) return false;
+    return true;
+  }
+
   // src/lib/portal-platforms.ts
   var SIGNS = [
     // [platform, url, page text]
@@ -61,6 +112,26 @@
     return `${u.hostname.replace(/^www\./, "")}${path}${q ? `?${q}` : ""}#${t}`;
   }
 
+  // src/lib/portal-check.ts
+  var FOR = {
+    undergrad: /\b(bachelor'?s?|undergraduate|b\.?sc|bsc|first[- ]year|freshm[ae]n)\b/i,
+    master: /\b(master'?s?|postgraduate taught|pgt|m\.?sc|msc)\b/i,
+    doctoral: /\b(doctoral|ph\.?d|doctorate|pgr|postgraduate research|research degrees?)\b/i
+  };
+  var ELSEWHERE = /\b(exchange|visiting|study abroad (students|programme)|erasmus incoming|short courses?|summer school|continuing education|executive education|alumni|staff|employees?)\b|dutch[- ]diploma|domestic (students|applicants)|home (students|applicants)|(eu|eea)[- ]students only/i;
+  function wrongAudience(text, level) {
+    let raw = text;
+    try {
+      raw = decodeURIComponent(text);
+    } catch {
+    }
+    const t = raw.replace(/[-_/]+/g, " ");
+    if (ELSEWHERE.test(t)) return true;
+    if (level === "other") return false;
+    const others = Object.keys(FOR).filter((l) => l !== level);
+    return others.some((l) => FOR[l].test(t)) && !FOR[level].test(t);
+  }
+
   // src/lib/labels.ts
   function stripMarkers(label) {
     return label.replace(/\(\s*(required|optional)\s*\)/gi, " ").replace(/\s[-–—]\s*(required|optional)\s*$/i, "").replace(/^\s*(required|optional)\s*[:*-]?\s+/i, "").replace(/\s+(required|optional)\s*\**\s*$/i, "").replace(/\s+/g, " ").trim();
@@ -79,6 +150,41 @@
       l = l.slice(0, l.length - t.length).trim();
     }
     return l.replace(/\s*[*:]+\s*$/, "").trim();
+  }
+
+  // src/lib/upload-limits.ts
+  var BEFORE = /\b(?:max(?:imum)?\.?(?:\s+(?:allowed|permitted|upload|file))*(?:\s+size)?|(?:allowed|permitted) (?:file )?size|up to|not (?:to )?exceed(?:ing)?|no (?:larger|bigger|more) than|(?:less|smaller) than|under|size limit(?: is| of)?|limit(?:ed)? to|file size(?: limit)?(?: is)?)\s*:?\s*(?:of\s+)?(\d+(?:[.,]\d+)?)\s*(kb|mb|gb|kilobytes?|megabytes?|ko|mo)\b/gi;
+  var AFTER = /\b(\d+(?:[.,]\d+)?)\s*(kb|mb|gb|kilobytes?|megabytes?|ko|mo)\s*(?:max(?:imum)?\b|limit\b|or (?:less|smaller)\b|per file\b)/gi;
+  var bytes = (n2, unit) => {
+    const v = Number(n2.replace(",", "."));
+    const u = unit.toLowerCase();
+    const mult = u.startsWith("g") ? 1e9 : u.startsWith("m") ? 1e6 : 1e3;
+    return Math.round(v * mult);
+  };
+  function sizeLimit(text) {
+    if (!text) return null;
+    let best = null;
+    for (const re of [BEFORE, AFTER]) {
+      for (const m of text.matchAll(re)) {
+        const b = bytes(m[1], m[2]);
+        if (b < 2e4 || b > 2e8) continue;
+        if (best == null || b < best) best = b;
+      }
+    }
+    return best;
+  }
+  var TOO_LARGE = /\b(too (large|big)|exceeds? (the )?(max(imum)?|allowed|permitted|size)|(file )?size (is )?(too|exceeds|larger|greater)|larger than (the )?(max(imum)?|allowed|limit)|maximum (upload |file )?size (is |of )?(exceeded|\d)|fichier (est )?trop (volumineux|lourd)|datei (ist )?zu gro(ß|ss))/i;
+  function nextLimit(current, said) {
+    const stated = sizeLimit(said);
+    if (stated) return stated;
+    if (!current) return 19e5;
+    return Math.max(25e4, Math.round(current / 2));
+  }
+  function imageOnly(accept) {
+    const a = (accept ?? "").toLowerCase();
+    if (!a.trim()) return false;
+    if (/pdf|doc|word|officedocument|text\/|\*\/\*|^\s*\*\s*$/.test(a)) return false;
+    return /image\/|\.(jpe?g|png|gif|bmp|webp|tiff?|heic)\b/.test(a);
   }
 
   // src/lib/never-fill.ts
@@ -787,16 +893,16 @@
   }
   function base64ToUint8Array(base642) {
     const binaryString = atob(base642);
-    const bytes = new Uint8Array(binaryString.length);
+    const bytes2 = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+      bytes2[i] = binaryString.charCodeAt(i);
     }
-    return bytes;
+    return bytes2;
   }
-  function uint8ArrayToBase64(bytes) {
+  function uint8ArrayToBase64(bytes2) {
     let binaryString = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
+    for (let i = 0; i < bytes2.length; i++) {
+      binaryString += String.fromCharCode(bytes2[i]);
     }
     return btoa(binaryString);
   }
@@ -805,22 +911,22 @@
     const padding = "=".repeat((4 - base642.length % 4) % 4);
     return base64ToUint8Array(base642 + padding);
   }
-  function uint8ArrayToBase64url(bytes) {
-    return uint8ArrayToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  function uint8ArrayToBase64url(bytes2) {
+    return uint8ArrayToBase64(bytes2).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
   function hexToUint8Array(hex) {
     const cleanHex = hex.replace(/^0x/, "");
     if (cleanHex.length % 2 !== 0) {
       throw new Error("Invalid hex string length");
     }
-    const bytes = new Uint8Array(cleanHex.length / 2);
+    const bytes2 = new Uint8Array(cleanHex.length / 2);
     for (let i = 0; i < cleanHex.length; i += 2) {
-      bytes[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16);
+      bytes2[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16);
     }
-    return bytes;
+    return bytes2;
   }
-  function uint8ArrayToHex(bytes) {
-    return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  function uint8ArrayToHex(bytes2) {
+    return Array.from(bytes2).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
   var Class = class {
     constructor(..._args) {
@@ -6520,6 +6626,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const step = stepOf(s2.body);
     if (step) state.stepOf = step;
   }
+  function fileWant(state, box) {
+    const accept = box?.accept ?? "";
+    const image = imageOnly(accept);
+    const pdf = !image && (!!state?.pdfOnly || /pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept));
+    const limits = [state?.maxBytes ?? null, sizeLimit(box?.text)].filter((x) => !!x);
+    return { pdf, image, maxBytes: limits.length ? Math.min(...limits) : null };
+  }
   var uploaded = (state, key) => {
     if (state && key && !(state.uploads ?? []).includes(key)) state.uploads = [...state.uploads ?? [], key].slice(-30);
   };
@@ -6600,6 +6713,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const problems = [...extra];
     if (deps2.reviewSubmit && !state.reviewed) {
       const r = await deps2.reviewSubmit({ url: s2.url, title: s2.title, body: s2.body.slice(0, 12e3) }).catch(() => null);
+      if (r?.wrongPage) return { kind: "needs_you", reason: "stuck", note: `went the wrong way: ${r.wrongPage}. Not the application's own page, so nothing was submitted` };
       if (r) {
         state.reviewed = true;
         if (!r.ok) problems.push(...r.problems);
@@ -6952,7 +7066,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       const after = await snap(page);
       const box2 = after.allFields.find((f) => f.type === "file") ?? box;
       const go2 = after.buttons.find((b) => UPLOAD_GO.test(clean(b.label))) ?? go;
-      await frameOf(page).setInputFiles(`[data-am-id="${box2.id}"]`, await deps2.file(key));
+      await frameOf(page).setInputFiles(`[data-am-id="${box2.id}"]`, await deps2.file(key, fileWant(state, { text: `${box2.label} ${s2.body.slice(0, 3e3)}` })));
       await sleep(500);
       await click(page, go2.id);
       await sleep(2500);
@@ -7033,6 +7147,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           log(`refused "${label}"`);
           return { acted, outcome: { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` } };
         }
+        if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label)) && !deps2.goal && !insideApplication(state)) {
+          state.visionHistory = [...state.visionHistory ?? [], `passed over "${label}": not inside the application yet`].slice(-12);
+          continue;
+        }
         if ((a.action === "click" || a.action === "double_click") && (FINAL.test(label) || /^submit\b/i.test(label) || (deps2.finalButton?.test(label) ?? false))) {
           state.reachedSubmit = true;
           const d = await deps2.canSubmit();
@@ -7066,7 +7184,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             idle++;
             continue;
           }
-          const ok = await page.uploadAt(x, y, await deps2.file(a.file)).catch(() => false);
+          const ok = await page.uploadAt(x, y, await deps2.file(a.file, fileWant(state))).catch(() => false);
           log(ok ? `uploaded ${a.file} at ${what}` : `upload of ${a.file} didn't take`);
         } else {
           const v = deps2.sheetValue?.(a.sheet_key) ?? null;
@@ -7225,6 +7343,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         s2 = await snap(page);
         if (isBlockPage(s2)) return { outcome: { kind: "needs_you", reason: "blocked", note: "this portal blocks the browser the agents are using" }, state, filled };
       }
+      if (isBlank(s2)) {
+        for (let w = 0; w < 5 && isBlank(s2); w++) {
+          await sleep(3e3);
+          s2 = await snap(page);
+        }
+        if (!isBlank(s2)) state.navHistory = [...state.navHistory ?? [], "waited for the page to draw itself"].slice(-12);
+      }
       const lookTitle = [s2.title, (s2.fingerprint ?? "").split("|")[0]].find((t) => /^\s*look ?up\s+\S/i.test(t ?? "")) ?? "";
       if (lookTitle && (state.lookups ?? 0) < 6 && deps2.fillFromKey) {
         state.lookups = (state.lookups ?? 0) + 1;
@@ -7254,6 +7379,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says this application was already submitted. Check the portal, then mark it submitted in Ivyward" }, state, filled };
       }
       if (PDF_ONLY.test(said)) state.pdfOnly = true;
+      if (TOO_LARGE.test(said)) state.maxBytes = nextLimit(state.maxBytes, said);
       if (state.samePageCount === 1) {
         await frameOf(page).evaluate(() => {
           for (const el of Array.from(document.querySelectorAll("*"))) if (el.scrollHeight > el.clientHeight + 20 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight;
@@ -7476,6 +7602,20 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           if (o2) return { outcome: o2, state, filled };
           continue;
         }
+        const rules = passwordPolicy(`${(s2.errors ?? []).join(" ")} ${s2.body}`);
+        if (rules && !fitsPolicy(login.password, rules) && (login.status ?? "created") === "created" && !state.signedIn && deps2.rotatePassword && (state.policyRotations ?? 0) < 2) {
+          state.policyRotations = (state.policyRotations ?? 0) + 1;
+          login = await deps2.rotatePassword(rules);
+          state.navHistory = [...state.navHistory ?? [], "the saved password breaks the site's password rules, so the account was never made with it: made one that fits"].slice(-12);
+          const create = find(s2, CREATE) ?? findCreate(s2);
+          if (create && !state.triedCreate) {
+            state.triedCreate = true;
+            state.accountAt = Date.now();
+            await deps2.progress("creating your account on the application site");
+            await click(page, create.id);
+            continue;
+          }
+        }
         const pw = s2.allFields.find((f) => f.type === "password");
         const user = s2.allFields.find((f) => f.type !== "password" && f.type !== "checkbox" && /(e-?mail|user|login|account)/i.test(`${f.label} ${f.autocomplete ?? ""}`)) ?? s2.allFields.find((f) => f.type === "email" || f.type === "text");
         const isIdBox = /user\s*(id|name)|login\s*(id|name)|identifiant|oprid/i.test(`${user?.label ?? ""} ${user?.name ?? ""}`) && !/e-?mail/i.test(user?.label ?? "");
@@ -7575,8 +7715,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           await click(page, addAddr.id);
           continue;
         }
-        const login = await deps2.existingLogin() ?? await deps2.createLogin(deps2.accountEmail);
         const said2 = (s2.errors ?? []).join(" ").trim();
+        const policy = passwordPolicy(`${said2} ${s2.body}`);
+        let login = await deps2.existingLogin() ?? await deps2.createLogin(deps2.accountEmail, policy ?? void 0);
+        const symbolRisk = !!policy && policy.symbols !== "required" && /[^A-Za-z0-9]/.test(login.password);
+        if (policy && (!fitsPolicy(login.password, policy) || symbolRisk) && (login.status ?? "created") === "created" && !state.signedIn && deps2.rotatePassword && (state.policyRotations ?? 0) < 2) {
+          state.policyRotations = (state.policyRotations ?? 0) + 1;
+          login = await deps2.rotatePassword(policy);
+          state.navHistory = [...state.navHistory ?? [], `made a new password that meets the site's rules (${policy.min}-${policy.max} characters${policy.symbols === "none" ? ", letters and numbers only" : ""})`].slice(-12);
+        }
         if (state.signupTries && USERNAME_TAKEN.test(said2) && (state.usernameTries ?? 0) < 3) {
           state.usernameTries = (state.usernameTries ?? 0) + 1;
           const box = usernameBox(s2);
@@ -7676,7 +7823,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       if (state.missingDocs?.length) {
         return { outcome: { kind: "needs_you", reason: "documents", note: `the portal needs what your packet doesn't have yet: ${state.missingDocs.slice(0, 6).join("; ")}. Add documents under Documents in Ivyward (or shorten the essay), then choose Try again` }, state, filled };
       }
-      const submit = find(now, FINAL) ?? (deps2.finalButton ? find(now, deps2.finalButton) : void 0);
+      const submit = deps2.goal || insideApplication(state) ? find(now, FINAL) ?? (deps2.finalButton ? find(now, deps2.finalButton) : void 0) : void 0;
       if (submit) {
         state.reachedSubmit = true;
         const term = await termCheck(page, deps2, state, `${now.title} ${now.body}`);
@@ -7706,7 +7853,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       }
       const haveLogin = !s2.fields.length && !!await deps2.existingLogin();
       const apply = !s2.fields.length ? bestApply(now, state.visited) : void 0;
-      let next = find(now, NEXT) ?? (!s2.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? (s2.fields.length ? find(now, CREATE_SUBMIT) : void 0) ?? // a small sub-page (an address, a qualification) closes with OK / Done
+      let next = find(now, NEXT) ?? (!s2.fields.length && haveLogin ? find(now, LOGIN_LINK) ?? findBy(now, isSignIn) : void 0) ?? (apply && (APPLY_STRONG.test(clean(apply.label)) || START.test(clean(apply.label))) ? apply : void 0) ?? find(now, START) ?? find(now, CREATE) ?? // "Submit" under a newsletter or search box on an information page isn't a step of the application
+      (s2.fields.length && (insideApplication(state) || realFields(now) >= 2) ? find(now, CREATE_SUBMIT) : void 0) ?? // a small sub-page (an address, a qualification) closes with OK / Done
       (s2.fields.length ? find(now, /^(ok|okay|done|update)$/i) : void 0) ?? apply;
       if (next && NEW_APP.test(clean(next.label)) && !markNewApp(state, clean(next.label))) {
         if (!state.newAppAllowedUsed && await deps2.allowNewApp?.()) state.newAppAllowedUsed = true;
@@ -7783,6 +7931,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     return labels.length ? `add your ${labels.slice(0, 4).join(", ")} in Profile, under Details for application forms, then choose Try again` : "";
   }
   var EMAILED_LINK = /(received|sent you|we('ve| have) sent|check your) (an )?e-?mail (containing|with) a link|link to (allow you to )?(complete|continue|return to|resume|finish) (the|your) (form|application)|resume (your|the) application (from|using) the link/i;
+  var insideApplication = (state) => !!(state.signedIn || state.accountAt || (state.formPages?.length ?? 0) > 0);
+  var realFields = (s2) => s2.allFields.filter((f) => f.type !== "search" && f.type !== "hidden" && f.type !== "checkbox" && !/\b(search|newsletter|subscribe|stay (informed|in touch|updated)|updates|keep me posted)\b/i.test(f.label)).length;
+  var forThisLevel = (buttons, level) => !level || level === "other" ? buttons : buttons.filter((b) => !wrongAudience(b.label.replace(/\s+/g, " ").trim(), level));
+  var isBlank = (s2) => {
+    const text = s2.body.replace(/\s+/g, " ").trim();
+    return !s2.allFields.length && !s2.buttons.length && (text.length < 3 || /^(loading|please wait|one moment|just a moment)\W*$/i.test(text));
+  };
   var insideForm = (s2) => s2.fields.filter((f) => f.type !== "search" && !/\bsearch\b/i.test(f.label)).length >= 3;
   var NAV_BUDGET = 30;
   var NEW_APP = /\b(start|create|begin) (a )?new application\b|\bnew application\b/i;
@@ -7791,7 +7946,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (!deps2.navigate || (state.navCalls ?? 0) >= NAV_BUDGET) return fallback;
     state.navCalls = (state.navCalls ?? 0) + 1;
     const history = state.navHistory ?? [];
-    const a = await deps2.navigate({ why, snapshot: s2, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!await deps2.existingLogin() }).catch(orOutage(null));
+    const a = await deps2.navigate({ why, snapshot: { ...s2, buttons: forThisLevel(s2.buttons, deps2.level) }, history: history.slice(-8), signedIn: !!state.signedIn, haveLogin: !!await deps2.existingLogin() }).catch(orOutage(null));
     if (!a) return fallback;
     const log = (t) => state.navHistory = [...history, t].slice(-12);
     const root2 = (u) => {
@@ -7843,7 +7998,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       }
       log(`fill "${f.label.slice(0, 40)}" from ${a.sheet_key}`);
       if (fill.action === "upload") {
-        const file = await deps2.file(fill.file);
+        const file = await deps2.file(fill.file, fileWant(state, { text: `${f.label} ${s2.body.slice(0, 3e3)}` }));
         await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
         uploaded(state, fill.file);
       } else await frameOf(page).evaluate((x) => window.__am.apply(x), fill);
@@ -7859,6 +8014,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     if (DANGEROUS.test(label)) {
       log(`refused "${label}"`);
       return { kind: "needs_you", reason: /pay|checkout/i.test(label) ? "payment" : "stuck", note: /pay|checkout/i.test(label) ? "payment step: pay the application fee yourself; the agents confirm the submission after" : `the next step is "${label}", which the agents never press for you` };
+    }
+    if ((FINAL.test(label) || /^submit\b/i.test(label)) && !deps2.goal && !insideApplication(state)) {
+      log(`passed over "${label}": not inside the application yet`);
+      return null;
     }
     if (FINAL.test(label) || /^submit\b/i.test(label)) {
       state.reachedSubmit = true;
@@ -8039,9 +8198,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           continue;
         }
         if (f.action === "upload") {
-          const accept = await frameOf(page).evaluate((id) => String(window.__am?.byId?.(id)?.accept ?? ""), f.id).catch(() => "");
-          const pdf = !!state?.pdfOnly || /pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept);
-          const file = await deps2.file(f.file, { pdf });
+          const box = await frameOf(page).evaluate((id) => {
+            const el = window.__am?.byId?.(id);
+            const near = el?.closest("fieldset, .form-group, .field, li, tr, div")?.textContent ?? "";
+            return { accept: String(el?.accept ?? ""), near: near.replace(/\s+/g, " ").slice(0, 600) };
+          }, f.id).catch(() => ({ accept: "", near: "" }));
+          const field2 = safe.find((x) => x.id === f.id);
+          const file = await deps2.file(f.file, fileWant(state, { accept: box.accept, text: `${field2?.label ?? ""} ${box.near}` }));
           await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
           uploaded(state, f.file);
           n2++;
@@ -8231,10 +8394,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const el = deep(a.sel);
     if (!el) throw new Error("upload box gone");
     const bin = atob(a.b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const bytes2 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes2[i] = bin.charCodeAt(i);
     const dt = new DataTransfer();
-    dt.items.add(new File([bytes], a.name, { type: a.mime }));
+    dt.items.add(new File([bytes2], a.name, { type: a.mime }));
     el.files = dt.files;
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -8334,10 +8497,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     const box = (el instanceof HTMLInputElement && el.type === "file" ? el : null) ?? el?.closest("label")?.querySelector('input[type="file"]') ?? el?.closest("label")?.control ?? el?.closest("div,section,form,li")?.querySelector('input[type="file"]') ?? null;
     if (!(box instanceof HTMLInputElement) || box.type !== "file") return false;
     const bin = atob(a.b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const bytes2 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes2[i] = bin.charCodeAt(i);
     const dt = new DataTransfer();
-    dt.items.add(new File([bytes], a.name, { type: a.mime }));
+    dt.items.add(new File([bytes2], a.name, { type: a.mime }));
     box.files = dt.files;
     box.dispatchEvent(new Event("input", { bubbles: true }));
     box.dispatchEvent(new Event("change", { bubbles: true }));
@@ -8793,7 +8956,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
         const f = sheets.get(taskId).files.find((x) => x.key === key);
         if (!f) throw new Error("file not in the packet");
-        const res = await api(want?.pdf && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}pdf=1` : f.url);
+        const q = [want?.pdf ? "pdf=1" : "", want?.image ? "image=1" : "", want?.maxBytes ? `max=${Math.round(want.maxBytes)}` : ""].filter(Boolean).join("&");
+        const res = await api(q && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}${q}` : f.url);
         if (!res.ok) throw new Error("couldn't fetch " + f.label);
         const named = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
         return { name: named || f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };

@@ -14,7 +14,7 @@ import { runStructured } from "@/lib/llm";
 import { guard } from "@/lib/guard";
 import { settleBeforeSubmit } from "@/lib/billing";
 import { textPdf } from "@/lib/pdf";
-import { asPdf } from "@/lib/doc-pdf";
+import { fitFile, type Want } from "@/lib/file-fit";
 
 // the extension authenticates with a personal key (Authorization: Bearer amr_...). we keep only its hash.
 export async function runnerUser(req: NextRequest): Promise<string | null> {
@@ -264,9 +264,10 @@ export async function submitDecision(userId: string, applicationId: string) {
 }
 
 // the bytes behind a fill-sheet file key: an approved essay as pdf, or one of the applicant's documents
-export async function sheetFile(userId: string, sheet: FillSheet, key: string, want?: { pdf?: boolean }): Promise<{ name: string; mime: string; buffer: Buffer }> {
+// the applicant's file as the upload box needs it: PDF or a picture, and under its size limit (lib/file-fit)
+export async function sheetFile(userId: string, sheet: FillSheet, key: string, want?: Want): Promise<{ name: string; mime: string; buffer: Buffer }> {
   const f = await rawSheetFile(userId, sheet, key);
-  return want?.pdf ? asPdf(f) : f;
+  return want?.pdf || want?.image || want?.maxBytes ? fitFile(f, want) : f;
 }
 
 async function rawSheetFile(userId: string, sheet: FillSheet, key: string): Promise<{ name: string; mime: string; buffer: Buffer }> {

@@ -323,7 +323,9 @@ function deps(taskId: string, start: { canReadMail: boolean; accountEmail: strin
       if (!sheets.has(taskId)) sheets.set(taskId, await apiJson(`/api/runner/sheet?application=${taskId}`));
       const f = sheets.get(taskId)!.files.find((x) => x.key === key);
       if (!f) throw new Error("file not in the packet");
-      const res = await api(want?.pdf && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}pdf=1` : f.url);
+      // the server makes the file fit the box: PDF, a picture, or under its size limit (lib/file-fit)
+      const q = [want?.pdf ? "pdf=1" : "", want?.image ? "image=1" : "", want?.maxBytes ? `max=${Math.round(want.maxBytes)}` : ""].filter(Boolean).join("&");
+      const res = await api(q && f.url.includes("document=") ? `${f.url}${f.url.includes("?") ? "&" : "?"}${q}` : f.url);
       if (!res.ok) throw new Error("couldn't fetch " + f.label);
       const named = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
       return { name: named || f.filename, mime: res.headers.get("content-type") || "application/octet-stream", buffer: new Uint8Array(await res.arrayBuffer()) };

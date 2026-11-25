@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { admin } from "@/lib/supabase/admin";
 import { loadSheet, runnerUser } from "@/lib/runner";
 import { textPdf } from "@/lib/pdf";
-import { asPdf } from "@/lib/doc-pdf";
+import { fitFile } from "@/lib/file-fit";
 
 export const runtime = "nodejs";
 
@@ -29,9 +29,11 @@ export async function GET(req: NextRequest) {
   if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
   const { data: blob, error } = await db.storage.from("documents").download(doc.storage_path);
   if (error || !blob) return NextResponse.json({ error: "couldn't read the file" }, { status: 500 });
-  // ?pdf=1: the upload box only takes PDF
+  // ?pdf=1: the upload box only takes PDF; ?image=1: only pictures; ?max=bytes: its size limit (lib/file-fit)
   const f = { name: doc.filename as string, mime: (doc.mime_type as string | null) ?? "application/octet-stream", buffer: Buffer.from(await blob.arrayBuffer()) };
-  const out = q.get("pdf") === "1" ? await asPdf(f) : f;
+  const max = Number(q.get("max") ?? "");
+  const want = { pdf: q.get("pdf") === "1", image: q.get("image") === "1", maxBytes: Number.isFinite(max) && max > 0 ? max : null };
+  const out = want.pdf || want.image || want.maxBytes ? await fitFile(f, want) : f;
   return new NextResponse(new Uint8Array(out.buffer), {
     headers: { "content-type": out.mime, "content-disposition": `attachment; filename="${out.name.replace(/"/g, "")}"` },
   });

@@ -7,6 +7,7 @@ import { accountUrls, pageKey } from "@/lib/portal-platforms";
 import type { EngineFile, EngineFrame as Frame, EnginePage as Page } from "@/lib/engine-page";
 import type { Fill, PageField } from "@/lib/runner-map";
 import { cleanLabel } from "@/lib/labels";
+import { imageOnly, nextLimit, sizeLimit, TOO_LARGE } from "@/lib/upload-limits";
 import { NEVER_FILL } from "@/lib/never-fill";
 import { keyForLabel } from "@/lib/fillsheet";
 import { parseTerm, termLabel, termsIn, type Term } from "@/lib/intake";
@@ -86,6 +87,7 @@ export interface EngineState {
   newAppBlocked?: string; // a "Start a new application" the once-per-portal rule held back
   newAppAllowedUsed?: boolean; // the applicant said yes to a new one, and it was started
   pdfOnly?: boolean; // the portal said uploads must be PDF
+  maxBytes?: number; // the portal refused a file for its size: what uploads are made to fit under now
   missingDocs?: string[]; // required uploads the packet has no file for
   lockWaits?: number; // times we waited out "temporarily locked / too many attempts"
   downWaits?: number; // times we waited out maintenance or an outage
@@ -134,6 +136,18 @@ export function noteProgress(state: EngineState, s: Pick<Snapshot, "url" | "titl
   const step = stepOf(s.body);
   if (step) state.stepOf = step;
 }
+export type FileWant = { pdf?: boolean; image?: boolean; maxBytes?: number | null };
+
+// what a file must be for this upload box: PDF or a picture (its accept list, or the page said so), and under the
+// smallest size limit the box's label, the page or an earlier refusal states
+export function fileWant(state: EngineState | undefined, box?: { accept?: string; text?: string }): FileWant {
+  const accept = box?.accept ?? "";
+  const image = imageOnly(accept);
+  const pdf = !image && (!!state?.pdfOnly || (/pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept)));
+  const limits = [state?.maxBytes ?? null, sizeLimit(box?.text)].filter((x): x is number => !!x);
+  return { pdf, image, maxBytes: limits.length ? Math.min(...limits) : null };
+}
+
 const uploaded = (state: EngineState | undefined, key: string) => {
   if (state && key && !(state.uploads ?? []).includes(key)) state.uploads = [...(state.uploads ?? []), key].slice(-30);
 };
@@ -230,8 +244,9 @@ export interface Login {
 
 export interface EngineDeps {
   map(fields: PageField[]): Promise<Fill[]>;
-  // pdf: the upload box only takes PDF (Word files are converted)
-  file(key: string, want?: { pdf?: boolean }): Promise<EngineFile>;
+  // pdf: the upload box only takes PDF (Word files and pictures are converted); image: it only takes pictures (a PDF's
+  // first page); maxBytes: its size limit (pictures and PDFs are made smaller to fit)
+  file(key: string, want?: FileWant): Promise<EngineFile>;
   canSubmit(): Promise<{ allowed: boolean; reason: string }>;
   existingLogin(): Promise<Login | null>;
   // policy: the site's password rules, when its page states them (lib/password-policy)
@@ -824,7 +839,7 @@ export async function uploadByType(page: Page, deps: EngineDeps, s: Snapshot, st
     const after = await snap(page);
     const box2 = after.allFields.find((f) => f.type === "file") ?? box;
     const go2 = after.buttons.find((b) => UPLOAD_GO.test(clean(b.label))) ?? go;
-    await frameOf(page).setInputFiles(`[data-am-id="${box2.id}"]`, await deps.file(key));
+    await frameOf(page).setInputFiles(`[data-am-id="${box2.id}"]`, await deps.file(key, fileWant(state, { text: `${box2.label} ${s.body.slice(0, 3000)}` })));
     await sleep(500);
     await click(page, go2.id);
     await sleep(2500);
@@ -960,7 +975,7 @@ async function visionLoop(page: Page, deps: EngineDeps, state: EngineState, goal
           idle++;
           continue;
         }
-        const ok = await page.uploadAt(x, y, await deps.file(a.file)).catch(() => false);
+        const ok = await page.uploadAt(x, y, await deps.file(a.file, fileWant(state))).catch(() => false);
         log(ok ? `uploaded ${a.file} at ${what}` : `upload of ${a.file} didn't take`);
       } else {
         // type: the value of a fill-sheet key, or a shorter piece of it to search a long list. nothing else.
@@ -1187,6 +1202,8 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       return { outcome: { kind: "needs_you", reason: "stuck", note: "the portal says this application was already submitted. Check the portal, then mark it submitted in Ivyward" }, state, filled };
     }
     if (PDF_ONLY.test(said)) state.pdfOnly = true;
+    // a file refused for its size: the next upload is made to fit under what the page says (or 2 MB, then half)
+    if (TOO_LARGE.test(said)) state.maxBytes = nextLimit(state.maxBytes, said);
     // a button that unlocks only once the terms box is scrolled to the end: scroll every scrolling box down once
     if (state.samePageCount === 1) {
       await frameOf(page)
@@ -1924,7 +1941,7 @@ async function navStep(page: Page, deps: EngineDeps, s: Snapshot, state: EngineS
     }
     log(`fill "${f.label.slice(0, 40)}" from ${a.sheet_key}`);
     if (fill.action === "upload") {
-      const file = await deps.file(fill.file);
+      const file = await deps.file(fill.file, fileWant(state, { text: `${f.label} ${s.body.slice(0, 3000)}` }));
       await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, file);
       uploaded(state, fill.file);
     } else await frameOf(page).evaluate((x) => (window as unknown as { __am: { apply(f: unknown): boolean } }).__am.apply(x), fill);
@@ -2157,12 +2174,18 @@ async function applyList(page: Page, deps: EngineDeps, safe: PageField[], fills:
         continue;
       }
       if (f.action === "upload") {
-        // PDF when the box (its accept list) or the page says so: Word files are converted on the way
-        const accept = await frameOf(page)
-          .evaluate((id: string) => String(((window as unknown as { __am?: { byId?(i: string): Element | null } }).__am?.byId?.(id) as HTMLInputElement | null)?.accept ?? ""), f.id)
-          .catch(() => "");
-        const pdf = !!state?.pdfOnly || (/pdf/i.test(accept) && !/(doc|word|officedocument|\*)/i.test(accept));
-        const file = await deps.file(f.file, { pdf });
+        // PDF or a picture when the box (its accept list) or the page says so, and under the box's size limit: Word
+        // files and photos are converted, big scans made smaller, on the way
+        const box = await frameOf(page)
+          .evaluate((id: string) => {
+            const el = (window as unknown as { __am?: { byId?(i: string): Element | null } }).__am?.byId?.(id) as HTMLInputElement | null;
+            // the words around the box: its label, hint and the section it sits in ("PDF, max 2 MB")
+            const near = el?.closest("fieldset, .form-group, .field, li, tr, div")?.textContent ?? "";
+            return { accept: String(el?.accept ?? ""), near: near.replace(/\s+/g, " ").slice(0, 600) };
+          }, f.id)
+          .catch(() => ({ accept: "", near: "" }));
+        const field = safe.find((x) => x.id === f.id);
+        const file = await deps.file(f.file, fileWant(state, { accept: box.accept, text: `${field?.label ?? ""} ${box.near}` }));
         await frameOf(page).setInputFiles(`[data-am-id="${f.id}"]`, { ...file, name: safeFileName(file.name) });
         uploaded(state, f.file);
         n++;

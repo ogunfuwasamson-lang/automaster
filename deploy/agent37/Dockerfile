@@ -11,7 +11,8 @@ RUN npm run build
 
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3001 HOSTNAME=127.0.0.1 CHROMIUM_PATH=/usr/bin/chromium
-RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation fonts-noto-color-emoji ca-certificates tini \
+# ghostscript: application-form uploads made smaller or turned into a picture (lib/file-fit)
+RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation fonts-noto-color-emoji ca-certificates tini ghostscript \
   && rm -rf /var/lib/apt/lists/* && useradd -m -u 10001 ivyward
 WORKDIR /app
 COPY --from=build --chown=ivyward /app/.next/standalone ./
