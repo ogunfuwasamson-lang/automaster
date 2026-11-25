@@ -1,4 +1,5 @@
-# official institution registries (US: IPEDS; UK: OfS Register, Scottish fundable bodies + SFC colleges, Medr, DfE NI), fetched by the build machine (the dev sandbox can't reach them), normalised by
+# official institution registries (US: IPEDS; UK: OfS Register, Scottish fundable bodies + SFC colleges, Medr, DfE NI;
+# Canada: IRCC DLI list; Australia: CRICOS; France: MESR; China: MoE list), fetched by the build machine (the dev sandbox can't reach them), normalised by
 # scripts/hed, saved to the `registry-data` branch with source URLs and checksums, and loaded into Supabase's
 # hed_* tables when the SUPABASE_DB_URL secret is set (Supabase > Connect > Session pooler connection string).
 # idempotent: re-running updates the same rows. runs when this workflow or the importers change, or by hand.
@@ -39,6 +40,25 @@ jobs:
             case "$u" in http*) ;; *) u="https://www.canada.ca$u" ;; esac
             get "ca-dli-$(basename "$u")" "$u" || echo "DLI data download failed: $u"
           done
+          # Australia: CRICOS (Department of Education), the newest "Providers, Courses and Locations" workbook on
+          # data.gov.au (CC BY 4.0): the providers that may enrol international students, with their courses' levels
+          if curl -fsSL --retry 3 -o au-cricos-package.json "https://data.gov.au/data/api/3/action/package_show?id=cricos"; then
+            u=$(python3 -I "$GITHUB_WORKSPACE/scripts/hed/newest.py" au-cricos-package.json)
+            if [ -n "$u" ]; then get au-cricos.xlsx "$u" || echo "CRICOS workbook download failed"; fi
+          else echo "CRICOS package lookup failed"; fi
+          # France: the ministry's list of the main higher education institutions (MESR open data, Licence Ouverte)
+          get fr-esr-etablissements.csv "https://data.enseignementsup-recherche.gouv.fr/api/explore/v2.1/catalog/datasets/fr-esr-principaux-etablissements-enseignement-superieur/exports/csv?delimiter=%3B" || echo "MESR download failed"
+          # China: the Ministry of Education's national list of higher education institutions (as of 20 June 2025) and its
+          # spreadsheets; Wikidata's English names and websites for Chinese institutions (names and websites only)
+          moe=http://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202506/t20250627_1195683.html
+          get cn-moe-list.html "$moe" || { moe=https://hudong.moe.gov.cn/jyb_xxgk/s5743/s5744/202506/t20250627_1195683.html; get cn-moe-list.html "$moe"; } || echo "MoE page download failed"
+          if [ -f cn-moe-list.html ]; then
+            n=0
+            for link in $(python3 -I "$GITHUB_WORKSPACE/scripts/hed/links.py" cn-moe-list.html "$moe"); do n=$((n+1)); get "cn-moe-$n.${link##*.}" "$link" || echo "MoE attachment failed: $link"; done
+          fi
+          curl -fsSL --retry 2 -G "https://query.wikidata.org/sparql" -H "Accept: text/csv" -A "ivyward-registry-fetch (+https://tryivyward.com)" --data-urlencode "query@$GITHUB_WORKSPACE/scripts/hed/cn-wikidata.rq" -o cn-wikidata.csv && echo "cn-wikidata.csv	https://query.wikidata.org/sparql	$(date -u +%FT%TZ)	$(sha256sum cn-wikidata.csv | cut -c1-64)" >> ../SOURCES.tsv || echo "Wikidata query failed"
+          # websites for registers that don't list them (Canada, China): the Hipo university-domains list, marked as such
+          get hipo-world.json https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json || echo "Hipo download failed"
           if [ -f ofs-register.download ]; then
             kind=$(file -b ofs-register.download); echo "OfS register: $kind"
             case "$kind" in *Excel*|*Microsoft*OOXML*|*Zip*) mv ofs-register.download ofs-register.xlsx ;; *CSV*|*text*) mv ofs-register.download ofs-register.csv ;; esac
@@ -51,11 +71,17 @@ jobs:
           set -euo pipefail
           python3 -I scripts/hed/ipeds.py out/raw/ipeds-hd2024/HD2024.csv out/processed/us-ipeds-2024.json
           python3 -I scripts/hed/to_sql.py out/processed/us-ipeds-2024.json scripts/hed/us-source.json out/us.sql
-          sudo python3 -m pip install -q --break-system-packages openpyxl==3.1.5
+          sudo python3 -m pip install -q --break-system-packages openpyxl==3.1.5 xlrd==2.0.1
           python3 -I scripts/hed/ofs.py out/raw/ofs-register.xlsx out/processed/gb-ofs.json
           python3 -I scripts/hed/to_sql.py out/processed/gb-ofs.json scripts/hed/gb-ofs-source.json out/gb.sql
           python3 -I scripts/hed/uk_devolved.py scripts/hed/gb-devolved-seed.json out/raw/medr-register.xlsx out/raw/learning-providers-plus.csv out/processed/gb-devolved.json
           python3 -I scripts/hed/to_sql.py out/processed/gb-devolved.json scripts/hed/gb-devolved-source.json out/gb-devolved.sql
+          # countries added 25 nov 2026: each normaliser runs when its file came down (their SQL is loaded separately)
+          dli=$(ls out/raw/ca-dli-*.json 2>/dev/null | head -1 || true)
+          if [ -n "$dli" ] && [ -f out/raw/hipo-world.json ]; then python3 -I scripts/hed/ca_dli.py "$dli" out/raw/hipo-world.json out/processed/ca-dli.json || echo "Canada normalise failed"; fi
+          for c in au_cricos fr_mesr cn_moe; do
+            if [ -f "scripts/hed/$c.py" ]; then python3 -I "scripts/hed/$c.py" out/raw "out/processed/$c.json" || echo "$c normalise failed"; fi
+          done
       - name: Load into Supabase
         env: { DB: "${{ secrets.SUPABASE_DB_URL }}" }
         run: |

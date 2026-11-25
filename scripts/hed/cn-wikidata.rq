@@ -1,0 +1,10 @@
+# Chinese higher education institutions on Wikidata: Chinese and English names and the official website. Used only
+# to give the Ministry of Education's list (Chinese names, no websites) an English name and a website, matched on the
+# exact Chinese name; each such value is marked as coming from Wikidata.
+SELECT ?item ?zh ?en ?site WHERE {
+  VALUES ?type { wd:Q3918 wd:Q38723 wd:Q875538 wd:Q902104 wd:Q1371037 wd:Q189004 wd:Q23002054 wd:Q15936437 }
+  ?item wdt:P31 ?type ; wdt:P17 wd:Q148 .
+  ?item rdfs:label ?zh . FILTER(LANG(?zh) IN ("zh-hans", "zh-cn", "zh"))
+  OPTIONAL { ?item rdfs:label ?en . FILTER(LANG(?en) = "en") }
+  OPTIONAL { ?item wdt:P856 ?site }
+}
