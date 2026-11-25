@@ -76,7 +76,11 @@ export const library: Record<string, Handler> = {
       await logEvent({ userId: job.user_id, actor: "agent:library", action: "library.target_reached", context: { added, total: rows.length } }).catch(() => {});
       return { done: true, added };
     }
-    const searches = Math.ceil(Math.min(s.perDay, s.target - added) / PER_SEARCH);
+    // a search brings back fewer than it asks for (the first found 4 of 10): plan by what recent ones brought
+    const { data: recent } = await admin().from("jobs").select("result").eq("agent", "library").eq("task", "find").eq("status", "done").order("finished_at", { ascending: false }).limit(20);
+    const yields = (recent ?? []).map((j) => Number((j.result as { queued?: number } | null)?.queued ?? 0));
+    const perSearch = yields.length >= 3 ? Math.max(2, yields.reduce((a, b) => a + b, 0) / yields.length) : 6;
+    const searches = Math.min(25, Math.ceil(Math.min(s.perDay, s.target - added) / perSearch));
     const targets = pickTargets(await wants(), rows, searches);
     for (const [i, t] of targets.entries())
       await enqueue({
@@ -86,8 +90,8 @@ export const library: Record<string, Handler> = {
         payload: t,
         idempotencyKey: `library-find:${day}:${t.level}:${slugify(t.field)}:${t.region}`,
         parentJobId: job.id,
-        // one search an hour, so the day's checks never crowd applicants' own work
-        runAt: new Date(Date.now() + i * 60 * 60_000),
+        // spread over the day, so the checks never crowd applicants' own work
+        runAt: new Date(Date.now() + i * 45 * 60_000),
       });
     await saveSeed({ ...s, baseline, lastDay: day });
     await logEvent({ userId: job.user_id, actor: "agent:library", action: "library.planned", context: { day, added, total: rows.length, targets } }).catch(() => {});
