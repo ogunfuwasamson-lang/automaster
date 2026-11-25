@@ -127,10 +127,15 @@ The engine hooks the extension uses: `onFilled` (each answer put in), `beforeNex
 | Path | Role |
 |---|---|
 | `app/page.tsx`, `app/pricing`, `app/about`… | Marketing pages; `lib/site.ts` holds the shared copy |
+| `app/features/` | One page per thing the agents do (`lib/features.ts`), each with a coded demo (`components/landing/feature-demo.tsx`) |
+| `components/landing/` | Landing sections: the product tour (`product-tour.tsx`), the comparison (`compare-table.tsx`), the Gmail, Calendar and Chrome cards (`connect-demos.tsx`) |
 | `app/guides`, `app/universities`, `app/scholarships`, `app/glossary`, `app/study-abroad` | The library (`src/content/`, `lib/markdown.ts`, `lib/library-md.ts`) |
 | `app/schools/` | Public school directory, one page per institution (`lib/directory.ts`, `lib/institutions.ts`) |
 | `app/llms.txt`, `app/robots.ts`, `app/sitemap.ts`, `app/md/` | AI and search discovery; `lib/indexnow.ts` pings search engines |
 | `app/es`, `app/fr`, `app/pt`, `app/ar` | Translated pages |
+
+Wording on the public site: say "application form" (or "online application"), not "portal". "Portal" stays only where it is
+the search term people type (llms.txt, structured data keywords) or a school's own name for its system.
 
 ## The signed-in app (`src/app/(app)/`)
 

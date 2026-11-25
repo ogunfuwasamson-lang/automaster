@@ -26,12 +26,12 @@ export const FACTS = [
   "The agents build a shortlist of programs that fit the applicant's profile, budget and regions, and keep only programs the applicant can realistically get into.",
   "Essays are drafted from facts in the applicant's own profile and documents, then checked for any claim the applicant couldn't back up.",
   "The applicant reads, edits and signs every application packet. Nothing is submitted to a school without that signature.",
-  "The agents find each school's application portal, create the applicant's account, fill in every page and upload documents.",
+  "The agents find each school's online application form, create the applicant's account, fill in every page and upload documents.",
   "Application fees are paid by the applicant directly to the school. The agents ask for fee waivers first. Card details never reach Ivyward.",
-  "When a portal blocks cloud browsers, the application finishes in the applicant's own Chrome through the Ivyward runner extension. Bot checks are always left to the applicant.",
+  "When a school's site blocks cloud browsers, the application finishes in the applicant's own Chrome through the free Ivyward extension (Ivyward runner on the Chrome Web Store). Bot checks are always left to the applicant.",
   "After an admission, the agents look for merit reconsideration, assistantships and scholarships, and draft the emails.",
   "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding. The agents' work is paid in credits: an application uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa, ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10.",
-  "Applicants can pause every agent at once. Portal passwords are encrypted, and applicant data is not used to train AI models.",
+  "Applicants can pause every agent at once. Passwords for schools' application sites are encrypted, and applicant data is not used to train AI models.",
 ] as const;
 
 export const PLAN_OFFERS = [

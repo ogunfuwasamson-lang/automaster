@@ -3,6 +3,8 @@ import { ThemeButton } from "@/components/theme";
 import { ButtonLink } from "@/components/ui/button";
 import { Wordmark } from "@/components/wordmark";
 import { CHANNELS, SITE } from "@/lib/site";
+import { CHROME_STORE_URL } from "@/lib/chrome-store";
+import { FEATURES } from "@/lib/features";
 
 // the public site's header and footer, shared by the landing and pricing pages
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
@@ -49,118 +51,82 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   );
 }
 
+const link = "block text-muted hover:text-foreground";
+
+function Col({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <nav aria-label={title} className="space-y-2.5">
+      <p className="font-medium">{title}</p>
+      {children}
+    </nav>
+  );
+}
+
+// the footer: the brand on its own row, then six short columns
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 text-sm sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
-        <div>
-          <Wordmark small />
-          <p className="mt-3 max-w-xs leading-relaxed text-muted">{SITE.short}</p>
-          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-muted">
+      <div className="mx-auto max-w-6xl px-5 py-14 text-sm">
+        <div className="flex flex-col gap-4 border-b border-line pb-10 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <Wordmark small />
+            <p className="mt-3 max-w-sm leading-relaxed text-muted">{SITE.short}</p>
+          </div>
+          <p className="flex flex-wrap gap-x-4 gap-y-1.5 text-muted">
             <a href={CHANNELS.whatsapp} target="_blank" rel="noopener me" className="hover:text-foreground">WhatsApp</a>
             <a href={CHANNELS.linkedin} target="_blank" rel="noopener me" className="hover:text-foreground">LinkedIn</a>
             <a href={CHANNELS.facebook} target="_blank" rel="noopener me" className="hover:text-foreground">Facebook</a>
           </p>
         </div>
-        <nav aria-label="Product" className="space-y-2.5">
-          <p className="font-medium">Product</p>
-          <Link href="/#how" className="block text-muted hover:text-foreground">
-            How it works
-          </Link>
-          <Link href="/#compare" className="block text-muted hover:text-foreground">
-            Ivyward vs. a consultant
-          </Link>
-          <Link href="/pricing" className="block text-muted hover:text-foreground">
-            Pricing
-          </Link>
-          <Link href="/#faq" className="block text-muted hover:text-foreground">
-            Questions
-          </Link>
-          <a href="https://ivyward.userjot.com" target="_blank" rel="noreferrer" className="block text-muted hover:text-foreground">
-            Feedback and support
-          </a>
-          <a href="https://ivyward.userjot.com/roadmap" target="_blank" rel="noreferrer" className="block text-muted hover:text-foreground">
-            Roadmap
-          </a>
-        </nav>
-        <nav aria-label="Guides" className="space-y-2.5">
-          <p className="font-medium">Guides</p>
-          <Link href="/guides" className="block text-muted hover:text-foreground">
-            All guides
-          </Link>
-          <Link href="/guides/how-to-get-application-fee-waivers" className="block text-muted hover:text-foreground">
-            Application fee waivers
-          </Link>
-          <Link href="/guides/fully-funded-masters-scholarships-international-students" className="block text-muted hover:text-foreground">
-            Fully funded master&apos;s
-          </Link>
-          <Link href="/guides/fully-funded-phd-how-funding-works" className="block text-muted hover:text-foreground">
-            Funded PhDs
-          </Link>
-          <Link href="/guides/application-deadlines-2027-intake" className="block text-muted hover:text-foreground">
-            2027 deadlines
-          </Link>
-          <Link href="/glossary" className="block text-muted hover:text-foreground">
-            Glossary
-          </Link>
-        </nav>
-        <nav aria-label="Find and apply" className="space-y-2.5">
-          <p className="font-medium">Find and apply</p>
-          <Link href="/scholarships" className="block text-muted hover:text-foreground">
-            Scholarships
-          </Link>
-          <a href={CHANNELS.whatsapp} target="_blank" rel="noopener" className="block text-muted hover:text-foreground">
-            5 scholarships a day on WhatsApp
-          </a>
-          <Link href="/study-abroad" className="block text-muted hover:text-foreground">
-            By home country
-          </Link>
-          <Link href="/match" className="block text-muted hover:text-foreground">
-            Programme matcher
-          </Link>
-          <Link href="/programmes" className="block text-muted hover:text-foreground">
-            Programmes by country
-          </Link>
-          <Link href="/deadlines" className="block text-muted hover:text-foreground">
-            Deadlines by month
-          </Link>
-          <Link href="/tools/scholarship-finder" className="block text-muted hover:text-foreground">
-            Scholarship finder
-          </Link>
-          <Link href="/universities" className="block text-muted hover:text-foreground">
-            How to apply, by university
-          </Link>
-          <Link href="/schools" className="block text-muted hover:text-foreground">
-            School directory (US and UK)
-          </Link>
-          <Link href="/alerts" className="block text-muted hover:text-foreground">
-            Deadline alerts
-          </Link>
-          <Link href="/ambassadors" className="block text-muted hover:text-foreground">
-            Become an ambassador
-          </Link>
-          <Link href="/creator" prefetch={false} className="block text-muted hover:text-foreground">
-            Creator partnership
-          </Link>
-          <Link href="/about" className="block text-muted hover:text-foreground">
-            About Ivyward
-          </Link>
-        </nav>
-        <nav aria-label="Account" className="space-y-2.5">
-          <p className="font-medium">Account</p>
-          <Link href="/login" className="block text-muted hover:text-foreground">
-            Sign in
-          </Link>
-          <Link href="/login?mode=signup" className="block text-muted hover:text-foreground">
-            Create an account
-          </Link>
-          <Link href="/privacy" className="block text-muted hover:text-foreground">
-            Privacy
-          </Link>
-          <Link href="/terms" className="block text-muted hover:text-foreground">
-            Terms
-          </Link>
-        </nav>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 pt-10 md:grid-cols-3 lg:grid-cols-6">
+          <Col title="Product">
+            <Link href="/#how" className={link}>How it works</Link>
+            <Link href="/#compare" className={link}>Ivyward vs. a consultant</Link>
+            <Link href="/pricing" className={link}>Pricing</Link>
+            <a href={CHROME_STORE_URL} target="_blank" rel="noopener" className={link}>Add to Chrome</a>
+            <Link href="/#faq" className={link}>Questions</Link>
+            <a href="https://ivyward.userjot.com" target="_blank" rel="noreferrer" className={link}>Feedback and support</a>
+            <a href="https://ivyward.userjot.com/roadmap" target="_blank" rel="noreferrer" className={link}>Roadmap</a>
+          </Col>
+          <Col title="Features">
+            {FEATURES.map((f) => (
+              <Link key={f.slug} href={`/features/${f.slug}`} className={link}>
+                {f.nav}
+              </Link>
+            ))}
+          </Col>
+          <Col title="Find programmes">
+            <Link href="/match" className={link}>Programme matcher</Link>
+            <Link href="/programmes" className={link}>Programmes by country</Link>
+            <Link href="/study-abroad" className={link}>By home country</Link>
+            <Link href="/universities" className={link}>How to apply, by university</Link>
+            <Link href="/schools" className={link}>School directory (US and UK)</Link>
+            <Link href="/deadlines" className={link}>Deadlines by month</Link>
+          </Col>
+          <Col title="Scholarships">
+            <Link href="/scholarships" className={link}>All scholarships</Link>
+            <Link href="/tools/scholarship-finder" className={link}>Scholarship finder</Link>
+            <Link href="/scholarships/deadlines" className={link}>Scholarship deadlines</Link>
+            <Link href="/alerts" className={link}>Deadline alerts</Link>
+            <a href={CHANNELS.whatsapp} target="_blank" rel="noopener" className={link}>5 scholarships a day on WhatsApp</a>
+          </Col>
+          <Col title="Guides">
+            <Link href="/guides" className={link}>All guides</Link>
+            <Link href="/guides/how-to-get-application-fee-waivers" className={link}>Application fee waivers</Link>
+            <Link href="/guides/fully-funded-masters-scholarships-international-students" className={link}>Fully funded master&apos;s</Link>
+            <Link href="/guides/fully-funded-phd-how-funding-works" className={link}>Funded PhDs</Link>
+            <Link href="/guides/application-deadlines-2027-intake" className={link}>2027 deadlines</Link>
+            <Link href="/glossary" className={link}>Glossary</Link>
+          </Col>
+          <Col title="Company">
+            <Link href="/about" className={link}>About Ivyward</Link>
+            <Link href="/ambassadors" className={link}>Become an ambassador</Link>
+            <Link href="/creator" prefetch={false} className={link}>Creator partnership</Link>
+            <Link href="/login" className={link}>Sign in</Link>
+            <Link href="/privacy" className={link}>Privacy</Link>
+            <Link href="/terms" className={link}>Terms</Link>
+          </Col>
+        </div>
       </div>
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-xs text-muted">

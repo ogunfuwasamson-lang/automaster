@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion, useInView } from "motion/react";
 import { Bell, CalendarDays, Check, CircleDot, FileText, LoaderCircle, Lock, Mail, Puzzle, RefreshCw } from "lucide-react";
 import { Mark } from "@/components/wordmark";
+import { CHROME_STORE_URL } from "@/lib/chrome-store";
 
 // the three "works with" cards on the landing page (Gmail, Google Calendar, the Chrome extension), each with a small
 // coded demo of the thing working. a demo plays through once when it scrolls into view, then holds its finished
@@ -11,8 +13,8 @@ import { Mark } from "@/components/wordmark";
 //
 // the words only claim what ships: the inbox watcher reads school mail and changes nothing there (lib/inbox), the
 // calendar sync adds deadlines with reminders 7, 2 and 1 days before plus dates from school emails
-// (lib/calendar-plan), and the extension fills portals in the applicant's Chrome, waits for their yes before
-// submitting and checks submitted portals weekly (extension/).
+// (lib/calendar-plan), and the extension fills application forms in the applicant's Chrome, waits for their yes
+// before submitting and checks submitted applications weekly (extension/).
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 const T = { duration: 0.42, ease: EASE };
@@ -110,7 +112,7 @@ const MAILS = [
   { from: "Halden Technical University", when: "Mon", subject: "Documents needed for your application", tag: "Needs you: a certified transcript", tone: "signal", Icon: CircleDot },
 ] as const;
 
-function InboxDemo({ delay, replay }: { delay: number; replay: number }) {
+export function InboxDemo({ delay, replay }: { delay: number; replay: number }) {
   // per email: it arrives, Ivyward reads it, then says what it means
   const { ref, step } = useScript(MAILS.length * 3, 430, delay, replay);
   const read = MAILS.filter((_, i) => step >= i * 3 + 3).length;
@@ -176,7 +178,7 @@ const EVENTS = [
   { day: 3, title: "Kingsbridge deadline", meta: "MSc Finance · all day · 3 reminders", bar: "bg-brand" },
 ];
 
-function CalendarDemo({ delay, replay }: { delay: number; replay: number }) {
+export function CalendarDemo({ delay, replay }: { delay: number; replay: number }) {
   const last = EVENTS.length + 2;
   const { ref, step } = useScript(last, 600, delay, replay);
   const synced = step > EVENTS.length;
@@ -247,7 +249,7 @@ function CalendarDemo({ delay, replay }: { delay: number; replay: number }) {
   );
 }
 
-/* ---------- Chrome: a portal page is filled, waits for a yes, then goes ---------- */
+/* ---------- Chrome: a page of an application form is filled, waits for a yes, then goes ---------- */
 
 const FIELDS = [
   ["Undergraduate university", "Eastgate University"],
@@ -256,7 +258,7 @@ const FIELDS = [
   ["Transcript", "Transcript.pdf"],
 ] as const;
 
-function PortalDemo({ delay, replay }: { delay: number; replay: number }) {
+export function FormDemo({ delay, replay }: { delay: number; replay: number }) {
   const n = FIELDS.length;
   // fields one by one, then: every page filled, a held beat waiting for the applicant, their yes, sent
   const last = n + 4;
@@ -346,7 +348,7 @@ function PortalDemo({ delay, replay }: { delay: number; replay: number }) {
 
 /* ---------- the cards ---------- */
 
-function Card({ tool, Icon, title, demo, children }: { tool: string; Icon: typeof Mail; title: string; demo: (replay: number) => ReactNode; children: ReactNode }) {
+function Card({ tool, Icon, title, demo, href, more, extra, children }: { tool: string; Icon: typeof Mail; title: string; demo: (replay: number) => ReactNode; href: string; more: string; extra?: ReactNode; children: ReactNode }) {
   const [replay, setReplay] = useState(0);
   return (
     <article
@@ -356,12 +358,18 @@ function Card({ tool, Icon, title, demo, children }: { tool: string; Icon: typeo
       className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(9_9_11/0.04)] transition-[border-color,box-shadow] duration-300 hover:border-foreground/20 hover:shadow-lift"
     >
       {demo(replay)}
-      <div className="flex-1 px-7 pb-8 pt-6">
+      <div className="flex flex-1 flex-col px-7 pb-7 pt-6">
         <p className="flex items-center gap-2 text-[13px] text-muted">
           <Icon className="size-4" aria-hidden /> {tool}
         </p>
         <h3 className="mt-3 font-serif text-[23px] leading-snug">{title}</h3>
-        <p className="mt-2.5 text-[15.5px] leading-relaxed text-muted">{children}</p>
+        <p className="mt-2.5 flex-1 text-[15.5px] leading-relaxed text-muted">{children}</p>
+        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+          {extra}
+          <Link href={href} className="text-[14px] font-medium underline decoration-line underline-offset-4 transition-colors hover:decoration-foreground">
+            {more}
+          </Link>
+        </div>
       </div>
     </article>
   );
@@ -370,15 +378,38 @@ function Card({ tool, Icon, title, demo, children }: { tool: string; Icon: typeo
 export function ConnectCards() {
   return (
     <div className="mt-14 grid gap-5 lg:grid-cols-3">
-      <Card tool="Gmail" Icon={Mail} title="School replies, read for you." demo={(r) => <InboxDemo delay={150} replay={r} />}>
+      <Card tool="Gmail" Icon={Mail} title="School replies, read for you." href="/features/school-replies" more="See how school replies work" demo={(r) => <InboxDemo delay={150} replay={r} />}>
         Ivyward reads what your schools send: decisions, interview invites, document requests, fee-waiver replies. Anything that needs you goes to the top of your list. Nothing in your inbox is moved or deleted.
       </Card>
-      <Card tool="Google Calendar" Icon={CalendarDays} title="Deadlines land on your calendar." demo={(r) => <CalendarDemo delay={650} replay={r} />}>
+      <Card tool="Google Calendar" Icon={CalendarDays} title="Deadlines land on your calendar." href="/features/deadlines" more="See how deadlines work" demo={(r) => <CalendarDemo delay={650} replay={r} />}>
         Every application deadline goes on your calendar, with reminders a week, two days and a day before. Interviews, webinars and due dates from school emails are added too, each linked to its application.
       </Card>
-      <Card tool="Ivyward for Chrome" Icon={Puzzle} title="Portals filled in your own browser." demo={(r) => <PortalDemo delay={1150} replay={r} />}>
-        Some portals only work in your own Chrome. The Ivyward extension fills them there, page by page, then waits for your yes before anything is submitted. Each week it checks your submitted portals for updates.
+      <Card
+        tool="Ivyward for Chrome"
+        Icon={Puzzle}
+        title="Application forms filled in your own browser."
+        href="/features/chrome-extension"
+        more="See how it works"
+        extra={<AddToChrome size="sm" />}
+        demo={(r) => <FormDemo delay={1150} replay={r} />}
+      >
+        Some application forms only work in your own Chrome. The free Ivyward extension fills them there, page by page, then waits for your yes before anything is submitted. Each week it checks your submitted applications for updates.
       </Card>
     </div>
+  );
+}
+
+// the Chrome Web Store listing (the extension is listed there as "Ivyward runner")
+export function AddToChrome({ size = "md" }: { size?: "sm" | "md" }) {
+  return (
+    <a
+      href={CHROME_STORE_URL}
+      target="_blank"
+      rel="noopener"
+      className={`inline-flex items-center gap-2 rounded-full bg-ink font-medium text-on-ink transition-opacity hover:opacity-90 ${size === "sm" ? "h-9 px-4 text-[13.5px]" : "h-12 px-6 text-[15px]"}`}
+    >
+      <Puzzle className={size === "sm" ? "size-3.5" : "size-4"} aria-hidden />
+      Add to Chrome
+    </a>
   );
 }

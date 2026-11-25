@@ -24,7 +24,7 @@ const FREE = [
 // what credits buy (lib/credit-prices)
 const AGENTS = [
   "Essays drafted and fact-checked",
-  "Portals filled in and submitted",
+  "Application forms filled in and submitted",
   "Fee waivers and funding chased",
 ];
 

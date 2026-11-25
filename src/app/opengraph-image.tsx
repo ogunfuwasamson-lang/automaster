@@ -41,7 +41,7 @@ export default async function OgImage() {
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: 72, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>Your university applications,</span>
             <span style={{ fontSize: 72, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>done for you.</span>
-            <span style={{ marginTop: 24, fontSize: 29, lineHeight: 1.35, color: "#52525b", maxWidth: 860 }}>Agents shortlist programs, draft and fact-check essays, and submit every portal. You review and sign.</span>
+            <span style={{ marginTop: 24, fontSize: 29, lineHeight: 1.35, color: "#52525b", maxWidth: 860 }}>Agents shortlist programs, draft and fact-check essays, and fill in every application form. You review and sign.</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
             <span style={{ fontSize: 40, color: "#9b2c4e", fontWeight: 500 }}>{SITE.tagline}</span>

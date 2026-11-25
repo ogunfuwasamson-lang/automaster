@@ -8,7 +8,7 @@ export const FAQ: [string, string][] = [
   ],
   [
     "How much does Ivyward cost?",
-    "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding, and deadline alerts. The agents' work is paid in credits: an application (fit check, essays, fee waiver requests and the portal) uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10. Application fees go to schools directly, and the agents ask for fee waivers first.",
+    "Starting is free: a shortlist from programmes Ivyward has already checked, with deadlines, fees and funding, and deadline alerts. The agents' work is paid in credits: an application (fit check, essays, fee waiver requests and the application form) uses 10, checking a programme or scholarship uses 1, a funding request 1. In Africa ₦10,000 (or the local equivalent) buys 60 credits that last 30 days, with no subscription. Everywhere else, Pro is $20 a month for 160 credits a month. Invite a friend: when they finish setup, you both get 10. Application fees go to schools directly, and the agents ask for fee waivers first.",
   ],
   [
     "Which degrees and countries does it cover?",
@@ -24,14 +24,14 @@ export const FAQ: [string, string][] = [
   ],
   [
     "What do I still have to do myself?",
-    "Read and sign your application packets, pay application fees on each school's site, and tick the occasional bot check a portal shows. Finding the portal, creating your account, filling every page and uploading documents is done for you.",
+    "Read and sign your application packets, pay application fees on each school's site, and tick the occasional bot check. Finding the application form, creating your account, filling every page and uploading documents is done for you.",
   ],
   [
-    "What if a school's portal blocks automated browsers?",
+    "What if a school's application site blocks automated browsers?",
     "The application moves to your own Chrome. With the free Ivyward runner extension, the agents finish it in a tab you can watch, signed in as you. When a bot check appears, the tab comes forward for you to tick; the agents never solve bot checks themselves.",
   ],
   [
-    "What happens when a portal asks something my profile doesn't cover?",
+    "What happens when an application form asks something my profile doesn't cover?",
     "Ivyward AI asks you. The answer is saved to your profile, so no other school has to ask again, and the agents carry on by themselves.",
   ],
   [
@@ -44,18 +44,18 @@ export const FAQ: [string, string][] = [
   ],
   [
     "Is there an AI that applies to universities for me?",
-    "Yes. Ivyward's agents create your account on each university's portal, fill in every page from your profile, upload your documents and submit once you've approved the packet. You still sign, pay the application fee on the school's page, and tick any bot check. ChatGPT and other chatbots can help you write, but they don't fill in or submit portals.",
+    "Yes. Ivyward's agents create your account on each university's application form, fill in every page from your profile, upload your documents and submit once you've approved the packet. You still sign, pay the application fee on the school's page, and tick any bot check. ChatGPT and other chatbots can help you write, but they don't fill in or submit application forms.",
   ],
   [
     "Does Ivyward work for Nigerian and other African students?",
     "Yes, it was built for international applicants, including those from Nigeria, Ghana and Kenya. It shortlists programs with funding and fee waivers, and asks for waivers for you. In Nigeria, ₦10,000 buys 60 credits, and an application uses 10.",
   ],
   [
-    "Which university application portals does Ivyward work with?",
-    "Most of them: Slate, Salesforce, PeopleSoft, UK systems like SITS, and schools' own portals. When a portal blocks cloud browsers, the free Ivyward extension finishes the application in your own Chrome.",
+    "Which university application systems does Ivyward work with?",
+    "Most of them: Slate, Salesforce, PeopleSoft, UK systems like SITS, and schools' own application forms. When a school's site blocks cloud browsers, the free Ivyward extension finishes the application in your own Chrome.",
   ],
   [
     "Is my data safe?",
-    "Portal passwords are encrypted, card details never reach Ivyward, and your data is never used to train AI models or sold. You can pause every agent at once, disconnect Gmail at any time, and ask for your account to be deleted.",
+    "Passwords for schools' application sites are encrypted, card details never reach Ivyward, and your data is never used to train AI models or sold. You can pause every agent at once, disconnect Gmail at any time, and ask for your account to be deleted.",
   ],
 ];

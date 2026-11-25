@@ -16,8 +16,8 @@ const DOES = [
   "Builds a shortlist of bachelor's, master's, MBA and PhD programs in the regions you choose, keeping the ones you can realistically get into",
   "Finds scholarships, assistantships and application fee waivers by every eligibility hook in your profile, not just nationality",
   "Drafts essays and statements of purpose from facts in your own profile and documents, and flags any claim you couldn't back up",
-  "Creates your account on each university's application portal, fills in every page and uploads your documents",
-  "Asks you when a portal needs something your profile doesn't cover, saves the answer and reuses it for every other school",
+  "Creates your account on each university's online application form, fills in every page and uploads your documents",
+  "Asks you when an application form needs something your profile doesn't cover, saves the answer and reuses it for every other school",
   "Emails schools for fee waivers and, after admission, for merit reconsideration and assistantships, once you approve each email",
   "Reads school replies in your connected Gmail and acts on them: verification codes, interview invitations, missing documents",
 ];
@@ -75,7 +75,7 @@ export default function About() {
           <h2 className="font-serif text-[30px]">How it compares</h2>
           <div className="prose-iv mt-3">
             <p>
-              A general chatbot can explain and draft, but it doesn&apos;t keep your record or touch a portal. An admissions consultant coaches you, usually for a large fee. A commission-based study agent is often free to you but paid by partner universities. Ivyward does the applications themselves, with no university commissions. Read{" "}
+              A general chatbot can explain and draft, but it doesn&apos;t keep your record or fill in an application form. An admissions consultant coaches you, usually for a large fee. A commission-based study agent is often free to you but paid by partner universities. Ivyward does the applications themselves, with no university commissions. Read{" "}
               <Link href="/guides/ivyward-vs-chatgpt-for-university-applications">Ivyward vs ChatGPT</Link> and <Link href="/guides/ivyward-vs-admissions-consultant">Ivyward vs an admissions consultant</Link>.
             </p>
           </div>

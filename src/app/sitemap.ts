@@ -4,6 +4,7 @@ import { GUIDES, SCHOLARSHIPS } from "@/content";
 import { UNIVERSITIES } from "@/content/universities";
 import { ORIGINS, ORIGINS_UPDATED } from "@/content/countries";
 import { allLocalUrls } from "@/content/i18n";
+import { FEATURES } from "@/lib/features";
 
 // the public pages. everything behind sign-in stays out (see robots.ts).
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -14,6 +15,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.url}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE.url}/pricing`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE.url}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE.url}/features`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    ...FEATURES.map((f) => ({ url: `${SITE.url}/features/${f.slug}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.8 })),
     { url: `${SITE.url}/guides`, lastModified: libDate, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE.url}/scholarships`, lastModified: libDate, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE.url}/universities`, lastModified: libDate, changeFrequency: "weekly", priority: 0.85 },

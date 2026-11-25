@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { HeroIn } from "@/components/landing/hero-motion";
 import { CampusInk } from "@/components/landing/campus-ink";
-import { ProductTabs } from "@/components/landing/product-tabs";
+import { ProductTour } from "@/components/landing/product-tour";
 import { SiteFooter, SiteHeader } from "@/components/landing/site-chrome";
 import { SiteJsonLd } from "@/components/seo/json-ld";
 import { CompareSection, ConnectSection, SectionHead, WhoSection } from "@/components/landing/sections";
@@ -56,7 +56,7 @@ export default async function Home() {
                 Your university applications, done for you.
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-lg">
-                Tell Ivyward about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every portal, and chase fee waivers and funding. You review and sign.
+                Tell Ivyward about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every application form, and chase fee waivers and funding. You review and sign.
               </p>
               {/* the matcher (/match) reads these words and shows programmes before any sign-up */}
               <form action="/match" className="mx-auto mt-10 max-w-2xl text-left">
@@ -82,8 +82,8 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-5xl px-5 pb-20" aria-label="What the agents do">
-          <ProductTabs />
+        <section className="mx-auto max-w-6xl px-5 pb-20" aria-label="What the agents do">
+          <ProductTour />
         </section>
 
         <section className="border-y border-line bg-surface/60 px-5 py-12">

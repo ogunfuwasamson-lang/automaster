@@ -10,7 +10,7 @@ const STEPS = [
   { t: "Tell us about you", d: "Upload your CV and transcripts, then talk to Ivyward AI for ten minutes. It fills your profile and asks only what's missing." },
   { t: "Get your shortlist", d: "Agents search the regions you pick, from the top-ranked schools down, and keep the programs you can realistically get into." },
   { t: "Approve your essays", d: "Drafts are written from facts in your profile and checked for any claim you couldn't back up. You edit, then sign." },
-  { t: "Agents submit", d: "They find each portal, create your account, fill every page and upload your documents. You step in only for bot checks and fees." },
+  { t: "Agents submit", d: "They find each school's application form, create your account, fill every page and upload your documents. You step in only for bot checks and fees." },
   { t: "Work every admit for money", d: "After an offer, agents look for merit reconsideration, assistantships and scholarships, and draft the emails." },
 ];
 
@@ -88,14 +88,14 @@ function Art({ i }: { i: number }) {
     );
   if (i === 3)
     return (
-      <Panel path="Northfield · application portal">
+      <Panel path="Northfield · online application">
         <ol className="space-y-3">
           {[
-            ["Found the portal", "apply.northfield.edu", true],
-            ["Created your account", "password saved in Portal logins", true],
+            ["Found the application form", "on the school's own site", true],
+            ["Created your account", "the password is encrypted", true],
             ["Filled 6 sections", "84 answers from your profile", true],
             ["Uploaded documents", "CV, transcript, statement of purpose", true],
-            ["Application fee", "waiting for you: pay it on the portal", false],
+            ["Application fee", "waiting for you: pay it on the school's site", false],
           ].map(([t, d, done]) => (
             <li key={t as string} className="flex gap-3">
               {done ? ok : wait}
