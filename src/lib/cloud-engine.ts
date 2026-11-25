@@ -1603,7 +1603,10 @@ async function runPass(page: Page, deps: EngineDeps, state: EngineState, budgetM
       // 12-20 characters"). a login the agents made and never used that breaks them gets a new password that fits
       const policy = passwordPolicy(`${said} ${s.body}`);
       let login = (await deps.existingLogin()) ?? (await deps.createLogin(deps.accountEmail, policy ?? undefined));
-      if (policy && !fitsPolicy(login.password, policy) && (login.status ?? "created") === "created" && !state.signedIn && deps.rotatePassword && (state.policyRotations ?? 0) < 2) {
+      // a site that states its rules without asking for a symbol may refuse one (hkust lists "12-20 characters, at
+      // least 1 upper case, 1 lower case & 1 number", then says "Password must be alphanumeric"): no symbol then
+      const symbolRisk = !!policy && policy.symbols !== "required" && /[^A-Za-z0-9]/.test(login.password);
+      if (policy && (!fitsPolicy(login.password, policy) || symbolRisk) && (login.status ?? "created") === "created" && !state.signedIn && deps.rotatePassword && (state.policyRotations ?? 0) < 2) {
         state.policyRotations = (state.policyRotations ?? 0) + 1;
         login = await deps.rotatePassword(policy);
         state.navHistory = [...(state.navHistory ?? []), `made a new password that meets the site's rules (${policy.min}-${policy.max} characters${policy.symbols === "none" ? ", letters and numbers only" : ""})`].slice(-12);
