@@ -537,6 +537,35 @@ const FOLLOWUP_GOAL: Record<string, string> = {
 const FOLLOWUP_DONE = /(you('re| are) (now )?(registered|signed up|booked|all set)|registration (is )?(complete|confirmed|successful)|thank(s| you) for (registering|signing up|your (registration|request|submission|interest))|(request|form|submission) (has been |was )?(received|submitted|sent)|we('ve| have) received|successfully (registered|submitted|booked)|booking (is )?confirmed|see you (there|soon)|confirmation (email|number))/i;
 
 export const runner: Record<string, Handler> = {
+  // the operator hands account creation to the applicant (a site that keeps refusing the agents' sign-up): the saved
+  // password is replaced with one that meets the site's rules, so the one on the applicant's card works, and the
+  // application asks them to create the account with it. payload: { applicationId, policy? }
+  "runner.handover_account": async (job) => {
+    const { applicationId, policy } = job.payload as { applicationId: string; policy?: { min: number; max: number; symbols: "none" | "required" | "allowed" } };
+    const db = admin();
+    const { data: a } = await db.from("applications").select("id, runner_state, programs(schools(name))").eq("id", applicationId).eq("user_id", job.user_id).maybeSingle();
+    if (!a) return { skipped: "no such application" };
+    const { data: acct } = await db.from("portal_accounts").select("portal_host, login_email").eq("application_id", applicationId).eq("user_id", job.user_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!acct?.portal_host || !acct.login_email) return { skipped: "no saved login to hand over" };
+    await rotatePassword(job.user_id, acct.portal_host as string, applicationId, acct.login_email as string, policy);
+    const st = { ...((a.runner_state ?? {}) as Record<string, unknown>), reason: "account", wait: null, resting: null };
+    await db.from("applications").update({ runner_status: "needs_you", runner_state: st, runner_updated_at: new Date().toISOString() }).eq("id", applicationId);
+    const school = ((a as unknown as { programs?: { schools?: { name?: string } } }).programs?.schools?.name ?? "the school").split(",")[0].replace(/\s*\([^)]*\)\s*/g, " ").trim();
+    await notify({
+      userId: job.user_id,
+      key: `account-handover:${applicationId}`,
+      kind: "setup",
+      urgent: true,
+      title: `Create your ${school} account`,
+      body: `${school}'s sign-up page keeps refusing the agents. Open your application: the link, your email and a password that meets ${school}'s rules are there to copy. Once the account exists, the agents sign in and finish the application.`,
+      href: `/applications/${applicationId}#portal`,
+      actionLabel: "Show me",
+      email: true,
+    }).catch(() => {});
+    await logEvent({ userId: job.user_id, actor: "system", action: "runner.account_handover", applicationId, context: { host: acct.portal_host } }).catch(() => {});
+    return { handed_over: true };
+  },
+
   // a follow-up from a school's email: open its link and complete the form (register, claim the waiver, book a slot)
   "runner.followup": async (job) => {
     const { followupId } = job.payload as { followupId: string };
