@@ -158,9 +158,11 @@ starting url: ${p.url}
 ${inst ? `${registryBrief(inst)}\n` : ""}today: ${today()}.
 
 find and report: degree type and length; ${programChecklist(level)}; admissions tests (GRE/GMAT/other) required, optional or waivable; english requirements and whether a medium-of-instruction letter is accepted; application fee and fee waivers; tuition; post-study work rights for internationals in that country; every application round with its date and intake; scholarships, assistantships or fellowships open to international students, with amounts; how to apply (the application system).
-read the starting url first, then the fees, funding and how-to-apply pages it links to. search only for what those pages don't answer.`,
-      maxSearches: 1,
-      maxFetches: 4,
+read the starting url first, then the fees, funding and how-to-apply pages it links to. search for what those pages don't answer, above all the application dates and the tuition for international students.`,
+      // a shared entry many applicants will see: one more search and page than a single applicant's check (the
+      // first, ETH civil engineering, came back without dates or fees on one search)
+      maxSearches: 2,
+      maxFetches: 5,
     });
     const { output: facts } = await runStructured({
       userId: job.user_id,
