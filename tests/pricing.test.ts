@@ -28,7 +28,7 @@ describe("costOf", () => {
 });
 
 describe("budgets", () => {
-  const spend = (research: number, writing: number, core: number) => ({ total: research + writing + core, byCategory: { research, writing, core } });
+  const spend = (research: number, writing: number, core: number) => ({ total: research + writing + core, byCategory: { research, writing, core, apply: 0 } });
   it("caps total and per category", () => {
     expect(budgetCheck(spend(5, 5, 1), 25, "research").ok).toBe(true);
     expect(budgetCheck(spend(8.8, 0, 0), 25, "research").ok).toBe(false); // 35% of 25 = 8.75
@@ -39,6 +39,7 @@ describe("budgets", () => {
     expect(categoryOf("recon")).toBe("research");
     expect(categoryOf("redteam")).toBe("writing");
     expect(categoryOf("interviewer")).toBe("core");
+    expect(categoryOf("runner")).toBe("apply");
   });
   it("month boundaries are UTC", () => {
     expect(monthStartUTC(new Date("2026-10-24T09:00:00Z"))).toBe("2026-10-01T00:00:00.000Z");

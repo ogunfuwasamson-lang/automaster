@@ -143,14 +143,14 @@ async function issuedLogin(userId: string, applicationId: string, jobId: string 
   for (const m of mails.filter((x) => x.at >= since).sort((a, b) => b.at - a.at)) {
     let c = extractCredentials(m);
     if (!c.username || !c.password) {
-      // unusual wording: let the cheap model read just this one email
+      // unusual wording: let the model read just this one email
       try {
         const { output } = await runStructured({
           userId,
           agent: "runner",
           jobId: jobId ?? undefined,
-          promptVersion: "issued-login-v1",
-          tier: "cheap",
+          promptVersion: "issued-login-v2",
+          tier: "apply",
           system: "extract the portal login (user id or username, and password) that this email gives the applicant. empty strings if the email doesn't contain one. copy them exactly.",
           prompt: `subject: ${m.subject}\n\n${(m.text || m.html.replace(/<[^>]+>/g, " ")).slice(0, 4000)}`,
           schema: CredOut,
@@ -259,12 +259,12 @@ export function serverDeps(c: DepsCtx): EngineDeps {
       // the small model does the routine steps. when it's going in circles, or wants to give the page to the
       // applicant, the stronger model looks before anyone is bothered: most "can't find the next step" stops
       // were pages a more careful reader gets through
-      const ask = (tier: "cheap" | "chat" | "expert") =>
+      const ask = (tier: "apply" | "expert") =>
         runStructured({
           userId: c.userId,
           agent: "runner",
           jobId: c.jobId ?? undefined,
-          promptVersion: tier === "cheap" ? "nav-v1" : tier === "chat" ? "nav-v1-careful" : "nav-v1-expert",
+          promptVersion: tier === "apply" ? "nav-v2" : "nav-v2-expert",
           topic: hostOf(`https://${c.host()}`),
           tier,
           ...(tier === "expert" ? { think: "high" as const } : {}),
@@ -274,10 +274,10 @@ export function serverDeps(c: DepsCtx): EngineDeps {
           schema: NavOut,
           maxTokens: 400,
         }).then((r) => r.output);
-      // routine steps on the small model; going in circles, the mid model; still stuck, or about to give the page
-      // to the applicant for anything but a bot check or a payment, opus thinks it through first
+      // every step on opus (founder's call, 25 nov 2026); still going in circles, or about to give the page to the
+      // applicant for anything but a bot check or a payment, opus thinks it through first
       const level = navLevel(n.history);
-      const ladder = (["cheap", "chat", "expert"] as const).slice(level);
+      const ladder = level >= 2 ? (["expert"] as const) : (["apply", "expert"] as const);
       let out = await ask(ladder[0]);
       for (const next of ladder.slice(1)) {
         if (out.action !== "handoff" || /captcha|robot|human|bot check|cloudflare|\b(pay|payment|card)\b/i.test(out.note)) break;
@@ -300,9 +300,9 @@ export function serverDeps(c: DepsCtx): EngineDeps {
         userId: c.userId,
         agent: "runner",
         jobId: c.jobId ?? undefined,
-        promptVersion: "see-v1",
+        promptVersion: "see-v2",
         topic: hostOf(`https://${c.host()}`),
-        tier: "chat",
+        tier: "apply",
         system: SEE_SYSTEM,
         cachePrefix: `applying to: ${c.sheet.program} at ${c.sheet.school}\nfill sheet keys (type only these):\n${keyMenu(c.sheet)}`,
         prompt: [
@@ -389,13 +389,14 @@ async function findProgramPage(userId: string, jobId: string | undefined, p: { n
     prompt: `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}. find its official course page, the one with entry requirements and an "apply" button.`,
     maxSearches: 2,
     maxFetches: 2,
+    tier: "apply",
   });
   const { output } = await runStructured({
     userId,
     agent: "runner",
     jobId,
-    tier: "cheap",
-    promptVersion: "program-page-v1",
+    tier: "apply",
+    promptVersion: "program-page-v2",
     system: "extract the official program page url from the research. it must be on the university's own site (or the official partner site for an online program), not a rankings, listings or forum site. \"\" if none.",
     prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 30).join(" ")}`,
     schema: PageOut,
@@ -692,13 +693,14 @@ export const runner: Record<string, Handler> = {
           : `program: ${p.name}${p.degree ? ` (${p.degree})` : ""} at ${p.schools.name}\nprogram page: ${p.url ?? "unknown"}\nfind the exact url where an international applicant starts the online application for the next intake (the "apply now" / "start your application" destination, or the account sign-in of the school's application system).${avoid.length ? `\nthese were tried and are not the application: ${avoid.join(" ")}` : ""}`,
       maxSearches: 4,
       maxFetches: 4,
+      tier: "apply",
     });
     const { output } = await runStructured({
       userId: job.user_id,
       agent: "runner",
       jobId: job.id,
-      promptVersion: "portal-v3",
-      tier: "cheap",
+      promptVersion: "portal-v4",
+      tier: "apply",
       system: "extract the online application portal url from the research: where an applicant creates an account or signs in to apply. if only the program page is known, return \"\".",
       prompt: `${found.text}\n\nurls seen: ${found.sources.slice(0, 40).join(" ")}`,
       schema: PortalOut,

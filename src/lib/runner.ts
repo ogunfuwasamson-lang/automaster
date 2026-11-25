@@ -149,8 +149,8 @@ export async function mapFields(userId: string, sheet: FillSheet, fields: PageFi
     const { output } = await runStructured({
       userId,
       agent: "runner",
-      promptVersion: "map-v1",
-      tier: "cheap",
+      promptVersion: "map-v2",
+      tier: "apply",
       system: MAP_SYSTEM,
       cachePrefix: `fill sheet keys:\n${keyMenu(sheet)}`,
       prompt: `portal fields:\n${unresolved.map((f) => `${f.id} | ${f.type} | ${f.label}${f.options?.length ? ` | options: ${f.options.slice(0, 30).join(" / ")}` : ""}`).join("\n")}`,
@@ -199,7 +199,7 @@ never write a value of your own. explain each pick in a few words.`;
 
 // a second look at required fields the rules left empty. the model chooses from the field's own options or picks
 // a sheet key; values still come only from the sheet (or, for neutral admin questions, from the page's own list).
-export async function decideFields(userId: string, sheet: FillSheet, fields: PageField[], page: { url: string; title: string; body: string; errors?: string[] }, jobId?: string, opts: { tier?: "chat" | "expert"; strict?: boolean; instructions?: { text: string }[] } = {}): Promise<Fill[]> {
+export async function decideFields(userId: string, sheet: FillSheet, fields: PageField[], page: { url: string; title: string; body: string; errors?: string[] }, jobId?: string, opts: { tier?: "chat" | "apply" | "expert"; strict?: boolean; instructions?: { text: string }[] } = {}): Promise<Fill[]> {
   if (!fields.length) return [];
   const values = Object.entries(sheet.fields)
     .map(([k, v]) => `${k}: ${v.length > 160 ? `${v.slice(0, 160)}…` : v}`)
@@ -210,8 +210,8 @@ export async function decideFields(userId: string, sheet: FillSheet, fields: Pag
       userId,
       agent: "runner",
       jobId,
-      promptVersion: "decide-v3",
-      tier: opts.tier ?? "chat",
+      promptVersion: "decide-v4",
+      tier: opts.tier ?? "apply",
       // these are the judgement calls (a yes/no that follows from the sheet, the right option among near-misses):
       // a moment's thought here is cheaper than a question to the applicant or a wrong answer on the form
       think: "medium",

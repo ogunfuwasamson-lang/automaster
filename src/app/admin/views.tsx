@@ -703,7 +703,7 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
   const mine = d.apps.filter((a) => a.userId === id).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
   const appMap = new Map(d.apps.map((a) => [a.id, a]));
   const spent = runs.reduce((s, x) => s + (Number(x.cost_usd) || 0), 0);
-  const cats: Record<Category, number> = { research: 0, writing: 0, core: 0 };
+  const cats: Record<Category, number> = { research: 0, writing: 0, core: 0, apply: 0 };
   for (const x of runs) cats[categoryOf(x.agent)] += Number(x.cost_usd) || 0;
   const errGroups = groupErrors(errors ?? []);
 
@@ -738,7 +738,7 @@ export async function UserView({ id, range: r, everyone }: { id: string; range: 
         <Stat label="Documents" value={`${u.docs}`} sub={Object.keys(u.docKinds).map((kk) => DOC_SHORT[kk] ?? docLabel(kk)).join(", ") || "none uploaded"} />
         <Stat label="Gmail" value={u.gmail?.status === "active" ? "On" : "Off"} sub={u.gmail ? `${u.gmail.email}${u.gmail.status !== "active" ? `, ${u.gmail.status}` : ""}` : "not connected"} />
         <Stat label="Credits" value={`${u.credits}`} sub={u.held ? `${u.held} set aside for applications in progress` : "to use now"} tone={u.credits || u.held ? undefined : "signal"} />
-        <Stat label={`AI, ${r.label}`} value={$(spent)} sub={`Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}. Our backstop ${$(u.budget)} a month`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
+        <Stat label={`AI, ${r.label}`} value={$(spent)} sub={`Research ${$(cats.research)}, writing ${$(cats.writing)}, core ${$(cats.core)}, applying ${$(cats.apply)}. Our backstop ${$(u.budget)} a month`} tone={spent > u.budget * 0.9 ? "stop" : undefined} />
         <Stat label="Paid, all time" value={u.payments.length ? money(u.payments) : "0"} sub={`${u.payments.length} payment${u.payments.length === 1 ? "" : "s"}`} />
       </Kpis>
 
@@ -1033,7 +1033,7 @@ export async function CostsView({ range: r, everyone }: { range: Range; everyone
   const perAgent = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
   for (const x of runs) {
     const c = Number(x.cost_usd) || 0;
-    const u = perUser.get(x.user_id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0 }, calls: 0 };
+    const u = perUser.get(x.user_id) ?? { cost: 0, cat: { research: 0, writing: 0, core: 0, apply: 0 }, calls: 0 };
     u.cost += c;
     u.cat[categoryOf(x.agent)] += c;
     u.calls++;
@@ -1095,7 +1095,7 @@ export async function CostsView({ range: r, everyone }: { range: Range; everyone
         </Panel>
       </div>
       <Panel title={`By user (${shown.length})`} note="Spend in the period. The budget is monthly (plan, paid submissions and any override)." scroll="lg">
-        <Table head={["User", "Plan", "Spent", "Research", "Writing", "Core", "Calls"]} min="50rem">
+        <Table head={["User", "Plan", "Spent", "Research", "Writing", "Core", "Applying", "Calls"]} min="56rem">
           {shown.length ? (
             shown
               .map((u) => ({ u, row: perUser.get(u.id)! }))
@@ -1115,7 +1115,7 @@ export async function CostsView({ range: r, everyone }: { range: Range; everyone
                       </span>
                       <Bar share={share} tone={share > 0.9 ? "stop" : undefined} />
                     </td>
-                    {(["research", "writing", "core"] as const).map((c) => (
+                    {(["research", "writing", "core", "apply"] as const).map((c) => (
                       <td key={c} className={td}>
                         {$(row.cat[c])} <span className="text-muted">of {$(u.budget * CATEGORY_SHARE[c])}</span>
                       </td>

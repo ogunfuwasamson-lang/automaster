@@ -16,8 +16,11 @@ import { assertAiAvailable, tripAi } from "@/lib/ai-health";
 //          so it runs on haiku (~20x cheaper than sonnet).
 // - expert: the few calls where a mistake loses an application: a portal page the other models gave up on, the last
 //           look before Submit, the fact check on essays. opus, thinking.
+// - apply: finding the school's application site and filling it in (founder's call, 25 nov 2026: opus for both, so
+//          fewer runs go in circles or hand a page to the applicant). opus without thinking; expert when stuck.
 export const MODELS = {
   expert: process.env.AGENT_MODEL_EXPERT ?? "claude-opus-5-5",
+  apply: process.env.AGENT_MODEL_APPLY ?? "claude-opus-5-5",
   write: process.env.AGENT_MODEL_WRITE ?? "claude-sonnet-5-5",
   chat: process.env.AGENT_MODEL_CHAT ?? "claude-sonnet-5-5",
   cheap: process.env.AGENT_MODEL_CHEAP ?? "claude-haiku-5-5",
