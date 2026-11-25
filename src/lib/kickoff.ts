@@ -3,7 +3,6 @@ import { admin } from "@/lib/supabase/admin";
 import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { getProfile } from "@/lib/profile-store";
-import { profileGaps } from "@/lib/profile";
 import { PORTAL_DETAIL_FIELDS, type PortalDetails } from "@/lib/portal-fields";
 import { notify, resolve } from "@/lib/notify";
 import { checkLimit } from "@/lib/limits";
@@ -36,7 +35,7 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
   const regions = profile.preferences.regions ?? [];
   const details = (row?.portal_details ?? {}) as PortalDetails;
   const blank = PORTAL_DETAIL_FIELDS.filter((f) => f.required && !details[f.key]);
-  const gaps = profileGaps(profile, details).length;
+  const quickLeft = await import("@/lib/cards").then((m) => m.cardState(userId).then((c) => c.left)).catch(() => 0);
   const [{ data: mail }, { count: inProgress }] = await Promise.all([
     db.from("mail_accounts").select("status").eq("user_id", userId).maybeSingle(),
     db.from("applications").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["preparing", "ready_for_review", "packet_approved"]),
@@ -60,7 +59,8 @@ export async function kickoff(userId: string, source: string): Promise<{ shortli
           : { title: "Add your degree certificate", body: "Some forms won't accept the application without proof you finished. Still studying? A letter from your university with your expected finish date works for now.", href: "/documents", actionLabel: "Upload certificate" },
     },
     { id: "gmail", need: mail?.status !== "active" && !!inProgress, ask: { urgent: true, title: "Connect Gmail so applications don't wait on you", body: "School portals email a code or a link while the agents create your accounts. With Gmail connected the agents read them and carry on. No Gmail? Paste a school's email in Messages and they'll do the same.", href: "/settings", actionLabel: "Connect Gmail" } },
-    { id: "interview", need: gaps > 0, ask: { title: `${gaps} question${gaps === 1 ? "" : "s"} left for Ivyward AI`, body: "A few answers your documents didn't cover. It takes a couple of minutes.", href: "/dashboard?chat=open", actionLabel: "Answer them" } },
+    // the form questions are quick cards now (lib/cards): the reminder counts those and opens them in the chat panel
+    { id: "interview", need: quickLeft > 0, ask: { title: `${quickLeft} quick question${quickLeft === 1 ? "" : "s"} left for your forms`, body: "Tap through them: every application form fills from your answers. A few minutes, and most need no typing.", href: "/dashboard?chat=open", actionLabel: "Answer them" } },
   ];
   let asked = false;
   for (const a of asks) {

@@ -5,6 +5,8 @@ import { admin } from "@/lib/supabase/admin";
 import { answerQuestion, openQuestions } from "@/lib/portal-questions";
 import { toAsk, type Ask } from "@/lib/ask";
 import { afterDetailAnswer, saveDetail } from "@/lib/detail-answers";
+import { answerSharpen, cardState, isSharpenId } from "@/lib/cards";
+import { logEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 
@@ -19,7 +21,8 @@ export async function GET() {
   );
 }
 
-const Body = z.object({ id: z.union([z.uuid(), z.string().regex(/^d:[a-z0-9_]{2,40}$/)]), answer: z.string().max(2000).nullable(), sessionId: z.uuid().nullable().optional() });
+// ids: a portal question (uuid), a form question ("d:<key>"), or a match fact ("s:<key>", lib/cards)
+const Body = z.object({ id: z.union([z.uuid(), z.string().regex(/^d:[a-z0-9_]{2,40}$/), z.string().regex(/^s:[a-z]{3,20}$/)]), answer: z.string().max(2000).nullable(), sessionId: z.uuid().nullable().optional() });
 
 const nextLine = (q: Ask, first: boolean) => `${first ? "" : "Next, "}${q.school ?? "A school"} asks: ${q.question}`;
 
@@ -34,7 +37,15 @@ export async function POST(req: NextRequest) {
   let next: Ask | null;
   let reply: string;
   let left: unknown[] = [];
-  if (id.startsWith("d:")) {
+  if (id.startsWith("s:")) {
+    // a match fact from a card: saved, then the next card
+    if (!isSharpenId(id)) return NextResponse.json({ error: "unknown question" }, { status: 400 });
+    const saved = await answerSharpen(uid, id, answer);
+    if (!saved.ok) return NextResponse.json({ error: saved.error ?? "couldn't save that" }, { status: 400 });
+    const s = await cardState(uid);
+    next = s.card;
+    reply = "Saved.";
+  } else if (id.startsWith("d:")) {
     // a profile-chapter question: saved to the profile, then the next one (a school's waiting question first)
     const saved = await saveDetail(uid, id.slice(2), answer?.trim() ? answer : null);
     if (!saved.ok) return NextResponse.json({ error: saved.error ?? "couldn't save that" }, { status: 400 });
@@ -54,6 +65,8 @@ export async function POST(req: NextRequest) {
     next = left[0] ? toAsk(left[0] as Parameters<typeof toAsk>[0]) : null;
     reply = next ? nextLine(next, false) : "That's everything. The agents are carrying on with your applications now.";
   }
+  // counted, to see how much of the profile now fills from cards rather than the conversation
+  await logEvent({ userId: uid, actor: "user", action: "profile.card_answered", context: { kind: id.startsWith("s:") ? "sharpen" : id.startsWith("d:") ? "detail" : "portal", key: id.startsWith("s:") || id.startsWith("d:") ? id : null, skipped: !answer?.trim(), chat: !!sessionId } }).catch(() => {});
   // from the chat: keep the conversation in Ivyward AI's history so it knows what was answered
   if (sessionId) {
     const db = admin();

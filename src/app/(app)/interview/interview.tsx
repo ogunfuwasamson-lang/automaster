@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import * as Popover from "@radix-ui/react-popover";
-import { ArrowUp, MessagesSquare, Mic, RotateCcw, Settings2, Square } from "lucide-react";
+import { ArrowUp, BookOpenText, Mic, RotateCcw, Settings2, Sparkles, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AskControls } from "@/components/questions/ask-controls";
 import type { Ask } from "@/lib/ask";
 import { Field, Select } from "@/components/ui/field";
+import { QuickCards } from "@/components/chat/quick-cards";
 
 type Turn = { role: "agent" | "user"; content: string; ask?: Ask | null };
 type Phase = "idle" | "listening" | "thinking" | "speaking";
@@ -71,16 +72,15 @@ export function Interview({
   embedded = false,
   kickoff = false,
   say: firstMessage = null,
-  waiting = [],
   onTurn,
 }: {
   initialSessionId: string | null;
   initialTurns: Turn[];
   initialCompleteness: number;
   embedded?: boolean; // inside the chat panel: fills it, no page chrome
-  kickoff?: boolean; // the interviewer speaks first (portal questions are waiting)
+  kickoff?: boolean; // opened with a message to send, or because portal questions are waiting (shown as cards)
   say?: string | null; // a message the applicant typed elsewhere (the home page box): sent straight away
-  waiting?: { id: string; question: string; school: string | null }[];
+  waiting?: { id: string; question: string; school: string | null }[]; // shown as cards now (lib/cards); kept for callers
   onTurn?: () => void;
 }) {
   const [sessionId, setSessionId] = useState(initialSessionId);
@@ -108,6 +108,21 @@ export function Interview({
   settings.current = { speak, handsFree, lang, voiceName, voiceOk, voices, pauseMs };
   const sendRef = useRef<(text: string | null, viaVoice: boolean) => Promise<void>>(async () => {});
   const bottom = useRef<HTMLDivElement>(null);
+  // the quick cards (lib/cards): form questions answered with a tap, no AI. shown on the start screen, and on demand
+  // (or when a school's form is waiting) below a conversation
+  const [showCards, setShowCards] = useState(false);
+  const [cardsLeft, setCardsLeft] = useState(0);
+  const [storiesOpen, setStoriesOpen] = useState(0);
+  useEffect(() => {
+    void fetch("/api/questions/next", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { left?: number; storiesOpen?: number } | null) => {
+        if (!j) return;
+        setCardsLeft(j.left ?? 0);
+        setStoriesOpen(j.storiesOpen ?? 0);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setVoiceOk(!!getRecognition());
@@ -293,7 +308,7 @@ export function Interview({
   sendRef.current = send;
 
   // a tap on an offered answer. a portal question is saved straight to the profile (no AI needed) and the next one
-  // comes back at once; Ivyward AI's own choices go through the conversation as if typed.
+  // comes back at once; the AI's own choices go through the conversation as if typed.
   async function tap(ask: Ask, answer: string | null) {
     window.speechSynthesis?.cancel();
     finish(false);
@@ -314,12 +329,14 @@ export function Interview({
     }
   }
 
-  // opened because a school's form is waiting on answers: the interviewer asks straight away
+  // opened with a message typed elsewhere: it goes straight to Ivyward AI. opened because a school's form is
+  // waiting on answers: the questions come up as cards, with no AI call
   const kicked = useRef(false);
   useEffect(() => {
     if (!kickoff || kicked.current) return;
     kicked.current = true;
-    void sendRef.current(firstMessage || null, false);
+    if (firstMessage) void sendRef.current(firstMessage, false);
+    else setShowCards(true);
   }, [kickoff, firstMessage]);
 
   function micTap() {
@@ -350,13 +367,18 @@ export function Interview({
     <div className={embedded ? "flex h-full min-h-0 flex-col px-4 pt-4 sm:px-6" : "mx-auto flex min-h-[calc(100dvh-13rem)] max-w-3xl flex-col rounded-2xl border border-line bg-surface px-4 pt-6 shadow-card sm:px-8 sm:pt-8 lg:min-h-[calc(100dvh-10rem)]"}>
       <header className={`flex flex-wrap items-end justify-between gap-3 pb-4 ${embedded ? "pr-10" : ""}`}>
         <div>
-          {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Ivyward AI</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Ivyward AI</h1>}
+          {embedded ? <h2 className="text-lg font-bold tracking-[-0.03em]">Ask Ivyward</h2> : <h1 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">Ask Ivyward</h1>}
           <div className={`flex items-center gap-3 text-sm text-muted ${embedded ? "mt-1.5" : "mt-3"}`}>
             <span className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
               <span className="block h-full rounded-full bg-bar-gradient transition-[width] duration-700" style={{ width: `${pct}%` }} />
             </span>
             Profile {pct}% complete
           </div>
+          {started && !showCards && cardsLeft > 0 ? (
+            <button type="button" onClick={() => setShowCards(true)} className="mt-1.5 text-[13px] font-semibold text-brand hover:underline">
+              {cardsLeft} quick question{cardsLeft === 1 ? "" : "s"} for your forms: answer them
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Popover.Root>
@@ -438,6 +460,7 @@ export function Interview({
                 window.speechSynthesis?.cancel();
                 setSessionId(null);
                 setTurns([]);
+                setShowCards(false);
                 setPhase("idle");
               }}
             >
@@ -448,33 +471,41 @@ export function Interview({
         </div>
       </header>
 
-      {waiting.length > 0 && (
-        <div className="mb-3 rounded-2xl border border-signal/25 bg-signal/[0.06] px-3.5 py-2.5 text-xs leading-relaxed">
-          <p className="font-semibold text-foreground">
-            {waiting.length === 1 ? "1 question" : `${waiting.length} questions`} from your applications
-          </p>
-          <p className="mt-0.5 line-clamp-2 text-muted">
-            {waiting
-              .slice(0, 3)
-              .map((q) => `${q.school ? `${q.school.split(/[,(]/)[0].trim()}: ` : ""}${q.question}`)
-              .join(" · ")}
-          </p>
-          <p className="mt-1 text-muted">Your answers are saved to your profile and used on every form from now on.</p>
-        </div>
-      )}
       <section className={`flex-1 space-y-4 border-t border-line py-6 ${embedded ? "min-h-0 overflow-y-auto" : ""}`} aria-live="polite">
         {!started && (
-          <div className="mx-auto max-w-md py-10 text-center">
-            <span className="bg-hero-gradient mx-auto grid size-16 place-items-center rounded-3xl text-white">
-              <MessagesSquare className="size-7" aria-hidden />
-            </span>
-            <h2 className="mt-5 text-xl font-semibold">A conversation, not a form</h2>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted">
-              It asks one thing at a time and fills your profile as you go. With hands-free on, just talk: it sends when you pause and listens again after it answers. Stop whenever you like.
+          <div className="space-y-4">
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Ask anything about admissions or your applications, or tell your agents what to do. The questions forms ask are quick cards: tap and they&apos;re saved.
             </p>
-            <Button size="lg" className="mt-6" onClick={() => send(null, false)} disabled={phase === "thinking"}>
-              {phase === "thinking" ? "Starting…" : "Start the interview"}
-            </Button>
+            <QuickCards onAnswered={onTurn} onState={(x) => setCardsLeft(x.left)} />
+            <div className="grid gap-2">
+              <button
+                type="button"
+                disabled={phase === "thinking"}
+                onClick={() => void send("Let's work on my essay stories.", false)}
+                className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 text-left transition-colors hover:border-foreground/30 disabled:opacity-50"
+              >
+                <BookOpenText className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+                <span>
+                  <span className="block text-[14.5px] font-semibold">Work on your essay stories</span>
+                  <span className="block text-[13px] leading-snug text-muted">
+                    A short conversation about the moments your essays are written from{storiesOpen ? `: ${storiesOpen} to go` : ""}. Talk or type.
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={phase === "thinking"}
+                onClick={() => void send("What should I do next on my applications?", false)}
+                className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 text-left transition-colors hover:border-foreground/30 disabled:opacity-50"
+              >
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+                <span>
+                  <span className="block text-[14.5px] font-semibold">What should I do next?</span>
+                  <span className="block text-[13px] leading-snug text-muted">Where your applications stand, and what needs you this week.</span>
+                </span>
+              </button>
+            </div>
           </div>
         )}
         <AnimatePresence initial={false}>
@@ -525,6 +556,7 @@ export function Interview({
             </span>
           </div>
         )}
+        {started && showCards && phase !== "thinking" ? <QuickCards onAnswered={onTurn} onState={(x) => setCardsLeft(x.left)} /> : null}
         {done && (
           <div className="mt-4 rounded-2xl border border-go/25 bg-go/[0.05] p-4">
             <p className="font-medium">Your agents are on it.</p>
@@ -551,60 +583,58 @@ export function Interview({
         </p>
       )}
 
-      {started && (
-        <footer className={embedded ? "-mx-4 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 sm:-mx-6 sm:px-6" : "sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0"}>
-          <p className="mb-2 h-4 text-xs text-muted">{status}</p>
-          <div className="flex items-end gap-2">
-            {voiceOk && (
-              <button
-                onClick={micTap}
-                disabled={phase === "thinking"}
-                aria-label={phase === "listening" ? "Stop and send" : "Talk"}
-                className={`relative grid size-12 shrink-0 place-items-center rounded-full transition disabled:opacity-40 ${
-                  phase === "listening" ? "bg-stop text-white" : "bg-hero-gradient text-white hover:-translate-y-px"
-                }`}
-              >
-                {phase === "listening" && <span className="absolute inset-0 animate-ping rounded-full bg-stop/40" aria-hidden />}
-                {phase === "listening" ? <Square className="relative size-4 fill-current" /> : <Mic className="size-5" />}
-              </button>
-            )}
-            <form
-              className="flex flex-1 items-end gap-2 rounded-[20px] border border-line bg-background p-1.5 transition-shadow focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/12"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const t = draft.trim();
-                if (!t || phase === "thinking") return;
-                finish(false);
-                window.speechSynthesis?.cancel();
-                setDraft("");
-                void send(t, false);
-              }}
+      <footer className={embedded ? "-mx-4 border-t border-line bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 sm:-mx-6 sm:px-6" : "sticky bottom-24 -mx-4 rounded-b-[28px] border-t border-line bg-surface/95 px-4 pb-4 pt-2 backdrop-blur sm:-mx-8 sm:px-8 lg:bottom-0"}>
+        <p className="mb-2 h-4 text-xs text-muted">{status}</p>
+        <div className="flex items-end gap-2">
+          {voiceOk && (
+            <button
+              onClick={micTap}
+              disabled={phase === "thinking"}
+              aria-label={phase === "listening" ? "Stop and send" : "Talk"}
+              className={`relative grid size-12 shrink-0 place-items-center rounded-full transition disabled:opacity-40 ${
+                phase === "listening" ? "bg-stop text-white" : "bg-hero-gradient text-white hover:-translate-y-px"
+              }`}
             >
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    (e.currentTarget.form as HTMLFormElement).requestSubmit();
-                  }
-                }}
-                rows={1}
-                aria-label="Your answer"
-                placeholder={voiceOk ? "Or type your answer" : "Type your answer (voice works in Chrome)"}
-                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-2 text-[15px] outline-none field-sizing-content"
-              />
-              <button
-                disabled={phase === "thinking" || !draft.trim()}
-                aria-label="Send"
-                className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink transition disabled:opacity-30"
-              >
-                <ArrowUp className="size-4" />
-              </button>
-            </form>
-          </div>
-        </footer>
-      )}
+              {phase === "listening" && <span className="absolute inset-0 animate-ping rounded-full bg-stop/40" aria-hidden />}
+              {phase === "listening" ? <Square className="relative size-4 fill-current" /> : <Mic className="size-5" />}
+            </button>
+          )}
+          <form
+            className="flex flex-1 items-end gap-2 rounded-[20px] border border-line bg-background p-1.5 transition-shadow focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/12"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const t = draft.trim();
+              if (!t || phase === "thinking") return;
+              finish(false);
+              window.speechSynthesis?.cancel();
+              setDraft("");
+              void send(t, false);
+            }}
+          >
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  (e.currentTarget.form as HTMLFormElement).requestSubmit();
+                }
+              }}
+              rows={1}
+              aria-label="Your answer"
+              placeholder={started ? (voiceOk ? "Reply, or ask anything" : "Reply, or ask anything (voice works in Chrome)") : "Ask anything, or tell your agents what to do"}
+              className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-2 text-[15px] outline-none field-sizing-content"
+            />
+            <button
+              disabled={phase === "thinking" || !draft.trim()}
+              aria-label="Send"
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink transition disabled:opacity-30"
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          </form>
+        </div>
+      </footer>
     </div>
   );
 }

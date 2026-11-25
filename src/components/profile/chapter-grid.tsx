@@ -11,7 +11,7 @@ export function ChapterGrid({ states, readiness }: { states: ChapterState[]; rea
         <div>
           <h2 className="text-[28px] font-bold leading-tight tracking-[-0.035em]">Your application profile</h2>
           <p className="mt-1.5 max-w-xl text-[15px] text-muted">
-            The questions application forms ask, in short chapters. Answer each once and the agents fill every form with it. Tap through the cards, or talk it through with Ivyward AI.
+            The questions application forms ask, in short chapters. Answer each once and the agents fill every form with it. Tap through the cards; the story chapters are a short conversation.
           </p>
         </div>
         <div className="text-right">
@@ -45,7 +45,7 @@ export function ChapterGrid({ states, readiness }: { states: ChapterState[]; rea
                   <Rows3 className="size-3.5" aria-hidden />
                   {complete ? "Review answers" : s.chapter.style === "story" ? "Write answers" : "Quick cards"}
                 </Link>
-                {!complete && (
+                {!complete && s.chapter.style === "story" && (
                   <a href={say} className="inline-flex items-center gap-1.5 text-muted hover:text-foreground">
                     <MessagesSquare className="size-3.5" aria-hidden />
                     Talk it through

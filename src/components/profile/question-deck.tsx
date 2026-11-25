@@ -116,7 +116,7 @@ export function QuestionDeck({
           {state.chapter.title}
           {current ? <span className="tabular"> · {position} of {state.total}</span> : null}
         </p>
-        {chatHref && current && (
+        {chatHref && current && state.chapter.style === "story" && (
           <a href={`/dashboard?chat=open&say=${encodeURIComponent(`Let's do my profile chapter: ${state.chapter.title}`)}`} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
             <MessagesSquare className="size-3.5" aria-hidden />
             Talk it through instead

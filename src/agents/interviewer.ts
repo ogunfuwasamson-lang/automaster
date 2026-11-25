@@ -11,8 +11,9 @@ import { research } from "@/lib/research";
 import { runActions, seasonOverview } from "@/lib/assistant";
 import { toAsk, type Ask } from "@/lib/ask";
 import { detailsBrief, type PortalDetails } from "@/lib/portal-fields";
-import { CHAPTERS, detailAsk, fieldFor, nextQuestions, formReadiness, type Level } from "@/lib/profile-chapters";
+import { CHAPTERS, chapterStates, detailAsk, fieldFor, formReadiness, type Level } from "@/lib/profile-chapters";
 import { saveDetail } from "@/lib/detail-answers";
+import { lightTurn } from "@/lib/chat-routing";
 
 export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link"] as const;
 
@@ -46,7 +47,7 @@ export const TurnOut = z.object({
 const SYSTEM = `you are Ivyward AI, the applicant's admissions assistant on Ivyward, a platform where agents run their whole university application season (bachelor's, master's, MBA or PhD; any field, any country). you talk with them by voice or text, any time.
 
 what you do, in order of priority:
-0. portal questions come first when there are any: a school's application form is stopped until they're answered. ask them one at a time, say which school is asking, and set asks_portal_question to its id: the app shows its options as buttons, so don't list the options in the reply. record each answer in portal_answers with the question's exact id, in the wording a form expects: an option's exact text when there are options, dates as YYYY-MM-DD, yes/no as "Yes"/"No". skip true if it doesn't apply or they won't answer. don't also put these in the patch. when the last one is answered, tell them the agents are carrying on.
+0. questions with a fixed form are answered on cards in the app, not in this conversation: a school's waiting portal questions, the facts that shape their matches (funding, budget, english, tests, grades, timing) and the quick form chapters. don't ask those one by one. if they're open and it matters, say so once in a short line ("a school's form is waiting on two answers: they're on the cards above") and move on. if they answer one in conversation anyway, record it in portal_answers with its exact id, in the wording a form expects: an option's exact text when there are options, dates as YYYY-MM-DD, yes/no as "Yes"/"No". don't also put these in the patch.
 1. answer what they ask. admissions, schools, programs, requirements, deadlines, tests, visas, funding, scholarships, fee waivers, essays, interviews, careers after a degree, how ivyward works, where their applications stand. use their applications, messages and notices below; that is what the other agents know. for current facts you aren't sure of (a deadline, a fee, a requirement, a ranking) set lookup to a precise web search query instead of guessing; you'll get the results and answer then. mode "answer".
 2. act for them when they ask, or when it's plainly the next step. actions hand work to the other agents:
    - find_programs: search for more programs (the shortlist agent).
@@ -57,7 +58,7 @@ what you do, in order of priority:
    - follow_link: open a link from a school (url) and complete it for them: register for an event, request a fee waiver, fill a form, book a slot.
    say in the reply what you set in motion. never claim something is done that you didn't put in actions.
 3. be proactive in a sentence when it matters: a deadline close by, a webinar that unlocks a fee waiver, something that needs them.
-4. when nothing else is going on, close the profile gaps (below), then work through the application-profile chapter in progress: the questions every application form asks. one at a time, in your own words, warm and quick; never read out a list or sound like a form. open a chapter with one light line (its name, that it's a couple of minutes), react briefly and specifically to answers (not "great!"), and every few answers say how far along they are. for story questions, be a curious interviewer: one follow-up for a concrete detail or number, then move on. record what they say in portal_answers with the question's id ("d:<key>"), and set asks_portal_question to the id of the question your reply asks so they can tap an answer. skip = true when they'd rather not say or it doesn't apply. once a chapter is done, offer the next one or a break. then (list provided, highest priority first), then dig for essay and funding material (mode "stories"): concrete stories with numbers, a setback and what they learned, why this field, why now. and every hook that wins scholarships and fee waivers beyond nationality: sport, arts, music, hobbies pursued seriously, competitions and olympiads, awards, top grades, leadership, volunteering, community or faith work, a business or project they built, languages, being first in their family at university, other family or life circumstances they choose to share, a career milestone. one question at a time.
+4. when nothing else is going on, the profile work only a conversation can do: the open gaps below that need their own words (goals, why this degree and why now, past degrees, recommenders), then the story chapter in progress (the questions essays are written from) and essay and funding material (mode "stories"): concrete stories with numbers, a setback and what they learned, why this field, why now. and every hook that wins scholarships and fee waivers beyond nationality: sport, arts, music, hobbies pursued seriously, competitions and olympiads, awards, top grades, leadership, volunteering, community or faith work, a business or project they built, languages, being first in their family at university, other family or life circumstances they choose to share, a career milestone. be a curious interviewer: one question at a time, one follow-up for a concrete detail or number, then move on; react briefly and specifically (not "great!"). record story-chapter answers in portal_answers with the question's id ("d:<key>"); skip = true when they'd rather not say.
 5. wrap up when they want to stop.
 
 how you sound:
@@ -96,7 +97,7 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
 
   const [profile, { data: history }, { data: docs }, { data: row }, questions, overview] = await Promise.all([
     getProfile(userId),
-    db.from("interview_turns").select("role, content").eq("user_id", userId).order("created_at", { ascending: false }).limit(24),
+    db.from("interview_turns").select("role, content").eq("user_id", userId).order("created_at", { ascending: false }).limit(16),
     db.from("documents").select("filename, extracted").eq("user_id", userId).eq("status", "extracted"),
     db.from("profiles").select("target_term, portal_details").eq("id", userId).single(),
     openQuestions(userId),
@@ -111,7 +112,10 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
   const lastMeta = lastAgent?.meta as { ask?: { id?: string }; chapter?: string | null } | null;
   const lastKey = (lastMeta?.ask?.id ?? "").replace(/^d:/, "");
   const focus = asked?.id ?? lastMeta?.chapter ?? CHAPTERS.find((c) => c.keys.includes(lastKey))?.id ?? null;
-  const chapterNow = nextQuestions(details, level, 4, focus);
+  // the form chapters are cards now (lib/cards): only the story chapters are worked through here
+  const stories = chapterStates(details, level).filter((x) => x.chapter.style === "story");
+  const storyPick = (focus ? stories.find((x) => x.chapter.id === focus && x.next.length) : undefined) ?? stories.find((x) => x.next.length) ?? null;
+  const chapterNow = { chapter: storyPick, questions: storyPick ? storyPick.next.slice(0, 4) : [] };
   const gaps = profileGaps(profile, details);
   // they asked for a chapter by name (the buttons in setup and on the profile do): that comes before the gaps
   const wantsChapter = !!asked && chapterNow.chapter?.chapter.id === asked.id;
@@ -124,29 +128,33 @@ ${detailsBrief(row?.portal_details as PortalDetails | null, "all") || "(none yet
 
 documents on file: ${(docs ?? []).map((d) => (d.extracted as { kind?: string } | null)?.kind ?? d.filename).join(", ") || "none"}
 
-portal questions the agents are waiting on (ask these first):
+portal questions the agents are waiting on (on the cards in the app; record an answer only if they give one here):
 ${questions.map((q) => `- [${q.id}] ${q.school ?? "a school"} asks: "${q.question}"${q.options.length ? ` (options: ${q.options.slice(0, 25).join(" / ")})` : ""}${q.field_type === "date" ? " (a date)" : ""}`).join("\n") || "(none)"}
 
 ${overview}
 
 today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
 
-application profile (${formReadiness(details, level)}% ready for forms). chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done, ${chapterNow.chapter.chapter.style === "story" ? "a conversation" : "quick answers"})` : "(all chapters done)"}
+application profile (${formReadiness(details, level)}% ready for forms; the quick chapters are on cards). story chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done)` : "(all done)"}
 ${chapterNow.questions.map((f) => `- [d:${f.key}] ${f.ask ?? f.label}${f.options?.length ? ` (options: ${f.options.join(" / ")})` : ""}${f.kind === "date" ? " (a date)" : ""}${f.hint ? ` (hint: ${f.hint})` : ""}`).join("\n") || "(nothing open)"}
 
-${wantsChapter ? `they asked to do the chapter "${chapterNow.chapter!.chapter.title}" now: ask its questions above, in order, starting with the first. leave the gaps below for after the chapter.\n\n` : ""}gaps, highest priority first:
+${wantsChapter ? `they asked to do the chapter "${chapterNow.chapter!.chapter.title}" now: ask its questions above, in order, starting with the first. leave the gaps below for after the chapter.\n\n` : asked ? `they asked for the chapter "${asked.title}": its questions are quick cards in the app (they'll see them above the reply box). say so in one line and offer the story questions or anything else.\n\n` : ""}gaps, highest priority first:
 ${gaps.map((g, i) => `${i + 1}. [${g.key}] ${g.ask}`).join("\n") || "(none: move to stories, or wrap up)"}
 
 conversation so far (oldest first):
 ${transcript.map((t) => `${t.role === "agent" ? "you" : "them"}: ${t.content}`).join("\n") || "(nothing yet)"}
 
-${userText ? `they just said: ${userText}` : questions.length ? "you opened the chat because a school's form needs answers. one short line saying so, then the first portal question." : transcript.length ? "they came back. pick up naturally: something that needs them, or the next question." : "they just opened Ivyward AI for the first time. one short line on what you can do (answer anything about admissions, act for them, and get to know them for their essays and funding), then your first question."}`;
+${userText ? `they just said: ${userText}` : transcript.length ? "they came back. pick up naturally: something that needs them, or the next story question." : "they just opened Ask Ivyward for the first time. one short line on what you can do (answer anything about admissions, act for them, and get to know them for their essays and funding), then your first question."}`;
 
+  // a short reply to the AI's own question goes to the smaller model; questions, requests, stories and anything long
+  // go to the larger one (nov 2026: $0.013 a turn on the larger model for every reply, most of them a few words)
+  const lastMode = (lastAgent?.meta as { mode?: string } | null)?.mode ?? null;
+  const light = lightTurn(userText, transcript, lastMode);
   let { output, runId } = await runStructured({
     userId,
     agent: "interviewer",
-    tier: "chat",
-    promptVersion: "assistant-v1",
+    tier: light ? "cheap" : "chat",
+    promptVersion: light ? "assistant-v2-light" : "assistant-v2",
     system: SYSTEM,
     prompt,
     schema: TurnOut,
@@ -167,7 +175,7 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
         userId,
         agent: "interviewer",
         tier: "chat",
-        promptVersion: "assistant-v1-answer",
+        promptVersion: "assistant-v2-answer",
         system: SYSTEM,
         prompt: `${prompt}\n\nyou looked this up ("${output.lookup.slice(0, 200)}"). results:\n${found.text.slice(0, 6000)}\n\nanswer them now from these results (say where a figure comes from in plain words, e.g. "the school's admissions page"); lookup must be "".`,
         schema: TurnOut,
@@ -209,7 +217,7 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
   const failed = done.filter((d) => !d.ok);
   const reply = failed.length ? `${output.reply} (${failed.map((d) => d.note).join("; ")})` : output.reply;
   const turn = { user_id: userId, session_id: sessionId, role: "agent", content: reply };
-  const { error: turnErr } = await db.from("interview_turns").insert({ ...turn, meta: { ...(ask ? { ask } : {}), chapter: chapterNow.chapter?.chapter.id ?? null } });
+  const { error: turnErr } = await db.from("interview_turns").insert({ ...turn, meta: { ...(ask ? { ask } : {}), chapter: chapterNow.chapter?.chapter.id ?? null, mode: output.mode } });
   if (turnErr) await db.from("interview_turns").insert(turn); // before the meta column exists
   await logEvent({
     userId,
@@ -217,7 +225,7 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     action: "interview.turn",
     agentRunId: runId,
     channel: viaVoice ? "voice" : "text",
-    context: { sessionId, patched: patchKeys, mode: output.mode, portalAnswers: answered, chapterAnswers, lookup: output.lookup || null, actions: done },
+    context: { sessionId, patched: patchKeys, mode: output.mode, light, portalAnswers: answered, chapterAnswers, lookup: output.lookup || null, actions: done },
   });
 
   // the conversation is done: the agents start now, and whatever they still need becomes a notification
@@ -238,3 +246,4 @@ ${userText ? `they just said: ${userText}` : questions.length ? "you opened the 
     ask,
   };
 }
+

@@ -25,8 +25,9 @@ const markSeen = (ids: string[]) => {
   }
 };
 
-// the interviewer lives in a panel that opens from any page: a floating button, or any link with ?chat=open.
-// it also pops up by itself when an agent stops on a portal question the profile doesn't answer.
+// "Ask Ivyward" (the interviewer) lives in a panel that opens from any page: a floating button, or any link with
+// ?chat=open. it also pops up by itself when an agent stops on a portal question the profile doesn't answer, and
+// shows it as a card (lib/cards).
 export function ChatDock() {
   const params = useSearchParams();
   const path = usePathname();
@@ -131,10 +132,10 @@ export function ChatDock() {
         <button
           hidden={path.startsWith("/messages")}
           className={`bg-hero-gradient fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-30 flex items-center gap-2 rounded-full py-3 pl-3.5 pr-4 text-sm font-medium text-white shadow-lift transition-[opacity,transform] duration-200 hover:opacity-90 motion-reduce:transition-none lg:bottom-8 lg:right-8 lg:translate-x-0 lg:opacity-100 ${tucked ? "translate-x-[70%] opacity-60" : ""}`}
-          aria-label={questions.length ? `Ivyward AI: ${questions.length} questions waiting` : "Ivyward AI"}
+          aria-label={questions.length ? `Ask Ivyward: ${questions.length} questions waiting` : "Ask Ivyward"}
         >
           <MessagesSquare className="size-5" aria-hidden />
-          <span className="hidden sm:inline">Ivyward AI</span>
+          <span className="hidden sm:inline">Ask Ivyward</span>
           {questions.length > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-signal px-1.5 text-[11px] font-bold leading-5 text-white">{questions.length}</span>}
         </button>
       </Dialog.Trigger>
@@ -152,7 +153,7 @@ export function ChatDock() {
                 exit={{ x: "105%" }}
                 transition={{ type: "spring", stiffness: 380, damping: 38 }}
               >
-                <Dialog.Title className="sr-only">Ivyward AI</Dialog.Title>
+                <Dialog.Title className="sr-only">Ask Ivyward</Dialog.Title>
                 <Dialog.Close className="absolute right-4 top-4 z-10 grid size-9 place-items-center rounded-xl text-muted hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800" aria-label="Close">
                   <X className="size-5" />
                 </Dialog.Close>

@@ -143,7 +143,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <CleanupButton />
             <ButtonLink href={`/profile?tab=${tab}&chat=open`} variant="accent">
               <MessagesSquare className="size-4" aria-hidden />
-              {gaps.length ? `Fill ${gaps.length} gap${gaps.length === 1 ? "" : "s"}` : "Talk to Ivyward AI"}
+              {gaps.length ? `Fill ${gaps.length} gap${gaps.length === 1 ? "" : "s"}` : "Ask Ivyward"}
             </ButtonLink>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[15px] font-bold">Still missing</h2>
                 <Link href={`/profile?tab=overview&chat=open`} className="text-[12.5px] font-bold text-brand hover:underline">
-                  Answer these with Ivyward AI
+                  Answer these
                 </Link>
               </div>
               <ul className="grid gap-2 sm:grid-cols-2">
