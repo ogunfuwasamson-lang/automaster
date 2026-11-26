@@ -51,6 +51,12 @@ export async function runActions(userId: string, actions: Action[]): Promise<Act
     try {
       const app = a.application_id ? (await db.from("applications").select("id, status, packet_approved_at, attested_at, programs(schools(name))").eq("id", a.application_id).eq("user_id", userId).maybeSingle()).data : null;
       const school = (app?.programs as unknown as { schools: { name: string } } | undefined)?.schools.name ?? null;
+      if (a.type === "add_region") {
+        const { addRegions } = await import("@/lib/advice-server");
+        const added = await addRegions(userId, a.note.split(/[,\s]+/).map((r) => r.trim().toLowerCase()), "assistant");
+        out.push({ type: a.type, ok: added.length > 0, note: added.length ? `added ${added.join(", ")} and started a search there` : "no known region to add" });
+        continue;
+      }
       if (a.type === "find_programs") {
         const { count } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover").in("status", ["queued", "running"]);
         if (count) {

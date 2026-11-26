@@ -46,6 +46,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     after(() => drain("inline-decision", 1).catch(() => {}));
   }
 
+  // Ivyward AI's advice on where to apply (agents/advisor): yes adds the places and searches there
+  if (a.kind === "destination_advice" && decision === "approve") {
+    const { addRegions } = await import("@/lib/advice-server");
+    await addRegions(uid, ((a.payload as { regions?: string[] }).regions ?? []).slice(0, 3), "advice");
+    after(() => drain("inline-advice", 1).catch(() => {}));
+  }
   if (a.kind === "fact_confirm" && decision === "approve") {
     if (!choice) return NextResponse.json({ error: "pick a value" }, { status: 400 });
     const topic = String((a.payload as { topic?: string }).topic ?? "");

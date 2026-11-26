@@ -62,10 +62,13 @@ describe("the shortlist starts as soon as the agents can search well", () => {
   const p = (fields: string[] | null, level: string | null = "masters", regions = ["uk"]) => ({ goals: { study_level: level, fields }, preferences: { regions } });
   beforeEach(() => Object.assign(state, { docs: 0, apps: 0, runs: 0, enqueued: [], locked: false, search: true, library: 0, rewarded: 0 }));
   const start = async () => (await import("@/lib/kickoff")).startShortlist("u1", "preferences");
+  // the agents' jobs, leaving out Ivyward AI's check on where to apply (agents/advisor), which every start queues
+  const agentJobs = () => state.enqueued.filter((j) => (j as { agent?: string }).agent !== "advisor");
   it("with a level, a region and fields: at step 2 of setup, not the last step", async () => {
     state.profile = p(["Data Science"]);
     expect(await start()).toBe(true);
-    expect(state.enqueued).toHaveLength(1);
+    expect(agentJobs()).toHaveLength(1);
+    expect(state.enqueued.some((j) => (j as { agent?: string }).agent === "advisor")).toBe(true);
   });
   it("on the free tier: a shortlist from the checked library, with no agent jobs", async () => {
     state.profile = p(["Data Science"]);
@@ -73,7 +76,7 @@ describe("the shortlist starts as soon as the agents can search well", () => {
     state.search = false;
     expect(await start()).toBe(true);
     expect(state.library).toBe(6);
-    expect(state.enqueued).toHaveLength(0);
+    expect(agentJobs()).toHaveLength(0);
   });
   it("a credit earned through an invite: the checked library's shortlist, then the fit checks on it, no search", async () => {
     state.profile = p(["Data Science"]);

@@ -210,6 +210,8 @@ export async function startShortlist(userId: string, source: string): Promise<bo
     db.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("agent", "recon").eq("task", "discover").in("status", ["queued", "running", "done"]),
   ]);
   if (apps || runs) return false;
+  // Ivyward AI checks whether somewhere else beats their picks (agents/advisor), a few minutes in
+  await enqueue({ userId, agent: "advisor", task: "destinations", idempotencyKey: `advise-destinations:${userId}`, runAt: new Date(Date.now() + 3 * 60_000) }).catch(() => {});
   // free, or a credit earned through an invite: the checked library's shortlist (lib/free-tier), checked against the
   // applicant when they hold the credit
   if (!(await searchesForUser(userId))) {

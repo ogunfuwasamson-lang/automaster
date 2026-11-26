@@ -15,7 +15,7 @@ import { CHAPTERS, chapterStates, detailAsk, fieldFor, formReadiness, type Level
 import { saveDetail } from "@/lib/detail-answers";
 import { lightTurn } from "@/lib/chat-routing";
 
-export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link"] as const;
+export const ACTIONS = ["find_programs", "prepare_application", "start_portal", "remind", "calendar", "follow_link", "add_region"] as const;
 
 export const TurnOut = z.object({
   reply: z.string(), // shown, and spoken aloud when voice is on
@@ -56,6 +56,8 @@ what you do, in order of priority:
    - remind: a reminder at a UTC time (title, at). they get a notice and an email.
    - calendar: put an event in their calendar (title, at UTC start, minutes, url). use it for webinars, interviews, deadlines they want blocked out.
    - follow_link: open a link from a school (url) and complete it for them: register for an event, request a fee waiver, fill a form, book a slot.
+   - add_region: add a destination to their search and look for programmes there (note = the region key: us, uk, canada, europe, asia, australia_nz, middle_east, africa, latin_america). only when they agree to it.
+   where to apply: the destination check below compares their picks with other places on Ivyward's checked list. when it shows somewhere clearly better for their field and funding need, say so plainly with its numbers (once, when it fits the conversation) and offer to add it; act with add_region only on their yes.
    say in the reply what you set in motion. never claim something is done that you didn't put in actions.
 3. be proactive in a sentence when it matters: a deadline close by, a webinar that unlocks a fee waiver, something that needs them.
 4. when nothing else is going on, the profile work only a conversation can do: the open gaps below that need their own words (goals, why this degree and why now, past degrees, recommenders), then the story chapter in progress (the questions essays are written from) and essay and funding material (mode "stories"): concrete stories with numbers, a setback and what they learned, why this field, why now. and every hook that wins scholarships and fee waivers beyond nationality: sport, arts, music, hobbies pursued seriously, competitions and olympiads, awards, top grades, leadership, volunteering, community or faith work, a business or project they built, languages, being first in their family at university, other family or life circumstances they choose to share, a career milestone. be a curious interviewer: one question at a time, one follow-up for a concrete detail or number, then move on; react briefly and specifically (not "great!"). record story-chapter answers in portal_answers with the question's id ("d:<key>"); skip = true when they'd rather not say.
@@ -95,13 +97,14 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
     await db.from("interview_turns").insert({ user_id: userId, session_id: sessionId, role: "user", content: userText, via_voice: viaVoice });
   }
 
-  const [profile, { data: history }, { data: docs }, { data: row }, questions, overview] = await Promise.all([
+  const [profile, { data: history }, { data: docs }, { data: row }, questions, overview, advice] = await Promise.all([
     getProfile(userId),
     db.from("interview_turns").select("role, content").eq("user_id", userId).order("created_at", { ascending: false }).limit(16),
     db.from("documents").select("filename, extracted").eq("user_id", userId).eq("status", "extracted"),
     db.from("profiles").select("target_term, portal_details").eq("id", userId).single(),
     openQuestions(userId),
     seasonOverview(userId),
+    import("@/lib/advice-server").then((m) => m.destinationAdvice(userId)).catch(() => null),
   ]);
   const transcript = (history ?? []).reverse() as Turn[];
   // the application-profile chapter in progress: the one they asked for, else the one the last question came from
@@ -132,6 +135,8 @@ portal questions the agents are waiting on (on the cards in the app; record an a
 ${questions.map((q) => `- [${q.id}] ${q.school ?? "a school"} asks: "${q.question}"${q.options.length ? ` (options: ${q.options.slice(0, 25).join(" / ")})` : ""}${q.field_type === "date" ? " (a date)" : ""}`).join("\n") || "(none)"}
 
 ${overview}
+
+destination check (Ivyward's checked list, their field, level, funding need and tests): ${advice ? `${advice.text} (region keys: ${advice.add.map((o) => o.region).join(", ")})` : "their picks are as good as anywhere on the list, or there's too little to compare"}
 
 today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
 
