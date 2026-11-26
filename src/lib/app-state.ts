@@ -18,7 +18,8 @@ export const TRANSITIONS: Record<AppStatus, AppStatus[]> = {
   under_review: ["interview", "admitted", "waitlisted", "rejected", "withdrawn"],
   interview: ["admitted", "waitlisted", "rejected", "withdrawn"],
   waitlisted: ["admitted", "rejected", "withdrawn"],
-  admitted: ["accepted", "declined"],
+  // back to submitted: an admission marked by mistake, before anything backed it (0036_undo_admission)
+  admitted: ["accepted", "declined", "submitted"],
   rejected: [],
   accepted: [],
   declined: [],

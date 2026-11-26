@@ -23,6 +23,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve_packet"), attest: z.literal(true) }),
   z.object({ action: z.literal("mark_submitted") }),
   z.object({ action: z.literal("check_admission") }),
+  z.object({ action: z.literal("undo_admission") }),
   z.object({
     action: z.literal("record_decision"),
     decision: z.enum(["interview", "admitted", "waitlisted", "rejected"]),
@@ -95,6 +96,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // the moment Chrome matters: a signed application is about to meet its portal, and some portals only let
       // the applicant's own browser in. asked once, here, rather than as one of the setup steps
       after(() => askForChrome(uid, id).catch(() => {}));
+      return NextResponse.json({ ok: true });
+    }
+
+    // marked "admitted" by mistake: back to submitted, as long as no email or letter backs it yet
+    if (b.action === "undo_admission") {
+      if (status !== "admitted") return NextResponse.json({ error: "this application isn't marked admitted" }, { status: 400 });
+      const { count: backed } = await db.from("outcomes").select("id", { count: "exact", head: true }).eq("application_id", id).eq("label", "admission_verified");
+      if (backed) return NextResponse.json({ error: "this admission is already confirmed by the school's email or your letter" }, { status: 400 });
+      await move("submitted", { decision: null, decision_at: null, aid_offered: null });
+      // its checks stop, and its ask goes
+      await db.from("jobs").update({ status: "cancelled" }).eq("user_id", uid).eq("agent", "admission").eq("status", "queued").eq("payload->>applicationId", id);
+      await resolve(uid, new RegExp(`^admission-proof:${id}$`)).catch(() => {});
+      await logEvent({ userId: uid, actor: "user", action: "decision.undone", applicationId: id, programId: app.program_id, context: { was: "admitted" } });
+      await recordOutcome({ userId: uid, applicationId: id, kind: "proxy", label: "admission_undone", source: "user" });
       return NextResponse.json({ ok: true });
     }
 

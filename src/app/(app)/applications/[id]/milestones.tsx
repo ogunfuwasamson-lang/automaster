@@ -34,6 +34,7 @@ export function Milestones({
   const [note, setNote] = useState("");
   const [acceptBy, setAcceptBy] = useState("");
   const [attest, setAttest] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const router = useRouter();
 
   async function act(body: Record<string, unknown>, ok: string) {
@@ -169,6 +170,26 @@ export function Milestones({
             </ButtonLink>
           )}
         </div>
+        <p className="border-t border-line pt-3 text-[13px] text-muted">
+          {undoing ? (
+            <>
+              Take this back? The application goes back to submitted.{" "}
+              <button type="button" className="font-medium text-foreground underline underline-offset-4" disabled={busy} onClick={() => act({ action: "undo_admission" }, "Back to submitted")}>
+                Yes, take it back
+              </button>{" "}
+              <button type="button" className="underline underline-offset-4" onClick={() => setUndoing(false)}>
+                Keep it
+              </button>
+            </>
+          ) : (
+            <>
+              Not admitted yet?{" "}
+              <button type="button" className="underline underline-offset-4 hover:text-foreground" onClick={() => setUndoing(true)}>
+                I marked this by mistake
+              </button>
+            </>
+          )}
+        </p>
       </Panel>
     );
   }
