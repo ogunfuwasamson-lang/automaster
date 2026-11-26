@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 // WhatsApp Cloud API (Meta), for Ivyward's number +234 911 031 2103 in the Flolyt WhatsApp account. the access token,
 // the app secret and the webhook verify token are set by the founder in Agent37's environment; nothing secret is in
 // code. ids aren't secret: the number's id and the WhatsApp account's id are the defaults below.
-const VERSION = () => process.env.WHATSAPP_API_VERSION || "v23.0";
+const VERSION = () => process.env.WHATSAPP_API_VERSION || "v27.0";
 const TOKEN = () => process.env.WHATSAPP_TOKEN;
 export const PHONE_ID = () => process.env.WHATSAPP_PHONE_NUMBER_ID || "1451718214692077";
 export const WABA_ID = () => process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "866695872708175";
