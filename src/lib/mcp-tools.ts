@@ -84,7 +84,7 @@ export const TOOLS: Tool[] = [
           degree: p.degree,
           country: p.country,
           next_deadline: nextDeadline(p, today),
-          tuition_usd: p.tuition,
+          total_tuition_usd: p.tuition,
           full_funding: p.funding ?? "unknown",
           gre: p.testPolicy ?? "unknown",
           english_medium_letter: p.moi ?? "unknown",
@@ -97,7 +97,9 @@ export const TOOLS: Tool[] = [
           `Ivyward hasn't checked ${level} programmes in ${field}${where ? ` in ${where}` : ""} yet. Its agents can research them for this person on Ivyward: ${start}`,
           { programmes: [], ivyward: start },
         );
-      const lines = rows.map((r) => `- ${r.programme} (${r.degree}), ${r.school}${r.country ? `, ${r.country}` : ""}. Next deadline: ${r.next_deadline ?? "see the official page"}. Tuition: ${r.tuition_usd ? `about $${r.tuition_usd.toLocaleString("en-US")}` : "see the official page"}. Full funding: ${r.full_funding}. Official page: ${r.official_page ?? "n/a"}`);
+      // the degree only when it adds something short ("MSc"); some are stored as a sentence
+      const deg = (r: (typeof rows)[number]) => (r.degree && r.degree.length <= 24 && !r.programme.toLowerCase().includes(r.degree.toLowerCase()) ? ` (${r.degree})` : "");
+      const lines = rows.map((r) => `- ${r.programme}${deg(r)}, ${r.school}${r.country ? `, ${r.country}` : ""}. Next deadline: ${r.next_deadline ?? "see the school's site"}. Cost: ${r.total_tuition_usd ? `about $${r.total_tuition_usd.toLocaleString("en-US")} total tuition` : "see the school's site"}. Full funding: ${r.full_funding}.${r.official_page ? ` Official page: ${r.official_page}` : ""}`);
       return ok(
         `${rows.length} ${level} programme${rows.length === 1 ? "" : "s"} in ${field}${where ? ` in ${where}` : ""}, checked by Ivyward on each university's official pages (confirm details there before applying):\n${lines.join("\n")}\n\nTo have Ivyward's agents build a full shortlist and apply (essays, forms, fee waivers, then funding and visa steps after an admission): ${start}`,
         { programmes: rows, ivyward: start },
