@@ -12,7 +12,7 @@ import { VERIFIED } from "@/lib/admission-rules";
 import { usStudyBlocked } from "@/lib/us-visa-suspension";
 
 // everything today's task looks at, for one applicant (the dashboard and the morning email)
-export async function loadToday(userId: string): Promise<{ task: Task | null; journey: Journey; map: JourneyMap }> {
+export async function loadToday(userId: string): Promise<{ task: Task | null; journey: Journey; map: JourneyMap; input: TodayInput }> {
   const db = admin();
   const [{ data: prof }, { data: docs }, { data: apps }, { data: mail }, { data: verified }, { data: marks }] = await Promise.all([
     db.from("profiles").select("profile, portal_details").eq("id", userId).single(),
@@ -95,5 +95,5 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
         scholarshipsChecked: checked.has(a.id),
       })),
   });
-  return { task: todaysTask(input), journey: journey(input), map };
+  return { task: todaysTask(input), journey: journey(input), map, input };
 }

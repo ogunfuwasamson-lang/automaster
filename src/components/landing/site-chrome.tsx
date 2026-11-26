@@ -127,6 +127,7 @@ export function SiteFooter() {
             <Link href="/terms" className={link}>Terms</Link>
           </Col>
         </div>
+        <p className="mt-12 text-xs text-muted">Ivyward is a product of Flolyt.</p>
       </div>
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-xs text-muted">

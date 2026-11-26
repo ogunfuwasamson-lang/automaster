@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { drain } from "@/lib/jobs";
 import { sendDue } from "@/lib/outbox";
 import { scheduleDigests } from "@/lib/digest";
+import { sweepWhatsApp } from "@/lib/whatsapp-server";
 import { scheduleInbox } from "@/lib/inbox";
 import { scheduleWeekly } from "@/lib/weekly";
 import { refreshPrices } from "@/lib/fx";
@@ -56,6 +57,8 @@ async function handle(req: NextRequest) {
   if (tick) await nudgeReviews().catch(() => 0);
   // once an hour is plenty: the notice key lets it through once a week per applicant
   if (tick && new Date().getUTCMinutes() === 7) await nudgeWaiting().catch(() => 0);
+  // once an hour: WhatsApp updates, one message when something needs an applicant who has gone quiet (lib/whatsapp-server)
+  if (tick && new Date().getUTCMinutes() === 20) await sweepWhatsApp().catch(() => null);
   // once an hour: engaged applicants who haven't paid get the next email in their sequence at 10am their time
   if (tick && new Date().getUTCMinutes() < 5) await sendPayNudges().catch(() => 0);
   // twice an hour: warn the operator before the AI credit runs out

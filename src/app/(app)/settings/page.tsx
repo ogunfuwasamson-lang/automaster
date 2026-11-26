@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { PageHeader } from "@/components/ui/page";
-import { Dial, FeeEnvelope, DigestToggle, NewsToggle, MailCard, RunnerCard, DeleteAccount, CalendarCard } from "./controls";
+import { Dial, FeeEnvelope, DigestToggle, NewsToggle, MailCard, RunnerCard, DeleteAccount, CalendarCard, WhatsAppCard } from "./controls";
+import { whatsappState } from "@/lib/whatsapp-server";
 import { isOptedOut } from "@/lib/broadcast";
 import type { GrantMode } from "@/lib/policy";
 import { PlanCard } from "@/components/billing/pay";
@@ -68,6 +69,12 @@ export default async function Settings({ searchParams }: { searchParams: Promise
 
       <Group title="Application fees">
         <FeeEnvelope usd={Math.round((prof?.fee_envelope_cents ?? 0) / 100)} />
+      </Group>
+
+      <Group title="WhatsApp" description="A message when one of your applications needs you.">
+        <div id="whatsapp" className="scroll-mt-24">
+          <WhatsAppCard initial={await whatsappState(uid).catch(() => ({ status: "off" as const }))} />
+        </div>
       </Group>
 
       <Group title="Emails">

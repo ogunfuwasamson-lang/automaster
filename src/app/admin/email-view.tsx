@@ -1,12 +1,14 @@
 import { AUDIENCES, history } from "@/lib/broadcast";
 import { TEMPLATES } from "@/lib/broadcast-templates";
 import { Broadcast } from "./broadcast";
+import { WhatsAppPanel } from "./whatsapp-panel";
 
 // emails to many applicants: the composer, and what went out before
 export async function EmailView() {
   const past = await history(15);
   return (
     <div className="space-y-8">
+      <WhatsAppPanel />
       <Broadcast audiences={AUDIENCES.map((a) => ({ ...a }))} templates={TEMPLATES} />
       <section>
         <h2 className="font-serif text-[20px]">Sent before</h2>

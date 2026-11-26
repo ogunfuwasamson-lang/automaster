@@ -406,3 +406,87 @@ export function CalendarCard({ available, connected, notice }: { available: bool
     </div>
   );
 }
+
+type WaState = { status: "off" | "pending" | "active" | "stopped"; code?: string; link?: string; phone?: string };
+
+// WhatsApp updates: they tick the consent, then send a code from their own WhatsApp to Ivyward's number, which links
+// it. after that: one message when an application needs them, and their replies go to Ivyward AI
+export function WhatsAppCard({ initial }: { initial: WaState }) {
+  const [s, setS] = useState<WaState>(initial);
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function act(action: "on" | "off") {
+    setBusy(true);
+    try {
+      const next = (await post("/api/whatsapp", { action, consent: action === "on" ? agree : undefined })) as WaState;
+      setS(next);
+      if (action === "off") toast.success("WhatsApp updates off");
+      else if (next.status === "active") toast.success("WhatsApp updates on");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function check() {
+    setBusy(true);
+    try {
+      const next = (await post("/api/whatsapp", undefined, "GET")) as WaState;
+      setS(next);
+      if (next.status === "active") toast.success("Linked. WhatsApp updates are on");
+      else toast("Not linked yet. Send the code, then check again.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (s.status === "active")
+    return (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          <span className="block text-sm font-medium">On, to {s.phone}</span>
+          <span className="block text-xs text-muted">One message when an application needs you, at most once a week unless a deadline is close. Reply to ask Ivyward AI anything.</span>
+        </span>
+        <Button variant="secondary" size="sm" disabled={busy} onClick={() => act("off")}>
+          Turn off
+        </Button>
+      </div>
+    );
+
+  if (s.status === "pending")
+    return (
+      <div className="space-y-3">
+        <p className="text-sm">
+          Send this code to Ivyward on WhatsApp to link your number: <span className="font-mono font-semibold tracking-wide">{s.code}</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href={s.link!} external size="sm">
+            Open WhatsApp
+          </ButtonLink>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={check}>
+            I've sent it
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => act("off")}>
+            Cancel
+          </Button>
+        </div>
+        <p className="text-xs text-muted">On a computer? Message +234 911 031 2103 on WhatsApp with the code.</p>
+      </div>
+    );
+
+  return (
+    <div className="space-y-3">
+      <span className="block text-sm font-medium">Get updates on WhatsApp</span>
+      <span className="block text-xs text-muted">One message when an application needs you: a form to sign, a document a school asks for, a deadline close by. You can reply to ask Ivyward AI.</span>
+      <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-current" />
+        <span>I agree to get messages from Ivyward on WhatsApp about my applications. I can stop them any time by replying STOP.</span>
+      </label>
+      <Button size="sm" disabled={!agree || busy} onClick={() => act("on")}>
+        {s.status === "stopped" && s.phone ? "Turn back on" : "Turn on WhatsApp updates"}
+      </Button>
+    </div>
+  );
+}

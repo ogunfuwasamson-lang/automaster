@@ -11,6 +11,7 @@ import { learning } from "./learning";
 import { library } from "./library";
 import { admission } from "./admission";
 import { advisor } from "./advisor";
+import { whatsapp } from "./whatsapp";
 
 export type Handler = (job: Job) => Promise<Record<string, unknown> | void>;
 
@@ -27,4 +28,5 @@ export const HANDLERS: Record<string, Handler> = {
   ...library,
   ...admission,
   ...advisor,
+  ...whatsapp,
 };

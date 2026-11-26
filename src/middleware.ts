@@ -18,6 +18,7 @@ const PUBLIC = [
   "/api/runner/engine", // the chrome extension's engine calls (extension key, no cookie)
   "/api/runner/panel", // the extension's side panel, history and status checks (extension key, no cookie)
   "/api/billing/webhook", // bachs (signed with our webhook secret, no cookie)
+  "/api/whatsapp/webhook", // Meta's WhatsApp webhook (signed with the app secret, no cookie)
   "/pricing",
   "/privacy",
   "/terms",
