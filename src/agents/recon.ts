@@ -8,6 +8,7 @@ import { runStructured } from "@/lib/llm";
 import { research } from "@/lib/research";
 import { getProfile } from "@/lib/profile-store";
 import { profileBrief, REGIONS, levelOf } from "@/lib/profile";
+import { searchableRegions, usStudyBlocked } from "@/lib/us-visa-suspension";
 import { levelGuide, programChecklist, levelName } from "@/lib/levels";
 import { withSystemDeadlines } from "@/lib/system-deadlines";
 import { logEvent } from "@/lib/events";
@@ -278,7 +279,13 @@ export const recon: Record<string, Handler> = {
     const profile = await getProfile(job.user_id);
     const only = (job.payload as { regions?: string[] }).regions;
     const { plan } = await userPlan(job.user_id);
-    const wanted = (only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions)).slice(0, plan.maxRegions);
+    // no new US searches for nationals under the 2026 US student visa suspension, unless they hold another passport
+    const usBlocked = usStudyBlocked(profile.identity.citizenship, profile.identity.other_citizenship);
+    const wanted = searchableRegions(only?.length ? only.filter((r) => REGIONS[r]) : regionList(profile.preferences.regions), usBlocked).slice(0, plan.maxRegions);
+    if (!wanted.length) {
+      await logEvent({ userId: job.user_id, actor: "agent:recon", action: "recon.us_blocked", context: { citizenship: profile.identity.citizenship } });
+      return { regions: 0, skipped: "us student visas suspended for their nationality" };
+    }
     // how much one run researches: the plan's size for paying and staff accounts, the operator's smaller number
     // (Credit tab) for everyone else. the total is a real ceiling: nine regions used to mean 45 programmes a run
     const [{ tier }, policy] = await Promise.all([tierFor(job.user_id), creditPolicy()]);
@@ -579,7 +586,7 @@ stories:
 ${profile.stories.map((s) => `- ${s.title}: ${s.summary}`).join("\n") || "(none)"}
 
 study level: ${levelName(levelOf(profile))}
-regions they're targeting: ${regionList(profile.preferences.regions).map((r) => REGIONS[r]).join(", ")}
+regions they're targeting: ${searchableRegions(regionList(profile.preferences.regions), usStudyBlocked(profile.identity.citizenship, profile.identity.other_citizenship)).map((r) => REGIONS[r]).join(", ") || "anywhere outside the US"}
 citizenship: ${profile.identity.citizenship ?? "unknown"}
 today is ${today()}. intake: ${term}.
 first list every eligibility hook you see in this profile. then search for scholarships and fellowships, one search covering several related hooks at a time. aim for 15-25 real options, strongest matches first.`,

@@ -65,6 +65,7 @@ export const Profile = z.object({
   identity: z.object({
     full_name: s(),
     citizenship: s(),
+    other_citizenship: s().optional(), // a second passport, if they hold one (decides US student visa eligibility in 2026)
     country_of_residence: s(),
     city: s(),
   }),
@@ -135,7 +136,7 @@ export type ProfilePatch = z.infer<typeof ProfilePatch>;
 
 export function emptyProfile(): Profile {
   return {
-    identity: { full_name: null, citizenship: null, country_of_residence: null, city: null },
+    identity: { full_name: null, citizenship: null, other_citizenship: null, country_of_residence: null, city: null },
     education: [],
     work: [],
     tests: [],
@@ -301,7 +302,7 @@ export function completeness(p: Profile): number {
 // numbers and booleans come back as strings, and fromWire() converts to a ProfilePatch.
 // ---------------------------------------------------------------------------
 export const SCALAR_FIELDS = [
-  "identity.full_name", "identity.citizenship", "identity.country_of_residence", "identity.city",
+  "identity.full_name", "identity.citizenship", "identity.other_citizenship", "identity.country_of_residence", "identity.city",
   "english.route", "english.notes",
   "goals.study_level", "goals.target_term", "goals.short_term_goal", "goals.long_term_goal", "goals.why_masters", "goals.gmat_gre_plan",
   "funding.need", "funding.annual_budget_usd", "funding.application_fee_budget_usd", "funding.notes",
@@ -433,7 +434,7 @@ export function fromWire(w: WirePatch): ProfilePatch {
 export function profileBrief(p: Profile, targetTermFallback?: string | null): string {
   const L: string[] = [];
   const v = (x: unknown) => (x === null || x === undefined || x === "" ? "?" : Array.isArray(x) ? (x.length ? x.join(", ") : "none") : String(x));
-  L.push(`name: ${v(p.identity.full_name)} | citizenship: ${v(p.identity.citizenship)} | lives: ${v(p.identity.city)}, ${v(p.identity.country_of_residence)}`);
+  L.push(`name: ${v(p.identity.full_name)} | citizenship: ${v(p.identity.citizenship)}${p.identity.other_citizenship ? ` (also ${p.identity.other_citizenship})` : ""} | lives: ${v(p.identity.city)}, ${v(p.identity.country_of_residence)}`);
   L.push(`applying for: ${LEVEL_LABEL[levelOf(p)]} | term: ${v(p.goals.target_term ?? targetTermFallback)} | fields: ${v(p.goals.fields)} | degree types: ${v(p.goals.degree_types)} | admissions tests (${TESTS_FOR[levelOf(p)]}): ${v(p.goals.gmat_gre_plan)}`);
   if (p.goals.research_interests?.length) L.push(`research interests: ${p.goals.research_interests.join("; ")}`);
   if (p.goals.applying) L.push(`applying: ${p.goals.applying === "this_cycle" ? "this cycle" : p.goals.applying === "next_year" ? "next year" : "just exploring for now"}`);

@@ -4,7 +4,7 @@ import { admin } from "@/lib/supabase/admin";
 import { runStructured } from "@/lib/llm";
 import { WirePatch, fromWire, WIRE_GUIDE, profileGaps, completeness, profileBrief } from "@/lib/profile";
 import { applyPatch, getProfile } from "@/lib/profile-store";
-import { US_SUSPENSION_CHECKED, usSuspension, usSuspensionNote } from "@/lib/us-visa-suspension";
+import { US_SUSPENSION_CHECKED, usStudyBlocked, usSuspensionNote } from "@/lib/us-visa-suspension";
 import { logEvent } from "@/lib/events";
 import { answerQuestion, openQuestions } from "@/lib/portal-questions";
 import { kickoff } from "@/lib/kickoff";
@@ -108,7 +108,7 @@ export async function interviewTurn(userId: string, sessionId: string, userText:
     import("@/lib/advice-server").then((m) => m.destinationAdvice(userId)).catch(() => null),
   ]);
   const transcript = (history ?? []).reverse() as Turn[];
-  const us = usSuspension(profile.identity.citizenship ?? ((row?.portal_details as PortalDetails | null)?.passport_country as string | undefined));
+  const us = usStudyBlocked(profile.identity.citizenship ?? ((row?.portal_details as PortalDetails | null)?.passport_country as string | undefined), profile.identity.other_citizenship);
   const usNote = us ? usSuspensionNote(us) : null;
   // the application-profile chapter in progress: the one they asked for, else the one the last question came from
   const details = (row?.portal_details as PortalDetails | null) ?? {};
@@ -140,7 +140,7 @@ ${questions.map((q) => `- [${q.id}] ${q.school ?? "a school"} asks: "${q.questio
 ${overview}
 
 destination check (Ivyward's checked list, their field, level, funding need and tests): ${advice ? `${advice.text} (region keys: ${advice.add.map((o) => o.region).join(", ")})` : "their picks are as good as anywhere on the list, or there's too little to compare"}
-${usNote ? `US student visas: ${usNote} (US State Department, checked ${US_SUSPENSION_CHECKED}). if they want US schools anyway, say this once, plainly, ask whether they hold another passport, and add the US only on their yes.\n` : ""}
+${usNote ? `US student visas: ${usNote} (US State Department, checked ${US_SUSPENSION_CHECKED}). their agents don't search the US for them now. if they want US schools anyway, say this once, plainly, and ask whether they hold another passport: if they name a country that isn't under the suspension, record it as identity.other_citizenship (that turns US searches back on) and then add the US with add_region if they want it.\n` : ""}
 today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
 
 application profile (${formReadiness(details, level)}% ready for forms; the quick chapters are on cards). story chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done)` : "(all done)"}

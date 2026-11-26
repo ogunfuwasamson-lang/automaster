@@ -9,6 +9,7 @@ import { appNeeds, heldDocs } from "@/lib/doc-data";
 import { docChecklist, docCount } from "@/lib/doc-checklist";
 import { journeyMap, type JourneyMap } from "@/lib/journey-map";
 import { VERIFIED } from "@/lib/admission-rules";
+import { usStudyBlocked } from "@/lib/us-visa-suspension";
 
 // everything today's task looks at, for one applicant (the dashboard and the morning email)
 export async function loadToday(userId: string): Promise<{ task: Task | null; journey: Journey; map: JourneyMap }> {
@@ -72,7 +73,8 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
     }
   }
   const map = journeyMap({
-    citizenship: profile.identity.citizenship || ((details as Record<string, string | undefined>).passport_country ?? null),
+    // the map warns about US schools only while their nationality can't get a new US student visa
+    citizenship: usStudyBlocked(profile.identity.citizenship || ((details as Record<string, string | undefined>).passport_country ?? null), profile.identity.other_citizenship)?.country ?? null,
     hasCv: input.hasCv,
     hasTranscript: input.hasTranscript,
     basicsMissing: input.basicsMissing,

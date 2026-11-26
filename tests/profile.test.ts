@@ -6,7 +6,7 @@ describe("mergeProfile", () => {
   it("null never overwrites", () => {
     const a = mergeProfile(emptyProfile(), { identity: { full_name: "Samson O", citizenship: "Nigeria", country_of_residence: null, city: null } });
     const b = mergeProfile(a, { identity: { full_name: null, citizenship: null, country_of_residence: "Nigeria", city: "Lagos" } });
-    expect(b.identity).toEqual({ full_name: "Samson O", citizenship: "Nigeria", country_of_residence: "Nigeria", city: "Lagos" });
+    expect(b.identity).toEqual({ full_name: "Samson O", citizenship: "Nigeria", country_of_residence: "Nigeria", city: "Lagos", other_citizenship: null });
   });
 
   it("dedupes work by company+role and merges fields", () => {

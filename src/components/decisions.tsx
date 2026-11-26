@@ -19,6 +19,7 @@ const VERBS: Record<string, [string, string, string]> = {
   record_decision: ["Record it", "Not right", "Recorded"],
   school_action: ["Done", "Dismiss", "Marked done"],
   destination_advice: ["Add them to my search", "Keep my choices", "Added. Your agents are searching there"],
+  us_visa_suspension: ["Drop my US applications", "Keep them for now", "Dropped. Your agents carry on with your other schools"],
 };
 
 // one-tap items in the applicant's queue. source conflicts get their options as buttons plus "neither".

@@ -76,3 +76,16 @@ describe("the US student visa suspension", () => {
     expect(adviceFor(w2, destinationOptions(w2, library))?.add.map((o) => o.region)).toEqual(["canada"]);
   });
 });
+
+import { searchableRegions, usStudyBlocked } from "@/lib/us-visa-suspension";
+
+describe("no new US searches under the suspension, unless they hold another passport", () => {
+  it("drops the US for an affected nationality, and keeps it with an unaffected second passport", () => {
+    expect(usStudyBlocked("Nigerian")?.country).toBe("Nigeria");
+    expect(usStudyBlocked("Nigeria", "United Kingdom")).toBeNull();
+    expect(usStudyBlocked("Nigeria", "Niger")?.country).toBe("Nigeria");
+    expect(usStudyBlocked("Ghana")).toBeNull();
+    expect(searchableRegions(["us", "uk"], usStudyBlocked("Nigeria"))).toEqual(["uk"]);
+    expect(searchableRegions(["us"], usStudyBlocked("Nigeria", "Canada"))).toEqual(["us"]);
+  });
+});

@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/profile-store";
 import { enqueue } from "@/lib/queue";
 import { rankMatches, type LibraryProgram, type Match, type MatchPrefs, type StudyLevel } from "@/lib/match-rules";
 import { matchCriteria } from "@/lib/sharpen";
+import { searchableRegions, usStudyBlocked } from "@/lib/us-visa-suspension";
 
 export type InstantMatch = Match & { awards: number };
 
@@ -40,7 +41,8 @@ export async function matchesFor(a: { level: StudyLevel | null; fields: string[]
 
 export async function instantMatches(userId: string, limit = 6): Promise<InstantMatch[]> {
   const profile = await getProfile(userId);
-  return matchesFor({ level: profile.goals.study_level, fields: profile.goals.fields, regions: profile.preferences.regions ?? [], ...matchCriteria(profile) }, limit);
+  const regions = searchableRegions(profile.preferences.regions ?? [], usStudyBlocked(profile.identity.citizenship, profile.identity.other_citizenship));
+  return matchesFor({ level: profile.goals.study_level, fields: profile.goals.fields, regions, ...matchCriteria(profile) }, limit);
 }
 
 // the instant matches go on the applicant's shortlist for real: the agents judge fit for this applicant from the

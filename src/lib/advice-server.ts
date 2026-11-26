@@ -7,7 +7,7 @@ import { REGIONS, type Profile } from "@/lib/profile";
 import { enqueue } from "@/lib/queue";
 import { logEvent } from "@/lib/events";
 import { adviceFor, destinationOptions, type Advice, type Want } from "@/lib/destination-advice";
-import { usSuspension, usSuspensionNote } from "@/lib/us-visa-suspension";
+import { usStudyBlocked, usSuspensionNote } from "@/lib/us-visa-suspension";
 
 // the destination advice for one applicant (lib/destination-advice), and acting on their answer
 
@@ -18,7 +18,7 @@ export function wantOf(p: Profile): Want | null {
   if (!fields.length || !regions.length) return null;
   const gre = p.goals.gmat_gre_plan === "will_take" || p.tests.some((t) => /GRE|GMAT/.test(t.name) && t.status !== "not_planned");
   // never suggest the US to someone whose nationality can't get a new US student visa now, and say so if they picked it
-  const us = usSuspension(p.identity.citizenship);
+  const us = usStudyBlocked(p.identity.citizenship, p.identity.other_citizenship);
   return {
     level: ["masters", "phd", "undergraduate"].includes(level) ? level : "masters",
     fields,

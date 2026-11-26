@@ -52,6 +52,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await addRegions(uid, ((a.payload as { regions?: string[] }).regions ?? []).slice(0, 3), "advice");
     after(() => drain("inline-advice", 1).catch(() => {}));
   }
+  // the US student visa suspension (lib/us-hold): yes drops their open US applications; no keeps them
+  if (a.kind === "us_visa_suspension" && decision === "approve") {
+    const { dropUsApplications } = await import("@/lib/us-hold");
+    await dropUsApplications(uid, ((a.payload as { applicationIds?: string[] }).applicationIds ?? []).slice(0, 200));
+  }
+  if (a.kind === "us_visa_suspension" && decision === "reject") {
+    const { resolve } = await import("@/lib/notify");
+    await resolve(uid, new RegExp(`^us-visa:${uid}$`)).catch(() => {});
+  }
   if (a.kind === "fact_confirm" && decision === "approve") {
     if (!choice) return NextResponse.json({ error: "pick a value" }, { status: 400 });
     const topic = String((a.payload as { topic?: string }).topic ?? "");

@@ -10,6 +10,7 @@ import { programChecklist } from "@/lib/levels";
 import { findInstitution, isDefunct, linkSchool, registryBrief } from "@/lib/institutions";
 import { pickTargets, type Want, type LibraryRow } from "@/lib/library-targets";
 import { Candidates, ProgramFacts, slugify, upsertProgram } from "./recon";
+import { searchableRegions, usStudyBlocked } from "@/lib/us-visa-suspension";
 
 // growing the checked programme list on its own (founder's call, 25 nov 2026: 500 more programmes, about 100 a day,
 // ~$35). each day it picks what applicants ask for (field, level, destination) with the fewest programmes on file,
@@ -54,8 +55,10 @@ async function libraryRows(): Promise<LibraryRow[]> {
 async function wants(): Promise<Want[]> {
   const { data } = await admin().from("profiles").select("profile").limit(10_000);
   return (data ?? []).map((r) => {
-    const p = (r.profile ?? {}) as { goals?: { fields?: string[] | null; study_level?: string | null }; preferences?: { regions?: string[] | null } };
-    return { fields: p.goals?.fields ?? [], level: p.goals?.study_level ?? null, regions: p.preferences?.regions ?? [] };
+    const p = (r.profile ?? {}) as { identity?: { citizenship?: string | null; other_citizenship?: string | null }; goals?: { fields?: string[] | null; study_level?: string | null }; preferences?: { regions?: string[] | null } };
+    // US programmes aren't researched on behalf of someone who can't get a US student visa now
+    const blocked = usStudyBlocked(p.identity?.citizenship, p.identity?.other_citizenship);
+    return { fields: p.goals?.fields ?? [], level: p.goals?.study_level ?? null, regions: searchableRegions(p.preferences?.regions ?? [], blocked) };
   });
 }
 

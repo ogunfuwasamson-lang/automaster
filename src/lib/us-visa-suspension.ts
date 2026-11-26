@@ -61,6 +61,18 @@ export function usSuspension(citizenship: string | null | undefined): UsSuspensi
   return hit ? { country: hit.country, level: hit.level } : null;
 }
 
+// blocked unless they also hold a passport from a country that isn't on the lists (founder's call, 26 nov 2026:
+// no new US searches for them, unless they confirm a second passport)
+export function usStudyBlocked(citizenship: string | null | undefined, other?: string | null): UsSuspension | null {
+  const s = usSuspension(citizenship);
+  if (!s) return null;
+  if (other && other.trim() && !usSuspension(other)) return null;
+  return s;
+}
+
+// the regions to search, without the US when it's blocked
+export const searchableRegions = (regions: string[], blocked: UsSuspension | null) => (blocked ? regions.filter((r) => r !== "us") : regions);
+
 // "nationals of Nigeria", "nationals of the Gambia"
 export const nationalsOf = (s: UsSuspension) => `nationals of ${s.country.replace(/^The /, "the ")}`;
 
