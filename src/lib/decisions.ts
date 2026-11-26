@@ -38,6 +38,7 @@ export async function recordDecision(
       const { VERIFIED, afterAdmit, isVerified } = await import("@/agents/admission");
       if (!(await isVerified(applicationId))) {
         await recordOutcome({ userId, applicationId, kind: "final", label: VERIFIED, value: aid?.amount_usd || undefined, source: "mail" });
+        await logEvent({ userId, actor: "agent:inbox", action: "admission.verified", applicationId, programId: app.program_id, context: { source: "mail" } });
         await afterAdmit(userId, applicationId);
       }
     } else await enqueue({ userId, agent: "admission", task: "check", payload: { applicationId }, idempotencyKey: `admission-check:${applicationId}:${Date.now()}` });

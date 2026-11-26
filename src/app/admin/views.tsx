@@ -80,8 +80,8 @@ type Tone = "go" | "stop" | "signal" | undefined;
 const toneText = (t: Tone) => (t === "go" ? "text-go" : t === "stop" ? "text-stop" : t === "signal" ? "text-signal" : "");
 const dot = (t: Tone) => (t === "go" ? "bg-go" : t === "stop" ? "bg-stop" : t === "signal" ? "bg-signal" : "bg-neutral-400");
 
-export function Kpis({ children }: { children: ReactNode }) {
-  return <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{children}</dl>;
+export function Kpis({ children, seven }: { children: ReactNode; seven?: boolean }) {
+  return <dl className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${seven ? "lg:grid-cols-4 2xl:grid-cols-7" : "xl:grid-cols-6"}`}>{children}</dl>;
 }
 
 export function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: ReactNode; tone?: Tone }) {
@@ -456,11 +456,13 @@ type Attention = { tone: Tone; title: string; detail?: ReactNode; href?: string 
 export async function OverviewView({ range: r, everyone }: { range: Range; everyone: boolean }) {
   const db = admin();
   const dayAgo = new Date(Date.now() - DAY).toISOString();
-  const [h, d, runs, { data: failedJobs }] = await Promise.all([
+  const [h, d, runs, { data: failedJobs }, { data: admits }] = await Promise.all([
     health(),
     loadAdmin(),
     runsIn<{ user_id: string; cost_usd: number | null; started_at: string }>("user_id, cost_usd, started_at", r),
     db.from("jobs").select("user_id, agent, task, last_error").eq("status", "failed").gte("finished_at", dayAgo).limit(1000),
+    // the number Ivyward runs by: admissions backed by the school's email or the letter (agents/admission)
+    db.from("outcomes").select("user_id, application_id, value, observed_at").eq("label", "admission_verified").limit(5000),
   ]);
   // gmail connections that failed (any account: a setup problem hits everyone)
   const { data: mailFails } = await db.from("events").select("user_id, context, created_at").eq("action", "mail.connect_failed").gte("created_at", dayAgo).order("created_at", { ascending: false }).limit(200);
@@ -478,6 +480,10 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
   const reachedIn = (key: string) => users.filter((u) => inRange(u.journey.at[key as keyof typeof u.journey.at] ?? null, r)).length;
   const submittedIn = apps.filter((a) => SUBMITTED.has(a.status) && inRange(a.submittedAt, r));
   const pays = payments.filter((p) => inRange(p.at, r));
+  const mine = (admits ?? []).filter((a) => ids.has(a.user_id as string));
+  const admittedAll = new Set(mine.map((a) => a.user_id as string));
+  const admitted = new Set(mine.filter((a) => inRange(a.observed_at as string, r)).map((a) => a.user_id as string));
+  const funded = new Set(mine.filter((a) => Number(a.value) > 0).map((a) => a.user_id as string));
   const cohort = r.allTime ? users : joined;
   const byStage = STAGES.map((s) => [s.label, cohort.filter((u) => u.stage === s.key).length] as [string, number]).filter(([, n]) => n);
   const statusRows = STATUS_ORDER.map((st) => [STATUS_LABEL[st], apps.filter((a) => a.status === st).length] as [string, number]).filter(([, n]) => n);
@@ -525,7 +531,13 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
   return (
     <div className="space-y-4">
       <HealthStrip h={h} />
-      <Kpis>
+      <Kpis seven>
+        <Stat
+          label="Admitted students"
+          value={`${admitted.size}`}
+          sub={`${admittedAll.size} in all, ${funded.size} with funding`}
+          tone={admitted.size ? "go" : undefined}
+        />
         <Stat label="New accounts" value={`${joined.length}`} sub={`${users.length} in all`} />
         <Stat label="Active" value={`${active.length}`} sub="signed in or did something" />
         <Stat label="Signed a packet" value={`${reachedIn("signed")}`} sub={`${reachedIn("shortlist")} built a shortlist`} />

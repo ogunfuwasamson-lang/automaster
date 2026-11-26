@@ -9,6 +9,8 @@ export const MILESTONES = [
   { key: "started", label: "Agents start on a portal", actions: ["runner.started"] },
   { key: "account", label: "Portal account made", actions: ["runner.account_created"] },
   { key: "submitted", label: "First submission", actions: ["runner.submitted"] },
+  // the number that matters (founder, 26 nov 2026): an admission the school's email or the letter backs
+  { key: "admitted", label: "Admission confirmed", actions: ["admission.verified"] },
 ] as const;
 export type MilestoneKey = (typeof MILESTONES)[number]["key"];
 export const MILESTONE_ACTIONS = [...new Set(MILESTONES.flatMap((m) => m.actions as readonly string[]))];
