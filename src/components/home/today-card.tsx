@@ -8,9 +8,12 @@ import { SharpenCard } from "@/components/profile/sharpen-card";
 export function TodayCard({
   task,
   journey,
+  hideJourney = false,
 }: {
   task: Task | null;
   journey: Journey;
+  // the dashboard's journey map shows the whole path (components/home/journey-map)
+  hideJourney?: boolean;
 }) {
   const pct = Math.round((journey.done / journey.steps.length) * 100);
   return (
@@ -72,7 +75,7 @@ export function TodayCard({
       )}
 
       {/* once something has gone in, the path has done its job */}
-      {!journey.steps.find((s) => s.id === "submitted")?.done && (
+      {!hideJourney && !journey.steps.find((s) => s.id === "submitted")?.done && (
         <div className="mt-5 border-t border-line pt-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-[13px]">
             <span className="font-medium">

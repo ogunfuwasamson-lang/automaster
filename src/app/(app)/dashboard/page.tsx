@@ -47,6 +47,7 @@ import { UpgradeLink } from "@/components/billing/pay";
 import { billingState } from "@/lib/billing";
 import { NewForYou, type FreshAward, type FreshProgram } from "@/components/home/new-for-you";
 import { TodayCard } from "@/components/home/today-card";
+import { JourneyMap } from "@/components/home/journey-map";
 import { loadToday } from "@/lib/today-data";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
 import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
@@ -310,7 +311,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
       {today && (
         <Rise>
-          <TodayCard task={today.task} journey={today.journey} />
+          <TodayCard task={today.task} journey={today.journey} hideJourney />
+        </Rise>
+      )}
+
+      {today && (
+        <Rise>
+          <JourneyMap map={today.map} userId={user.id} />
         </Rise>
       )}
 
