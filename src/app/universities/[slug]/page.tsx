@@ -7,6 +7,7 @@ import { ArticleJsonLd, Script } from "@/components/seo/json-ld";
 import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 import { SITE } from "@/lib/site";
+import { metaDescription } from "@/lib/meta-text";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -19,9 +20,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const u = university((await params).slug);
   if (!u) return {};
   // where we've checked the school's fee page, lead with the fee answer: it's what "<school> application fee waiver" searches want
-  const description = u.fees
-    ? `${u.fees.summary} Plus deadlines, funding and visa rules.`
-    : `How graduate applications to ${u.name} work, the usual deadlines, funding and scholarships, fee waivers, and the ${u.country} student visa rules for 2026–27.`;
+  const description = metaDescription(
+    u.fees ? `${u.fees.summary} Plus deadlines, funding and visa rules.` : `How graduate applications to ${u.name} work: deadlines, funding, fee waivers and ${u.country} student visa rules for 2026–27.`,
+  );
   return {
     title: u.fees ? `Apply to ${u.short}: application fee, waivers and deadlines` : `How to apply to ${u.short}: deadlines, funding, fee waivers`,
     description,

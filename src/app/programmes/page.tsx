@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Programmes by country and field, with deadlines and fees",
-  description: "Master's, PhD and bachelor's programmes for international students, by destination and field, with deadlines, tuition, GRE and English rules and funding, checked on official pages.",
+  description: "Master's, PhD and bachelor's programmes for international students by destination and field: deadlines, tuition, test rules and funding, checked.",
   alternates: { canonical: "/programmes" },
 };
 

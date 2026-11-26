@@ -8,6 +8,7 @@ import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "
 import { COUNTRY_NAME, COUNTRY_SLUG, SLUG_COUNTRY, controlLabel, findSchool, inRegion, regionLabel, registryName, schoolPath, worthIndexing, type DirSchool } from "@/lib/directory";
 import { schoolCopy } from "@/lib/directory-copy";
 import { SITE } from "@/lib/site";
+import { metaDescription } from "@/lib/meta-text";
 
 // one page per degree-granting institution in the official registries: the facts we hold, the official links,
 // and how applying from abroad works there. rendered on first visit and kept for a day.
@@ -36,7 +37,7 @@ function place(s: DirSchool) {
 export async function generateMetadata({ params }: P): Promise<Metadata> {
   const s = await get(params);
   if (!s) return {};
-  const description = `How to apply to ${s.name}${s.nameLocal && s.nameLocal !== s.name ? ` (${s.nameLocal})` : ""} in ${place(s)} from abroad: the official links, what to prepare, and the ${VISA_NAME[s.country]} visa steps.`;
+  const description = metaDescription(`How to apply to ${s.name}${s.nameLocal && s.nameLocal !== s.name ? ` (${s.nameLocal})` : ""} in ${place(s)} from abroad: the official links, what to prepare, and the ${VISA_NAME[s.country]} visa steps.`);
   return {
     title: s.nameLocal && s.nameLocal !== s.name ? `How to apply to ${s.name} (${s.nameLocal})` : `How to apply to ${s.name}: admissions, international applicants`,
     description,

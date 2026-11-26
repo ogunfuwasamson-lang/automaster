@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "University directory: how to apply to every school",
-  description: "Every degree-granting university and college in the United States, the United Kingdom, Canada, Australia, France and China, from the official registers, with official links and how international students apply.",
+  description: "Every degree-granting university and college in the US, UK, Canada, Australia, France and China, from the official registers, with how to apply.",
   alternates: { canonical: "/schools" },
 };
 

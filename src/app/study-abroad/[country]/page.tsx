@@ -11,6 +11,7 @@ import { ShareRow } from "@/components/growth/share-row";
 import { PageLinks } from "@/components/library/programme-page";
 import { DESTINATIONS } from "@/lib/programme-pages";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
+import { metaDescription } from "@/lib/meta-text";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -29,9 +30,11 @@ const HOME_DEST: Record<string, string> = { US: "usa", GB: "uk", CA: "canada", A
 export async function generateMetadata({ params }: { params: Promise<{ country: string }> }): Promise<Metadata> {
   const o = origin((await params).country);
   if (!o) return {};
-  const description = o.outbound
-    ? `Scholarships and home funding for ${o.demonym} students going abroad for a bachelor's, master's or PhD, the 2026–27 visa and tuition rules for ${o.demonym} citizens in the US, UK, Canada and Europe, and where tuition is lowest.`
-    : `Fully funded scholarships open to ${o.demonym} students for bachelor's, master's and PhD study abroad, application fee waivers, and the 2026–27 visa rules for ${o.demonym} nationals in the US, UK, Canada and Europe.`;
+  const description = metaDescription(
+    o.outbound
+      ? `Scholarships and home funding for ${o.demonym} students going abroad, plus 2026–27 visa and tuition rules in the US, UK, Canada and Europe.`
+      : `Fully funded scholarships open to ${o.demonym} students, application fee waivers, and the 2026–27 student visa rules in the US, UK, Canada and Europe.`,
+  );
   return {
     title: `Scholarships for ${o.demonym} students: study abroad from ${inText(o)} (2027)`,
     description,

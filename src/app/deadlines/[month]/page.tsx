@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageLinks, ProgrammePage } from "@/components/library/programme-page";
 import { publicProgrammes, todayISO } from "@/lib/programme-data";
 import { DESTINATIONS, MIN_ROWS, MONTH_RE, monthName, monthRows, monthsAhead, statsOf } from "@/lib/programme-pages";
+import { metaDescription } from "@/lib/meta-text";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   const m = monthName(month);
   return {
     title: `University application deadlines in ${m}`,
-    description: `${rows.length} master's, PhD and bachelor's application deadlines in ${m} for international students, by date, with tuition, test rules and funding. Checked on official pages.`,
+    description: metaDescription(`${rows.length} master's, PhD and bachelor's application deadlines in ${m} for international students, with tuition, test rules and funding, checked on official pages.`),
     alternates: { canonical: `/deadlines/${month}` },
   };
 }

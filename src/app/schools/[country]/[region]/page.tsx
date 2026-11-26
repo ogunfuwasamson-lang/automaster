@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ItemListJsonLd } from "@/components/seo/json-ld";
 import { Crumbs, Cta, LibraryShell } from "@/components/library/library";
 import { COUNTRY_NAME, COUNTRY_SLUG, SLUG_COUNTRY, controlLabel, inRegion, regionLabel, schoolPath, type DirSchool } from "@/lib/directory";
+import { metaDescription } from "@/lib/meta-text";
 
 export const revalidate = 86400;
 export const dynamicParams = true;
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   if (!r) return {};
   return {
     title: `Universities in ${r.label}: how to apply as an international student`,
-    description: `All ${r.list.length} degree-granting universities and colleges in ${r.label}, ${COUNTRY_NAME[r.c]}, from the official register, with each school's admissions and application links.`,
+    description: metaDescription(`All ${r.list.length} degree-granting universities and colleges in ${r.label}, ${COUNTRY_NAME[r.c]}, from the official register, with admissions and application links.`),
     alternates: { canonical: `/schools/${COUNTRY_SLUG[r.c]}/${r.region}` },
   };
 }

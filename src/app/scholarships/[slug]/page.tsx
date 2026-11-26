@@ -8,6 +8,7 @@ import { TranslationLinks } from "@/components/library/translation-links";
 import { ShareRow } from "@/components/growth/share-row";
 import { Crumbs, Cta, Faq, LibraryShell, Related, ShortAnswer, longDate } from "@/components/library/library";
 import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
+import { metaDescription } from "@/lib/meta-text";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -19,7 +20,7 @@ const metaTitle = (s: { name: string; levels: string[]; country: string }) => `$
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const s = scholarship((await params).slug);
   if (!s) return {};
-  const description = `${s.summary.split(". ")[0]}. Who can apply, what it pays for, the usual deadline and how to apply.`.slice(0, 300);
+  const description = metaDescription(`${s.summary.split(". ")[0]}. Who can apply, what it pays for, the usual deadline and how to apply.`);
   return {
     title: metaTitle(s),
     description,

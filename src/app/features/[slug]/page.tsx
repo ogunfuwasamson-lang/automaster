@@ -9,6 +9,7 @@ import { AddToChrome } from "@/components/landing/connect-demos";
 import { FEATURES, featureBySlug } from "@/lib/features";
 import { CHROME_STORE_URL } from "@/lib/chrome-store";
 import { SITE } from "@/lib/site";
+import { metaDescription } from "@/lib/meta-text";
 
 // one page per thing the agents do (lib/features): what it is, a demo of it working, how it works, what stays with
 // you, and the questions people ask. linked from the landing page's tour and cards, and the footer.
@@ -21,7 +22,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const f = featureBySlug((await params).slug);
   if (!f) return {};
-  return { title: f.metaTitle, description: f.description, alternates: { canonical: `/features/${f.slug}`, types: { "text/markdown": `/md/features/${f.slug}` } }, openGraph: { title: f.metaTitle, description: f.description, url: `/features/${f.slug}` } };
+  return { title: f.metaTitle, description: metaDescription(f.description), alternates: { canonical: `/features/${f.slug}`, types: { "text/markdown": `/md/features/${f.slug}` } }, openGraph: { title: f.metaTitle, description: metaDescription(f.description), url: `/features/${f.slug}` } };
 }
 
 export default async function FeaturePage({ params }: { params: Promise<{ slug: string }> }) {

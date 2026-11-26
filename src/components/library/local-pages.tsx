@@ -11,6 +11,7 @@ import { LOCAL_SCHOLARSHIPS, localScholarship, localizeLinks, scholarshipHref, t
 import { scholarship as enScholarship } from "@/content";
 import { ArticleJsonLd, ItemListJsonLd } from "@/components/seo/json-ld";
 import { LocalAnswer, LocalCrumbs, LocalCta, LocalFaq, LocalRelated, LocalShell, LocalSources } from "./local";
+import { metaDescription } from "@/lib/meta-text";
 
 // ---------- guides ----------
 
@@ -30,10 +31,10 @@ export function localGuideMetadata(lang: Lang, slug: string): Metadata {
   }
   return {
     title: g.seoTitle ?? g.title,
-    description: g.description,
+    description: metaDescription(g.description),
     keywords: g.keywords,
     alternates: { canonical: self, languages },
-    openGraph: { type: "article", title: g.title, description: g.description, url: self, locale: L[lang].locale, modifiedTime: g.updated },
+    openGraph: { type: "article", title: g.title, description: metaDescription(g.description), url: self, locale: L[lang].locale, modifiedTime: g.updated },
   };
 }
 
@@ -210,9 +211,9 @@ export function localCountryMetadata(lang: Lang, slug: string): Metadata {
   const self = countryUrl(lang, c.slug);
   return {
     title: k.seo(c.adj, c.name),
-    description: k.desc(c.adj),
+    description: metaDescription(k.desc(c.adj)),
     alternates: { canonical: self, languages: { [lang]: self, en: `/study-abroad/${c.en}`, "x-default": `/study-abroad/${c.en}` } },
-    openGraph: { type: "article", title: k.title(placeFor(lang, c)), description: k.desc(c.adj), url: self, locale: L[lang].locale },
+    openGraph: { type: "article", title: k.title(placeFor(lang, c)), description: metaDescription(k.desc(c.adj)), url: self, locale: L[lang].locale },
   };
 }
 
@@ -322,9 +323,9 @@ export function localHubMetadata(lang: Lang): Metadata {
   const k = COPY[lang];
   return {
     title: k.hub,
-    description: k.hubDesc,
+    description: metaDescription(k.hubDesc),
     alternates: { canonical: L[lang].home, languages: { en: "/guides", fr: "/fr", es: "/es", pt: "/pt", ar: "/ar", "x-default": "/guides" } },
-    openGraph: { title: k.hub, description: k.hubDesc, url: L[lang].home, locale: L[lang].locale },
+    openGraph: { title: k.hub, description: metaDescription(k.hubDesc), url: L[lang].home, locale: L[lang].locale },
   };
 }
 
