@@ -72,6 +72,7 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
     }
   }
   const map = journeyMap({
+    citizenship: profile.identity.citizenship || ((details as Record<string, string | undefined>).passport_country ?? null),
     hasCv: input.hasCv,
     hasTranscript: input.hasTranscript,
     basicsMissing: input.basicsMissing,

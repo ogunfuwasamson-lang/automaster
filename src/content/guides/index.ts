@@ -27,6 +27,7 @@ import { deadlines2027, ireland, netherlands, australia, scholarshipEssay, acade
 import { fullyFunded2027, howToGetFullyFunded, chevening2027, commonwealth2027, erasmus2027, daad2027, mastercard2027, studyAbroadFree } from "./wave6";
 import { mext2027, gks2027, csc2027, noAppFee } from "./wave7";
 import { postStudyWork } from "./wave8";
+import { ukVisaAfterAdmission, canadaPermitAfterAdmission, usVisaAfterAdmission } from "./after-admission";
 import { lowGpa, gpaConvert, moiLetter, canadaNoIelts, ukNoIelts, usaNoIelts, noGre, januaryIntake, costByCountry, ageLimits, gapYears, oneVsTwoYear, offers, chooseCountry } from "./wave5";
 
 // order within a category is the order on /guides
@@ -106,6 +107,9 @@ export const GUIDES: Guide[] = [
   korea,
   china,
   hungaryTurkey,
+  ukVisaAfterAdmission,
+  canadaPermitAfterAdmission,
+  usVisaAfterAdmission,
   proofOfFunds,
   postStudyWork,
   bestAiTools,

@@ -1,4 +1,5 @@
 import { FEE_STEPS, TRAVEL_STEPS, arrivalSteps, visaSteps, type Step } from "@/lib/journey-steps";
+import { US_SUSPENSION_GUIDE, nationalsOf, usSuspension, usSuspensionNote } from "@/lib/us-visa-suspension";
 
 // the applicant's whole journey, from their profile to their first day in school (founder's call, 26 nov 2026: Ivyward
 // is with them every step, not only to the submit button). the dashboard shows it as a map. each stop lists the
@@ -38,7 +39,7 @@ export type MapApp = {
   acceptBy: string | null;
   scholarshipsChecked: boolean;
 };
-export type MapInput = { hasCv: boolean; hasTranscript?: boolean; basicsMissing: number; apps: MapApp[]; ticks: Set<string> };
+export type MapInput = { hasCv: boolean; hasTranscript?: boolean; basicsMissing: number; apps: MapApp[]; ticks: Set<string>; citizenship?: string | null };
 export type JourneyMap = { stages: Stage[]; done: number; current: Stage | null; destination: MapApp | null; pendingAdmission: MapApp | null };
 
 const WRITING = ["preparing", "ready_for_review", "packet_approved"];
@@ -121,6 +122,15 @@ export function journeyMap(i: MapInput): JourneyMap {
 
   const school = dest ? short(dest.school) : "your school";
   const visa = visaSteps(dest?.country);
+  // new US student visas suspended for their nationality (lib/us-visa-suspension): said where it matters, at the
+  // shortlist, the applications and the visa
+  const us = usSuspension(i.citizenship);
+  const inUs = (a: MapApp) => /united states|^usa?$/i.test((a.country ?? "").trim());
+  const usFlag = (sts: string[]) => {
+    const n = us ? i.apps.filter((a) => sts.includes(a.status) && inUs(a)).length : 0;
+    return n && us ? ` ${n === 1 ? "One is" : `${n} are`} in the US, where new student visas for ${nationalsOf(us)} are suspended.` : "";
+  };
+  const usVisa = !!(us && dest && inUs(dest));
   const funding: Step[] = [
     { id: "plan", label: `Your agents look for more funding at ${school}`, href: dest ? `/applications/${dest.id}#funding` : undefined },
     { id: "awards", label: "Apply for the awards they find" },
@@ -156,7 +166,7 @@ export function journeyMap(i: MapInput): JourneyMap {
       id: "shortlist",
       label: "Shortlist",
       title: "Your shortlist",
-      summary: shortlist.length ? `${plural(shortlist.length, "programme")} waiting to be started, each checked on the school's own pages.` : i.apps.length ? "Everything on your shortlist has been started." : "Your agents haven't shortlisted programmes yet.",
+      summary: shortlist.length ? `${plural(shortlist.length, "programme")} waiting to be started, each checked on the school's own pages.${usFlag(["researching", "shortlisted"])}` : i.apps.length ? "Everything on your shortlist has been started." : "Your agents haven't shortlisted programmes yet.",
       items: shortlist,
       href: "/shortlist",
       cta: "Open your shortlist",
@@ -165,7 +175,7 @@ export function journeyMap(i: MapInput): JourneyMap {
       id: "apply",
       label: "Applications",
       title: "Applications in progress",
-      summary: writing.length ? `${plural(writing.length, "application")} being written or going in${waitingOnYou(writing) ? `, ${waitingOnYou(writing)} waiting on you` : ""}.` : "None in progress right now. Start one from your shortlist.",
+      summary: writing.length ? `${plural(writing.length, "application")} being written or going in${waitingOnYou(writing) ? `, ${waitingOnYou(writing)} waiting on you` : ""}.${usFlag(WRITING)}` : "None in progress right now. Start one from your shortlist.",
       items: writing,
       href: "/applications",
       cta: "All applications",
@@ -193,7 +203,15 @@ export function journeyMap(i: MapInput): JourneyMap {
       cta: pending ? "Confirm it" : dest ? "See the offer" : undefined,
     },
     { id: "funding", label: "Funding", title: dest ? `Funding at ${school}` : "Funding", summary: dest ? (dest.aid ? `Offered about $${dest.aid.toLocaleString("en-US")} a year so far. Your agents look for more.` : "Scholarships, assistantships and a better aid offer.") : "Scholarships, assistantships and a better aid offer, once an admission is confirmed.", items: [], steps: ticked("funding", funding, { plan: !!dest?.scholarshipsChecked }) },
-    { id: "visa", label: "Visa", title: visa.name, summary: dest ? `For ${school}, step by step, with the government's own pages.` : "The student visa for your destination, once an admission is confirmed.", items: [], steps: ticked("visa", visa.steps) },
+    {
+      id: "visa",
+      label: "Visa",
+      title: visa.name,
+      summary: usVisa && us ? usSuspensionNote(us) : dest ? `For ${school}, step by step, with the government's own pages.` : "The student visa for your destination, once an admission is confirmed.",
+      items: usVisa && us ? [{ id: "us-suspension", title: "New US student visas suspended", sub: `For ${nationalsOf(us)} since 1 January 2026`, status: "Read first", tone: "signal", href: US_SUSPENSION_GUIDE }] : [],
+      steps: ticked("visa", visa.steps),
+      ...(visa.guide ? { href: `/guides/${visa.guide}`, cta: "Read the full guide" } : {}),
+    },
     { id: "fees", label: "School fees", title: "Deposit and tuition", summary: "Paid on the school's own payment page. Keep every receipt: visa officers can ask for them.", items: [], steps: ticked("fees", FEE_STEPS) },
     { id: "travel", label: "Travel", title: "Housing and travel", summary: "Somewhere to live, then the flight once the visa is granted.", items: [], steps: ticked("travel", TRAVEL_STEPS) },
     { id: "arrival", label: "First day", title: "Your first days", summary: dest ? `Arriving at ${school}.` : "Arriving and registering at your school.", items: [], steps: ticked("arrival", arrivalSteps(dest?.country)) },

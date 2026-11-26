@@ -47,3 +47,32 @@ describe("where to apply", () => {
     expect(a?.text).toMatch(/Fulbright Foreign Student Program is also open to you there/);
   });
 });
+
+import { usSuspension, usSuspensionNote } from "@/lib/us-visa-suspension";
+
+describe("the US student visa suspension", () => {
+  it("knows the nationalities, by country or demonym, and leaves ambiguous ones alone", () => {
+    expect(usSuspension("Nigerian")).toEqual({ country: "Nigeria", level: "partial" });
+    expect(usSuspension("nigeria")?.level).toBe("partial");
+    expect(usSuspension("Burkinabé")).toEqual({ country: "Burkina Faso", level: "full" });
+    expect(usSuspension("Niger")?.country).toBe("Niger");
+    expect(usSuspension("Iranian")?.level).toBe("full");
+    expect(usSuspension("Malawian")?.country).toBe("Malawi");
+    expect(usSuspension("South Sudanese")?.country).toBe("South Sudan");
+    for (const c of ["Ghana", "Kenyan", "Egypt", "India", "Pakistani", "Bangladesh", "Malaysian", "Democratic Republic of the Congo", "Congolese", "Dominican Republic", null, ""]) expect(usSuspension(c)).toBeNull();
+    expect(usSuspensionNote({ country: "The Gambia", level: "partial" })).toMatch(/^New US student visas for nationals of the Gambia have been suspended since 1 January 2026/);
+  });
+
+  it("never suggests the US to someone who can't get the visa, and says why when they picked it", () => {
+    const note = usSuspensionNote({ country: "Nigeria", level: "partial" });
+    const w = want({ regions: ["us", "uk"], blocked: ["us"], blockedNote: note });
+    const opts = destinationOptions(w, library);
+    expect(opts.find((o) => o.region === "us")).toBeUndefined();
+    const a = adviceFor(w, opts);
+    expect(a?.add.map((o) => o.region)).toEqual(["canada"]);
+    expect(a?.text).toBe(`${note} For a fully funded master's in Public Health, Ivyward's checked list has 2 programmes in Canada where full funding is realistic, against 0 in the UK. Add Canada to your search?`);
+    // without the US in their picks, the US is simply never offered
+    const w2 = want({ blocked: ["us"], blockedNote: note });
+    expect(adviceFor(w2, destinationOptions(w2, library))?.add.map((o) => o.region)).toEqual(["canada"]);
+  });
+});

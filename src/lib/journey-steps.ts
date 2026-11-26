@@ -6,11 +6,12 @@ export type Step = { id: string; label: string; href?: string };
 
 const fold = (s: string | null | undefined) => (s ?? "").toLowerCase().trim();
 
-export function visaSteps(country: string | null | undefined): { name: string; steps: Step[] } {
+export function visaSteps(country: string | null | undefined): { name: string; steps: Step[]; guide?: string } {
   const c = fold(country);
   if (/united states|^usa?$/.test(c))
     return {
       name: "F-1 student visa",
+      guide: "us-f1-student-visa-after-admission",
       steps: [
         { id: "doc", label: "Get your I-20 from the school (it asks for proof of funds)" },
         { id: "fee", label: "Pay the SEVIS I-901 fee", href: "https://www.fmjfee.com" },
@@ -22,6 +23,7 @@ export function visaSteps(country: string | null | undefined): { name: string; s
   if (/united kingdom|^uk$|england|scotland|wales/.test(c))
     return {
       name: "UK Student visa",
+      guide: "uk-student-visa-after-admission",
       steps: [
         { id: "doc", label: "Get your CAS from the university" },
         { id: "funds", label: "Hold the funds you need for 28 days in a row" },
@@ -33,6 +35,7 @@ export function visaSteps(country: string | null | undefined): { name: string; s
   if (/canada/.test(c))
     return {
       name: "Canadian study permit",
+      guide: "canada-study-permit-after-admission",
       steps: [
         { id: "doc", label: "Get your letter of acceptance (and a provincial attestation letter if your programme needs one)" },
         { id: "funds", label: "Gather your proof of funds" },

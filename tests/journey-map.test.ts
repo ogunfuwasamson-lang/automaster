@@ -74,3 +74,18 @@ describe("the journey map", () => {
     expect(arrivalSteps("China").some((s) => /30 days/.test(s.label))).toBe(true);
   });
 });
+
+describe("the map and the US suspension", () => {
+  it("flags US schools for a Nigerian applicant, and the visa stop when the US is where they're going", () => {
+    const apps = [app({ id: "u1", country: "United States", school: "Boston University" }), app({ id: "u2", country: "United States", status: "preparing", school: "Tufts University" }), app({ id: "c1" })];
+    const m = journeyMap({ hasCv: true, basicsMissing: 0, apps, ticks: new Set(), citizenship: "Nigerian" });
+    expect(m.stages.find((s) => s.id === "shortlist")!.summary).toMatch(/One is in the US, where new student visas for nationals of Nigeria are suspended/);
+    expect(m.stages.find((s) => s.id === "apply")!.summary).toMatch(/One is in the US/);
+    const admitted = journeyMap({ hasCv: true, basicsMissing: 0, apps: [app({ id: "u1", country: "United States", status: "admitted", verified: true })], ticks: new Set(), citizenship: "Nigeria" });
+    const visa = admitted.stages.find((s) => s.id === "visa")!;
+    expect(visa.items[0]).toMatchObject({ id: "us-suspension", tone: "signal" });
+    expect(visa.href).toBe("/guides/us-f1-student-visa-after-admission");
+    const ghana = journeyMap({ hasCv: true, basicsMissing: 0, apps, ticks: new Set(), citizenship: "Ghanaian" });
+    expect(ghana.stages.find((s) => s.id === "shortlist")!.summary).not.toMatch(/US/);
+  });
+});
