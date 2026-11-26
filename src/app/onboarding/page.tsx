@@ -12,7 +12,8 @@ import { applySharpen } from "@/lib/sharpen";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
 import { whatsappState } from "@/lib/whatsapp-server";
-import { SETUP } from "@/lib/setup-steps";
+import { SETUP, blockedIn, countryFrom } from "@/lib/setup-steps";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Get started", robots: { index: false, follow: false } };
@@ -29,7 +30,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   }
   const db = admin();
   const [{ data: prof }, { data: docs }, { plan }, { data: mail }, cal, wa] = await Promise.all([
-    db.from("profiles").select("profile, target_term").eq("id", uid).single(),
+    db.from("profiles").select("profile, target_term, billing_country").eq("id", uid).single(),
     db.from("documents").select("kind").eq("user_id", uid),
     userPlan(uid),
     db.from("mail_accounts").select("email, status").eq("user_id", uid).maybeSingle(),
@@ -57,6 +58,9 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     await startShortlist(uid, "matcher").catch(() => false);
     step = SETUP.matches;
   }
+  // where WhatsApp is blocked, its step is optional (lib/setup-steps): by where they're connecting from now, else
+  // where they first signed in from
+  const blocked = blockedIn(countryFrom(await headers()) ?? (prof?.billing_country as string | null));
   return (
     <Onboarding
       userId={uid}
@@ -74,6 +78,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       gmail={{ available: gmailConfigured(), email: mail?.email ?? null, active: mail?.status === "active", composio: composioMail(), notice: sp.mail ?? null }}
       calendar={{ available: gcalReady(), connected: !!cal, notice: sp.calendar ?? null }}
       whatsapp={wa}
+      whatsappBlocked={blocked}
     />
   );
 }

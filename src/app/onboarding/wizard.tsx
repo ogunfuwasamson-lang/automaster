@@ -101,13 +101,16 @@ export function Onboarding(props: {
   gmail: { available: boolean; email: string | null; active: boolean; composio: boolean; notice: string | null };
   calendar: { available: boolean; connected: boolean; notice: string | null };
   whatsapp: WaState;
+  // the country, where WhatsApp is blocked there (lib/setup-steps): the step is optional and email stands in
+  whatsappBlocked: string | null;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const [wa, setWa] = useState<WaState>(props.whatsapp);
   const linked = isLinked(wa);
+  const optional = !!props.whatsappBlocked;
   // nothing after the WhatsApp step opens until their number is linked
-  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), isLinked(props.whatsapp) ? LAST : WHATSAPP));
+  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), isLinked(props.whatsapp) || props.whatsappBlocked ? LAST : WHATSAPP));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
   const [fields, setFields] = useState<string[]>(props.fields);
@@ -214,7 +217,7 @@ export function Onboarding(props: {
               // leaving setup early still starts the agents on what they have
               void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
               // except WhatsApp: the one step that can't be skipped
-              if (!linked) {
+              if (!linked && !optional) {
                 e.preventDefault();
                 setStep(WHATSAPP);
                 toast("Link your WhatsApp to finish. It's the one step you can't skip.");
@@ -522,10 +525,26 @@ export function Onboarding(props: {
                       <Button size="lg" onClick={() => setStep(CONNECT)}>
                         Continue
                       </Button>
+                    ) : optional ? (
+                      <Button
+                        size="lg"
+                        variant="secondary"
+                        onClick={() => {
+                          // counted, to see how many people this applies to
+                          void fetch("/api/whatsapp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "email_instead" }) }).catch(() => null);
+                          setStep(CONNECT);
+                        }}
+                      >
+                        Use email instead
+                      </Button>
                     ) : null}
                     <Button size="lg" variant="ghost" onClick={() => setStep(MATCHES)}>Back</Button>
                   </div>
-                  {!linked ? <p className="max-w-xl text-[13px] text-muted">This step is required: it&apos;s how your agents reach you when an application can&apos;t move without you.</p> : null}
+                  {!linked && optional ? (
+                    <p className="max-w-xl text-[13px] text-muted">WhatsApp is blocked in {props.whatsappBlocked}, so this step is optional for you. Without it, your agents email you when an application needs you.</p>
+                  ) : !linked ? (
+                    <p className="max-w-xl text-[13px] text-muted">This step is required: it&apos;s how your agents reach you when an application can&apos;t move without you.</p>
+                  ) : null}
                 </div>
               </div>
             )}
