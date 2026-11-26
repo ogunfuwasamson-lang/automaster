@@ -91,7 +91,7 @@ export interface Turn {
   content: string;
 }
 
-export async function interviewTurn(userId: string, sessionId: string, userText: string | null, viaVoice: boolean) {
+export async function interviewTurn(userId: string, sessionId: string, userText: string | null, viaVoice: boolean, channel: "app" | "whatsapp" = "app") {
   const db = admin();
 
   if (userText) {
@@ -141,7 +141,7 @@ ${overview}
 
 destination check (Ivyward's checked list, their field, level, funding need and tests): ${advice ? `${advice.text} (region keys: ${advice.add.map((o) => o.region).join(", ")})` : "their picks are as good as anywhere on the list, or there's too little to compare"}
 ${usNote ? `US student visas: ${usNote} (US State Department, checked ${US_SUSPENSION_CHECKED}). their agents don't search the US for them now. if they want US schools anyway, say this once, plainly, and ask whether they hold another passport: if they name a country that isn't under the suspension, record it as identity.other_citizenship (that turns US searches back on) and then add the US with add_region if they want it.\n` : ""}
-today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
+${channel === "whatsapp" ? `they're writing on WhatsApp, not in the app: keep replies short. there are no cards here, so when a school's form is waiting on an answer, ask it yourself, one at a time, with its options in choices, and record the answer in portal_answers; they can also type "questions" for the quick form questions. stay on their university applications and studying abroad (schools, programmes, funding, tests, visas, essays, how Ivyward works): for anything else (general chat, homework, code, other topics) say in one line that here you help with their applications, and offer what you can do for them.\n` : ""}today (UTC): ${new Date().toISOString().slice(0, 16).replace("T", " ")}
 
 application profile (${formReadiness(details, level)}% ready for forms; the quick chapters are on cards). story chapter in progress: ${chapterNow.chapter ? `"${chapterNow.chapter.chapter.title}" (${chapterNow.chapter.done} of ${chapterNow.chapter.total} done)` : "(all done)"}
 ${chapterNow.questions.map((f) => `- [d:${f.key}] ${f.ask ?? f.label}${f.options?.length ? ` (options: ${f.options.join(" / ")})` : ""}${f.kind === "date" ? " (a date)" : ""}${f.hint ? ` (hint: ${f.hint})` : ""}`).join("\n") || "(nothing open)"}
@@ -232,7 +232,7 @@ ${userText ? `they just said: ${userText}` : transcript.length ? "they came back
     actor: "agent:interviewer",
     action: "interview.turn",
     agentRunId: runId,
-    channel: viaVoice ? "voice" : "text",
+    channel: viaVoice ? "voice" : channel === "whatsapp" ? "whatsapp" : "text",
     context: { sessionId, patched: patchKeys, mode: output.mode, light, portalAnswers: answered, chapterAnswers, lookup: output.lookup || null, actions: done },
   });
 

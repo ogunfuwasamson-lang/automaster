@@ -212,6 +212,8 @@ export async function say(userId: string, content: string) {
   const db = admin();
   const { data: last } = await db.from("interview_turns").select("session_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   await db.from("interview_turns").insert({ user_id: userId, session_id: (last?.session_id as string) ?? randomUUID(), role: "agent", content: content.slice(0, 1500) });
+  // on WhatsApp too, while they've written there in the last 24 hours (lib/whatsapp-onboard)
+  await import("@/lib/whatsapp-onboard").then((m) => m.mirror(userId, { text: content.slice(0, 1500) })).catch(() => false);
 }
 
 // a reminder fires: notify, and email for the ones that matter

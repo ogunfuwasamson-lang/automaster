@@ -43,7 +43,51 @@ export async function sendText(to: string, body: string, replyTo?: string): Prom
   return out.messages?.[0]?.id ?? "";
 }
 
-export const markRead = (messageId: string) => graph(`${PHONE_ID()}/messages`, { body: { messaging_product: "whatsapp", status: "read", message_id: messageId } }).catch(() => null);
+// up to three buttons they tap (titles of 20 characters at most), inside the 24 hours
+export async function sendButtons(to: string, body: string, buttons: { id: string; title: string }[], replyTo?: string): Promise<string> {
+  const out = await graph<{ messages?: { id: string }[] }>(`${PHONE_ID()}/messages`, {
+    body: {
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: { type: "button", body: { text: body.slice(0, 1024) }, action: { buttons: buttons.slice(0, 3).map((b) => ({ type: "reply", reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) } })) } },
+      ...(replyTo ? { context: { message_id: replyTo } } : {}),
+    },
+  });
+  return out.messages?.[0]?.id ?? "";
+}
+
+// a list behind one button: up to ten rows (titles 24 characters, descriptions 72)
+export async function sendList(to: string, body: string, button: string, rows: { id: string; title: string; description?: string }[], replyTo?: string): Promise<string> {
+  const out = await graph<{ messages?: { id: string }[] }>(`${PHONE_ID()}/messages`, {
+    body: {
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: body.slice(0, 4096) },
+        action: { button: button.slice(0, 20), sections: [{ title: "Choose one", rows: rows.slice(0, 10).map((r) => ({ id: r.id.slice(0, 200), title: r.title.slice(0, 24), ...(r.description ? { description: r.description.slice(0, 72) } : {}) })) }] },
+      },
+      ...(replyTo ? { context: { message_id: replyTo } } : {}),
+    },
+  });
+  return out.messages?.[0]?.id ?? "";
+}
+
+// a file they sent (a CV, a transcript, an admission letter): Meta gives a short-lived link that needs the token
+export async function downloadMedia(mediaId: string, maxBytes: number): Promise<{ bytes: Buffer; mime: string }> {
+  const meta = await graph<{ url?: string; mime_type?: string; file_size?: number }>(mediaId);
+  if (!meta.url) throw new Error("whatsapp: no media url");
+  if (meta.file_size && meta.file_size > maxBytes) throw new Error("too big");
+  const res = await fetch(meta.url, { headers: { authorization: `Bearer ${TOKEN()}` }, signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`whatsapp media: ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > maxBytes) throw new Error("too big");
+  return { bytes, mime: meta.mime_type ?? res.headers.get("content-type") ?? "application/octet-stream" };
+}
+
+export const markRead =(messageId: string) => graph(`${PHONE_ID()}/messages`, { body: { messaging_product: "whatsapp", status: "read", message_id: messageId } }).catch(() => null);
 
 // Meta signs each webhook call with the app secret
 export function signatureOk(raw: string, header: string | null): boolean {

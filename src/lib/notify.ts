@@ -33,6 +33,12 @@ export async function notify(n: Notice): Promise<void> {
     await db.from("notifications").update({ ...row, ...(cur.resolved_at ? { resolved_at: null, read_at: null, created_at: new Date().toISOString() } : {}) }).eq("id", cur.id);
   }
   if (n.email && id && !cur?.emailed_at && systemMailReady()) await emailNotice(n, id).catch(() => {});
+  // a new notice important enough to email (or the answer on an admission letter they may have sent on WhatsApp)
+  // also goes to WhatsApp while they've written there in the last 24 hours (lib/whatsapp-onboard)
+  if (!cur && id && (n.email || n.key.startsWith("admission-letter:"))) {
+    const link = n.href ? (n.href.startsWith("http") ? n.href : `${appUrl()}${n.href}`) : null;
+    await import("@/lib/whatsapp-onboard").then((m) => m.mirror(n.userId, { key: n.key, text: [`**${n.title}**`, n.body, link].filter(Boolean).join("\n") })).catch(() => false);
+  }
 }
 
 export async function resolve(userId: string, key: string | RegExp): Promise<void> {

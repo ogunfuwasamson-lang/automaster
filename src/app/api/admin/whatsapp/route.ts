@@ -24,7 +24,22 @@ export async function GET() {
     db.from("events").select("id", { count: "exact", head: true }).eq("action", "whatsapp.sent").gte("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString()),
   ]);
   const env = { token: whatsappReady(), appSecret: !!process.env.WHATSAPP_APP_SECRET, verifyToken: !!process.env.WHATSAPP_VERIFY_TOKEN };
-  return NextResponse.json({ phoneId: PHONE_ID(), wabaId: WABA_ID(), env, contacts: { active: active ?? 0, pending: pending ?? 0 }, sentThisWeek: sent ?? 0, meta: env.token ? await status() : null });
+  return NextResponse.json({ phoneId: PHONE_ID(), wabaId: WABA_ID(), env, contacts: { active: active ?? 0, pending: pending ?? 0 }, sentThisWeek: sent ?? 0, funnel: await funnel(), meta: env.token ? await status() : null });
+}
+
+// starting on WhatsApp, last 30 days: said hi, confirmed an email, finished setup, started an application there.
+// counted from the numbers themselves (whatsapp_flows, leaving out numbers linked from Settings) and from events
+async function funnel() {
+  const db = admin();
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const [{ count: hello }, { count: confirmed }, { count: done }, { data: started }, { count: voice }] = await Promise.all([
+    db.from("whatsapp_flows").select("phone", { count: "exact", head: true }).gte("started_at", since).is("state->>linked", null),
+    db.from("whatsapp_flows").select("phone", { count: "exact", head: true }).gte("started_at", since).is("state->>linked", null).not("user_id", "is", null),
+    db.from("whatsapp_flows").select("phone", { count: "exact", head: true }).gte("started_at", since).is("state->>linked", null).not("finished_at", "is", null),
+    db.from("events").select("user_id").eq("action", "application.prepare_requested").eq("channel", "whatsapp").gte("created_at", since).limit(2000),
+    db.from("events").select("id", { count: "exact", head: true }).eq("action", "whatsapp.voice_note").gte("created_at", since),
+  ]);
+  return { hello: hello ?? 0, confirmed: confirmed ?? 0, done: done ?? 0, started: new Set((started ?? []).map((e) => e.user_id)).size, voice: voice ?? 0 };
 }
 
 export async function POST(req: NextRequest) {

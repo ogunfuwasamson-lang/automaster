@@ -2,14 +2,16 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { admin } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/events";
-import { enqueue } from "@/lib/queue";
 import { localHour } from "@/lib/activity";
 import { loadToday } from "@/lib/today-data";
 import { markRead, sendTemplate, sendText, whatsappReady } from "@/lib/whatsapp";
+import { chat, getFlow, onboardStep, send, signup, type Msg } from "@/lib/whatsapp-onboard";
+import * as F from "@/lib/whatsapp-flow";
 import { codeIn, isStart, isStop, linkUrl, masked, newCode, pickNudge, shouldSend, type Contact } from "@/lib/whatsapp-rules";
 
-// WhatsApp updates for applicants who turn them on (settings): linking their number, the one message when something
-// needs them (the worker's hourly sweep), their replies to Ivyward AI, and STOP. lib/whatsapp-rules holds the rules.
+// WhatsApp for applicants: turning it on in Settings and linking their number, every message coming in (new numbers
+// sign up and set up in the chat, lib/whatsapp-onboard), Ivyward AI's replies, STOP, and the one message when
+// something needs them (the worker's hourly sweep). lib/whatsapp-rules holds the sweep's rules.
 
 type Row = Contact & { user_id: string; code: string; last_inbound_at: string | null };
 const db = () => admin();
@@ -56,15 +58,15 @@ async function firstName(userId: string): Promise<string> {
 
 // ---- messages coming in (api/whatsapp/webhook) ----
 
-export type Inbound = { id: string; from: string; type: string; text: string | null };
+export type Inbound = Msg;
 
 const WELCOME = (first: string) =>
-  `You're set${first ? `, ${first}` : ""}. I'll message you here when one of your applications needs you: at most once a week, or a bit more often when a deadline is close.\n\nYou can also ask me anything about your applications here. Reply STOP to turn these messages off.`;
-const UNKNOWN = "Hi, this is Ivyward. To get updates about your applications here, open Settings on tryivyward.com, turn on WhatsApp updates and send the code it shows you.";
+  `You're set${first ? `, ${first}` : ""}. I'll message you here when one of your applications needs you: at most once a week, or a bit more often when a deadline is close.\n\nYou can also ask me anything about your applications here, or type *help* to see what else I can do. Reply STOP to turn these messages off.`;
 
 export async function handleInbound(m: Inbound): Promise<string> {
-  const text = (m.text ?? "").trim();
+  const text = m.text.trim();
   const now = new Date().toISOString();
+  // linking from Settings: they send the code the website showed them
   const code = text ? codeIn(text) : null;
   if (code) {
     const { data: c } = await db().from("whatsapp_contacts").select("user_id, status").eq("code", code).maybeSingle();
@@ -79,16 +81,17 @@ export async function handleInbound(m: Inbound): Promise<string> {
     }
   }
   const { data: c } = await db().from("whatsapp_contacts").select("user_id, status").eq("phone", m.from).maybeSingle();
+  // a number we don't know: they start here (lib/whatsapp-onboard), from the email onwards
   if (!c) {
-    await sendText(m.from, UNKNOWN).catch(() => "");
-    return "unknown";
+    await markRead(m.id);
+    return signup(m);
   }
   const userId = c.user_id as string;
   await db().from("whatsapp_contacts").update({ last_inbound_at: now, updated_at: now }).eq("user_id", userId);
   if (isStop(text)) {
     await db().from("whatsapp_contacts").update({ status: "stopped", stopped_at: now }).eq("user_id", userId);
     await logEvent({ userId, actor: "user", action: "whatsapp.stopped" }).catch(() => "");
-    await sendText(m.from, "Done: no more updates here. You can turn them back on in Settings on tryivyward.com, or reply START.");
+    await sendText(m.from, "Done: no more messages here. You can turn them back on in Settings on tryivyward.com, or reply START.");
     return "stopped";
   }
   if (isStart(text)) {
@@ -98,16 +101,13 @@ export async function handleInbound(m: Inbound): Promise<string> {
   }
   if (c.status === "stopped") return "ignored";
   await markRead(m.id);
-  if (m.type !== "text" || !text) {
-    await sendText(m.from, "I can only read text messages here for now. To add a document, upload it on Ivyward: tryivyward.com/documents");
-    return "not text";
-  }
-  // Ivyward AI answers in a job: the webhook must reply to Meta within seconds
-  await enqueue({ userId, agent: "whatsapp", task: "reply", payload: { text: text.slice(0, 4000), messageId: m.id }, idempotencyKey: `wa-in:${m.id}` });
-  return "queued";
+  const flow = await getFlow(m.from);
+  if (flow && flow.user_id === userId && flow.step !== "done") return onboardStep(userId, m, flow);
+  return chat(userId, m, flow && flow.user_id === userId ? flow : null);
 }
 
-// Ivyward AI's answer to their message, in the same conversation as the dashboard's chat
+// Ivyward AI's answer to their message, in the same conversation as the dashboard's chat. a question with a few
+// answers comes with them as buttons or a list, and a tapped answer comes back as if typed (lib/whatsapp-onboard)
 export async function replyWithAi(userId: string, text: string, messageId: string): Promise<string> {
   const { data: c } = await db().from("whatsapp_contacts").select("phone, status, last_inbound_at").eq("user_id", userId).maybeSingle();
   if (!c?.phone || c.status !== "active") return "not on";
@@ -115,15 +115,15 @@ export async function replyWithAi(userId: string, text: string, messageId: strin
   const { data: last } = await db().from("interview_turns").select("session_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const session = (last?.session_id as string) ?? randomUUID();
   const { interviewTurn } = await import("@/agents/interviewer");
-  let reply: string;
+  let out: F.Out;
   try {
-    reply = (await interviewTurn(userId, session, text, false)).reply as string;
+    const turn = await interviewTurn(userId, session, text, false, "whatsapp");
+    out = F.askOut(F.waText(turn.reply as string), turn.ask ?? null, (o) => F.answerId(o));
   } catch {
-    reply = "I can't answer right now. Open Ivyward to see where your applications stand: tryivyward.com/dashboard";
+    out = { kind: "text", body: "I can't answer right now. Type *status* to see where your applications stand, or try again in a few minutes." };
   }
-  // WhatsApp's bold is *one* star
-  await sendText(c.phone as string, reply.replace(/\*\*(.+?)\*\*/g, "*$1*"), messageId);
-  await logEvent({ userId, actor: "agent:whatsapp", action: "whatsapp.replied" }).catch(() => "");
+  await send(c.phone as string, out, messageId);
+  await logEvent({ userId, actor: "agent:whatsapp", action: "whatsapp.replied", channel: "whatsapp" }).catch(() => "");
   return "replied";
 }
 

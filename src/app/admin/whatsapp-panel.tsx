@@ -9,6 +9,7 @@ type State = {
   env: { token: boolean; appSecret: boolean; verifyToken: boolean };
   contacts: { active: number; pending: number };
   sentThisWeek: number;
+  funnel?: { hello: number; confirmed: number; done: number; started: number; voice: number };
   meta: { number: Record<string, string>; templates: { name: string; status: string; category: string }[] | { error: string } } | null;
 };
 
@@ -47,6 +48,11 @@ export function WhatsAppPanel() {
         <p className="mt-1 text-[13.5px] text-muted">
           Number id {s.phoneId}. {s.contacts.active} applicants linked, {s.contacts.pending} waiting to send their code, {s.sentThisWeek} updates sent in the last 7 days.
         </p>
+        {s.funnel && (
+          <p className="mt-1 text-[13.5px] text-muted">
+            Started on WhatsApp, last 30 days: {s.funnel.hello} said hi, {s.funnel.confirmed} confirmed an email, {s.funnel.done} finished setup, {s.funnel.started} started an application there. {s.funnel.voice} voice notes sent.
+          </p>
+        )}
       </div>
       <dl className="grid gap-x-6 gap-y-1 text-[13.5px] sm:grid-cols-2">
         <dt className="text-muted">Access token (WHATSAPP_TOKEN)</dt>

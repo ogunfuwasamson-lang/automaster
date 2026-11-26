@@ -1,14 +1,10 @@
-import { resumeAfterProfileChange } from "@/lib/requeue";
 import { DOC_KIND_IDS } from "@/lib/doc-kinds";
-import { resolve } from "@/lib/notify";
-import { qualifyAccount } from "@/lib/creators";
+import { registerDocument } from "@/lib/document-register";
 import { NextResponse, after, type NextRequest } from "next/server";
 import * as z from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { admin } from "@/lib/supabase/admin";
-import { enqueue, drain } from "@/lib/jobs";
-import { releaseHeld } from "@/lib/credit";
-import { logEvent } from "@/lib/events";
+import { drain } from "@/lib/jobs";
 import { checkLimit } from "@/lib/limits";
 import { MAX_DOC_BYTES } from "@/agents/intake";
 
@@ -49,27 +45,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "file not found in storage" }, { status: 400 });
   }
 
-  const { error } = await db.from("documents").insert({
-    id: b.id,
-    user_id: uid,
-    kind: b.kind,
-    filename: b.filename,
-    storage_path: b.storagePath,
-    mime_type: b.mime,
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-
-  await logEvent({ userId: uid, actor: "user", action: "document.uploaded", context: { documentId: b.id, kind: b.kind, filename: b.filename } });
-  // an admission letter is read for the offer, not for profile facts (agents/admission)
-  if (b.kind === "admission_letter")
-    await enqueue({ userId: uid, agent: "admission", task: "read_letter", payload: { documentId: b.id, applicationId: b.applicationId }, idempotencyKey: `admission-letter:${b.id}` });
-  else await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
-  await releaseHeld(uid).catch(() => {}); // a serious account now: work held for starters goes
-  // a new document can be exactly what a stopped submission was waiting for
-  await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);
-  await resolve(uid, `setup:${b.kind}`).catch(() => {});
-  // a CV can be the last step for an account a creator brought in (lib/creators)
-  if (b.kind === "cv") await qualifyAccount(uid).catch(() => false);
+  const saved = await registerDocument(uid, { id: b.id, kind: b.kind, filename: b.filename, storagePath: b.storagePath, mime: b.mime, applicationId: b.applicationId });
+  if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 400 });
   after(() => drain("inline-upload", 2).catch(() => {}));
   return NextResponse.json({ ok: true });
 }

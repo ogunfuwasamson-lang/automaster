@@ -12,6 +12,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { FAQ } from "@/lib/faq";
 import { SITE } from "@/lib/site";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { WhatsAppStart } from "@/components/landing/whatsapp-start";
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },
@@ -41,6 +43,7 @@ const LIBRARY: [string, string, string][] = [
 export default async function Home() {
   // signed in already: the header takes you back into the app instead of offering sign-in
   const signedIn = !!(await requireUser().catch(() => null));
+  const invite = (await cookies()).get("iv_ref")?.value ?? null;
   // prices by where the visitor is (Vercel's country header): submission packs in Africa, a monthly plan elsewhere
   return (
     <div className="relative min-h-dvh overflow-x-clip">
@@ -78,6 +81,7 @@ export default async function Home() {
                   Start free. Nothing goes to a school until you sign.
                 </p>
               </form>
+              <WhatsAppStart refCode={invite} className="mx-auto mt-6 max-w-2xl text-center" />
             </HeroIn>
           </div>
         </section>
