@@ -7,6 +7,9 @@
 # pasting the whole file again (a secret's contents can't be read back from GitHub):
 #   COMPOSIO_API_KEY
 #   GOOGLE_PICKER_KEY    the browser key for "Import from Google Drive" on the documents page (restricted to the site)
+#   WHATSAPP_TOKEN       the Flolyt system user's token for the FLOLYT TECH app (WhatsApp Cloud API)
+#   WHATSAPP_APP_SECRET  FLOLYT TECH's app secret (checks Meta's signature on incoming WhatsApp messages)
+#   WHATSAPP_VERIFY_TOKEN  the phrase typed in the app's webhook settings, so Meta can confirm the webhook
 name: Deploy to Agent37
 on:
   push:
@@ -36,11 +39,14 @@ jobs:
           ENV_FILE: ${{ secrets.AGENT37_ENV }}
           OVERRIDE_COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           OVERRIDE_GOOGLE_PICKER_KEY: ${{ secrets.GOOGLE_PICKER_KEY }}
+          OVERRIDE_WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
+          OVERRIDE_WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
+          OVERRIDE_WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
         run: |
           umask 077
           printf '%s\n' "$ENV_FILE" > deploy/agent37/env.production
           # a separately saved key wins over the one inside AGENT37_ENV
-          for name in COMPOSIO_API_KEY GOOGLE_PICKER_KEY; do
+          for name in COMPOSIO_API_KEY GOOGLE_PICKER_KEY WHATSAPP_TOKEN WHATSAPP_APP_SECRET WHATSAPP_VERIFY_TOKEN; do
             val=$(printenv "OVERRIDE_$name" || true)
             [ -z "$val" ] && continue
             grep -v "^$name=" deploy/agent37/env.production > deploy/agent37/env.tmp || true
