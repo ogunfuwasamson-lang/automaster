@@ -141,7 +141,7 @@ export async function afterAdmit(userId: string, applicationId: string) {
   await enqueue({ userId, agent: "closer", task: "school_scholarships", payload: { applicationId }, idempotencyKey: `school-scholarships:${applicationId}` });
 }
 
-function askForProof(userId: string, app: AppRow, mailChecked: boolean) {
+function askForProof(userId: string, app: AppRow, mailChecked: boolean, email = false) {
   return notify({
     userId,
     key: `admission-proof:${app.id}`,
@@ -150,9 +150,12 @@ function askForProof(userId: string, app: AppRow, mailChecked: boolean) {
     body: mailChecked
       ? "We didn't find the school's admission email in your inbox. Upload the admission letter, and your agents start on funding and your visa."
       : "Connect your email so your agents can find the school's admission email, or upload the admission letter. Then they start on funding and your visa.",
+    // the 7 marked before checks existed (founder, 26 nov 2026: "ask the user") include clicks made by mistake
+    ...(email ? { body: `${mailChecked ? "We didn't find the school's admission email in your inbox." : "Connect your email so your agents can find the school's admission email."} Upload the admission letter and your agents start on funding and your visa. Marked it admitted by mistake? You can take it back on the same page.` } : {}),
     href: `/applications/${app.id}#admission`,
     actionLabel: "Confirm it",
     urgent: true,
+    email,
   });
 }
 
@@ -218,12 +221,13 @@ async function applicationFor(userId: string, read: OfferRead): Promise<AppRow |
 export const admission: Record<string, Handler> = {
   // the applicant said "admitted": look for the school's email in their inbox, or ask for the letter
   "admission.check": async (job) => {
-    const { applicationId } = job.payload as { applicationId: string };
+    const { applicationId, email } = job.payload as { applicationId: string; email?: boolean };
     const app = await loadApp(job.user_id, applicationId);
     if (!app) return { skipped: "no application" };
+    if (app.status !== "admitted") return { skipped: `now ${app.status}` };
     if (await isVerified(app.id)) return { verified: "already" };
     if (!(await canReadMail(job.user_id))) {
-      await askForProof(job.user_id, app, false);
+      await askForProof(job.user_id, app, false, !!email);
       return { asked: "no inbox" };
     }
     const school = app.programs.schools.name;
@@ -237,7 +241,7 @@ export const admission: Record<string, Handler> = {
         return { verified: "mail" };
       }
     }
-    await askForProof(job.user_id, app, true);
+    await askForProof(job.user_id, app, true, !!email);
     return { asked: "not in inbox", looked: mails.length };
   },
 
