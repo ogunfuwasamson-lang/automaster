@@ -98,10 +98,11 @@ export async function sendMonthlyAlerts(limit = 200) {
   let sent = 0;
   for (const s of subs) {
     const blocks: Block[] = [
-      { t: "p", text: `These fully funded scholarships usually close in the next few weeks. Dates move every year, so check each official page.` },
-      ...list.map((x, i) => ({ t: "item" as const, n: i + 1, title: x.name, text: `${x.country}. ${x.deadline}`, button: { label: "See who can apply", href: `${SITE.url}/scholarships/${x.slug}?utm_source=alerts&utm_medium=email&utm_campaign=${now.toISOString().slice(0, 7)}` } })),
+      { t: "p", text: `These fully funded scholarships usually close in the next few weeks. Dates move every year, so check each official page before you apply.` },
+      { t: "rows", rows: list.map((x) => ({ title: x.name, sub: x.country, right: x.deadline, tone: "signal" as const, href: `${SITE.url}/scholarships/${x.slug}?utm_source=alerts&utm_medium=email&utm_campaign=${now.toISOString().slice(0, 7)}` })), more: "Tap a scholarship to see who can apply and what it pays for." },
       { t: "rule" },
-      { t: "p", text: "Want help from application to your first day in school? Ivyward's agents draft and fact-check your essays, ask for fee waivers and fill in the application forms, then guide your visa, fees and travel. You review and sign. Start free with a checked shortlist." },
+      { t: "heading", text: "From your application to your first day in school" },
+      { t: "p", text: "Ivyward's agents draft and fact-check your essays, ask for fee waivers and fill in the application forms, then guide your visa, fees and travel. You review and sign. Start free with a checked shortlist." },
       { t: "button", label: "Start free", href: `${SITE.url}/login?mode=signup&utm_source=alerts&utm_medium=email` },
     ];
     try {
@@ -109,7 +110,7 @@ export async function sendMonthlyAlerts(limit = 200) {
         to: s.email,
         subject: `Scholarships closing soon: ${month}`,
         text: `Scholarships that usually close in the next few weeks:\n\n${list.map((x) => `- ${x.name} (${x.country}): ${SITE.url}/scholarships/${x.slug}`).join("\n")}\n\nUnsubscribe: ${unsubUrl(s.token)}`,
-        html: emailHtml({ kicker: "Scholarship alerts", headline: `Closing soon: ${month}`, blocks, manageUrl: unsubUrl(s.token) }),
+        html: emailHtml({ preheader: `${list.length} fully funded scholarships that usually close in the next few weeks`, kicker: "Scholarship alerts", headline: `Closing soon: ${month}`, blocks, unsubscribeUrl: unsubUrl(s.token) }),
         unsubscribeUrl: unsubUrl(s.token),
         tag: "alerts-monthly",
       });

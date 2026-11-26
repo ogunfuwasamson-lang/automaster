@@ -2,7 +2,7 @@ import "server-only";
 import { admin } from "@/lib/supabase/admin";
 import { appUrl } from "@/lib/gmail";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
-import { emailHtml } from "@/lib/email-layout";
+import { emailHtml, type Block, type Row } from "@/lib/email-layout";
 
 // tell the applicant something, once. the key de-duplicates: raising the same notice again does nothing while it's
 // open, and re-opens it if it was resolved. email goes out once per notice, only when asked for.
@@ -16,6 +16,7 @@ export interface Notice {
   actionLabel?: string;
   urgent?: boolean;
   email?: boolean;
+  rows?: Row[]; // in the email only: the schools or items the notice is about, one per line
 }
 
 export async function notify(n: Notice): Promise<void> {
@@ -45,6 +46,14 @@ export async function resolve(userId: string, key: string | RegExp): Promise<voi
   if (ids.length) await db.from("notifications").update({ resolved_at: new Date().toISOString() }).in("id", ids);
 }
 
+const KICKER: Record<Notice["kind"], string> = { setup: "Needs you", shortlist: "Your shortlist", reminder: "Reminder", followup: "Follow-up", info: "Update" };
+
+// a notice in the email look: its paragraphs, the rows it's about, one button
+export function noticeBlocks(n: Pick<Notice, "body" | "rows">, label: string, href: string): Block[] {
+  const paras = (n.body ?? "").split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+  return [...paras.map((text) => ({ t: "p" as const, text })), ...(n.rows?.length ? [{ t: "rows" as const, rows: n.rows }] : []), { t: "button", label, href }];
+}
+
 async function emailNotice(n: Notice, id: string) {
   const db = admin();
   const { data } = await db.auth.admin.getUserById(n.userId);
@@ -56,7 +65,7 @@ async function emailNotice(n: Notice, id: string) {
     to,
     subject: n.title,
     text: `${n.title}\n\n${n.body ?? ""}\n\n${label}: ${href}\n\nEmail settings: ${appUrl()}/settings`,
-    html: emailHtml({ preheader: n.body, headline: n.title, blocks: [...(n.body ? [{ t: "p" as const, text: n.body }] : []), { t: "button", label, href }], manageUrl: `${appUrl()}/settings` }),
+    html: emailHtml({ preheader: n.body, kicker: KICKER[n.kind], headline: n.title, blocks: noticeBlocks(n, label, href), footer: "Ivyward AI", manageUrl: `${appUrl()}/settings` }),
     unsubscribeUrl: `${appUrl()}/settings`,
     tag: n.kind,
   });

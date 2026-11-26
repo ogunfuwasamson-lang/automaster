@@ -79,7 +79,19 @@ export async function sendInvite(userId: string, e: CalEvent, why?: string | nul
     to,
     subject: `Added to your calendar: ${e.title}`,
     text: `${e.title}\n\n${body}\n\n${e.url ?? ""}`,
-    html: emailHtml({ kicker: "Calendar", headline: e.title, blocks: [{ t: "p", text: body }, ...(e.url ? [{ t: "button" as const, label: "Open the event page", href: e.url }] : []), { t: "button", label: "See it in Ivyward", href: `${appUrl()}/dashboard`, secondary: true }], manageUrl: `${appUrl()}/settings` }),
+    html: emailHtml({
+      preheader: `On ${when}`,
+      kicker: "Added to your calendar",
+      headline: e.title,
+      blocks: [
+        { t: "rows", rows: [{ title: when, sub: "Ivyward reminds you the day before and an hour before." }] },
+        ...(why ? [{ t: "p" as const, text: why }] : []),
+        { t: "p", text: "Accept the invite attached to this email to keep it in your calendar." },
+        ...(e.url ? [{ t: "button" as const, label: "Open the event page", href: e.url }] : []),
+        { t: "button", label: "See it in Ivyward", href: `${appUrl()}/dashboard`, secondary: !!e.url },
+      ],
+      manageUrl: `${appUrl()}/settings`,
+    }),
     attachments: [{ filename: "invite.ics", content: Buffer.from(ics(e, to)).toString("base64"), content_type: "text/calendar; method=REQUEST" }],
     tag: "calendar",
   });

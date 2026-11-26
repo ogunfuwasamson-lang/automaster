@@ -15,6 +15,7 @@ import { nationalsOf, usStudyBlocked } from "@/lib/us-visa-suspension";
 
 export const KIND = "us_visa_suspension";
 const OPEN: AppStatus[] = ["researching", "shortlisted", "preparing", "ready_for_review", "packet_approved"];
+const STAGE: Partial<Record<AppStatus, string>> = { researching: "Being checked", shortlisted: "On your shortlist", preparing: "Being written", ready_for_review: "Ready to sign", packet_approved: "Signed" };
 const US = /united states|^usa?$|^united states of america$/i;
 
 type OpenApp = { id: string; status: AppStatus; program_id: string; school: string; runner: string | null };
@@ -57,7 +58,9 @@ export async function askAboutUs(userId: string): Promise<{ asked: boolean; apps
 
   await db.from("approvals").insert({ user_id: userId, kind: KIND, title, summary: text, payload: { applicationIds: apps.map((a) => a.id), country: blocked.country }, urgency: 2, created_by: "agent:advisor" });
   await say(userId, text);
-  await notify({ userId, key: `us-visa:${userId}`, kind: "info", title, body: text, href: "/dashboard", actionLabel: "Choose", urgent: true, email: true });
+  const mail = `Since 1 January 2026, the US has suspended new student visas (F, M and J) for ${nationalsOf(blocked)} and 37 other countries (US State Department). Your agents have stopped looking for new US programmes for you.\n\nYou have ${n === 1 ? "one US application" : `${n} US applications`} open, none submitted yet. Drop ${them}, or keep ${n === 1 ? "it" : "them"} for now? Nothing changes until you choose.\n\nIf you also hold a passport from a country that isn't on the list, tell Ivyward AI in chat and your agents will search the US again.`;
+  const rows = apps.slice(0, 8).map((a) => ({ title: a.school, right: STAGE[a.status] ?? "Open", tone: "muted" as const }));
+  await notify({ userId, key: `us-visa:${userId}`, kind: "info", title, body: mail, rows, href: "/dashboard", actionLabel: "Choose", urgent: true, email: true });
   await logEvent({ userId, actor: "agent:advisor", action: "advice.us_suspension", context: { apps: n, country: blocked.country } });
   return { asked: true, apps: n };
 }

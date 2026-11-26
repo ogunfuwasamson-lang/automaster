@@ -7,17 +7,35 @@ import { appUrl, mailAccount, sendAs } from "@/lib/gmail";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
 import { emailHtml, type Block } from "@/lib/email-layout";
 import { loadToday } from "@/lib/today-data";
+import { journeyBlock } from "@/lib/email-journey";
+import type { JourneyMap } from "@/lib/journey-map";
 
-// the daily note in Ivyward's email layout: a headline, then short sections, one button
-function digestHtml(g: Digest, name: string | null, task: { title: string; minutes: number; href: string } | null): string {
-  const sec = (title: string, xs: string[]): Block[] => (xs.length ? [{ t: "p", text: `**${title}**` }, ...xs.slice(0, 6).map((x) => ({ t: "p" as const, text: x.charAt(0).toUpperCase() + x.slice(1) }))] : []);
+// the daily note in Ivyward's email layout: where they are on the journey, today's one task, then short lists
+export function digestHtml(g: Digest, name: string | null, task: { title: string; minutes: number; href: string; why?: string; cta?: string } | null, map?: JourneyMap | null, now = new Date()): string {
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+  const sec = (title: string, xs: string[]): Block[] =>
+    xs.length ? [{ t: "heading", text: title }, { t: "rows", rows: xs.slice(0, 6).map((x) => ({ title: cap(x) })), ...(xs.length > 6 ? { more: `And ${xs.length - 6} more on your dashboard.` } : {}) }] : [];
+  const strip = journeyBlock(map);
+  const day = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   return emailHtml({
-    kicker: "Today",
+    preheader: task ? `Today's task: ${task.title}` : g.headline,
+    kicker: day,
     headline: `${name ? `${name.split(" ")[0]}, ` : ""}${g.headline}.`,
     blocks: [
+      ...(strip ? [strip] : []),
+      ...(task
+        ? ([
+            { t: "note", title: `Today's task, about ${task.minutes} minute${task.minutes > 1 ? "s" : ""}`, text: `${task.title}${task.why ? `. ${task.why}` : ""}` },
+            { t: "button", label: task.cta || "Do it now", href: `${appUrl()}${task.href}` },
+          ] as Block[])
+        : []),
+      ...sec("Needs you", g.needs_you),
       ...sec("New for you", g.fresh ?? []),
-      ...(task ? ([{ t: "p", text: `**Today's task, about ${task.minutes} minute${task.minutes > 1 ? "s" : ""}**` }, { t: "p", text: task.title }] as Block[]) : []),
-      ...sec("Needs you", g.needs_you), ...sec("Done since yesterday", g.done), ...sec("Coming up", g.coming_up), { t: "button", label: task ? "Do it now" : "Open Ivyward", href: task ? `${appUrl()}${task.href}` : `${appUrl()}/dashboard` }],
+      ...sec("Done since yesterday", g.done),
+      ...sec("Coming up", g.coming_up),
+      { t: "button", label: "Open your dashboard", href: `${appUrl()}/dashboard`, secondary: !!task },
+    ],
+    footer: "Ivyward AI",
     manageUrl: `${appUrl()}/settings`,
   });
 }
@@ -92,7 +110,8 @@ export async function runDigest(userId: string) {
   if (last?.last_digest_at && now.getTime() - Date.parse(last.last_digest_at) < MIN_GAP_MS) return { headline: null, via: null, skipped: "sent in the last 20 hours" };
   const { digest, since, name } = await makeDigest(userId, now);
   // the one small thing for today (lib/today), the same as the dashboard's card
-  const task = (await loadToday(userId).catch(() => null))?.task ?? null;
+  const today = await loadToday(userId).catch(() => null);
+  const task = today?.task ?? null;
   let via: string | null = null;
   if (!digest.empty) {
     const subject = `Ivyward: ${digest.headline}`;
@@ -103,7 +122,7 @@ export async function runDigest(userId: string) {
       const to = data.user?.email;
       if (to) {
         try {
-          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name, task), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
+          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name, task, today?.map, now), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
           via = "resend";
         } catch {
           via = null;
@@ -124,7 +143,7 @@ export async function runDigest(userId: string) {
       const to = data.user?.email;
       if (to) {
         try {
-          await sendSystem({ to, subject, text: body, unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
+          await sendSystem({ to, subject, text: body, html: digestHtml(digest, name, task, today?.map, now), unsubscribeUrl: `${appUrl()}/settings`, tag: "digest" });
           via = "resend";
         } catch {
           via = null;

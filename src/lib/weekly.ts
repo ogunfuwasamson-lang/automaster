@@ -8,6 +8,9 @@ import { localHour } from "@/lib/activity";
 import { appUrl } from "@/lib/gmail";
 import { sendSystem, systemMailReady } from "@/lib/mailer";
 import { emailHtml, type Block } from "@/lib/email-layout";
+import { journeyBlock } from "@/lib/email-journey";
+import { loadToday } from "@/lib/today-data";
+import type { JourneyMap } from "@/lib/journey-map";
 
 // the weekly report from Ivyward AI: one short read on Monday morning. what's working (with numbers), the two or
 // three things holding the season back, each with one button, a row of numbers, and a closing line. kept in the
@@ -145,12 +148,16 @@ export function actionHref(action: string, base = ""): string {
   return `${base}/dashboard`;
 }
 
-export function weeklyEmail(r: WeeklyReport, reportId: string): { subject: string; html: string; text: string } {
+export function weeklyEmail(r: WeeklyReport, reportId: string, map?: JourneyMap | null): { subject: string; html: string; text: string } {
   const base = appUrl();
+  const strip = journeyBlock(map);
   const blocks: Block[] = [
+    ...(strip ? [strip] : []),
     { t: "p", text: r.working },
     { t: "p", text: r.pivot },
+    ...(r.items.length ? [{ t: "heading" as const, text: r.items.length === 1 ? "One thing for you this week" : `${r.items.length} things for you this week` }] : []),
     ...r.items.map((it, i) => ({ t: "item" as const, n: i + 1, title: it.title, text: it.body, button: { label: it.label, href: actionHref(it.action, base) } })),
+    { t: "heading", text: "Your week in numbers" },
     { t: "stats", items: r.stats },
     { t: "p", text: r.closing },
     { t: "button", label: "Open the report in Ivyward", href: `${base}/dashboard?report=${reportId}`, secondary: true },
@@ -159,7 +166,7 @@ export function weeklyEmail(r: WeeklyReport, reportId: string): { subject: strin
   const text = [r.headline, "", r.working.replace(/\*\*/g, ""), "", r.pivot.replace(/\*\*/g, ""), "", ...r.items.flatMap((it, i) => [`${i + 1}. ${it.title}`, it.body.replace(/\*\*/g, ""), `${it.label}: ${actionHref(it.action, base)}`, ""]), r.stats.map((s) => `${s.value} ${s.label}`).join(" | "), "", r.closing, "", `Ivyward AI, next report ${nice(r.next_on)}`].join("\n");
   return {
     subject: r.headline.replace(/\*\*/g, "").slice(0, 140),
-    html: emailHtml({ preheader: r.pivot.replace(/\*\*/g, ""), kicker: `Your weekly report, ${nice(r.week_of)}`, headline: r.headline, blocks, footer: `Ivyward AI, next report ${nice(r.next_on)}`, manageUrl: `${base}/settings` }),
+    html: emailHtml({ preheader: r.pivot.replace(/\*\*/g, ""), kicker: `Week of ${nice(r.week_of)}`, headline: r.headline, blocks, footer: `Ivyward AI, next report ${nice(r.next_on)}`, manageUrl: `${base}/settings` }),
     text,
   };
 }
@@ -174,7 +181,8 @@ export async function runWeekly(userId: string): Promise<{ id: string; emailed: 
   if (systemMailReady()) {
     const { data: u } = await db.auth.admin.getUserById(userId);
     if (u.user?.email) {
-      const m = weeklyEmail(r, data.id as string);
+      const map = (await loadToday(userId).catch(() => null))?.map ?? null;
+      const m = weeklyEmail(r, data.id as string, map);
       await sendSystem({ to: u.user.email, subject: m.subject, text: m.text, html: m.html, unsubscribeUrl: `${appUrl()}/settings`, tag: "weekly" }).then(() => (emailed = true)).catch(() => {});
       if (emailed) await db.from("digests").update({ sent_via: "resend" }).eq("id", data.id);
     }
