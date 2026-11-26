@@ -466,7 +466,7 @@ export function WhatsAppCard({ initial }: { initial: WaState }) {
             Open WhatsApp
           </ButtonLink>
           <Button variant="secondary" size="sm" disabled={busy} onClick={check}>
-            I've sent it
+            I&apos;ve sent it
           </Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => act("off")}>
             Cancel
