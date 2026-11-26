@@ -65,7 +65,7 @@ export function LinkWhatsApp({ state, onChange }: { state: WaState; onChange: (s
       <div className="space-y-4 rounded-2xl border border-[#25D366]/40 bg-[#25D366]/[0.05] p-5">
         <div>
           <p className="text-[14px] text-muted">Send this code to Ivyward on WhatsApp</p>
-          <p className="mt-1 font-mono text-[30px] font-semibold tracking-[0.12em]">{state.code}</p>
+          <p className="mt-1 text-[30px] font-bold tabular-nums tracking-[0.06em]">{state.code}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <a href={state.link} target="_blank" rel="noopener noreferrer" className="inline-flex h-12 items-center gap-2 rounded-xl bg-[#128C7E] px-6 text-[15px] font-semibold text-white hover:bg-[#0f7a6e]">
@@ -76,10 +76,10 @@ export function LinkWhatsApp({ state, onChange }: { state: WaState; onChange: (s
           </Button>
         </div>
         <p className="max-w-xl text-[13.5px] leading-relaxed text-muted">
-          On a computer? Open WhatsApp on your phone and send <span className="font-mono font-semibold text-foreground">{state.code}</span> to <span className="font-semibold text-foreground">{NUMBER}</span>.
+          On a computer? Open WhatsApp on your phone and send <span className="whitespace-nowrap font-semibold text-foreground">{state.code}</span> to <span className="whitespace-nowrap font-semibold text-foreground">{NUMBER}</span>.
         </p>
         <p className="flex items-center gap-2 text-[13.5px] text-muted" role="status">
-          <LoaderCircle className="size-4 animate-spin" aria-hidden /> Waiting for your message. This updates by itself once it arrives.
+          <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden /> Waiting for your message. This updates by itself once it arrives.
         </p>
       </div>
     );
