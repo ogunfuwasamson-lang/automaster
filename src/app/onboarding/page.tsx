@@ -11,6 +11,8 @@ import { startShortlist } from "@/lib/kickoff";
 import { applySharpen } from "@/lib/sharpen";
 import { composioMail, gmailConfigured } from "@/lib/gmail";
 import { calendarAccount, gcalReady } from "@/lib/gcal";
+import { whatsappState } from "@/lib/whatsapp-server";
+import { SETUP } from "@/lib/setup-steps";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Get started", robots: { index: false, follow: false } };
@@ -26,18 +28,20 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     redirect("/credits");
   }
   const db = admin();
-  const [{ data: prof }, { data: docs }, { plan }, { data: mail }, cal] = await Promise.all([
+  const [{ data: prof }, { data: docs }, { plan }, { data: mail }, cal, wa] = await Promise.all([
     db.from("profiles").select("profile, target_term").eq("id", uid).single(),
     db.from("documents").select("kind").eq("user_id", uid),
     userPlan(uid),
     db.from("mail_accounts").select("email, status").eq("user_id", uid).maybeSingle(),
     calendarAccount(uid).catch(() => null),
+    whatsappState(uid).catch(() => ({ status: "off" as const })),
   ]);
   let p = loadProfile(prof?.profile);
   // arriving from the public matcher (/match) with choices made before sign-up: keep them (only into an empty
   // profile) and open on the matches screen
   // back from google's screen (gmail or the calendar): the connect step again, with how it went
-  let step = sp.mail ? 4 : sp.step ? Number(sp.step) || 1 : 1;
+  // (the wizard holds anyone past the WhatsApp step until their number is linked)
+  let step = sp.mail ? SETUP.connect : sp.step ? Number(sp.step) || 1 : 1;
   const level = ["undergraduate", "masters", "phd"].includes(sp.level ?? "") ? (sp.level as "undergraduate" | "masters" | "phd") : null;
   const regions = (sp.regions ?? "").split(",").filter((r) => REGIONS[r]).slice(0, plan.maxRegions);
   const fields = (sp.fields ?? "").split("|").map((f) => f.trim().slice(0, 60)).filter(Boolean).slice(0, 8);
@@ -51,7 +55,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     });
     await logEvent({ userId: uid, actor: "user", action: "preferences.updated", context: { regions, study_level: level, source: "matcher" } }).catch(() => {});
     await startShortlist(uid, "matcher").catch(() => false);
-    step = 3;
+    step = SETUP.matches;
   }
   return (
     <Onboarding
@@ -69,6 +73,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       hasCertificate={(docs ?? []).some((d) => d.kind === "degree_certificate" || d.kind === "degree_cert")}
       gmail={{ available: gmailConfigured(), email: mail?.email ?? null, active: mail?.status === "active", composio: composioMail(), notice: sp.mail ?? null }}
       calendar={{ available: gcalReady(), connected: !!cal, notice: sp.calendar ?? null }}
+      whatsapp={wa}
     />
   );
 }

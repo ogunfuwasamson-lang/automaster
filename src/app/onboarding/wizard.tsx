@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { CampusInk } from "@/components/landing/campus-ink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, FileUp, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Sparkles, Mail, CalendarDays, CircleCheck } from "lucide-react";
+import { Check, FileUp, X, LoaderCircle, GraduationCap, Globe2, BookOpen, FlaskConical, Sparkles, Mail, CalendarDays, CircleCheck, MessageCircle } from "lucide-react";
 import { ThemeButton } from "@/components/theme";
 import { toast } from "sonner";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { uploadDocument } from "@/lib/upload-client";
 import { guessKind } from "@/lib/doc-kinds";
 import { SharpenCard } from "@/components/profile/sharpen-card";
 import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
+import { LinkWhatsApp, isLinked, type WaState } from "@/components/whatsapp/link-whatsapp";
+import { SETUP } from "@/lib/setup-steps";
 
 const LEVELS: [string, string, string][] = [
   ["undergraduate", "Bachelor's", "A first degree"],
@@ -28,12 +30,13 @@ const TERMS = ["Fall 2027", "Spring 2028", "Fall 2028"];
 // 2026: 12 of 20 applicants with a CV had no transcript, 11 neither). the rest (passport name, the profile
 // chapters) is asked for when a form needs it (lib/kickoff): six screens of asks before anything to look at lost
 // most people (nov 2026). gmail and the calendar come last, after the matches, and either can be skipped: without
-// gmail an application waits whenever a portal emails a code (founder's call, 24 nov 2026: ask for both in setup)
-const STEPS = ["What you're applying for", "Where to study", "Your first matches", "Gmail and calendar"];
-const STEP_ICON = [GraduationCap, Globe2, Sparkles, Mail];
-const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your documents", "So the agents can act for you"];
-const MATCHES = 3;
-const CONNECT = 4;
+// gmail an application waits whenever a portal emails a code (founder's call, 24 nov 2026: ask for both in setup).
+// WhatsApp comes after the matches and can't be skipped (founder's call, 26 nov 2026: most people never came back to
+// the dashboard or opened the emails; WhatsApp is how the agents reach them)
+const STEPS = ["What you're applying for", "Where to study", "Your first matches", "WhatsApp", "Gmail and calendar"];
+const STEP_ICON = [GraduationCap, Globe2, Sparkles, MessageCircle, Mail];
+const STEP_HINT = ["Level, fields and start date", "Regions the agents search", "Programmes that fit, and your documents", "Where your agents reach you", "So the agents can act for you"];
+const { matches: MATCHES, whatsapp: WHATSAPP, connect: CONNECT } = SETUP;
 const LAST = STEPS.length;
 
 const MAIL_NOTICE: Record<string, [string, boolean]> = {
@@ -97,10 +100,14 @@ export function Onboarding(props: {
   hasCertificate: boolean;
   gmail: { available: boolean; email: string | null; active: boolean; composio: boolean; notice: string | null };
   calendar: { available: boolean; connected: boolean; notice: string | null };
+  whatsapp: WaState;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), LAST));
+  const [wa, setWa] = useState<WaState>(props.whatsapp);
+  const linked = isLinked(wa);
+  // nothing after the WhatsApp step opens until their number is linked
+  const [step, setStep] = useState(Math.min(Math.max(props.initialStep, 1), isLinked(props.whatsapp) ? LAST : WHATSAPP));
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState(props.level ?? "");
   const [fields, setFields] = useState<string[]>(props.fields);
@@ -203,9 +210,15 @@ export function Onboarding(props: {
           <ThemeButton />
           <a
             href="/dashboard"
-            onClick={() => {
+            onClick={(e) => {
               // leaving setup early still starts the agents on what they have
               void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
+              // except WhatsApp: the one step that can't be skipped
+              if (!linked) {
+                e.preventDefault();
+                setStep(WHATSAPP);
+                toast("Link your WhatsApp to finish. It's the one step you can't skip.");
+              }
             }}
             className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-foreground"
           >
@@ -473,9 +486,10 @@ export function Onboarding(props: {
                     variant={missingDocs.length ? "secondary" : "primary"}
                     disabled={busy || !!uploading}
                     onClick={() => {
-                      // the agents start on the shortlist now, while gmail and the calendar are connected (safe to call again)
+                      // the agents start on the shortlist now, while WhatsApp, gmail and the calendar are connected (safe
+                      // to call again)
                       void fetch("/api/onboarding/kickoff", { method: "POST", keepalive: true }).catch(() => null);
-                      setStep(CONNECT);
+                      setStep(WHATSAPP);
                     }}
                   >
                     {missingDocs.length ? "Skip for now" : "Continue"}
@@ -490,8 +504,29 @@ export function Onboarding(props: {
               </div>
             )}
 
+            {step === WHATSAPP && (
+              <div className="space-y-7">
+                <div>
+                  <h1 className="text-[34px] font-bold leading-[1.05] tracking-[-0.045em] sm:text-[42px]">Link your WhatsApp</h1>
+                  <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
+                    Your agents message you there when an application needs you: a form to sign, a document a school asks for, a deadline close by. Reply to ask Ivyward AI anything, or send a document straight from your phone.
+                  </p>
+                </div>
+                <LinkWhatsApp state={wa} onChange={setWa} />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-3">
+                    <Button size="lg" disabled={!linked} onClick={() => setStep(CONNECT)}>
+                      Continue
+                    </Button>
+                    <Button size="lg" variant="ghost" onClick={() => setStep(MATCHES)}>Back</Button>
+                  </div>
+                  {!linked ? <p className="max-w-xl text-[13px] text-muted">This step is required: it&apos;s how your agents reach you when an application can&apos;t move without you. At most one message a week unless a deadline is close.</p> : null}
+                </div>
+              </div>
+            )}
+
             {step === CONNECT && (
-              <Connect gmail={props.gmail} calendar={props.calendar} busy={busy} onStart={start} onBack={() => setStep(MATCHES)} />
+              <Connect gmail={props.gmail} calendar={props.calendar} busy={busy} onStart={start} onBack={() => setStep(WHATSAPP)} />
             )}
           </motion.section>
         </AnimatePresence>
@@ -562,7 +597,7 @@ function Connect({ gmail, calendar, busy, onStart, onBack }: { gmail: { availabl
             {!calendar.available ? (
               <p className="text-[13px] text-muted">Connecting a calendar isn&apos;t switched on yet, so school events come as email invites.</p>
             ) : !calendar.connected ? (
-              <a href={`/api/calendar/connect?then=${encodeURIComponent("/onboarding?step=4")}`} className={buttonClass("secondary", "lg")}>
+              <a href={`/api/calendar/connect?then=${encodeURIComponent(`/onboarding?step=${CONNECT}`)}`} className={buttonClass("secondary", "lg")}>
                 <CalendarDays className="size-4" aria-hidden /> Connect Google Calendar
               </a>
             ) : null}

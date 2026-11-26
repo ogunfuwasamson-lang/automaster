@@ -5,7 +5,7 @@ import { logEvent } from "@/lib/events";
 import { localHour } from "@/lib/activity";
 import { loadToday } from "@/lib/today-data";
 import { markRead, sendTemplate, sendText, whatsappReady } from "@/lib/whatsapp";
-import { chat, getFlow, onboardStep, send, signup, type Msg } from "@/lib/whatsapp-onboard";
+import { chat, getFlow, onboardStep, send, sendShortlist, signup, type Msg } from "@/lib/whatsapp-onboard";
 import * as F from "@/lib/whatsapp-flow";
 import { codeIn, isStart, isStop, linkUrl, masked, newCode, pickNudge, shouldSend, type Contact } from "@/lib/whatsapp-rules";
 
@@ -16,12 +16,13 @@ import { codeIn, isStart, isStop, linkUrl, masked, newCode, pickNudge, shouldSen
 type Row = Contact & { user_id: string; code: string; last_inbound_at: string | null };
 const db = () => admin();
 
-export type WhatsAppState = { status: "off" | "pending" | "active" | "stopped"; code?: string; link?: string; phone?: string };
+// linked: their number was linked at some point (it stays true after STOP, so setup doesn't ask again)
+export type WhatsAppState = { status: "off" | "pending" | "active" | "stopped"; code?: string; link?: string; phone?: string; linked?: boolean };
 
 export async function whatsappState(userId: string): Promise<WhatsAppState> {
-  const { data } = await db().from("whatsapp_contacts").select("status, code, phone").eq("user_id", userId).maybeSingle();
+  const { data } = await db().from("whatsapp_contacts").select("status, code, phone, linked_at").eq("user_id", userId).maybeSingle();
   if (!data) return { status: "off" };
-  return { status: data.status as WhatsAppState["status"], code: data.code as string, link: linkUrl(data.code as string), ...(data.phone ? { phone: masked(data.phone as string) } : {}) };
+  return { status: data.status as WhatsAppState["status"], code: data.code as string, link: linkUrl(data.code as string), ...(data.phone ? { phone: masked(data.phone as string) } : {}), linked: !!data.linked_at };
 }
 
 // they ticked the consent and turned it on: a code to send from their WhatsApp, or straight back on if the number is
@@ -77,6 +78,8 @@ export async function handleInbound(m: Inbound): Promise<string> {
       await logEvent({ userId: c.user_id as string, actor: "user", action: "whatsapp.linked" }).catch(() => "");
       await markRead(m.id);
       await sendText(m.from, WELCOME(await firstName(c.user_id as string)));
+      // something to look at straight away: the shortlist setup just made, as a list they can open and start from
+      await sendShortlist(c.user_id as string, m.from).catch(() => 0);
       return "linked";
     }
   }

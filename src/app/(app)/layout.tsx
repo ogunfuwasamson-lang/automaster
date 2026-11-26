@@ -15,6 +15,7 @@ import { headers } from "next/headers";
 import { admin } from "@/lib/supabase/admin";
 import { balance } from "@/lib/wallet";
 import { CREDITS } from "@/lib/credit-prices";
+import { SETUP, needsWhatsApp } from "@/lib/setup-steps";
 
 // the signed-in app is private: keep it out of search results
 export const metadata = { robots: { index: false, follow: false } };
@@ -23,6 +24,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const auth = await requireUser();
   if (!auth) redirect("/login");
   const { sb, user } = auth;
+  // WhatsApp is required in setup for accounts made since 26 nov 2026 (founder's call): until their number is
+  // linked, the app sends them back to that step. a number that later replied STOP stays linked
+  if (needsWhatsApp(user.created_at, false)) {
+    const { data: wa } = await admin().from("whatsapp_contacts").select("linked_at").eq("user_id", user.id).maybeSingle();
+    if (!wa?.linked_at) redirect(`/onboarding?step=${SETUP.whatsapp}`);
+  }
   const [{ count: approvals }, { count: runner }, { data: cords }, { data: prof }] = await Promise.all([
     sb.from("approvals").select("id", { count: "exact", head: true }).eq("status", "pending"),
     sb.from("applications").select("id", { count: "exact", head: true }).in("runner_status", ["needs_you", "failed"]),
