@@ -15,7 +15,7 @@ export default function EmbedFinder() {
         <a href={`${SITE.url}/?utm_source=embed&utm_medium=widget`} target="_blank" rel="noopener" className="text-brand underline">
           Ivyward
         </a>
-        : AI agents that run your university applications.
+        : AI agents for studying abroad, from application to your first day.
       </p>
     </div>
   );

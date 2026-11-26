@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Check, CircleDot, FileText, Mic, Upload } from "lucide-react";
+import { Check, CircleDot, ExternalLink, FileText, Mic, Upload } from "lucide-react";
 import { Mark } from "@/components/wordmark";
 
 // "a whole application season, run for you": the five stages on the left, and a small mock-up of each on the
@@ -12,6 +12,7 @@ const STEPS = [
   { t: "Approve your essays", d: "Drafts are written from facts in your profile and checked for any claim you couldn't back up. You edit, then sign." },
   { t: "Agents submit", d: "They find each school's application form, create your account, fill every page and upload your documents. You step in only for bot checks and fees." },
   { t: "Work every admit for money", d: "After an offer, agents look for merit reconsideration, assistantships and scholarships, and draft the emails." },
+  { t: "Visa, fees, travel, first day", d: "Your dashboard lists the visa steps for your country with the official pages, then the deposit, tuition, housing and your flight. You tick them off; Ivyward AI answers questions as you go." },
 ];
 
 function Panel({ path, children }: { path: string; children: React.ReactNode }) {
@@ -103,6 +104,29 @@ function Art({ i }: { i: number }) {
                 <span className="block font-medium">{t}</span>
                 <span className="text-muted">{d}</span>
               </span>
+            </li>
+          ))}
+        </ol>
+      </Panel>
+    );
+  if (i === 5)
+    return (
+      <Panel path="Northfield University · after your admission">
+        <ol className="space-y-3">
+          {[
+            ["Admission confirmed", "from the school's email", "done"],
+            ["CAS received", "the document your visa needs", "done"],
+            ["Student visa", "apply on the official page", "link"],
+            ["Deposit and tuition", "paid on the school's own page", "wait"],
+            ["Housing and flight", "booked once the visa is granted", "wait"],
+          ].map(([t, d, st]) => (
+            <li key={t} className="flex gap-3">
+              {st === "done" ? ok : wait}
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{t}</span>
+                <span className="text-muted">{d}</span>
+              </span>
+              {st === "link" && <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-muted" aria-hidden />}
             </li>
           ))}
         </ol>

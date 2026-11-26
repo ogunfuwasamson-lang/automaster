@@ -101,7 +101,7 @@ export async function sendMonthlyAlerts(limit = 200) {
       { t: "p", text: `These fully funded scholarships usually close in the next few weeks. Dates move every year, so check each official page.` },
       ...list.map((x, i) => ({ t: "item" as const, n: i + 1, title: x.name, text: `${x.country}. ${x.deadline}`, button: { label: "See who can apply", href: `${SITE.url}/scholarships/${x.slug}?utm_source=alerts&utm_medium=email&utm_campaign=${now.toISOString().slice(0, 7)}` } })),
       { t: "rule" },
-      { t: "p", text: "Want the applications done for you? Ivyward's agents draft and fact-check your essays, ask for fee waivers and fill in every portal. You review and sign. Start free with a checked shortlist." },
+      { t: "p", text: "Want help from application to your first day in school? Ivyward's agents draft and fact-check your essays, ask for fee waivers and fill in the application forms, then guide your visa, fees and travel. You review and sign. Start free with a checked shortlist." },
       { t: "button", label: "Start free", href: `${SITE.url}/login?mode=signup&utm_source=alerts&utm_medium=email` },
     ];
     try {

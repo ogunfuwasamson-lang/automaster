@@ -124,6 +124,32 @@ export const FEATURES: Feature[] = [
     ],
   },
   {
+    slug: "after-admission",
+    nav: "After you're admitted",
+    title: "Admitted. Now the rest.",
+    lead: "Confirm your admission with the school's email or your letter, and Ivyward carries on with you: funding and scholarships at that school, then your visa, school fees, housing and travel, up to your first day.",
+    metaTitle: "After your admission: funding, student visa, fees and travel, step by step",
+    description:
+      "Once a university admits you, Ivyward confirms the admission from the school's email or your letter, looks for more funding at that school, and lists every step to your first day: the student visa for your destination with the government's official pages, the deposit and tuition, housing, your flight and arrival.",
+    demo: "funding",
+    steps: [
+      ["Confirm your admission", "With Gmail connected, the agents find the school's admission email. Or upload the letter. An admission you had before Ivyward counts too."],
+      ["Funding first", "The agents look for merit reconsideration, assistantships and the school's own scholarships, and draft the emails for you to approve."],
+      ["Visa, fees and travel, step by step", "Your dashboard lists the visa steps for your destination with the official pages, then the deposit, tuition, housing, your flight and arrival. You tick them off as you go."],
+    ],
+    notes: [
+      ["Official pages only", "Each visa step links to the government's own page. Fees and dates change, so you read them there."],
+      ["You pay schools directly", "Deposits and tuition go from you to the school, on its own payment page. Card details never reach Ivyward."],
+      ["Guidance, not a visa agent", "Ivyward doesn't apply for your visa or promise one. It keeps you on track, and Ivyward AI answers your questions from official sources."],
+    ],
+    faq: [
+      ["Does Ivyward help after I'm admitted?", "Yes. Once the admission is confirmed, the agents look for more funding at that school, and your dashboard lists every step to your first day: the student visa, the deposit and tuition, housing, your flight and arrival."],
+      ["I got my admission before I found Ivyward. Can it still help?", "Yes. Upload the admission letter on your dashboard. Ivyward checks it, adds the school, and starts on funding and your visa steps for it."],
+      ["Does Ivyward apply for my student visa?", "No. It lists the steps for your destination country with links to the government's official pages, and answers your questions as you go. You submit the visa application yourself."],
+      ["Can Ivyward pay my school fees?", "No. You pay the deposit and tuition directly to the school, on its own payment page, and keep the receipts. Ivyward reminds you of each step."],
+    ],
+  },
+  {
     slug: "school-replies",
     nav: "School replies",
     title: "School replies, read for you.",

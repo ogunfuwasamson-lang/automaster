@@ -38,7 +38,7 @@ export default function About() {
       <div className="mx-auto max-w-[760px] px-5 pb-20 pt-12 sm:pt-16">
         <h1 className="text-[42px] leading-[1.05] sm:text-[58px]">About Ivyward</h1>
         <p className="mt-6 text-[19px] leading-relaxed">
-          {SITE.name} is a web app where AI agents run your university applications, from the shortlist to the submit button. It covers bachelor&apos;s, master&apos;s, MBA and PhD programs in any field, at schools in any country with an online application, and it chases the money too: application fee waivers, scholarships, assistantships and funding.
+          {SITE.name} is a web app that takes international students from their first application to their first day in school. AI agents build your shortlist, write and fact-check your essays, fill in and submit the application forms, and chase the money: application fee waivers, scholarships, assistantships and funding. After an admission, your dashboard walks you through the visa, school fees, housing and travel. It covers bachelor&apos;s, master&apos;s, MBA and PhD programmes in any field, at schools in any country, and it&apos;s built for applicants from Africa, South Asia and the Middle East.
         </p>
         <p className="mt-4 text-[17px] leading-relaxed text-muted">
           Applying abroad is slow, expensive and full of gatekeepers: consultants that cost more than the applications, agents paid by the universities they recommend, and application fees that add up to months of income. Ivyward does the work for a small fee for what it submits and leaves every decision and signature to you.

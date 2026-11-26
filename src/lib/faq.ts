@@ -4,7 +4,15 @@
 export const FAQ: [string, string][] = [
   [
     "What is Ivyward?",
-    "Ivyward is a web app where AI agents run your university applications for you. They build a shortlist of programs that fit you, draft and fact-check your essays from your own documents, fill in and submit each school's online application, and follow up on fee waivers, scholarships and funding. You review and sign everything before it goes to a school.",
+    "Ivyward is a web app that takes international students from their first application to their first day in school. AI agents build a shortlist of programmes that fit you, draft and fact-check your essays from your own documents, fill in and submit each school's online application, and follow up on fee waivers, scholarships and funding. After an admission, your dashboard walks you through the visa, school fees, housing and travel. You review and sign everything before it goes to a school.",
+  ],
+  [
+    "Does Ivyward help after I'm admitted?",
+    "Yes. Confirm the admission with the school's email (Ivyward finds it once Gmail is connected) or by uploading the letter. Then the agents look for more funding at that school, and your dashboard lists the next steps up to your first day: the student visa for your destination with the government's official pages, the deposit and tuition, housing, your flight and arrival. Ivyward doesn't apply for your visa or pay your fees; it keeps you on track and Ivyward AI answers your questions.",
+  ],
+  [
+    "I already have an admission. Can Ivyward still help?",
+    "Yes. Upload the admission letter on your dashboard. Ivyward checks it, adds the school, and the agents start on funding and scholarships for it, with your visa, fees and travel steps after that.",
   ],
   [
     "How much does Ivyward cost?",

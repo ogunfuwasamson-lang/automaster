@@ -39,9 +39,9 @@ export default async function OgImage() {
             <span style={{ fontSize: 40, color: "#18181b", fontWeight: 500 }}>{SITE.name}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: 72, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>Your university applications,</span>
-            <span style={{ fontSize: 72, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>done for you.</span>
-            <span style={{ marginTop: 24, fontSize: 29, lineHeight: 1.35, color: "#52525b", maxWidth: 860 }}>Agents shortlist programs, draft and fact-check essays, and fill in every application form. You review and sign.</span>
+            <span style={{ fontSize: 68, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>From your first application</span>
+            <span style={{ fontSize: 68, lineHeight: 1.05, color: "#18181b", letterSpacing: -1.2 }}>to your first day in school.</span>
+            <span style={{ marginTop: 24, fontSize: 29, lineHeight: 1.35, color: "#52525b", maxWidth: 900 }}>Agents shortlist programmes, write and fact-check essays, fill in the forms and chase funding. Then your visa, fees and travel, step by step.</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
             <span style={{ fontSize: 40, color: "#9b2c4e", fontWeight: 500 }}>{SITE.tagline}</span>

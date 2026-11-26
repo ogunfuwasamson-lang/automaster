@@ -53,10 +53,10 @@ export default async function Home() {
           <div className="relative mx-auto max-w-4xl px-5 pb-16 pt-16 text-center sm:pt-24">
             <HeroIn>
               <h1 id="hero" className="mx-auto max-w-3xl text-[46px] leading-[1.04] sm:text-[76px]">
-                Your university applications, done for you.
+                From your first application to your first day in school.
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-lg">
-                Tell Ivyward about yourself once. Agents find programs that fit, draft and fact-check your essays, fill in every application form, and chase fee waivers and funding. You review and sign.
+                Tell Ivyward about yourself once. Agents find programmes that fit, draft and fact-check your essays, fill in the application forms and ask for fee waivers. Once you&apos;re admitted, they chase funding and walk you through your visa, school fees and travel. You review and sign everything.
               </p>
               {/* the matcher (/match) reads these words and shows programmes before any sign-up */}
               <form action="/match" className="mx-auto mt-10 max-w-2xl text-left">
@@ -88,12 +88,12 @@ export default async function Home() {
 
         <section className="border-y border-line bg-surface/60 px-5 py-12">
           <p className="mx-auto max-w-3xl text-balance text-center font-serif text-[22px] leading-snug sm:text-[27px]">
-            For bachelor&apos;s, master&apos;s, MBA and PhD applicants, applying to schools in any country with an online application.
+            For bachelor&apos;s, master&apos;s, MBA and PhD applicants from Africa, South Asia, the Middle East and everywhere else, applying to schools in any country.
           </p>
         </section>
 
         <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24" aria-labelledby="how-h">
-          <SectionHead id="how-h" one="A whole application season," two="run for you." sub="Five stages, from your first upload to the funding conversation after an admit." />
+          <SectionHead id="how-h" one="Every step," two="up to your first day." sub="Six stages, from your first upload to your first week in school." />
           <SeasonSteps />
         </section>
 

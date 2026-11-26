@@ -18,7 +18,7 @@ export default function Features() {
       <div className="mx-auto max-w-6xl px-5 pb-24 pt-10 sm:pt-14">
         <Crumbs items={[["Features", "/features"]]} />
         <h1 className="mt-6 max-w-3xl text-[42px] leading-[1.05] sm:text-[58px]">What the agents do, from shortlist to funding.</h1>
-        <p className="mt-6 max-w-2xl text-[18px] leading-relaxed text-muted">Each part of an application season, done for you, with every step you approve kept with you.</p>
+        <p className="mt-6 max-w-2xl text-[18px] leading-relaxed text-muted">Every part of studying abroad, from your shortlist to your first day in school, with every step you approve kept with you.</p>
         <ul className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <li key={f.slug}>
