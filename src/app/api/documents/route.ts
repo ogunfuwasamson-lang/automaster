@@ -22,6 +22,8 @@ const Body = z.object({
   storagePath: z.string(),
   mime: z.string().max(200),
   size: z.number().int().positive().max(MAX_DOC_BYTES),
+  // an admission letter for one application (agents/admission)
+  applicationId: z.uuid().optional(),
 });
 
 // called after the browser has uploaded the file straight to storage.
@@ -58,7 +60,10 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await logEvent({ userId: uid, actor: "user", action: "document.uploaded", context: { documentId: b.id, kind: b.kind, filename: b.filename } });
-  await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
+  // an admission letter is read for the offer, not for profile facts (agents/admission)
+  if (b.kind === "admission_letter")
+    await enqueue({ userId: uid, agent: "admission", task: "read_letter", payload: { documentId: b.id, applicationId: b.applicationId }, idempotencyKey: `admission-letter:${b.id}` });
+  else await enqueue({ userId: uid, agent: "intake", task: "extract", payload: { documentId: b.id }, idempotencyKey: `extract:${b.id}` });
   await releaseHeld(uid).catch(() => {}); // a serious account now: work held for starters goes
   // a new document can be exactly what a stopped submission was waiting for
   await resumeAfterProfileChange(uid, `document:${b.kind}`).catch(() => 0);

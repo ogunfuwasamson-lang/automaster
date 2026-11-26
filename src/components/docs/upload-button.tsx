@@ -9,7 +9,7 @@ const ACCEPT = ".pdf,.doc,.docx,.txt,.md,image/png,image/jpeg,image/webp";
 
 // upload one or more files as `kind`, plus (on phones) a camera button: a photo of a certificate is enough for
 // the agents to read it. refreshes the page when done so checklists tick over.
-export function UploadButtons({ userId, kind, label = "Upload", compact = false }: { userId: string; kind: string; label?: string; compact?: boolean }) {
+export function UploadButtons({ userId, kind, label = "Upload", compact = false, applicationId, done }: { userId: string; kind: string; label?: string; compact?: boolean; applicationId?: string; done?: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const cam = useRef<HTMLInputElement>(null);
@@ -20,14 +20,14 @@ export function UploadButtons({ userId, kind, label = "Upload", compact = false 
     let ok = 0;
     for (const f of files) {
       setBusy(f.name);
-      const err = await uploadDocument(userId, f, kind);
+      const err = await uploadDocument(userId, f, kind, applicationId);
       if (err) toast.error(err);
       else ok++;
     }
     setBusy(null);
     if (file.current) file.current.value = "";
     if (cam.current) cam.current.value = "";
-    if (ok) toast.success(ok === 1 ? "Uploaded. Your agents are reading it." : `${ok} files uploaded. Your agents are reading them.`);
+    if (ok) toast.success(done ?? (ok === 1 ? "Uploaded. Your agents are reading it." : `${ok} files uploaded. Your agents are reading them.`));
     router.refresh();
   }
   const btn = `inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface font-medium hover:bg-neutral-50 disabled:opacity-50 dark:hover:bg-neutral-800 ${compact ? "h-8 px-2.5 text-[13px]" : "h-10 px-3.5 text-[14px]"}`;

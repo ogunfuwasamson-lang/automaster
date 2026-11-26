@@ -1,15 +1,33 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PenLine, Trophy } from "lucide-react";
+import { LoaderCircle, MailSearch, PenLine, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { ATTESTATION } from "@/lib/attest";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { UploadButtons } from "@/components/docs/upload-button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Panel } from "@/components/ui/page";
 
-// the applicant's own steps: sign the packet, confirm a self-submission, record what the school decided
-export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: string; status: string; essaysTotal: number; essaysApproved: number }) {
+type Admission = { verified: boolean; source: string | null; mail: boolean; busy: boolean };
+
+// the applicant's own steps: sign the packet, confirm a self-submission, record what the school decided, and back
+// an admission with the school's email or the letter
+export function Milestones({
+  id,
+  userId,
+  status,
+  essaysTotal,
+  essaysApproved,
+  admission,
+}: {
+  id: string;
+  userId: string;
+  status: string;
+  essaysTotal: number;
+  essaysApproved: number;
+  admission?: Admission | null;
+}) {
   const [busy, setBusy] = useState(false);
   const [decision, setDecision] = useState("admitted");
   const [aid, setAid] = useState("");
@@ -78,7 +96,7 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
       <Panel className="space-y-4 p-5">
         <div>
           <h2 className="font-semibold">Heard back?</h2>
-          <p className="mt-0.5 text-sm text-muted">The inbox watcher records most decisions for you. If one came another way, add it here. An admit with an aid offer starts the funding agent.</p>
+          <p className="mt-0.5 text-sm text-muted">The inbox watcher records most decisions for you. If one came another way, add it here. An admission is confirmed from the school&apos;s email or your admission letter, then your agents start on funding and your visa.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Decision">
@@ -118,13 +136,50 @@ export function Milestones({ id, status, essaysTotal, essaysApproved }: { id: st
     );
   }
 
+  if (status === "admitted" && admission && !admission.verified) {
+    return (
+      <Panel id="admission" tone="signal" className="scroll-mt-24 space-y-3 p-5">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Trophy className="size-4" aria-hidden />
+          Confirm your admission
+        </h2>
+        {admission.busy ? (
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+            Your agents are checking it now. This page updates when they&apos;re done.
+          </p>
+        ) : (
+          <p className="text-sm text-muted">
+            {admission.mail
+              ? "Your agents didn't find the school's admission email in your inbox. Upload the admission letter and they'll confirm it."
+              : "Connect your email so your agents can find the school's admission email, or upload the admission letter."}{" "}
+            Once it&apos;s confirmed, they start on funding and scholarships, then your visa.
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <UploadButtons userId={userId} kind="admission_letter" applicationId={id} label="Upload the admission letter" done="Uploaded. Your agents are reading your letter." />
+          {admission.mail ? (
+            <Button size="sm" variant="secondary" disabled={busy || admission.busy} onClick={() => act({ action: "check_admission" }, "Searching your inbox")}>
+              <MailSearch className="size-3.5" aria-hidden />
+              Search my email again
+            </Button>
+          ) : (
+            <ButtonLink href={`/api/mail/connect?next=/applications/${id}`} size="sm" variant="secondary">
+              Connect your email
+            </ButtonLink>
+          )}
+        </div>
+      </Panel>
+    );
+  }
+
   if (status === "admitted") {
     return (
       <Panel tone="go" className="flex items-start gap-3 p-5 text-sm">
         <Trophy className="mt-0.5 size-5 shrink-0 text-go" aria-hidden />
         <p>
-          <span className="block font-semibold">Admitted.</span>
-          The funding agent is working on this school. Its plan and any emails it drafted are below.
+          <span className="block font-semibold">Admitted{admission?.verified ? `, confirmed from ${admission.source === "letter" ? "your admission letter" : "the school's email"}` : ""}.</span>
+          Your agents are working on funding and scholarships for this school. Their plan and any emails they drafted are below, and your visa steps are on your journey.
         </p>
       </Panel>
     );

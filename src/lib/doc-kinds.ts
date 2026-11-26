@@ -12,6 +12,7 @@ export const DOC_KINDS = [
   ["award", "Award, certificate or achievement"],
   ["portfolio", "Portfolio or writing sample"],
   ["financial", "Bank statement or sponsor letter"],
+  ["admission_letter", "Admission letter"],
   ["other", "Something else"],
 ] as const;
 
@@ -21,6 +22,7 @@ export const DOC_KIND_IDS = DOC_KINDS.map(([k]) => k) as unknown as [DocKind, ..
 // what each kind does for the applicant, shown when they're choosing what to add during setup
 export const DOC_KIND_WHY: Partial<Record<DocKind, string>> = {
   cv: "Builds most of your profile",
+  admission_letter: "An offer you already have: your agents move to funding and your visa",
   transcript: "Grades and courses for every form",
   degree_certificate: "Proof of your degree",
   test_score: "IELTS, TOEFL, GRE, GMAT, SAT and others",

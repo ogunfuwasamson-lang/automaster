@@ -22,6 +22,7 @@ export const maxDuration = 300;
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve_packet"), attest: z.literal(true) }),
   z.object({ action: z.literal("mark_submitted") }),
+  z.object({ action: z.literal("check_admission") }),
   z.object({
     action: z.literal("record_decision"),
     decision: z.enum(["interview", "admitted", "waitlisted", "rejected"]),
@@ -97,6 +98,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ ok: true });
     }
 
+    if (b.action === "check_admission") {
+      if (status !== "admitted") return NextResponse.json({ error: "record the admission first" }, { status: 400 });
+      await enqueue({ userId: uid, agent: "admission", task: "check", payload: { applicationId: id }, idempotencyKey: `admission-check:${id}:${Date.now()}` });
+      after(() => drain("inline-admission", 1).catch(() => {}));
+      return NextResponse.json({ ok: true });
+    }
+
     if (b.action === "mark_submitted") {
       if (status !== "packet_approved") return NextResponse.json({ error: "approve the packet first" }, { status: 400 });
       await move("submitted");
@@ -129,9 +137,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       value: aid?.amount_usd,
       source: "user",
     });
+    // an admission counts once the school's email or the letter backs it: the inbox is searched now, or the
+    // applicant is asked for the letter. funding and visa steps start when it's confirmed (agents/admission)
     if (b.decision === "admitted") {
-      await enqueue({ userId: uid, agent: "closer", task: "funding_plan", payload: { applicationId: id } });
-      after(() => drain("inline-closer", 1).catch(() => {}));
+      await enqueue({ userId: uid, agent: "admission", task: "check", payload: { applicationId: id }, idempotencyKey: `admission-check:${id}:${Date.now()}` });
+      after(() => drain("inline-admission", 1).catch(() => {}));
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

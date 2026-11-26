@@ -36,6 +36,7 @@ import { AngleCard } from "./angle";
 import { AutoRefresh } from "../../shortlist/controls";
 import { PrepareButton } from "./prepare-button";
 import { Milestones } from "./milestones";
+import { admissionState } from "@/lib/admission-state";
 import { admin } from "@/lib/supabase/admin";
 import { RunnerPanel } from "./runner-panel";
 import { StopButton } from "../../dashboard/controls";
@@ -164,6 +165,7 @@ export default async function ApplicationPage({
     app.status === "packet_approved"
       ? await paymentNeeded(auth.user.id, id).catch(() => null)
       : null;
+  const admission = app.status === "admitted" ? await admissionState(auth.user.id, id).catch(() => null) : null;
   // portals email codes and reset links: without gmail, every new portal account waits for the applicant
   const mailOk =
     app.status === "packet_approved"
@@ -521,6 +523,8 @@ export default async function ApplicationPage({
 
       <Milestones
         id={id}
+        userId={auth.user.id}
+        admission={admission}
         status={app.status}
         essaysTotal={
           essayData.filter((e) => e.kind !== "video_or_interview").length

@@ -10,6 +10,7 @@ import { runStructured } from "@/lib/llm";
 import { WirePatch, fromWire, WIRE_GUIDE } from "@/lib/profile";
 import { applyPatch, getProfile } from "@/lib/profile-store";
 import { logEvent } from "@/lib/events";
+import { enqueue } from "@/lib/queue";
 import { scheduleConsolidate } from "./curator";
 import { startShortlist } from "@/lib/kickoff";
 
@@ -37,7 +38,7 @@ rules:
 
 ${WIRE_GUIDE}`;
 
-async function toBlocks(bytes: Buffer, mime: string, filename: string): Promise<ContentBlockParam[]> {
+export async function toBlocks(bytes: Buffer, mime: string, filename: string): Promise<ContentBlockParam[]> {
   const lower = filename.toLowerCase();
   if (mime === "application/pdf" || lower.endsWith(".pdf")) {
     return [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: bytes.toString("base64") }, title: filename }];
@@ -115,6 +116,9 @@ extract the facts from the document.`,
         agentRunId: runId,
         context: { documentId: doc.id, kind: output.detected_kind, issues: output.issues },
       });
+      // an admission letter uploaded without saying what it is: read it as one (agents/admission)
+      if (output.detected_kind === "admission_letter")
+        await enqueue({ userId: job.user_id, agent: "admission", task: "read_letter", payload: { documentId: doc.id }, idempotencyKey: `admission-letter:${doc.id}` });
       await scheduleConsolidate(job.user_id);
       // it may complete an application's documents: refresh (or close) those asks
       await refreshDocAsks(job.user_id).catch(() => {});

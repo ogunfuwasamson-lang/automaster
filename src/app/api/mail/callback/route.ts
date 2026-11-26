@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
     await resolve(auth.user.id, "connect-gmail").catch(() => {}); // the same ask under its old name
     await logEvent({ userId: auth.user.id, actor: "user", action: "mail.connected", channel: "email", context: { email } });
     await resumeAfterMailConnected(auth.user.id).catch(() => 0);
+    // admissions they told us about: the school's email can back them now
+    await (await import("@/lib/admission-state")).recheckAdmissions(auth.user.id).catch(() => 0);
     await releaseHeld(auth.user.id).catch(() => {}); // a serious account now: work held for starters goes
     await enqueue({ userId: auth.user.id, agent: "system", task: "inbox", idempotencyKey: `inbox:${auth.user.id}:connect:${Date.now()}` });
     return back("connected");

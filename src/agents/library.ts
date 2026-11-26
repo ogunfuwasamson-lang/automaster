@@ -39,7 +39,7 @@ async function saveSeed(s: SeedState) {
 async function libraryRows(): Promise<LibraryRow[]> {
   const out: LibraryRow[] = [];
   for (let from = 0; from < 50_000; from += 1000) {
-    const { data } = await admin().from("programs").select("name, degree, kind, schools!inner(name, region)").not("schools.region", "is", null).order("id").range(from, from + 999);
+    const { data } = await admin().from("programs").select("name, degree, kind, schools!inner(name, region)").not("schools.region", "is", null).not("verified_at", "is", null).order("id").range(from, from + 999);
     for (const r of data ?? []) {
       if (r.kind === "scholarship") continue;
       const s = r.schools as unknown as { name: string; region: string };

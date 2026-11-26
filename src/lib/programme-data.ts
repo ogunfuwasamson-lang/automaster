@@ -17,6 +17,8 @@ export async function publicProgrammes(): Promise<PublicProgramme[]> {
     .from("programs")
     .select("id, name, degree, url, kind, deadlines, funding_signals, test_policy, tuition_usd, verified_at, schools!inner(name, country, region)")
     .not("schools.region", "is", null)
+    // checked programmes only: one added from an applicant's admission letter isn't researched yet (agents/admission)
+    .not("verified_at", "is", null)
     .limit(10000);
   const rows: PublicProgramme[] = [];
   for (const r of (data ?? []) as unknown as {

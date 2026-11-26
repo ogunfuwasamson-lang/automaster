@@ -31,6 +31,16 @@ export async function recordDecision(
   await move(decision, { decision, decision_at: new Date().toISOString(), ...(aid ? { aid_offered: aid } : {}) });
   await logEvent({ userId, actor: "user", action: `decision.${decision}`, applicationId, programId: app.program_id, context: { ...(aid ?? {}), source } });
   await recordOutcome({ userId, applicationId, kind: decision === "interview" ? "proxy" : "final", label: decision, value: aid?.amount_usd, source });
-  if (decision === "admitted") await enqueue({ userId, agent: "closer", task: "funding_plan", payload: { applicationId } });
+  if (decision === "admitted") {
+    // the school's own email said so (the inbox watcher): that backs it. said by the applicant: their inbox is
+    // searched, or they're asked for the letter (agents/admission)
+    if (source === "inbox") {
+      const { VERIFIED, afterAdmit, isVerified } = await import("@/agents/admission");
+      if (!(await isVerified(applicationId))) {
+        await recordOutcome({ userId, applicationId, kind: "final", label: VERIFIED, value: aid?.amount_usd || undefined, source: "mail" });
+        await afterAdmit(userId, applicationId);
+      }
+    } else await enqueue({ userId, agent: "admission", task: "check", payload: { applicationId }, idempotencyKey: `admission-check:${applicationId}:${Date.now()}` });
+  }
   return { ok: true };
 }

@@ -18,6 +18,8 @@ async function library(): Promise<LibraryProgram[]> {
     .from("programs")
     .select("id, name, degree, url, kind, deadlines, funding_signals, test_policy, tuition_usd, schools!inner(name, country, region, ranking_note)")
     .not("schools.region", "is", null)
+    // checked programmes only: one added from an applicant's admission letter isn't researched yet (agents/admission)
+    .not("verified_at", "is", null)
     .limit(5000);
   const rows = (data ?? []).map((r) => ({ ...r, school: r.schools as unknown as LibraryProgram["school"] })) as unknown as LibraryProgram[];
   cache = { at: Date.now(), rows };
