@@ -14,7 +14,7 @@ import { uploadDocument } from "@/lib/upload-client";
 import { guessKind } from "@/lib/doc-kinds";
 import { SharpenCard } from "@/components/profile/sharpen-card";
 import { WhatsAppChannel } from "@/components/growth/whatsapp-channel";
-import { LinkWhatsApp, isLinked, type WaState } from "@/components/whatsapp/link-whatsapp";
+import { LinkWhatsApp, WhatsAppPreview, isLinked, type WaState } from "@/components/whatsapp/link-whatsapp";
 import { SETUP } from "@/lib/setup-steps";
 
 const LEVELS: [string, string, string][] = [
@@ -512,15 +512,20 @@ export function Onboarding(props: {
                     Your agents message you there when an application needs you: a form to sign, a document a school asks for, a deadline close by. Reply to ask Ivyward AI anything, or send a document straight from your phone.
                   </p>
                 </div>
-                <LinkWhatsApp state={wa} onChange={setWa} />
+                <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
+                  <LinkWhatsApp state={wa} onChange={setWa} />
+                  <WhatsAppPreview className="hidden xl:block" />
+                </div>
                 <div className="space-y-3">
                   <div className="flex flex-wrap gap-3">
-                    <Button size="lg" disabled={!linked} onClick={() => setStep(CONNECT)}>
-                      Continue
-                    </Button>
+                    {linked ? (
+                      <Button size="lg" onClick={() => setStep(CONNECT)}>
+                        Continue
+                      </Button>
+                    ) : null}
                     <Button size="lg" variant="ghost" onClick={() => setStep(MATCHES)}>Back</Button>
                   </div>
-                  {!linked ? <p className="max-w-xl text-[13px] text-muted">This step is required: it&apos;s how your agents reach you when an application can&apos;t move without you. At most one message a week unless a deadline is close.</p> : null}
+                  {!linked ? <p className="max-w-xl text-[13px] text-muted">This step is required: it&apos;s how your agents reach you when an application can&apos;t move without you.</p> : null}
                 </div>
               </div>
             )}
