@@ -16,7 +16,7 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
   const [{ data: prof }, { data: docs }, { data: apps }, { data: mail }, { data: verified }, { data: marks }] = await Promise.all([
     db.from("profiles").select("profile, portal_details").eq("id", userId).single(),
     db.from("documents").select("kind").eq("user_id", userId),
-    db.from("applications").select("id, status, target_deadline, aid_offered, programs(degree, schools(name, country))").eq("user_id", userId).not("status", "in", "(dropped,withdrawn)").limit(300),
+    db.from("applications").select("id, status, target_deadline, runner_status, aid_offered, programs(name, degree, schools(name, country))").eq("user_id", userId).not("status", "in", "(dropped,withdrawn)").limit(300),
     db.from("mail_accounts").select("status").eq("user_id", userId).maybeSingle(),
     db.from("outcomes").select("application_id").eq("user_id", userId).eq("label", VERIFIED),
     // the journey's ticks (api/journey) and the steps that tick themselves, oldest first so the latest wins
@@ -73,15 +73,19 @@ export async function loadToday(userId: string): Promise<{ task: Task | null; jo
   }
   const map = journeyMap({
     hasCv: input.hasCv,
+    hasTranscript: input.hasTranscript,
     basicsMissing: input.basicsMissing,
     ticks,
-    apps: ((apps ?? []) as unknown as { id: string; status: string; aid_offered: { amount_usd?: number; accept_by?: string | null } | null; programs: { schools: { name: string; country: string | null } } | null }[])
+    apps: ((apps ?? []) as unknown as { id: string; status: string; target_deadline: string | null; runner_status: string | null; aid_offered: { amount_usd?: number; accept_by?: string | null } | null; programs: { name: string; schools: { name: string; country: string | null } } | null }[])
       .filter((a) => a.programs)
       .map((a) => ({
         id: a.id,
         school: a.programs!.schools.name,
+        programme: a.programs!.name,
         country: a.programs!.schools.country,
         status: a.status,
+        runner: a.runner_status,
+        deadline: a.target_deadline,
         verified: ok.has(a.id),
         aid: Number(a.aid_offered?.amount_usd) || 0,
         acceptBy: a.aid_offered?.accept_by ?? null,

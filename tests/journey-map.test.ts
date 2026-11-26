@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { journeyMap, tickKey, type MapApp } from "@/lib/journey-map";
 import { visaSteps, arrivalSteps } from "@/lib/journey-steps";
 
-const app = (o: Partial<MapApp> = {}): MapApp => ({ id: "a1", school: "University of Toronto", country: "Canada", status: "shortlisted", verified: false, aid: 0, acceptBy: null, scholarshipsChecked: false, ...o });
+const app = (o: Partial<MapApp> = {}): MapApp => ({ id: "a1", school: "University of Toronto", programme: "MSc Data Science", country: "Canada", status: "shortlisted", runner: null, deadline: null, verified: false, aid: 0, acceptBy: null, scholarshipsChecked: false, ...o });
 
 describe("the journey map", () => {
   it("starts at the profile for a new applicant", () => {
@@ -26,7 +26,7 @@ describe("the journey map", () => {
     expect(m.current?.id).toBe("funding");
     const funding = m.stages.find((s) => s.id === "funding")!;
     expect(funding.steps?.find((x) => x.id === "plan")).toMatchObject({ done: true, auto: true });
-    expect(m.stages.find((s) => s.id === "visa")?.what).toBe("Canadian study permit");
+    expect(m.stages.find((s) => s.id === "visa")?.title).toBe("Canadian study permit");
   });
 
   it("an admission from before Ivyward counts the stages before it as done", () => {
@@ -44,6 +44,27 @@ describe("the journey map", () => {
     const apps = [app({ id: "a", status: "admitted", verified: true, aid: 5000 }), app({ id: "b", status: "admitted", verified: true, aid: 20000, school: "McGill University" })];
     expect(journeyMap({ hasCv: true, basicsMissing: 0, apps, ticks: new Set() }).destination?.id).toBe("b");
     expect(journeyMap({ hasCv: true, basicsMissing: 0, apps: [{ ...apps[0], status: "accepted" }, apps[1]], ticks: new Set() }).destination?.id).toBe("a");
+  });
+
+  it("lists the applicant's own schools at each stop, what needs them first", () => {
+    const apps = [
+      app({ id: "s1", status: "submitted", school: "McGill University" }),
+      app({ id: "s2", status: "interview", school: "University of Ottawa" }),
+      app({ id: "s3", status: "rejected", school: "Queen's University" }),
+      app({ id: "p1", status: "ready_for_review", school: "York University" }),
+      app({ id: "p2", status: "packet_approved", runner: "running", school: "Dalhousie University" }),
+      app({ id: "a1", status: "admitted", verified: false, school: "University of Toronto" }),
+    ];
+    const m = journeyMap({ hasCv: true, hasTranscript: false, basicsMissing: 0, apps, ticks: new Set() });
+    const submitted = m.stages.find((s) => s.id === "submitted")!;
+    expect(submitted.items.map((x) => x.status)).toEqual(["Interview", "Waiting for a decision", "Not admitted"]);
+    expect(submitted.summary).toMatch(/2 applications waiting for a decision, 1 needing you. 1 turned down/);
+    const apply = m.stages.find((s) => s.id === "apply")!;
+    expect(apply.items[0]).toMatchObject({ title: "York University", status: "Ready for you to sign", href: "/applications/p1#sign" });
+    expect(apply.attention).toBe(1);
+    const admitted = m.stages.find((s) => s.id === "admitted")!;
+    expect(admitted.items[0]).toMatchObject({ status: "Confirm it with the letter", href: "/applications/a1#admission" });
+    expect(m.stages.find((s) => s.id === "profile")!.items.find((x) => x.id === "transcript")?.status).toBe("Missing");
   });
 
   it("names each country's visa and its arrival steps", () => {
