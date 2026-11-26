@@ -52,6 +52,7 @@ ${FAQ.map(([q, a]) => `### ${q}\n\n${a}`).join("\n\n")}
 - [Pricing](${SITE.url}/pricing): every new account gets 5 credits and a free checked shortlist; everything else is paid in credits: an application uses 10, a programme or scholarship check 1, a funding request 1. A pack in Africa is ₦10,000 for 60 credits lasting 30 days; Pro elsewhere is $20 a month for 160; a friend who joins through your invite and finishes setup earns you both 10
 - [About](${SITE.url}/about): who Ivyward is for, what the agents do and don't do, and how it compares with consultants and chatbots
 - [Features](${SITE.url}/features): what the agents do, one page each: ${FEATURES.map((f) => `[${f.nav}](${SITE.url}/features/${f.slug})`).join(", ")}
+- [Ivyward MCP server](${SITE.url}/mcp): for AI assistants and agents. Read-only tools, no sign-in, streamable HTTP (POST JSON-RPC): find_programmes (checked programmes by field, level and country, with deadlines, tuition and funding), find_scholarships, scholarship_deadlines, find_school (US, UK, Canada, Australia, France and China registers) and student_visa_steps (from admission to the first day, with official pages)
 - [Ivyward runner for Chrome](${CHROME_STORE_URL}): free extension that finishes application forms in your own browser when a school's site blocks cloud browsers
 - [Guides](${SITE.url}/guides): checked answers on fee waivers, scholarships, funding, applying abroad, visas and AI on applications
 - [Scholarships](${SITE.url}/scholarships): profiles of fully funded scholarships for international students

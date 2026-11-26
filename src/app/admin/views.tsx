@@ -490,6 +490,19 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
   const sources = new Map<string, number>();
   for (const u of cohort) sources.set(u.source, (sources.get(u.source) ?? 0) + 1);
   const stageLabel = (key: string) => STAGES.find((s) => s.key === key)?.label ?? key;
+  // sign-ups AI assistants sent (founder's target, 26 nov 2026: 5,000 a week): their own sites, and the Ivyward
+  // app inside them (utm_source=ai-app, app/mcp), by week for the last 8 weeks
+  const AI = /chatgpt|openai|perplexity|gemini|bard|copilot|claude|deepseek|meta\.ai|grok|ai-app/i;
+  const weekOf = (iso: string) => {
+    const d = new Date(iso);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  };
+  const aiWeeks = new Map<string, number>();
+  for (let i = 7; i >= 0; i--) aiWeeks.set(weekOf(new Date(Date.now() - i * 7 * DAY).toISOString()), 0);
+  for (const u of users) if (AI.test(u.source) && aiWeeks.has(weekOf(u.joined))) aiWeeks.set(weekOf(u.joined), (aiWeeks.get(weekOf(u.joined)) ?? 0) + 1);
+  const aiBy = new Map<string, number>();
+  for (const u of cohort) if (AI.test(u.source)) aiBy.set(u.source, (aiBy.get(u.source) ?? 0) + 1);
 
   // what to look at first: live, whatever the period
   const att: Attention[] = [];
@@ -592,6 +605,10 @@ export async function OverviewView({ range: r, everyone }: { range: Range; every
               <Bars rows={[...sources.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)} total={cohort.length} />
             </Panel>
           </div>
+          <Panel title="Sent by AI assistants" note="Sign-ups by week (Mondays), last 8 weeks. Target: 5,000 a week.">
+            <Bars rows={[...aiWeeks.entries()].map(([w, n]) => [new Date(w).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }), n] as [string, number])} total={Math.max(1, ...aiWeeks.values())} />
+            {aiBy.size ? <p className="px-4 pb-3 text-[12.5px] text-muted">{r.allTime ? "All time" : r.label}: {[...aiBy.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ")}</p> : null}
+          </Panel>
           <Panel title="Applications by status" note={`${apps.length} across ${new Set(apps.map((a) => a.userId)).size} users, as they stand now.`}>
             <Bars rows={statusRows} total={apps.length} />
           </Panel>

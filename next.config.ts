@@ -40,6 +40,8 @@ const BASE_HEADERS = [
 const WANTS_MARKDOWN = [{ type: "header" as const, key: "accept", value: "(?!.*text/html.*text/markdown).*text/markdown.*" }];
 nextConfig.rewrites = async () => ({
   beforeFiles: [
+    // OpenAI's domain check for the Ivyward app in ChatGPT (api/public/openai-challenge)
+    { source: "/.well-known/openai-apps-challenge", destination: "/api/public/openai-challenge" },
     { source: "/:kind(guides|scholarships|universities|study-abroad|features)/:slug((?!deadlines$)[a-z0-9-]+)", has: WANTS_MARKDOWN, destination: "/md/:kind/:slug" },
   ],
   afterFiles: [],
