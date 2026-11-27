@@ -21,7 +21,7 @@ laptop is on. A slot is now only the order to post in, never a time to wait for.
 | Ivyward social: daily drafts (cloud) | cloud | 06:17 | drafts 2 LinkedIn posts and 2 Facebook Page posts (text with a guide link) as `draft` items |
 | Ivyward social: Facebook Page posting (cloud) | cloud | every hour, 08:09–21:09 | posts **every approved `page_post`** not yet posted, through the API |
 | Ivyward social: laptop drafts (groups, replies, videos) | laptop | 06:33 | joins groups; drafts group posts, replies and videos ("Morning run, step by step"). Page posts already drafted by the cloud run count toward the day's 2 |
-| Ivyward social: laptop posting (LinkedIn + Facebook groups) | laptop | every hour, 07:07–22:07, and when the laptop wakes | posts **every approved `linkedin_post`, `group_post`, `comment` and `reply`** not yet posted, in Chrome |
+| Ivyward social: laptop posting (LinkedIn + Facebook groups) | laptop | every hour, 07:07–22:07, and when the laptop wakes | first drafts follow-ups for anyone who answered Ivyward ("Follow-ups" below), then posts **every approved `linkedin_post`, `group_post`, `comment` and `reply`** not yet posted, in Chrome |
 
 **What each side posts, so nothing is posted twice:**
 - The **cloud** posts only `page_post` items. A Page post with a video goes out as its text (plus its `link`, if any)
@@ -37,6 +37,30 @@ laptop is on. A slot is now only the order to post in, never a time to wait for.
 - **Signed out?** If Chrome shows a login wall on Facebook or LinkedIn, post nothing on that site, write a `runs` entry,
   and message Samson once that day: "Facebook (or LinkedIn) is signed out in Chrome on your laptop. Sign in and posts
   resume within the hour." Never type a password.
+
+### Follow-ups: when someone answers Ivyward (from 27 Nov 2026)
+
+Samson, 27 Nov: someone replied to an Ivyward comment in a group, tagged Ivyward, and nobody answered until he saw it.
+No run was looking. Now the hourly laptop posting run looks first, every hour, before anything else and even when
+nothing is approved:
+
+1. As the Ivyward Page in Chrome, open https://www.facebook.com/notifications (check the avatar is Ivyward). Read the
+   notifications from the last 48 hours that are a reply to an Ivyward comment or post, a mention or tag of Ivyward,
+   or a comment on an Ivyward Page post or group post. Then LinkedIn: https://www.linkedin.com/company/147011114/admin/notifications/all/
+   for comments on and mentions of Ivyward's posts.
+2. Skip any that already have an item (match `context.url`), any that are only a reaction or an emoji, spam, or
+   a question about someone else's personal situation that needs a private conversation (never message privately).
+3. Open each one in its thread and read the whole thread, including what Ivyward said before. Draft one follow-up
+   as an item: kind `reply`, id `<today>-followup-<n>`, slot = the current hour, `followup: true`, `context` = { url
+   of the person's comment (with `comment_id`), excerpt of what they said, ≤200 chars }, `target` = the group or
+   page. Answer what they actually said next, not the original question again: if they've already tried what
+   Ivyward suggested, say what else works. Same brand and honesty rules: facts from official sources checked the
+   same day, no prices, no promises. 40–150 words.
+4. Status `draft`. Message Samson straight away, once per run that found any: "<n> people answered Ivyward
+   (<group or page names>). Follow-ups are on the review page: <link>". He approves; the next hourly run posts them
+   (they're `reply` items, so the laptop run already posts them).
+5. Never answer the same person twice in a day without a new message from them, and never reply to a reply that
+   only thanks Ivyward unless there's a question in it.
 
 **Why LinkedIn is on the laptop:** the API connection (Composio's LinkedIn app) can't post as an organization. On
 21 Nov LinkedIn answered `400 "Organization Or Events permissions must be used when using organization as author"`.
