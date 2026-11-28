@@ -46,7 +46,7 @@ export default function AiPage() {
             <ol>
               <li>Open Claude&apos;s connector directory and search for Ivyward, then select Connect.</li>
               <li>
-                Or add it yourself: Settings → Connectors → Add custom connector. Name it Ivyward, paste <code>{SERVER}</code> and select Add. No sign-in is needed.
+                Or add it yourself: open Plugins, select Add → Add custom connector, name it Ivyward, paste <code>{SERVER}</code>, choose No sign-in and select Add.
               </li>
               <li>In a chat, turn Ivyward on from the tools menu and ask a question.</li>
             </ol>
