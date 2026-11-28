@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ivyward ad 3: start on WhatsApp</title>
+<style>
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-500-normal.woff2) format("woff2"); font-weight: 500; }
+  @font-face { font-family: "Flex"; src: url(fonts/roboto-flex-latin-wght-normal.woff2) format("woff2"); font-weight: 100 1000; }
+  /* Facebook ad B (Dec 2026). The first two beats play over AI-generated B-roll that is laid in afterwards:
+     during those beats this page draws only the caption on a transparent page (window.CAPTION_ONLY). */
+  :root { --bg: #fafafa; --ink: #09090b; --body: #27272a; --muted: #52525b; --line: #e4e4e7; --ox: #9b2c4e; --rose: #f6e7ec; --dark: #18181b; --wa: #128C7E; --wad: #075E54; --wabg: #efeae2; --u: 1vw; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); font-family: "Flex", system-ui, sans-serif; }
+  html.caponly, body.caponly { background: transparent; }
+  .scene { position: absolute; inset: 0; display: none; }
+  .serif { font-family: "Frank", Georgia, serif; font-weight: 400; letter-spacing: -0.02em; }
+  .w { display: inline-block; opacity: 0; }
+  .ox { color: var(--ox); }
+  .ink { position: absolute; left: -22vw; width: 144vw; bottom: -1vh; opacity: .9; transform-origin: 50% 100%; }
+  .brandrow { position: absolute; left: 7.4vw; top: 4vh; display: flex; align-items: center; gap: calc(var(--u)*1.3); z-index: 3; }
+  .brandrow img { width: calc(var(--u)*5); height: calc(var(--u)*5); }
+  .brandrow span { font-family: "Frank", Georgia, serif; font-size: calc(var(--u)*4.6); }
+  #cap { position: absolute; left: 50%; top: 70vh; transform: translate(-50%, -50%); background: rgba(24,24,27,.9); color: #fff; font-weight: 650; font-size: calc(var(--u)*6.2); line-height: 1.18; padding: calc(var(--u)*2.6) calc(var(--u)*4.4); border-radius: calc(var(--u)*3); text-align: center; width: max-content; max-width: 86vw; display: none; }
+  #still .q { position: absolute; left: 8vw; right: 8vw; top: 30vh; font-size: calc(var(--u)*10.6); line-height: 1.06; text-wrap: balance; }
+  /* the WhatsApp phone */
+  #chat { background: var(--bg); }
+  .phone { position: absolute; left: 7vw; right: 7vw; top: 13vh; bottom: 13vh; border-radius: calc(var(--u)*7); background: var(--wabg); overflow: hidden; border: calc(var(--u)*1.6) solid var(--dark); box-shadow: 0 calc(var(--u)*5) calc(var(--u)*10) calc(var(--u)*-4) rgba(9,9,11,.45); }
+  .wahead { height: calc(var(--u)*17); background: var(--wad); color: #fff; display: flex; align-items: center; gap: calc(var(--u)*3); padding: calc(var(--u)*3) calc(var(--u)*4.5) 0; }
+  .wahead .av { width: calc(var(--u)*9); height: calc(var(--u)*9); border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
+  .wahead .av img { width: 66%; }
+  .wahead .nm { font-weight: 650; font-size: calc(var(--u)*4.6); }
+  .wahead .st { font-size: calc(var(--u)*3.2); opacity: .8; }
+  .msgwrap { position: absolute; left: 0; right: 0; top: calc(var(--u)*17); bottom: 0; overflow: hidden; }
+  .msgs { position: absolute; left: 0; right: 0; top: 0; padding: calc(var(--u)*4) calc(var(--u)*3.6); display: flex; flex-direction: column; gap: calc(var(--u)*2.4); }
+  .b { max-width: 82%; padding: calc(var(--u)*2.4) calc(var(--u)*3.2); border-radius: calc(var(--u)*2.6); font-size: calc(var(--u)*4.1); line-height: 1.3; color: #111b21; box-shadow: 0 1px 1px rgba(0,0,0,.13); opacity: 0; transform-origin: 0 100%; }
+  .b.me { align-self: flex-end; background: #d9fdd3; border-top-right-radius: 0; transform-origin: 100% 100%; }
+  .b.them { align-self: flex-start; background: #fff; border-top-left-radius: 0; }
+  .b .tm { float: right; margin: calc(var(--u)*1.6) 0 0 calc(var(--u)*2); font-size: calc(var(--u)*2.7); color: rgba(0,0,0,.45); }
+  .b .opt { display: block; margin-top: calc(var(--u)*2); padding-top: calc(var(--u)*1.8); border-top: 1px solid rgba(0,0,0,.1); text-align: center; color: #027eb5; font-weight: 600; }
+  .row { margin-top: calc(var(--u)*2.2); padding-top: calc(var(--u)*2.2); border-top: 1px solid rgba(0,0,0,.08); }
+  .row:first-of-type { border-top: 0; }
+  .blur { display: inline-block; height: calc(var(--u)*3.2); border-radius: 99px; background: #d4d4d8; filter: blur(calc(var(--u)*.35)); vertical-align: middle; }
+  .chips { display: flex; gap: calc(var(--u)*1.4); margin-top: calc(var(--u)*1.4); flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: calc(var(--u)*1.1); font-size: calc(var(--u)*3); font-weight: 600; color: var(--wad); background: #e7f5f1; padding: calc(var(--u)*.9) calc(var(--u)*1.8); border-radius: 99px; }
+  .chip .blur { height: calc(var(--u)*2.2); width: calc(var(--u)*7); background: #9fd3c7; }
+  .ex { position: absolute; right: 9vw; top: 9vh; font-size: calc(var(--u)*3); font-weight: 650; color: var(--muted); background: #fff; border: 2px solid var(--line); border-radius: 99px; padding: calc(var(--u)*1) calc(var(--u)*2.4); }
+  #chatcap { position: absolute; left: 50%; bottom: 4.6vh; transform: translateX(-50%); width: max-content; max-width: 90vw; text-align: center; font-weight: 650; font-size: calc(var(--u)*5); color: var(--ink); }
+  /* end card */
+  #cta .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 26vh 8vw 0; text-align: center; }
+  .tile { width: calc(var(--u)*21); height: calc(var(--u)*21); border-radius: calc(var(--u)*5); background: var(--wa); display: flex; align-items: center; justify-content: center; }
+  .tile svg { width: 58%; height: 58%; }
+  .btn { margin-top: calc(var(--u)*7); padding: calc(var(--u)*3.6) calc(var(--u)*8); background: var(--wa); color: #fff; border-radius: 999px; font-weight: 650; font-size: calc(var(--u)*6); }
+  .sub { margin-top: calc(var(--u)*4); color: var(--muted); font-size: calc(var(--u)*4.2); }
+</style>
+</head>
+<body>
+<div id="cap"></div>
+
+<section class="scene" id="still">
+  <img class="ink" src="ink.png" alt="">
+  <div class="brandrow"><img src="mark.svg" alt=""><span>Ivyward</span></div>
+  <div class="q serif" id="stillq"></div>
+</section>
+
+<section class="scene" id="chat">
+  <div class="ex">Example</div>
+  <div class="phone">
+    <div class="wahead"><span class="av"><img src="mark.svg" alt=""></span><span><span class="nm" style="display:block">Ivyward AI</span><span class="st">online</span></span></div>
+    <div class="msgwrap"><div class="msgs" id="msgs"></div></div>
+  </div>
+  <div id="chatcap"></div>
+</section>
+
+<section class="scene" id="cta">
+  <img class="ink" src="ink.png" alt="">
+  <div class="brandrow"><img src="mark.svg" alt=""><span>Ivyward</span></div>
+  <div class="c">
+    <div class="tile" id="cm"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.9-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg></div>
+    <div class="serif" id="cn" style="text-wrap:balance;font-size:calc(var(--u)*10.4);line-height:1.04;margin-top:calc(var(--u)*6)">Know which schools to apply to.</div>
+    <div class="btn" id="cb">Start on WhatsApp</div>
+    <div class="sub" id="cs">Free. Reply STOP any time.</div>
+  </div>
+</section>
+
+<script>
+const B = Object.fromEntries((window.BEATS || []).map((b) => [b.id, b]));
+const $ = (s) => document.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const back = (x) => { x = clamp(x); const c = 1.2; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const VW = innerWidth / 100;
+const BROLL = ["tabs", "consult"];
+const CAPS = { tabs: "Twenty tabs open.", consult: "Three consultants who stopped replying." };
+
+function words(el, html) {
+  el.innerHTML = html;
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walk.nextNode()) nodes.push(walk.currentNode);
+  for (const n of nodes) {
+    const f = document.createDocumentFragment();
+    for (const p of n.textContent.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { f.appendChild(document.createTextNode(" ")); continue; }
+      const w = document.createElement("span"); w.className = "w"; w.textContent = p; f.appendChild(w);
+    }
+    n.replaceWith(f);
+  }
+  return [...el.querySelectorAll(".w")];
+}
+const stillw = words($("#stillq"), `And you still don't know <span class="ox">which school to apply to.</span>`);
+
+const row = () => `<div class="row"><span class="blur" style="width:${52 + Math.random() * 20}%"></span><div class="chips"><span class="chip">Deadline <span class="blur"></span></span><span class="chip">Fees <span class="blur"></span></span><span class="chip">Funding <span class="blur"></span></span></div></div>`;
+const MSGS = [
+  ["me", "send", 0.1, `Hi Ivyward, I want to start my applications<span class="tm">21:04 ✓✓</span>`],
+  ["them", "ask", 0.1, `Welcome! What do you want to study?<span class="tm">21:04</span>`],
+  ["me", "ask", 1.0, `Engineering, a master's<span class="tm">21:05 ✓✓</span>`],
+  ["them", "ask", 1.7, `Which countries would you consider?<span class="tm">21:05</span>`],
+  ["me", "ask", 2.4, `UK, Canada or Germany<span class="tm">21:06 ✓✓</span>`],
+  ["them", "list", 0.2, `<b>Programmes that fit your profile</b>${row()}${row()}${row()}<span class="opt">See all programmes</span><span class="tm">21:07</span>`],
+];
+const msgEls = MSGS.map(([who, beat, at, html]) => { const d = document.createElement("div"); d.className = "b " + who; d.innerHTML = html; d.dataset.beat = beat; d.dataset.at = at; $("#msgs").appendChild(d); return d; });
+const CHATCAP = { send: "Send one message on WhatsApp", ask: "Answer a few questions", list: "Get the programmes that fit you" };
+
+function renderAt(t) {
+  const b = (window.BEATS || []).find((x) => t >= x.start && t < x.start + x.dur) || window.BEATS[window.BEATS.length - 1];
+  const s = t - b.start, d = b.dur;
+  const broll = BROLL.includes(b.id);
+  document.body.classList.toggle("caponly", broll && !!window.CAPTION_ONLY); document.documentElement.classList.toggle("caponly", broll && !!window.CAPTION_ONLY);
+  $("#still").style.display = b.id === "still" ? "block" : "none";
+  $("#chat").style.display = ["send", "ask", "list"].includes(b.id) ? "block" : "none";
+  $("#cta").style.display = b.id === "cta" ? "block" : "none";
+  document.querySelectorAll(".ink").forEach((el) => (el.style.transform = `translateX(${Math.sin(t * 0.25) * 1.3 * VW}px) scale(${1 + 0.05 * t / window.TOTAL})`));
+
+  // B-roll beats: only the caption (the clip is laid underneath later)
+  $("#cap").style.display = broll ? "block" : "none";
+  if (broll) {
+    $("#cap").textContent = CAPS[b.id];
+    const k = window.CAPTION_ONLY ? 1 : back(s / 0.3);
+    $("#cap").style.opacity = clamp(k);
+    $("#cap").style.transform = `translate(-50%, -50%) scale(${0.9 + 0.1 * k})`;
+    if (!window.CAPTION_ONLY) document.body.style.background = "#222";
+  } else document.body.style.background = "";
+
+  if (b.id === "still") {
+    const span = b.voice * 0.85;
+    stillw.forEach((w, i) => { const k = ease((s - 0.1 - (i / stillw.length) * span) / 0.3); w.style.opacity = k; w.style.transform = `translateY(${(1 - k) * 0.3}em)`; });
+  }
+  if ($("#chat").style.display === "block") {
+    const order = ["send", "ask", "list"];
+    const bi = order.indexOf(b.id);
+    msgEls.forEach((el) => {
+      const mi = order.indexOf(el.dataset.beat);
+      let k = 0;
+      if (mi < bi) k = 1; else if (mi === bi) k = back((s - Number(el.dataset.at)) / 0.3);
+      el.style.opacity = clamp(k); el.style.display = k > 0 ? "block" : "none";
+      el.style.transform = `scale(${0.85 + 0.15 * k}) translateY(${(1 - clamp(k)) * VW * 3}px)`;
+    });
+    // the chat scrolls so the newest message stays in view
+    const box = $("#msgs"), inner = [...box.children].filter((x) => x.style.display !== "none");
+    const over = inner.reduce((a, x) => a + x.offsetHeight, 0) + inner.length * VW * 2.4 + VW * 8 - $(".msgwrap").clientHeight;
+    box.style.transform = `translateY(${-Math.max(0, over)}px)`;
+    $("#chatcap").textContent = CHATCAP[b.id];
+    const ck = back(s / 0.3);
+    $("#chatcap").style.opacity = clamp(ck);
+    // phone slides in on its first beat
+    $(".phone").style.transform = `translateY(${b.id === "send" ? (1 - ease(s / 0.4)) * 30 : 0}vh)`;
+  }
+  if (b.id === "cta") {
+    const k = (x, w = 0.4) => back((s - x) / w);
+    $("#cm").style.transform = `scale(${k(0)})`;
+    [["#cn", 0.25], ["#cb", 0.6], ["#cs", 0.9]].forEach(([q, at]) => { const v = k(at); $(q).style.opacity = clamp(v); $(q).style.transform = `translateY(${(1 - clamp(v)) * VW * 4}px) scale(${q === "#cb" ? 0.9 + 0.1 * v + (s > 1.4 ? 0.025 * Math.sin((s - 1.4) * 5) : 0) : 1})`; });
+  }
+}
+
+function cues() {
+  const sfx = [];
+  sfx.push({ t: B.still.start - 0.08, kind: "whoosh", gain: 0.5 });
+  msgEls.forEach((el) => sfx.push({ t: B[el.dataset.beat].start + Number(el.dataset.at), kind: "tick", gain: 0.55 }));
+  sfx.push({ t: B.list.start + 0.2, kind: "chime", gain: 0.7 });
+  sfx.push({ t: B.cta.start - 0.1, kind: "whoosh", gain: 0.6 });
+  return { sfx, music: { bpm: 96, key: "D", drumsFrom: B.send.start, endCard: B.cta.start } };
+}
+window.renderAt = renderAt; window.cues = cues;
+</script>
+</body>
+</html>

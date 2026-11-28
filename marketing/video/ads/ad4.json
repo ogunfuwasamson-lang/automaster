@@ -1,0 +1,9 @@
+{"page": "ad4.html", "voice": "af_heart", "speed": 1.0, "lead": 0.15, "musicVolume": 0.3, "tail": 0.5, "beats": [
+  {"id": "schools", "say": "Six schools. Six application forms.", "pad": 0.35},
+  {"id": "essays", "say": "Six sets of essays. Six deadlines.", "pad": 0.45},
+  {"id": "job", "say": "On top of a full-time job, that's weeks of evenings and weekends.", "pad": 0.4},
+  {"id": "again", "say": "So it becomes: next year, I'll apply. Again.", "pad": 0.6},
+  {"id": "done", "say": "This year, have every application filled in and ready for you to check.", "pad": 0.3},
+  {"id": "sign", "say": "Your part is reading and signing.", "min": 2.2, "pad": 0.4},
+  {"id": "cta", "say": "Let Ivyward AI handle your university applications. Start free at tryivyward.com.", "min": 3.4, "pad": 1.0}
+]}

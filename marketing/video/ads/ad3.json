@@ -1,0 +1,9 @@
+{"page": "ad3.html", "voice": "af_heart", "speed": 1.0, "lead": 0.15, "musicVolume": 0.3, "tail": 0.5, "beats": [
+  {"id": "tabs", "say": "Twenty tabs open.", "pad": 0.35},
+  {"id": "consult", "say": "Three consultants who stopped replying.", "pad": 0.45},
+  {"id": "still", "say": "And you still don't know which school to apply to.", "pad": 0.45},
+  {"id": "send", "say": "Send one message to Ivyward AI on WhatsApp.", "min": 2.6, "pad": 0.35},
+  {"id": "ask", "say": "Answer a few questions.", "min": 3.4, "pad": 0.3},
+  {"id": "list", "say": "And get a list of programmes that fit your profile, with deadlines, fees and funding.", "pad": 0.6},
+  {"id": "cta", "say": "Know which schools to apply to. Start on WhatsApp. It's free.", "min": 3.4, "pad": 1.0}
+]}

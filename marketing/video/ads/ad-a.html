@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ivyward ad A: am I eligible?</title>
+<style>
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "Flex"; src: url(fonts/roboto-flex-latin-wght-normal.woff2) format("woff2"); font-weight: 100 1000; }
+  /* Facebook ad A (Dec 2026), 1080x1350 still. The top 720px is left transparent: the AI-generated photo
+     (gown on a chair) is laid underneath afterwards. Render with a transparent background. */
+  :root { --bg: #fafafa; --ink: #09090b; --muted: #52525b; --line: #e4e4e7; --ox: #9b2c4e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1350px; overflow: hidden; background: transparent; color: var(--ink); font-family: "Flex", system-ui, sans-serif; }
+  .shade { position: absolute; left: 0; right: 0; top: 0; height: 720px; background: linear-gradient(180deg, rgba(9,9,11,0) 55%, rgba(9,9,11,.28) 100%); }
+  .notes { position: absolute; left: 56px; top: 470px; width: 968px; height: 230px; }
+  .note { position: absolute; padding: 18px 30px; background: #fff; border-radius: 999px; font-size: 34px; font-weight: 600; color: var(--ink); box-shadow: 0 18px 34px -16px rgba(9,9,11,.55); white-space: nowrap; }
+  .panel { position: absolute; left: 0; right: 0; top: 720px; bottom: 0; background: var(--bg); padding: 58px 64px 0; }
+  .q { font-family: "Frank", Georgia, serif; font-size: 70px; line-height: 1.05; letter-spacing: -0.02em; }
+  .q .ox { color: var(--ox); }
+  .p { margin-top: 30px; font-size: 33px; line-height: 1.35; color: var(--muted); max-width: 900px; }
+  .foot { position: absolute; left: 64px; right: 64px; bottom: 50px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 14px; font-family: "Frank", Georgia, serif; font-size: 40px; }
+  .brand img { width: 46px; height: 46px; }
+  .url { background: var(--ox); color: #fff; font-weight: 650; font-size: 30px; padding: 16px 30px; border-radius: 999px; }
+</style>
+</head>
+<body>
+  <div class="shade"></div>
+  <div class="notes">
+    <div class="note" style="left:0;top:0;transform:rotate(-3deg)">2:2</div>
+    <div class="note" style="left:170px;top:10px;transform:rotate(2deg)">Third class</div>
+    <div class="note" style="left:470px;top:-6px;transform:rotate(-2deg)">Graduated in 2020</div>
+    <div class="note" style="left:40px;top:118px;transform:rotate(1.5deg)">Studied law, now want data science</div>
+  </div>
+  <div class="panel">
+    <div class="q">Finished with a 2:2 and told a master's abroad is <span class="ox">out of reach?</span></div>
+    <div class="p">See which programmes you can realistically get into, with the deadline, fee and funding for each, before you spend anything on applications.</div>
+    <div class="foot">
+      <div class="brand"><img src="mark.svg" alt="">Ivyward</div>
+      <div class="url">Free at tryivyward.com</div>
+    </div>
+  </div>
+</body>
+</html>
