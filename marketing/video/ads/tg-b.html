@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ivyward Telegram ad B: stop saving</title>
+<style>
+  @font-face { font-family: "Frank"; src: url(fonts/frank-ruhl-libre-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "Flex"; src: url(fonts/roboto-flex-latin-wght-normal.woff2) format("woff2"); font-weight: 100 1000; }
+  /* Telegram channel ad (telega.io), 1080x1080. Alternative to A: struck-out habit, then the outcome. Lands on /match. */
+  :root { --ox: #9b2c4e; --paper: #fafafa; --ink: #09090b; --muted: #52525b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1080px; overflow: hidden; background: var(--paper); color: var(--ink); font-family: "Flex", system-ui, sans-serif; }
+  .brand { position: absolute; left: 76px; top: 64px; display: flex; align-items: center; gap: 14px; font-family: "Frank", Georgia, serif; font-size: 42px; }
+  .brand img { width: 48px; height: 48px; }
+  .h { position: absolute; left: 72px; top: 190px; width: 950px; font-family: "Frank", Georgia, serif; font-size: 124px; line-height: 1.0; letter-spacing: -0.03em; }
+  .x { position: relative; display: inline-block; color: #a1a1aa; }
+  .x::after { content: ""; position: absolute; left: -10px; right: -10px; top: 43%; height: 13px; background: var(--ox); transform: rotate(-2deg); border-radius: 8px; }
+  .h .go { display: block; margin-top: 34px; }
+  .cta { position: absolute; left: 76px; bottom: 76px; display: flex; align-items: center; gap: 26px; }
+  .pill { background: var(--ox); color: #fff; font-size: 44px; font-weight: 650; padding: 24px 40px; border-radius: 999px; }
+  .cta span { font-size: 38px; font-weight: 600; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="brand"><img src="mark.svg" alt="">Ivyward</div>
+  <div class="h"><span class="x">Saving</span> <span class="x">scholarship posts.</span><span class="go">Applying to the ones that fit you.</span></div>
+  <div class="cta"><div class="pill">tryivyward.com/match</div><span>Free</span></div>
+</body>
+</html>
