@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy policy" updated="25 October 2026">
+    <LegalPage title="Privacy policy" updated="28 November 2026">
       <section>
         <p>Ivyward runs university applications for you with AI agents. This page explains what we collect, why, and what control you have. We don&apos;t sell your data, and we don&apos;t use it to advertise to you.</p>
       </section>
@@ -56,6 +56,19 @@ export default function Privacy() {
       <section>
         <h2>Where it&apos;s stored</h2>
         <p>Data is stored with our hosting and database providers (Vercel and Supabase) and is encrypted in transit. Our email providers handle only the messages they carry: Resend sends Ivyward&apos;s own emails (including calendar invites), and Composio carries the Gmail connection. Bachs processes payments. Cloudflare Turnstile checks that sign-ins come from a person, not a bot. UserJot hosts feedback and support: when you use it, it receives your name and email so your messages reach us with your account. Portal passwords are additionally encrypted with our own keys.</p>
+      </section>
+      <section id="ai-assistants">
+        <h2>Ivyward in ChatGPT, Claude and other AI assistants</h2>
+        <p>
+          Ivyward&apos;s app for AI assistants (the MCP server at tryivyward.com/mcp) answers questions about programmes, scholarships, scholarship deadlines, universities and student-visa steps. It needs no account and no sign-in, and it only reads Ivyward&apos;s own checked information.
+        </p>
+        <ul>
+          <li>What it receives: only what the assistant sends to answer your question: a field of study, degree level, country or region, nationality, or a school&apos;s name. It never asks for your name, email, documents, passwords or payment details, and it doesn&apos;t receive your conversation.</li>
+          <li>What it keeps: nothing. Questions aren&apos;t saved in our database, linked to an account or used to profile anyone. Our hosting provider keeps its standard web request logs (time, IP address and the address requested, not your question) for security and uptime, for a short period set by that provider.</li>
+          <li>Who it shares with: no one. The answers come from Ivyward&apos;s own data. The assistant you use (for example ChatGPT or Claude) handles your conversation under its own privacy policy.</li>
+          <li>Links in answers to Ivyward&apos;s site carry a tag (utm_source=ai-app) so we can count visits that came from an assistant. If you then make an account, the rest of this policy applies.</li>
+          <li>Your control: you can remove the Ivyward app from your assistant at any time, and nothing about you stays with us.</li>
+        </ul>
       </section>
       <section>
         <h2>Your control</h2>

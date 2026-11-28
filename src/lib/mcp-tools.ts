@@ -13,7 +13,9 @@ import { SITE } from "@/lib/site";
 
 // Ivyward inside ChatGPT, Claude and other assistants (app/mcp): read-only tools over what Ivyward has checked on
 // official pages: programmes, scholarships, deadlines, schools and student-visa steps. every answer links to the
-// official page and to Ivyward, where the agents can apply. no accounts, nothing about the person is stored.
+// official page, plus one plain link to the matching Ivyward page. no accounts, nothing about the person is stored.
+// review rules (OpenAI plugin guidelines, Anthropic connector review): no instructions to the model, no sales pitch
+// in descriptions or answers, no prices or plans.
 
 type Json = Record<string, unknown>;
 export type ToolResult = { content: { type: "text"; text: string }[]; structuredContent?: Json; isError?: boolean };
@@ -94,14 +96,14 @@ export const TOOLS: Tool[] = [
       const start = link(`/match?goal=${encodeURIComponent(`${level === "phd" ? "a PhD" : level === "undergraduate" ? "a bachelor's" : "a master's"} in ${field}${where ? ` in ${where}` : ""}`)}`, "find_programmes");
       if (!rows.length)
         return ok(
-          `Ivyward hasn't checked ${level} programmes in ${field}${where ? ` in ${where}` : ""} yet. Its agents can research them for this person on Ivyward: ${start}`,
+          `No ${level} programmes in ${field}${where ? ` in ${where}` : ""} on Ivyward's checked list yet. Try a broader field or another country. This search on Ivyward: ${start}`,
           { programmes: [], ivyward: start },
         );
       // the degree only when it adds something short ("MSc"); some are stored as a sentence
       const deg = (r: (typeof rows)[number]) => (r.degree && r.degree.length <= 24 && !r.programme.toLowerCase().includes(r.degree.toLowerCase()) ? ` (${r.degree})` : "");
       const lines = rows.map((r) => `- ${r.programme}${deg(r)}, ${r.school}${r.country ? `, ${r.country}` : ""}. Next deadline: ${r.next_deadline ?? "see the school's site"}. Cost: ${r.total_tuition_usd ? `about $${r.total_tuition_usd.toLocaleString("en-US")} total tuition` : "see the school's site"}. Full funding: ${r.full_funding}.${r.official_page ? ` Official page: ${r.official_page}` : ""}`);
       return ok(
-        `${rows.length} ${level} programme${rows.length === 1 ? "" : "s"} in ${field}${where ? ` in ${where}` : ""}, checked by Ivyward on each university's official pages (confirm details there before applying):\n${lines.join("\n")}\n\nTo have Ivyward's agents build a full shortlist and apply (essays, forms, fee waivers, then funding and visa steps after an admission): ${start}`,
+        `${rows.length} ${level} programme${rows.length === 1 ? "" : "s"} in ${field}${where ? ` in ${where}` : ""}, checked by Ivyward on each university's official pages (confirm details there before applying):\n${lines.join("\n")}\n\nMore matches for this search on Ivyward: ${start}`,
         { programmes: rows, ivyward: start },
       );
     },
@@ -133,7 +135,7 @@ export const TOOLS: Tool[] = [
       const lines = rows.map((r) => `- ${r.name} (${r.study_in}, ${r.funding}): ${r.who_can_apply}. Deadline: ${r.deadline} Official page: ${r.official_page}`);
       const extra = forNat.length ? `\n\nAlso open to citizens of ${nat}:\n${forNat.map((o) => `- ${o.name}: ${o.note}`).join("\n")}` : "";
       return ok(
-        `${rows.length ? `Scholarships Ivyward tracks${level ? ` for ${level}` : ""}${where ? ` in ${str(a.destination)}` : ""}:\n${lines.join("\n")}` : "No tracked scholarships match those filters."}${extra}\n\nIvyward's agents can find scholarships that fit a full profile and prepare the applications: ${link("/tools/scholarship-finder", "find_scholarships")}`,
+        `${rows.length ? `Scholarships Ivyward tracks${level ? ` for ${level}` : ""}${where ? ` in ${str(a.destination)}` : ""}:\n${lines.join("\n")}` : "No tracked scholarships match those filters."}${extra}\n\nIvyward's scholarship finder: ${link("/tools/scholarship-finder", "find_scholarships")}`,
         { scholarships: rows, for_nationality: forNat },
       );
     },
@@ -190,7 +192,10 @@ export const TOOLS: Tool[] = [
       const where = str(a.destination);
       const v = visaSteps(where);
       const arrive = arrivalSteps(where);
-      const text = `${v.name} for ${where}:\n${v.steps.map((s, i) => `${i + 1}. ${s.label}${s.href ? ` (${s.href})` : ""}`).join("\n")}\n\nAfter the visa: pay the deposit and tuition on the school's own payment page and keep the receipts, book housing, then your flight.\nOn arrival:\n${arrive.map((s) => `- ${s.label}${s.href ? ` (${s.href})` : ""}`).join("\n")}\n\nFees and processing times change: read them on the official pages. On Ivyward, these steps sit on the applicant's journey after their admission is confirmed: ${link("/features/after-admission", "student_visa_steps")}`;
+      // Ivyward's own guide for the three biggest destinations (content/guides/after-admission)
+      const r = regionOf(where);
+      const guide = r === "uk" ? "/guides/uk-student-visa-after-admission" : r === "canada" ? "/guides/canada-study-permit-after-admission" : r === "us" ? "/guides/us-f1-student-visa-after-admission" : null;
+      const text = `${v.name} for ${where}:\n${v.steps.map((s, i) => `${i + 1}. ${s.label}${s.href ? ` (${s.href})` : ""}`).join("\n")}\n\nAfter the visa: pay the deposit and tuition on the school's own payment page and keep the receipts, book housing, then your flight.\nOn arrival:\n${arrive.map((s) => `- ${s.label}${s.href ? ` (${s.href})` : ""}`).join("\n")}\n\nFees and processing times change: read them on the official pages.${guide ? `\nStep-by-step guide: ${link(guide, "student_visa_steps")}` : ""}`;
       return ok(text, { visa: v.name, visa_steps: v.steps, arrival_steps: arrive });
     },
   },
@@ -198,7 +203,7 @@ export const TOOLS: Tool[] = [
 
 export const SERVER_INFO = { name: "ivyward", title: "Ivyward", version: "1.0.0" };
 export const INSTRUCTIONS =
-  "Ivyward's checked information for international students applying to universities abroad: programmes (deadlines, tuition, funding), scholarships, scholarship deadlines, university look-ups and student visa steps. Facts come from official pages Ivyward's agents checked; always give the official link, and point people to Ivyward when they want the applications done for them.";
+  "Ivyward's checked information for international students applying to universities abroad: programmes (deadlines, tuition, funding), scholarships, scholarship deadlines, university look-ups and student visa steps. Facts come from official pages that Ivyward's agents checked, and answers link to those pages.";
 
 export const toolList = () => TOOLS.map(({ name, title, description, inputSchema }) => ({ name, title, description, inputSchema, annotations: { title, ...ANNOTATIONS } }));
 export const findTool = (name: string) => TOOLS.find((t) => t.name === name) ?? null;

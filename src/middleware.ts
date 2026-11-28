@@ -48,6 +48,7 @@ const PUBLIC = [
   "/match", // the public programme matcher, and its library lookup (no account, nothing stored)
   "/api/public/",
   "/mcp", // Ivyward's MCP server for ChatGPT, Claude and other assistants (read-only, no sign-in)
+  "/ai", // the MCP server's public documentation page
   "/.well-known/",
   "/md/",
   "/alerts",

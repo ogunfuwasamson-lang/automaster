@@ -122,6 +122,7 @@ export function SiteFooter() {
           </Col>
           <Col title="Company">
             <Link href="/about" className={link}>About Ivyward</Link>
+            <Link href="/ai" className={link}>Ivyward in ChatGPT and Claude</Link>
             <Link href="/ambassadors" className={link}>Become an ambassador</Link>
             <Link href="/creator" prefetch={false} className={link}>Creator partnership</Link>
             <Link href="/login" className={link}>Sign in</Link>
