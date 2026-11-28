@@ -76,6 +76,8 @@ export function SiteFooter() {
             <a href={CHANNELS.whatsapp} target="_blank" rel="noopener me" className="hover:text-foreground">WhatsApp</a>
             <a href={CHANNELS.linkedin} target="_blank" rel="noopener me" className="hover:text-foreground">LinkedIn</a>
             <a href={CHANNELS.facebook} target="_blank" rel="noopener me" className="hover:text-foreground">Facebook</a>
+            <a href={CHANNELS.tiktok} target="_blank" rel="noopener me" className="hover:text-foreground">TikTok</a>
+            <a href={CHANNELS.x} target="_blank" rel="noopener me" className="hover:text-foreground">X</a>
           </p>
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 pt-10 md:grid-cols-3 lg:grid-cols-6">

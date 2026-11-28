@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: SITE.description,
   applicationName: SITE.name,
   openGraph: { type: "website", siteName: SITE.name, url: SITE.url, title: SITE.title, description: SITE.short, locale: "en" },
-  twitter: { card: "summary_large_image", title: SITE.title, description: SITE.short },
+  twitter: { card: "summary_large_image", site: "@use_ivyward", title: SITE.title, description: SITE.short },
   formatDetection: { telephone: false },
   // search console ownership checks: paste the codes into Vercel env vars, no code change needed
   verification: {

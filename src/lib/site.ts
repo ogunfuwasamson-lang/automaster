@@ -17,6 +17,8 @@ export const CHANNELS = {
   whatsapp: "https://whatsapp.com/channel/0029VbEjj7L5kg71urPUPA0g",
   linkedin: "https://www.linkedin.com/company/ivyward/",
   facebook: "https://www.facebook.com/tryivyward",
+  tiktok: "https://www.tiktok.com/@use_ivyward",
+  x: "https://x.com/use_ivyward",
 } as const;
 
 // plain facts, used in structured data and /llms.txt. keep these true: they're quoted back to people.
