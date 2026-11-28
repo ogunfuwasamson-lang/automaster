@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
 import { TOOLS } from "@/lib/mcp-tools";
-import { Contact } from "@/components/legal/legal-page";
 import { LibraryShell } from "@/components/library/library";
 
 // public documentation for Ivyward's MCP server (app/mcp, lib/mcp-tools): what the Claude connectors directory and
@@ -14,6 +13,8 @@ export const metadata: Metadata = {
 };
 
 const SERVER = `${SITE.url}/mcp`;
+// the public feedback and support board (components/support/userjot); a literal here, since that module is a client one
+const SUPPORT = "https://ivyward.userjot.com";
 
 const PROMPTS = [
   "Find funded master's programmes in data science in Canada.",
@@ -100,8 +101,12 @@ export default function AiPage() {
               The server receives only the field, level, country, nationality or school name your assistant sends, and saves none of it. Details are in the{" "}
               <Link href="/privacy#ai-assistants">privacy policy</Link>. Use is covered by Ivyward&apos;s <Link href="/terms">terms</Link>.
             </p>
-            <p>
-              Something wrong or missing? <Contact />
+            <p id="support">
+              Something wrong or missing? Tell us on Ivyward&apos;s{" "}
+              <a href={SUPPORT} target="_blank" rel="noreferrer">
+                feedback and support board
+              </a>
+              . We read every post.
             </p>
           </div>
         </section>
