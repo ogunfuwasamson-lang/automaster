@@ -17,10 +17,10 @@ const SERVER = `${SITE.url}/mcp`;
 const SUPPORT = "https://ivyward.userjot.com";
 
 const PROMPTS = [
-  "Find funded master's programmes in data science in Canada.",
+  "Find funded master's programmes in engineering in Canada.",
   "Which scholarships can a Nigerian apply to for a master's in the UK?",
   "Which big scholarships are open right now?",
-  "Look up the University of Toronto.",
+  "Look up the University of Manchester.",
   "I got admitted to a UK university. What are the visa steps?",
 ];
 

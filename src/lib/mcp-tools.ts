@@ -5,7 +5,7 @@ import { nextDeadline, publishable } from "@/lib/programme-pages";
 import { SCHOLARSHIPS } from "@/content/scholarships";
 import { CALENDAR, phaseOf } from "@/content/scholarship-calendar";
 import { openScholarships } from "@/lib/open-scholarships";
-import { directory, schoolPath, COUNTRY_NAME } from "@/lib/directory";
+import { directory, schoolPath, COUNTRY_NAME, CA_PROVINCES } from "@/lib/directory";
 import { arrivalSteps, visaSteps } from "@/lib/journey-steps";
 import { regionOfCountry } from "@/lib/admission-rules";
 import { REGIONS } from "@/lib/profile";
@@ -172,9 +172,10 @@ export const TOOLS: Tool[] = [
         .filter((x) => x.at < 9)
         .sort((x, y) => x.at - y.at || x.s.name.length - y.s.name.length)
         .slice(0, 5)
-        .map(({ s }) => ({ name: s.name, country: COUNTRY_NAME[s.country], city: s.city, kind: s.kind, website: s.website, admissions: s.admissions ?? s.apply, register: s.recognition, ivyward_page: link(schoolPath(s), "find_school") }));
+        // Canada's register lists one campus's town (McGill → Sainte-Anne-de-Bellevue), so give the province there
+        .map(({ s }) => ({ name: s.name, country: COUNTRY_NAME[s.country], city: s.country === "CA" ? (CA_PROVINCES[s.region] ?? s.region) : s.city, kind: s.kind, website: s.website, admissions: s.admissions ?? s.apply, register: s.recognition, ivyward_page: link(schoolPath(s), "find_school") }));
       if (!hits.length) return ok(`No school called "${str(a.name)}" in the registers Ivyward covers (US, UK, Canada, Australia, France, China).`, { schools: [] });
-      return ok(hits.map((h) => `- ${h.name}, ${[h.city, h.country].filter(Boolean).join(", ")}. ${h.kind ?? ""} Website: ${h.website ?? "n/a"}. Admissions: ${h.admissions ?? "n/a"}. How international students apply: ${h.ivyward_page}`).join("\n"), { schools: hits });
+      return ok(hits.map((h) => `- ${h.name}, ${[h.city, h.country].filter(Boolean).join(", ")}. ${h.kind ? `${h.kind}.` : ""}${h.website ? ` Website: ${h.website}.` : ""}${h.admissions ? ` Admissions: ${h.admissions}.` : ""} More on Ivyward: ${h.ivyward_page}`).join("\n"), { schools: hits });
     },
   },
   {
